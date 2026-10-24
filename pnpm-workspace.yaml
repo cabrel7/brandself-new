@@ -1,4 +1,6 @@
 allowBuilds:
   esbuild: false
+  msgpackr-extract: true
+  unrs-resolver: true
 minimumReleaseAgeExclude:
   - '@nuxt/icon@2.6.0'

@@ -7,7 +7,16 @@
     "dev": "nuxt dev",
     "generate": "nuxt generate",
     "preview": "nuxt preview",
-    "postinstall": "nuxt prepare"
+    "postinstall": "nuxt prepare",
+    "lint": "eslint .",
+    "typecheck": "nuxt typecheck",
+    "test": "vitest run",
+    "e2e": "playwright test",
+    "worker": "node --env-file=.env node_modules/tsx/dist/cli.mjs worker/index.ts",
+    "db:generate": "node --env-file=.env node_modules/drizzle-kit/bin.cjs generate",
+    "db:migrate": "node --env-file=.env node_modules/drizzle-kit/bin.cjs migrate",
+    "db:seed": "node --env-file=.env node_modules/tsx/dist/cli.mjs server/db/seed.ts",
+    "jobs:ping": "node --env-file=.env node_modules/tsx/dist/cli.mjs scripts/enfiler-ping.ts"
   },
   "dependencies": {
     "@nuxt/fonts": "1.1.0",
@@ -17,11 +26,29 @@
     "@nuxtjs/seo": "6.0.1",
     "@vueuse/nuxt": "15.0.0",
     "better-auth": "^1.7.12",
+    "bullmq": "^6.4.0",
     "dayjs-nuxt": "2.1.11",
+    "drizzle-orm": "^0.45.4",
+    "ioredis": "^6.0.0",
     "nuxt": "^4.6.2",
     "nuxt-phosphor-icons": "2.3.3",
     "nuxt-qrcode": "0.4.10",
+    "pg": "^8.23.1",
     "vue": "^3.5.44",
-    "vue-router": "^5.4.0"
+    "vue-router": "^5.4.0",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@nuxt/eslint": "^1.17.0",
+    "@playwright/test": "^1.62.0",
+    "@tailwindcss/vite": "^4.3.3",
+    "@types/pg": "^8.23.1",
+    "drizzle-kit": "^0.31.11",
+    "eslint": "^10.13.0",
+    "tailwindcss": "^4.3.3",
+    "tsx": "^4.23.15",
+    "typescript": "^6.0.3",
+    "vitest": "^5.0.5",
+    "vue-tsc": "^3.3.13"
   }
 }

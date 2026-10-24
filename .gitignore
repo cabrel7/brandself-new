@@ -28,3 +28,7 @@ logs
 .claude/settings.local.json
 .claude/**/*.global-v5
 ISSUES.log
+
+# Playwright
+test-results/
+playwright-report/

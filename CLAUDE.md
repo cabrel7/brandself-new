@@ -68,14 +68,18 @@ Dans toute l'interface, les textes, les commentaires et les noms visibles : **vi
 | Bibliothèque | Raison |
 |---|---|
 | Better Auth | compte, Google, OTP email et téléphone |
-| Drizzle + drizzle-zod | base typée, migrations, schémas Zod |
-| BullMQ | jobs et planification (rappels, emails, IA) |
+| Drizzle (+ drizzle-kit) | base typée, migrations `db:generate`/`db:migrate` (drizzle-zod : à installer avec les premiers schémas, S1) |
+| `pg` (node-postgres) | driver PostgreSQL de Drizzle (process Node longs) |
+| BullMQ + ioredis | jobs et planification (rappels, emails, IA) |
 | `@nuxtjs/seo`, `@nuxt/image`, `@nuxt/fonts`, `@nuxt/icon` | SEO, images, polices, icônes Phosphor |
+| Tailwind CSS 4 (`@tailwindcss/vite`) | styles branchés sur les variables CSS des palettes |
 | `sharp` | traitement d'images |
 | Resend | emails |
 | VueUse, dayjs | utilitaires, dates et fuseaux |
 | `qrcode` | QR codes |
-| Vitest, Playwright | tests |
+| `@nuxt/eslint` (eslint + typescript-eslint) | lint ; **TypeScript 6 obligatoire** : typescript-eslint ne supporte pas TS 7 |
+| tsx | exécuter `worker/`, `db:seed` et scripts en TypeScript (process séparé de Nitro) |
+| Vitest, Playwright (1.62) | tests ; version épinglée sur la révision Chromium déjà en cache |
 
 ## 9. Documents
 

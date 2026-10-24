@@ -1,6 +1,6 @@
 # PROJECT_STATE.md — Brandself
 
-Dernière mise à jour : **2026-10-23** · Phase : **cadrage terminé, implémentation à démarrer** · Prochaine action : **Sprint S0 (Fondations)**.
+Dernière mise à jour : **2026-10-24** · Phase : **S0 (Fondations) livré** · Prochaine action : **Sprint S1 (Authentification)**.
 
 À mettre à jour à la fin de chaque sprint (statut, décisions prises, décisions ouvertes, dette connue).
 
@@ -12,7 +12,7 @@ L'ancien projet (Laravel + Nuxt, système de blocs polymorphique, ~60 tables, do
 
 | Sprint | Domaine | Statut | Jalon |
 |---|---|---|---|
-| S0 | Fondations | à faire | |
+| S0 | Fondations | **fait** | base (btree_gist actif), worker BullMQ (file `systeme`, job `ping`), `/api/health`, Zod au démarrage, Vitest + Playwright + CI, lint/typecheck/build verts |
 | S1 | Authentification (OTP, Google) | à faire | |
 | S2 | Studio (coque) + Profil + accueil public | à faire | |
 | S3 | Services | à faire | |
@@ -39,7 +39,7 @@ L'ancien projet (Laravel + Nuxt, système de blocs polymorphique, ~60 tables, do
 | 6 | Photo obligatoire à l'inscription | obligatoire | S8 |
 | 7 | Essais de code OTP, durée, renvoi | 3 essais, 10 min, renvoi après 60 s | S1 |
 | 8 | Statistiques : gratuit vs payant | gratuit 7 jours ; payant 90 jours avec pages et sources | S11 |
-| 9 | Langue des identifiants de code | tables et champs d'API en français ; fonctions en anglais | S0 |
+| 9 | Langue des identifiants de code | **appliqué en S0** : tables/champs d'API en français sans accents, code TypeScript en anglais | S0 ✅ |
 | 10 | `@nuxt/ui` comme base de composants ou composants maison | à décider au début de S2 | S2 |
 | 11 | Fournisseur et modèle d'IA | interchangeable ; à choisir | S8 |
 | 12 | Hébergement, nom de domaine, serveur de courriels de production | VPS Ubuntu existant | S13 |
@@ -69,8 +69,14 @@ Les textes entre crochets (`[Prix]`, `[numéro]`, `[Témoignage d'un patient]`) 
 
 ## 7. Dette connue
 
-Aucune (projet non démarré).
+- Migrations par `drizzle-kit` (pas de `down` généré) : les scripts du kit multi-agent qui attendent les marqueurs dbmate `-- migrate:up/down` ne s'appliquent pas ; réversibilité par migration forward (à accepter explicitement).
+- `pnpm typecheck` ~8 min sur cette machine (vue-tsc) : acceptable, à surveiller en CI.
+- Worker en production : PM2 lance `tsx` (interpréteur TS) — à valider en S13 (un build dédié esbuild serait plus propre).
+- `drizzle-zod` non installé : vient avec S1 (premiers schémas) — rien à installer « au cas où ».
+- Environnement local : PostgreSQL dédié au projet (`~/.pgdata-brandself`, port 5433, démarré par `pg_ctl`) car ni Docker ni rôle `cabrel` sur le cluster système ; `docker-compose.yml` reste la référence pour toute autre machine.
+- Tailwind importé (`main.css`) mais aucun composant ni variable de palette : le design system arrive en S2.
 
 ## 8. Historique
 
 - 2026-10-23 : cadrage terminé, documents PROJECT_CONTEXT.md, CLAUDE.md, PROJECT_STATE.md et SPRINTS.md rédigés.
+- 2026-10-24 : S0 Fondations livré (build 13m18s, lint/typecheck/test/e2e verts ; worker et job `ping` prouvés ; dépôt poussé sur GitHub `cabrel7/brandself-new`).

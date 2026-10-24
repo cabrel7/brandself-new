@@ -1,75 +1,42 @@
-# Nuxt Minimal Starter
+# Brandself
 
-Look at the [Nuxt documentation](https://nuxt.com/docs/getting-started/introduction) to learn more.
+Vitrine en ligne pour professionnels : être trouvé sur Google, être compris, être contacté ou réservé. Nuxt fullstack, PostgreSQL, Redis. Voir `PROJECT_CONTEXT.md` pour le produit.
 
-## Setup
-
-Make sure to install dependencies:
+## Installation locale (5 commandes)
 
 ```bash
-# npm
-npm install
-
-# pnpm
-pnpm install
-
-# yarn
-yarn install
-
-# bun
-bun install
+pnpm install                      # 1. dépendances
+cp .env.example .env              # 2. configuration (adapter DATABASE_URL si besoin)
+docker compose up -d              # 3. PostgreSQL + Redis + Mailpit (ou services natifs)
+pnpm db:migrate                   # 4. migrations (active btree_gist)
+pnpm dev                          # 5. application sur http://localhost:3000
 ```
 
-## Development Server
-
-Start the development server on `http://localhost:3000`:
+Dans un autre terminal, le worker de jobs :
 
 ```bash
-# npm
-npm run dev
-
-# pnpm
-pnpm dev
-
-# yarn
-yarn dev
-
-# bun
-bun run dev
+pnpm worker
 ```
 
-## Production
+## Commandes
 
-Build the application for production:
+| Commande | Rôle |
+|---|---|
+| `pnpm dev` | application (Nuxt/Nitro) |
+| `pnpm worker` | process de jobs BullMQ (séparé) |
+| `pnpm lint` · `pnpm typecheck` · `pnpm test` | qualité |
+| `pnpm e2e` | Playwright |
+| `pnpm db:generate` · `pnpm db:migrate` · `pnpm db:seed` | base de données (Drizzle) |
+| `pnpm jobs:ping` | ajoute un job `ping` de test dans la file |
+| `pnpm build` · `pnpm preview` | production |
 
-```bash
-# npm
-npm run build
+## Services
 
-# pnpm
-pnpm build
+- **PostgreSQL** : `docker compose up -d postgres` — sinon un serveur natif convient, adapter `DATABASE_URL` dans `.env`.
+- **Redis** : `docker compose up -d redis` — sinon natif (`redis-server`).
+- **Mailpit** (courriels de test) : `docker compose up -d mailpit` — interface sur http://localhost:8025.
 
-# yarn
-yarn build
+## Notes
 
-# bun
-bun run build
-```
-
-Locally preview production build:
-
-```bash
-# npm
-npm run preview
-
-# pnpm
-pnpm preview
-
-# yarn
-yarn preview
-
-# bun
-bun run preview
-```
-
-Check out the [deployment documentation](https://nuxt.com/docs/getting-started/deployment) for more information.
+- La configuration vit dans `.env` (jamais commité) et est **validée par Zod au démarrage** : une variable manquante fait échouer le lancement avec un message clair (`shared/env.ts` est le seul fichier qui lit `process.env`).
+- La structure et les règles : `CLAUDE.md`. Le produit : `PROJECT_CONTEXT.md`. L'avancement : `PROJECT_STATE.md`. Les sprints : `SPRINTS.md`.
