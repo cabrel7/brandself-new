@@ -1,0 +1,14 @@
+node_modules/
+vendor/
+dist/
+build/
+.next/
+.nuxt/
+.output/
+coverage/
+.git/
+*.log
+*.lock
+*.min.*
+*.map
+__pycache__/

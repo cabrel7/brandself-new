@@ -1,0 +1,27 @@
+{
+  "name": "brandself-app",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "build": "nuxt build",
+    "dev": "nuxt dev",
+    "generate": "nuxt generate",
+    "preview": "nuxt preview",
+    "postinstall": "nuxt prepare"
+  },
+  "dependencies": {
+    "@nuxt/fonts": "1.1.0",
+    "@nuxt/icon": "2.6.0",
+    "@nuxt/image": "2.2.0",
+    "@nuxtjs/better-auth": "0.3.12",
+    "@nuxtjs/seo": "6.0.1",
+    "@vueuse/nuxt": "15.0.0",
+    "better-auth": "^1.7.12",
+    "dayjs-nuxt": "2.1.11",
+    "nuxt": "^4.6.2",
+    "nuxt-phosphor-icons": "2.3.3",
+    "nuxt-qrcode": "0.4.10",
+    "vue": "^3.5.44",
+    "vue-router": "^5.4.0"
+  }
+}

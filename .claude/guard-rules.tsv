@@ -1,0 +1,6 @@
+# guard-rules.tsv — 1 ligne = 1 invariant bloquant (hook PreToolUse)
+# GLOBS_INCLUS<TAB>GLOBS_EXCLUS(- si aucun)<TAB>REGEX(grep -E)<TAB>MESSAGE
+*	*.md,*.env.example,*node_modules*	(sk-[A-Za-z0-9_-]{20,}|AKIA[0-9A-Z]{16}|ghp_[A-Za-z0-9]{36})	SECRET: clé/credential en dur → variable d'env + config
+*.ts,*.tsx,*.vue	*.d.ts,*node_modules*,*.config.ts	(:[[:space:]]*any([^a-zA-Z]|$)|as any)	TS: 'any' interdit → type strict ou unknown + type guard
+*.vue	*node_modules*	export default defineComponent	VUE: Options API interdite → <script setup lang="ts">
+*/server/*.ts,*/src/routes/*.ts	*node_modules*	process\.env\.	NODE: process.env dans un handler → config typée / useRuntimeConfig
