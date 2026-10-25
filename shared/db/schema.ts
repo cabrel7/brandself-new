@@ -203,3 +203,29 @@ export const realisations = pgTable(
     index('realisations_actif_idx').on(table.actif),
   ],
 )
+
+// Un témoignage publié sur une vitrine.
+// Les colonnes sont en français sans accents (PROJECT_CONTEXT.md §11).
+export const temoignages = pgTable(
+  'temoignages',
+  {
+    id: text('id').primaryKey(),
+    vitrineId: text('vitrine_id')
+      .notNull()
+      .references(() => vitrines.id, { onDelete: 'cascade' }),
+    slug: text('slug').notNull(),
+    auteur: text('auteur').notNull(),
+    fonction: text('fonction'),
+    texte: text('texte').notNull(),
+    enVedette: boolean('en_vedette').notNull().default(false),
+    ordre: integer('ordre').notNull().default(0),
+    actif: boolean('actif').notNull().default(true),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('temoignages_vitrine_id_idx').on(table.vitrineId),
+    index('temoignages_slug_idx').on(table.slug),
+    index('temoignages_actif_idx').on(table.actif),
+  ],
+)

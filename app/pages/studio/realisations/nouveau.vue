@@ -58,7 +58,7 @@ async function creerRealisation() {
         <h2>Détails de la réalisation</h2>
 
         <BsField label="Titre" required>
-          <input v-model="titre" type="text" required />
+          <input v-model="titre" type="text" required>
         </BsField>
 
         <BsField label="Description">
@@ -66,23 +66,23 @@ async function creerRealisation() {
         </BsField>
 
         <BsField label="Image (ID média)">
-          <input v-model="imageMediaId" type="text" placeholder="ID du média" />
+          <input v-model="imageMediaId" type="text" placeholder="ID du média">
         </BsField>
 
         <BsField label="Année">
-          <input v-model="annee" type="number" min="1900" max="2100" placeholder="2024" />
+          <input v-model="annee" type="number" min="1900" max="2100" placeholder="2024">
         </BsField>
 
         <BsField label="Lieu">
-          <input v-model="lieu" type="text" placeholder="Douala, Cameroun" />
+          <input v-model="lieu" type="text" placeholder="Douala, Cameroun">
         </BsField>
 
         <BsField label="Rôle">
-          <input v-model="role" type="text" placeholder="Cardiologue" />
+          <input v-model="role" type="text" placeholder="Cardiologue">
         </BsField>
 
         <BsField label="Lien externe">
-          <input v-model="lien" type="url" placeholder="https://example.com" />
+          <input v-model="lien" type="url" placeholder="https://example.com">
         </BsField>
 
         <div class="studio__interrupteurs">
