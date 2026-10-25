@@ -1,76 +1,104 @@
 <script setup lang="ts">
-interface Moi {
-  id: string
-  email: string | null
-  telephone: string | null
-  nom: string
-  locale: string
-  devise: string
-  fuseau: string
-  aUneVitrine: boolean
-}
+import { useRouter } from '#app'
 
-const moi = ref<Moi | null>(null)
-const chargement = ref(true)
+const router = useRouter()
 
-onMounted(async () => {
+const titre = ref('')
+const prenom = ref('')
+const nom = ref('')
+const metier = ref('')
+const username = ref('')
+const chargement = ref(false)
+const erreur = ref('')
+
+async function creerVitrine() {
+  erreur.value = ''
+  chargement.value = true
   try {
-    moi.value = await $fetch<Moi>('/api/studio/moi')
+    await $fetch('/api/studio/vitrine', {
+      method: 'POST',
+      body: { titre, prenom, nom, metier, username: username.value.trim().toLowerCase() },
+    })
+    await router.push('/studio')
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Une erreur est survenue lors de la création de votre vitrine.'
+    erreur.value = message
   } finally {
     chargement.value = false
   }
-})
+}
 </script>
 
 <template>
   <main class="page">
-    <h1>Bienvenue.</h1>
-    <p v-if="chargement" class="texte">Un instant, nous préparons votre espace…</p>
-    <template v-else>
-      <p class="texte">
-        Vous êtes connecté
-        <span v-if="moi?.email">avec l'adresse {{ moi.email }}</span>
-        <span v-else-if="moi?.telephone">avec le numéro {{ moi.telephone }}</span>.
-      </p>
-      <p class="texte">
-        L'inscription guidée arrive avec un prochain sprint. En attendant, découvrez le studio.
-      </p>
-    </template>
-    <NuxtLink class="bouton" to="/studio">Ouvrir le studio</NuxtLink>
+    <h1>Créer votre vitrine</h1>
+    <p class="texte">
+      Quelques informations pour débuter. Vous pourrez les modifier plus tard depuis le studio.
+    </p>
+
+    <form class="formulaire" @submit.prevent="creerVitrine">
+      <BsField label="Titre de votre vitrine" :error="erreur">
+        <input v-model="titre" type="text" placeholder="Mon activité" required>
+      </BsField>
+
+      <BsField label="Prénom">
+        <input v-model="prenom" type="text" placeholder="Jean" required>
+      </BsField>
+
+      <BsField label="Nom">
+        <input v-model="nom" type="text" placeholder="Dupont" required>
+      </BsField>
+
+      <BsField label="Métier">
+        <input v-model="metier" type="text" placeholder="Cardiologue" required>
+      </BsField>
+
+      <BsField label="Adresse de votre vitrine">
+        <span class="username-prefix">brandself.io/</span>
+        <input v-model="username" type="text" placeholder="dr-cabrel" required>
+      </BsField>
+
+      <p v-if="erreur" class="erreur" role="alert">{{ erreur }}</p>
+
+      <BsButton variant="principal" :disabled="chargement" type="submit">
+        {{ chargement ? 'Création en cours…' : 'Créer ma vitrine' }}
+      </BsButton>
+    </form>
   </main>
 </template>
 
 <style scoped>
 .page {
-  max-width: 26rem;
+  max-width: 28rem;
   margin: 0 auto;
-  padding: 3rem 1.25rem;
+  padding: 1.5rem;
   display: flex;
   flex-direction: column;
   gap: 1rem;
 }
-
 h1 {
+  font-family: var(--font-titre);
   font-size: 2rem;
   font-weight: 600;
+  color: var(--encre);
+  margin: 0 0 0.5rem 0;
 }
-
 .texte {
   color: var(--texte-secondaire);
+  font-size: 0.95rem;
   line-height: 1.5;
 }
-
-.bouton {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 3rem;
-  padding: 0 1.25rem;
-  border-radius: 0.75rem;
-  background-color: var(--accent);
-  color: #FFFFFF;
-  font-weight: 500;
-  text-decoration: none;
-  align-self: flex-start;
+.formulaire {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+.username-prefix {
+  position: absolute;
+  left: 0.75rem;
+  top: 50%;
+  transform: translatey(-50%);
+  color: var(--texte-secondaire);
+  font-size: 0.85rem;
 }
 </style>

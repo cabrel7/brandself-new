@@ -36,12 +36,14 @@
     "nuxt-qrcode": "0.4.10",
     "pg": "^8.23.1",
     "resend": "^6.34.1",
+    "sharp": "^0.35.5",
     "vue": "^3.5.44",
     "vue-router": "^5.4.0",
     "zod": "^4.6.7"
   },
   "devDependencies": {
     "@nuxt/eslint": "^1.17.0",
+    "@nuxt/ui": "^4.12.0",
     "@playwright/test": "^1.62.0",
     "@tailwindcss/vite": "^4.3.3",
     "@types/pg": "^8.23.1",

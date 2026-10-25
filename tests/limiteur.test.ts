@@ -1,31 +1,31 @@
 import { describe, expect, it } from 'vitest'
-import { verdictLimiteOtp } from '../shared/limiteur'
+import { checkOtpLimit } from '../shared/limiteur'
 
-describe('verdictLimiteOtp (garde-fou des renvois OTP)', () => {
-  it('autorise le premier envoi', () => {
-    expect(verdictLimiteOtp(1, 1)).toEqual({ autorise: true })
+describe('checkOtpLimit (OTP resend guard)', () => {
+  it('allows the first send', () => {
+    expect(checkOtpLimit(1, 1)).toEqual({ allowed: true })
   })
 
-  it("refuse un renvoi avant 60 s pour le même identifiant", () => {
-    const verdict = verdictLimiteOtp(3, 2)
-    expect(verdict.autorise).toBe(false)
-    if (!verdict.autorise) {
+  it('refuses a resend within 60 s for the same identifier', () => {
+    const verdict = checkOtpLimit(3, 2)
+    expect(verdict.allowed).toBe(false)
+    if (!verdict.allowed) {
       expect(verdict.message).toContain("Un code vient d'être envoyé")
     }
   })
 
-  it("refuse au-delà de la limite par IP", () => {
-    const verdict = verdictLimiteOtp(11, 1)
-    expect(verdict.autorise).toBe(false)
-    if (!verdict.autorise) {
+  it('refuses beyond the IP limit', () => {
+    const verdict = checkOtpLimit(11, 1)
+    expect(verdict.allowed).toBe(false)
+    if (!verdict.allowed) {
       expect(verdict.message).toContain('Trop de tentatives')
     }
   })
 
-  it("la limite par identifiant prime sur celle par IP", () => {
-    const verdict = verdictLimiteOtp(11, 2)
-    expect(verdict.autorise).toBe(false)
-    if (!verdict.autorise) {
+  it('the identifier limit takes precedence over the IP limit', () => {
+    const verdict = checkOtpLimit(11, 2)
+    expect(verdict.allowed).toBe(false)
+    if (!verdict.allowed) {
       expect(verdict.message).toContain("Un code vient d'être envoyé")
     }
   })

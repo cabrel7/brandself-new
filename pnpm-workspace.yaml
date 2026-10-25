@@ -2,5 +2,6 @@ allowBuilds:
   esbuild: false
   msgpackr-extract: true
   unrs-resolver: true
+  vue-demi: set this to true or false
 minimumReleaseAgeExclude:
   - '@nuxt/icon@2.6.0'

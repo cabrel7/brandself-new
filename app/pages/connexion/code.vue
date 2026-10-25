@@ -1,162 +1,162 @@
 <script setup lang="ts">
-type Canal = 'email' | 'telephone'
+type Channel = 'email' | 'telephone'
 
-interface IdentifiantMemorise {
-  canal: Canal
-  valeur: string
+interface StoredIdentifier {
+  channel: Channel
+  value: string
 }
 
 const authClient = useAuthClient()
 
-const identifiant = ref<IdentifiantMemorise | null>(null)
-const chiffres = ref<string[]>(['', '', '', '', '', ''])
+const storedIdentifier = ref<StoredIdentifier | null>(null)
+const digits = ref<string[]>(['', '', '', '', '', ''])
 const cases = ref<HTMLInputElement[]>([])
-const chargement = ref(false)
-const erreur = ref('')
-const essaisEchoues = ref(0)
-const secondes = ref(60)
+const loading = ref(false)
+const error = ref('')
+const failedAttempts = ref(0)
+const seconds = ref(60)
 
-let minuteur: ReturnType<typeof setInterval> | null = null
+let timer: ReturnType<typeof setInterval> | null = null
 
-const codeComplet = computed(() => chiffres.value.every((c) => c !== ''))
-const libelleIdentifiant = computed(() => {
-  if (!identifiant.value) {
+const codeComplete = computed(() => digits.value.every((d) => d !== ''))
+const identifierLabel = computed(() => {
+  if (!storedIdentifier.value) {
     return ''
   }
-  return identifiant.value.canal === 'email' ? 'email' : 'numéro'
+  return storedIdentifier.value.channel === 'email' ? 'email' : 'numéro'
 })
 
-function demarrerDecompte(): void {
-  secondes.value = 60
-  minuteur = setInterval(() => {
-    if (secondes.value > 0) {
-      secondes.value -= 1
-    } else if (minuteur) {
-      clearInterval(minuteur)
-      minuteur = null
+function startCountdown(): void {
+  seconds.value = 60
+  timer = setInterval(() => {
+    if (seconds.value > 0) {
+      seconds.value -= 1
+    } else if (timer) {
+      clearInterval(timer)
+      timer = null
     }
   }, 1_000)
 }
 
-function saisir(index: number, evenement: Event): void {
-  const cible = evenement.target as HTMLInputElement
-  const valeur = cible.value.replace(/\D/g, '')
-  cible.value = valeur.slice(-1)
-  chiffres.value[index] = cible.value
-  if (cible.value && index < 5) {
+function enterDigit(index: number, event: Event): void {
+  const target = event.target as HTMLInputElement
+  const value = target.value.replace(/\D/g, '')
+  target.value = value.slice(-1)
+  digits.value[index] = target.value
+  if (target.value && index < 5) {
     cases.value[index + 1]?.focus()
   }
 }
 
-function coller(index: number, evenement: ClipboardEvent): void {
-  evenement.preventDefault()
-  const texte = evenement.clipboardData?.getData('text').replace(/\D/g, '') ?? ''
-  if (!texte) {
+function paste(index: number, event: ClipboardEvent): void {
+  event.preventDefault()
+  const text = event.clipboardData?.getData('text').replace(/\D/g, '') ?? ''
+  if (!text) {
     return
   }
   for (let i = 0; i < 6; i += 1) {
-    const chiffre = texte[i] ?? ''
-    chiffres.value[i] = chiffre
-    const caseCourante = cases.value[i]
-    if (caseCourante) {
-      caseCourante.value = chiffre
+    const digit = text[i] ?? ''
+    digits.value[i] = digit
+    const currentCase = cases.value[i]
+    if (currentCase) {
+      currentCase.value = digit
     }
   }
-  const cible = Math.min(index + texte.length, 5)
-  cases.value[cible]?.focus()
+  const target = Math.min(index + text.length, 5)
+  cases.value[target]?.focus()
 }
 
-function retour(index: number, evenement: KeyboardEvent): void {
-  if (evenement.key === 'Backspace' && !chiffres.value[index] && index > 0) {
+function goBack(index: number, event: KeyboardEvent): void {
+  if (event.key === 'Backspace' && !digits.value[index] && index > 0) {
     cases.value[index - 1]?.focus()
   }
 }
 
-function pointerCase(index: number, element: unknown): void {
+function pointCase(index: number, element: unknown): void {
   if (element instanceof HTMLInputElement) {
     cases.value[index] = element
   }
 }
 
-function messageEchec(): string {
-  const restants = 3 - essaisEchoues.value
-  if (restants > 0) {
-    return `Ce code n'est pas correct. Il vous reste ${restants} essai${restants > 1 ? 's' : ''}.`
+function failureMessage(): string {
+  const remaining = 3 - failedAttempts.value
+  if (remaining > 0) {
+    return `Ce code n'est pas correct. Il vous reste ${remaining} essai${remaining > 1 ? 's' : ''}.`
   }
   return "Votre code n'est plus valable. Demandez-en un nouveau."
 }
 
-async function verifier(): Promise<void> {
-  if (!identifiant.value || !codeComplet.value) {
+async function verify(): Promise<void> {
+  if (!storedIdentifier.value || !codeComplete.value) {
     return
   }
-  erreur.value = ''
-  chargement.value = true
+  error.value = ''
+  loading.value = true
   try {
     if (!authClient) {
-      erreur.value = 'La page a rencontré un problème. Rechargez-la et réessayez.'
+      error.value = 'La page a rencontré un problème. Rechargez-la et réessayez.'
       return
     }
-    const code = chiffres.value.join('')
-    const reponse =
-      identifiant.value.canal === 'email'
-        ? await authClient.signIn.emailOtp({ email: identifiant.value.valeur, otp: code })
-        : await authClient.phoneNumber.verify({ phoneNumber: identifiant.value.valeur, code })
-    if (reponse.error) {
-      essaisEchoues.value += 1
-      erreur.value = messageEchec()
+    const code = digits.value.join('')
+    const response =
+      storedIdentifier.value.channel === 'email'
+        ? await authClient.signIn.emailOtp({ email: storedIdentifier.value.value, otp: code })
+        : await authClient.phoneNumber.verify({ phoneNumber: storedIdentifier.value.value, code })
+    if (response.error) {
+      failedAttempts.value += 1
+      error.value = failureMessage()
       return
     }
     sessionStorage.removeItem('brandself:identifiant')
     await navigateTo('/onboarding')
   } finally {
-    chargement.value = false
+    loading.value = false
   }
 }
 
-async function renvoyer(): Promise<void> {
-  if (!identifiant.value || secondes.value > 0) {
+async function resend(): Promise<void> {
+  if (!storedIdentifier.value || seconds.value > 0) {
     return
   }
-  erreur.value = ''
+  error.value = ''
   if (!authClient) {
-    erreur.value = 'La page a rencontré un problème. Rechargez-la et réessayez.'
+    error.value = 'La page a rencontré un problème. Rechargez-la et réessayez.'
     return
   }
-  const reponse =
-    identifiant.value.canal === 'email'
+  const response =
+    storedIdentifier.value.channel === 'email'
       ? await authClient.emailOtp.sendVerificationOtp({
-          email: identifiant.value.valeur,
+          email: storedIdentifier.value.value,
           type: 'sign-in',
         })
-      : await authClient.phoneNumber.sendOtp({ phoneNumber: identifiant.value.valeur })
-  if (reponse.error) {
-    erreur.value = reponse.error.message ?? "L'envoi a échoué. Réessayez dans un instant."
+      : await authClient.phoneNumber.sendOtp({ phoneNumber: storedIdentifier.value.value })
+  if (response.error) {
+    error.value = response.error.message ?? "L'envoi a échoué. Réessayez dans un instant."
     return
   }
-  essaisEchoues.value = 0
-  demarrerDecompte()
+  failedAttempts.value = 0
+  startCountdown()
 }
 
 onMounted(() => {
-  const brut = sessionStorage.getItem('brandself:identifiant')
-  if (!brut) {
+  const raw = sessionStorage.getItem('brandself:identifiant')
+  if (!raw) {
     void navigateTo('/connexion')
     return
   }
   try {
-    identifiant.value = JSON.parse(brut) as IdentifiantMemorise
+    storedIdentifier.value = JSON.parse(raw) as StoredIdentifier
   } catch {
     void navigateTo('/connexion')
     return
   }
-  demarrerDecompte()
+  startCountdown()
   cases.value[0]?.focus()
 })
 
 onUnmounted(() => {
-  if (minuteur) {
-    clearInterval(minuteur)
+  if (timer) {
+    clearInterval(timer)
   }
 })
 </script>
@@ -165,42 +165,42 @@ onUnmounted(() => {
   <main class="page-code">
     <h1>Votre code</h1>
     <p class="introduction">
-      Nous avons envoyé un code à 6 chiffres à votre {{ libelleIdentifiant }}
-      <strong v-if="identifiant">{{ identifiant.valeur }}</strong>. Il est valable 10 minutes.
+      Nous avons envoyé un code à 6 chiffres à votre {{ identifierLabel }}
+      <strong v-if="storedIdentifier">{{ storedIdentifier.value }}</strong>. Il est valable 10 minutes.
     </p>
 
-    <form class="cases" novalidate @submit.prevent="verifier">
+    <form class="cases" novalidate @submit.prevent="verify">
       <input
-        v-for="(_, i) in chiffres"
+        v-for="(_, i) in digits"
         :key="i"
-        :ref="(el) => pointerCase(i, el)"
-        :value="chiffres[i]"
+        :ref="(el) => pointCase(i, el)"
+        :value="digits[i]"
         type="text"
         inputmode="numeric"
         autocomplete="one-time-code"
         maxlength="2"
         :aria-label="`Chiffre ${i + 1}`"
-        :disabled="chargement"
-        @input="saisir(i, $event)"
-        @keydown="retour(i, $event)"
-        @paste="coller(i, $event)"
+        :disabled="loading"
+        @input="enterDigit(i, $event)"
+        @keydown="goBack(i, $event)"
+        @paste="paste(i, $event)"
       >
     </form>
 
-    <p v-if="erreur" class="erreur" role="alert">{{ erreur }}</p>
+    <p v-if="error" class="error" role="alert">{{ error }}</p>
 
-    <button type="button" class="bouton bouton-principal" :disabled="chargement || !codeComplet" @click="verifier">
-      {{ chargement ? 'Vérification…' : 'Me connecter' }}
+    <button type="button" class="bouton bouton-principal" :disabled="loading || !codeComplete" @click="verify">
+      {{ loading ? 'Vérification…' : 'Me connecter' }}
     </button>
 
     <p class="renvoi">
       <button
         type="button"
         class="lien"
-        :disabled="secondes > 0"
-        @click="renvoyer"
+        :disabled="seconds > 0"
+        @click="resend"
       >
-        {{ secondes > 0 ? `Renvoyer le code (${secondes} s)` : 'Renvoyer le code' }}
+        {{ seconds > 0 ? `Renvoyer le code (${seconds} s)` : 'Renvoyer le code' }}
       </button>
     </p>
 

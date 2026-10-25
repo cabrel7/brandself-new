@@ -13,24 +13,24 @@ import * as schema from '../shared/db/schema'
 
 export type OptionsAuth = Omit<BetterAuthOptions, 'secret' | 'baseURL' | 'basePath'>
 
-const telephoneRegex = /^\+[1-9]\d{6,14}$/
+const phoneRegex = /^\+[1-9]\d{6,14}$/
 
-function validerTelephone(valeur: string): boolean {
-  return telephoneRegex.test(valeur)
+function validatePhone(value: string): boolean {
+  return phoneRegex.test(value)
 }
 
-// File BullMQ dédiée aux envois OTP (les jobs sont traités par le worker).
-// Ce fichier est vérifié par le projet tsconfig.node : il n'importe que node_modules et shared/.
+// File BullMQ dedicated to OTP sends (jobs are processed by the worker).
+// This file is checked by the tsconfig.node project: it only imports node_modules and shared/.
 const g = globalThis as typeof globalThis & { __fileEmailsAuth?: Queue }
 
 function getEmailsQueue(): Queue {
-  const file = g.__fileEmailsAuth ?? new Queue(FILE_EMAILS, { connection: new Redis(env.REDIS_URL) })
-  g.__fileEmailsAuth = file
-  return file
+  const queue = g.__fileEmailsAuth ?? new Queue(FILE_EMAILS, { connection: new Redis(env.REDIS_URL) })
+  g.__fileEmailsAuth = queue
+  return queue
 }
 
-async function enfilerOtpEmail(identifiant: string, code: string): Promise<void> {
-  await getEmailsQueue().add(JOBS.envoyerOtpEmail, { identifiant, code }, {
+async function enqueueOtpEmail(identifier: string, code: string): Promise<void> {
+  await getEmailsQueue().add(JOBS.sendOtpEmail, { identifier, code }, {
     attempts: 3,
     backoff: { type: 'exponential', delay: 2_000 },
     removeOnComplete: 100,
@@ -38,8 +38,8 @@ async function enfilerOtpEmail(identifiant: string, code: string): Promise<void>
   })
 }
 
-async function enfilerOtpSms(identifiant: string, code: string): Promise<void> {
-  await getEmailsQueue().add(JOBS.envoyerOtpSms, { identifiant, code }, {
+async function enqueueOtpSms(identifier: string, code: string): Promise<void> {
+  await getEmailsQueue().add(JOBS.sendOtpSms, { identifier, code }, {
     attempts: 3,
     backoff: { type: 'exponential', delay: 2_000 },
     removeOnComplete: 100,
@@ -75,19 +75,19 @@ export const optionsAuth: OptionsAuth = {
       rateLimit: { window: 60, max: 1 },
       storeOTP: env.NODE_ENV === 'production' ? 'hashed' : 'plain',
       sendVerificationOTP: async ({ email, otp }) => {
-        await enfilerOtpEmail(email, otp)
+        await enqueueOtpEmail(email, otp)
       },
     }),
     phoneNumber({
       otpLength: 6,
       expiresIn: 600,
       allowedAttempts: 3,
-      phoneNumberValidator: validerTelephone,
+      phoneNumberValidator: validatePhone,
       signUpOnVerification: {
         getTempEmail: (tel) => `${tel.replace(/[^+\d]/g, '')}@telephone.brandself.local`,
       },
       sendOTP: async ({ phoneNumber: tel, code }) => {
-        await enfilerOtpSms(tel, code)
+        await enqueueOtpSms(tel, code)
       },
     }),
   ],

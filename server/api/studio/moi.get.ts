@@ -1,4 +1,4 @@
-interface UtilisateurAuth {
+interface AuthUser {
   id: string
   email?: string | null
   phoneNumber?: string | null
@@ -9,8 +9,8 @@ interface UtilisateurAuth {
 }
 
 export default defineEventHandler(async (event) => {
-  const { user: brut } = await requireUserSession(event)
-  const user = brut as unknown as UtilisateurAuth
+  const { user: rawUser } = await requireUserSession(event)
+  const user = rawUser as unknown as AuthUser
   return {
     id: user.id,
     email: user.email ?? null,

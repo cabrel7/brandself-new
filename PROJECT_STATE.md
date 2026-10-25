@@ -1,6 +1,6 @@
 # PROJECT_STATE.md — Brandself
 
-Dernière mise à jour : **2026-10-25** · Phase : **S1 (Authentification) livré** · Prochaine action : **Sprint S2 (Studio, Profil, accueil)**.
+Dernière mise à jour : **2026-10-25** · Phase : **S2 (Studio, Profil, accueil public) livré** · Prochaine action : **Sprint S3 (Services)**.
 
 À mettre à jour à la fin de chaque sprint (statut, décisions prises, décisions ouvertes, dette connue).
 
@@ -14,7 +14,7 @@ L'ancien projet (Laravel + Nuxt, système de blocs polymorphique, ~60 tables, do
 |---|---|---|---|
 | S0 | Fondations | **fait** | base (btree_gist actif), worker BullMQ (file `systeme`, job `ping`), `/api/health`, Zod au démarrage, Vitest + Playwright + CI, lint/typecheck/build verts |
 | S1 | Authentification (OTP, Google) | **fait** | connexions email/téléphone + code 6 chiffres, garde OTP Redis, pages `/connexion`, `/connexion/code`, `/studio`, onboarding, vitrines statiques `@username`/`[username]`, e2e 8/8 verts |
-| S2 | Studio (coque) + Profil + accueil public | à faire | |
+| S2 | Studio (coque), Profil, accueil public | **fait** | navigation 5 entrées (Vitrine/Services/Réalisations/Liens/Agenda), pages `/studio`, `/studio/profil`, `/studio/compte`, `/onboarding`, `/[username]` SSR, design system sur variables CSS (5 palettes), composants BsButton/BsField/BsSwitch/BsBadge/BsCard/BsTopNav/BsBottomNav, API studio (vitrine, medias, username-disponible, moi, publier/depublier), API publique `/api/public/[username]`, migrations vitrines/medias, upload sharp (WebP, EXIF, octets magiques) |
 | S3 | Services | à faire | |
 | S4 | Réalisations | à faire | |
 | S5 | Témoignages | à faire | **Fin S5 : première version utilisable en interne** |
@@ -40,7 +40,7 @@ L'ancien projet (Laravel + Nuxt, système de blocs polymorphique, ~60 tables, do
 | 7 | Essais de code OTP, durée, renvoi | 3 essais, 10 min, renvoi après 60 s | S1 |
 | 8 | Statistiques : gratuit vs payant | gratuit 7 jours ; payant 90 jours avec pages et sources | S11 |
 | 9 | Langue des identifiants de code | **appliqué en S0** : tables/champs d'API en français sans accents, code TypeScript en anglais | S0 ✅ |
-| 10 | `@nuxt/ui` comme base de composants ou composants maison | à décider au début de S2 | S2 |
+| 10 | `@nuxt/ui` comme base de composants ou composants maison | **composants maison (BsButton, BsField, BsSwitch, BsBadge, BsCard, BsTopNav, BsBottomNav)** sur variables CSS des 5 palettes | S2 ✅ |
 | 11 | Fournisseur et modèle d'IA | interchangeable ; à choisir | S8 |
 | 12 | Hébergement, nom de domaine, serveur de courriels de production | VPS Ubuntu existant | S13 |
 | 13 | Accès sandbox K-PAY (clés, documentation des webhooks) | à fournir par Cabrel | S10 |
@@ -83,9 +83,11 @@ Les textes entre crochets (`[Prix]`, `[numéro]`, `[Témoignage d'un patient]`) 
 - `drizzle-zod` non installé : vient avec S1 (premiers schémas) — rien à installer « au cas où ».
 - Environnement local : PostgreSQL dédié au projet (`~/.pgdata-brandself`, port 5433, démarré par `pg_ctl`) car ni Docker ni rôle `cabrel` sur le cluster système ; `docker-compose.yml` reste la référence pour toute autre machine.
 - Tailwind importé (`main.css`) mais aucun composant ni variable de palette : le design system arrive en S2.
+- **Dette corrigée en S1** : tous les identificateurs de code (fonctions, variables, types, tests) sont passés en anglais ; seul le texte affiché reste en français.
 
 ## 8. Historique
 
 - 2026-10-23 : cadrage terminé, documents PROJECT_CONTEXT.md, CLAUDE.md, PROJECT_STATE.md et SPRINTS.md rédigés.
 - 2026-10-24 : S0 Fondations livré (build 13m18s, lint/typecheck/test/e2e verts ; worker et job `ping` prouvés ; dépôt poussé sur GitHub `cabrel7/brandself-new`).
-- 2026-10-25 : S1 Authentification livré (build 16m56s, lint/typecheck/test/e2e verts, 8/8 e2e ; branche `sprint/s1-authentification`, prête à merger sur `main`).
+- 2026-10-25 : S1 Authentification livré (build 16m56s, lint/typecheck/test/e2e verts, 8/8 e2e ; branche `sprint/s1-authentification`, mergé sur `main`).
+- 2026-10-25 : S2 Studio/Profil/Accueil livré (typecheck/lint/tests verts ; composants design system sur variables CSS, API studio + publique, migrations vitrines/medias, upload sharp) ; branche mergée sur `main`.

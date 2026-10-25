@@ -1,51 +1,51 @@
 <script setup lang="ts">
-type Canal = 'email' | 'telephone'
+type Channel = 'email' | 'telephone'
 
-interface IdentifiantMemorise {
-  canal: Canal
-  valeur: string
+interface StoredIdentifier {
+  channel: Channel
+  value: string
 }
 
 const authClient = useAuthClient()
 const googleActif = useRuntimeConfig().public.googleActif
 
-const canal = ref<Canal>('email')
+const channel = ref<Channel>('email')
 const email = ref('')
-const indicatif = ref('+237')
-const numero = ref('')
-const chargement = ref(false)
-const erreur = ref('')
+const countryCode = ref('+237')
+const number = ref('')
+const loading = ref(false)
+const error = ref('')
 
-const indicatifs = [
-  { code: '+237', pays: 'Cameroun' },
-  { code: '+229', pays: 'Bénin' },
-  { code: '+225', pays: 'Côte d’Ivoire' },
-  { code: '+221', pays: 'Sénégal' },
-  { code: '+241', pays: 'Gabon' },
-  { code: '+243', pays: 'RD Congo' },
-  { code: '+226', pays: 'Burkina Faso' },
-  { code: '+223', pays: 'Mali' },
-  { code: '+228', pays: 'Togo' },
-  { code: '+33', pays: 'France' },
-  { code: '+32', pays: 'Belgique' },
-  { code: '+41', pays: 'Suisse' },
-  { code: '+1', pays: 'Canada / États-Unis' },
+const countryCodes = [
+  { code: '+237', country: 'Cameroun' },
+  { code: '+229', country: 'Bénin' },
+  { code: '+225', country: "Côte d'Ivoire" },
+  { code: '+221', country: 'Sénégal' },
+  { code: '+241', country: 'Gabon' },
+  { code: '+243', country: 'RD Congo' },
+  { code: '+226', country: 'Burkina Faso' },
+  { code: '+223', country: 'Mali' },
+  { code: '+228', country: 'Togo' },
+  { code: '+33', country: 'France' },
+  { code: '+32', country: 'Belgique' },
+  { code: '+41', country: 'Suisse' },
+  { code: '+1', country: 'Canada / États-Unis' },
 ]
 
-function memoriserIdentifiant(c: Canal, valeur: string): void {
-  const identifiant: IdentifiantMemorise = { canal: c, valeur }
-  sessionStorage.setItem('brandself:identifiant', JSON.stringify(identifiant))
+function storeIdentifier(c: Channel, value: string): void {
+  const storedIdentifier: StoredIdentifier = { channel: c, value }
+  sessionStorage.setItem('brandself:identifiant', JSON.stringify(storedIdentifier))
 }
 
-function normaliserTelephone(): string {
-  const chiffres = numero.value.replace(/\D/g, '')
-  if (!chiffres) {
+function normalizePhone(): string {
+  const digits = number.value.replace(/\D/g, '')
+  if (!digits) {
     return ''
   }
-  return `${indicatif.value}${chiffres}`
+  return `${countryCode.value}${digits}`
 }
 
-function traduireErreur(message: string): string {
+function translateError(message: string): string {
   if (/too many|rate limit/i.test(message)) {
     return 'Trop de tentatives. Patientez une minute avant de recommencer.'
   }
@@ -55,52 +55,52 @@ function traduireErreur(message: string): string {
   return message
 }
 
-async function envoyerCode(): Promise<void> {
-  erreur.value = ''
-  chargement.value = true
+async function sendCode(): Promise<void> {
+  error.value = ''
+  loading.value = true
   try {
     if (!authClient) {
-      erreur.value = 'La page a rencontré un problème. Rechargez-la et réessayez.'
+      error.value = 'La page a rencontré un problème. Rechargez-la et réessayez.'
       return
     }
-    if (canal.value === 'email') {
-      const valeur = email.value.trim().toLowerCase()
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(valeur)) {
-        erreur.value = 'Entrez une adresse email valide.'
+    if (channel.value === 'email') {
+      const value = email.value.trim().toLowerCase()
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
+        error.value = 'Entrez une adresse email valide.'
         return
       }
-      const { error } = await authClient.emailOtp.sendVerificationOtp({
-        email: valeur,
+      const { error: sendError } = await authClient.emailOtp.sendVerificationOtp({
+        email: value,
         type: 'sign-in',
       })
-      if (error) {
-        erreur.value = traduireErreur(error.message ?? 'Erreur inconnue')
+      if (sendError) {
+        error.value = translateError(sendError.message ?? 'Erreur inconnue')
         return
       }
-      memoriserIdentifiant('email', valeur)
+      storeIdentifier('email', value)
     } else {
-      const tel = normaliserTelephone()
-      if (tel.replace(/\D/g, '').length < 6) {
-        erreur.value = 'Entrez un numéro de téléphone valide.'
+      const phone = normalizePhone()
+      if (phone.replace(/\D/g, '').length < 6) {
+        error.value = 'Entrez un numéro de téléphone valide.'
         return
       }
-      const { error } = await authClient.phoneNumber.sendOtp({ phoneNumber: tel })
-      if (error) {
-        erreur.value = traduireErreur(error.message ?? 'Erreur inconnue')
+      const { error: sendError } = await authClient.phoneNumber.sendOtp({ phoneNumber: phone })
+      if (sendError) {
+        error.value = translateError(sendError.message ?? 'Erreur inconnue')
         return
       }
-      memoriserIdentifiant('telephone', tel)
+      storeIdentifier('telephone', phone)
     }
     await navigateTo('/connexion/code')
   } finally {
-    chargement.value = false
+    loading.value = false
   }
 }
 
-async function continuerAvecGoogle(): Promise<void> {
-  erreur.value = ''
+async function continueWithGoogle(): Promise<void> {
+  error.value = ''
   if (!authClient) {
-    erreur.value = 'La page a rencontré un problème. Rechargez-la et réessayez.'
+    error.value = 'La page a rencontré un problème. Rechargez-la et réessayez.'
     return
   }
   await authClient.signIn.social({ provider: 'google', callbackURL: '/onboarding' })
@@ -122,7 +122,7 @@ async function continuerAvecGoogle(): Promise<void> {
         type="button"
         class="bouton bouton-google"
         :disabled="!googleActif"
-        @click="continuerAvecGoogle"
+        @click="continueWithGoogle"
       >
         Continuer avec Google
       </button>
@@ -136,25 +136,25 @@ async function continuerAvecGoogle(): Promise<void> {
         <button
           type="button"
           role="tab"
-          :aria-selected="canal === 'email'"
-          :class="{ actif: canal === 'email' }"
-          @click="canal = 'email'"
+        :aria-selected="channel === 'email'"
+        :class="{ actif: channel === 'email' }"
+        @click="channel = 'email'"
         >
           Email
         </button>
         <button
           type="button"
           role="tab"
-          :aria-selected="canal === 'telephone'"
-          :class="{ actif: canal === 'telephone' }"
-          @click="canal = 'telephone'"
+        :aria-selected="channel === 'telephone'"
+        :class="{ actif: channel === 'telephone' }"
+        @click="channel = 'telephone'"
         >
           Téléphone
         </button>
       </div>
 
-      <form novalidate @submit.prevent="envoyerCode">
-        <div v-if="canal === 'email'" class="champ">
+      <form novalidate @submit.prevent="sendCode">
+        <div v-if="channel === 'email'" class="champ">
           <label for="email">Adresse email</label>
           <input
             id="email"
@@ -168,16 +168,16 @@ async function continuerAvecGoogle(): Promise<void> {
         </div>
 
         <div v-else class="champ">
-          <label for="indicatif">Indicatif</label>
-          <select id="indicatif" v-model="indicatif">
-            <option v-for="i in indicatifs" :key="i.code" :value="i.code">
-              {{ i.code }} — {{ i.pays }}
+          <label for="country-code">Indicatif</label>
+          <select id="country-code" v-model="countryCode">
+            <option v-for="c in countryCodes" :key="c.code" :value="c.code">
+              {{ c.code }} — {{ c.country }}
             </option>
           </select>
-          <label for="numero">Numéro de téléphone</label>
+          <label for="phone-number">Numéro de téléphone</label>
           <input
-            id="numero"
-            v-model="numero"
+            id="phone-number"
+            v-model="number"
             type="tel"
             name="tel"
             autocomplete="tel-national"
@@ -186,10 +186,10 @@ async function continuerAvecGoogle(): Promise<void> {
           >
         </div>
 
-        <p v-if="erreur" class="erreur" role="alert">{{ erreur }}</p>
+        <p v-if="error" class="error" role="alert">{{ error }}</p>
 
-        <button type="submit" class="bouton bouton-principal" :disabled="chargement">
-          {{ chargement ? 'Envoi en cours…' : 'Recevoir mon code' }}
+        <button type="submit" class="bouton bouton-principal" :disabled="loading">
+          {{ loading ? 'Envoi en cours…' : 'Recevoir mon code' }}
         </button>
       </form>
 

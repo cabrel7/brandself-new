@@ -1,15 +1,15 @@
-export const FILE_SYSTEME = 'systeme'
+export const FILE_SYSTEM = 'system'
 export const FILE_EMAILS = 'emails'
 
 export const JOBS = {
   ping: 'ping',
-  envoyerOtpEmail: 'envoyer-otp-email',
-  envoyerOtpSms: 'envoyer-otp-sms',
+  sendOtpEmail: 'send-otp-email',
+  sendOtpSms: 'send-otp-sms',
 } as const
 
-export type NomJob = (typeof JOBS)[keyof typeof JOBS]
+export type JobName = (typeof JOBS)[keyof typeof JOBS]
 
-export interface DonneesOtpJob {
-  identifiant: string
+export interface OtpJobData {
+  identifier: string
   code: string
 }

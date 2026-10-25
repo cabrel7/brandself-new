@@ -1,44 +1,44 @@
 import { describe, expect, it } from 'vitest'
-import { validerUsername } from '../shared/schemas/username'
+import { validateUsername } from '../shared/schemas/username'
 
-describe('validerUsername', () => {
-  it.each(['dr-cabrel', 'marie-jeanne-237', 'jean-luc'])('accepte %s', (valeur) => {
-    expect(validerUsername(valeur).success).toBe(true)
+describe('validateUsername', () => {
+  it.each(['dr-cabrel', 'marie-jeanne-237', 'jean-luc'])('accepts %s', (value) => {
+    expect(validateUsername(value).success).toBe(true)
   })
 
-  it('normalise en minuscules', () => {
-    const resultat = validerUsername('DR-Cabrel')
-    expect(resultat.success).toBe(true)
-    if (resultat.success) {
-      expect(resultat.data).toBe('dr-cabrel')
+  it('normalizes to lowercase', () => {
+    const result = validateUsername('DR-Cabrel')
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data).toBe('dr-cabrel')
     }
   })
 
   it.each([
-    ['ab', 'trop court'],
-    ['a'.repeat(31), 'trop long'],
-    ['-abc', 'tiret en début'],
-    ['abc-', 'tiret en fin'],
-    ['a--b', 'double tiret'],
-    ['dr cabrel', 'espace'],
+    ['ab', 'too short'],
+    ['a'.repeat(31), 'too long'],
+    ['-abc', 'hyphen at start'],
+    ['abc-', 'hyphen at end'],
+    ['a--b', 'double hyphen'],
+    ['dr cabrel', 'space'],
     ['dr_cabrel', 'underscore'],
-    ['dr.cabrel', 'point'],
-  ])('refuse %s (%s)', (valeur) => {
-    expect(validerUsername(valeur).success).toBe(false)
+    ['dr.cabrel', 'dot'],
+  ])('refuses %s (%s)', (value) => {
+    expect(validateUsername(value).success).toBe(false)
   })
 
   it.each(['api', 'studio', 'connexion', 'tarifs', 'admin'])(
-    'refuse le mot réservé %s',
-    (valeur) => {
-      const resultat = validerUsername(valeur)
-      expect(resultat.success).toBe(false)
-      if (!resultat.success) {
-        expect(resultat.error.issues[0].message).toContain('réservé')
+    'refuses reserved word %s',
+    (value) => {
+      const result = validateUsername(value)
+      expect(result.success).toBe(false)
+      if (!result.success) {
+        expect(result.error.issues[0].message).toContain('réservé')
       }
     },
   )
 
-  it("refuse le mot réservé « l » (trop court pour le message réservé, refusé quand même)", () => {
-    expect(validerUsername('l').success).toBe(false)
+  it('refuses reserved word « l » (too short for reserved message, refused anyway)', () => {
+    expect(validateUsername('l').success).toBe(false)
   })
 })

@@ -29,17 +29,17 @@ const schemaEnv = z
 
 export type Env = z.infer<typeof schemaEnv>
 
-export function chargerEnv(source: Record<string, string | undefined>): Env {
-  const resultat = schemaEnv.safeParse(source)
-  if (!resultat.success) {
-    const problemes = resultat.error.issues
+export function loadEnv(source: Record<string, string | undefined>): Env {
+  const result = schemaEnv.safeParse(source)
+  if (!result.success) {
+    const problems = result.error.issues
       .map((i) => `${i.path.join('.') || '(racine)'} : ${i.message}`)
       .join('\n  - ')
     throw new Error(
-      `Configuration invalide — corrige les variables d'environnement :\n  - ${problemes}`,
+      `Configuration invalide — corrige les variables d'environnement :\n  - ${problems}`,
     )
   }
-  return resultat.data
+  return result.data
 }
 
-export const env = chargerEnv(process.env)
+export const env = loadEnv(process.env)

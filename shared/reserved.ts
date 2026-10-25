@@ -1,4 +1,4 @@
-export const MOTS_RESERVES = [
+export const RESERVED_USERNAMES = [
   'api',
   'studio',
   'connexion',
@@ -17,15 +17,8 @@ export const MOTS_RESERVES = [
   'robots',
   'assets',
   '_nuxt',
-  'static',
-  'media',
-  'login',
-  'logout',
-  'register',
-  'error',
-  '404',
-] as const
+]
 
-export function estReserve(valeur: string): boolean {
-  return (MOTS_RESERVES as readonly string[]).includes(valeur.toLowerCase())
+export function isReserved(value: string): boolean {
+  return RESERVED_USERNAMES.includes(value)
 }

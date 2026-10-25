@@ -1,23 +1,23 @@
-export const LIMITE_OTP_IP = 10
-export const LIMITE_OTP_IDENTIFIANT = 1
-export const FENETRE_OTP_SECONDES = 60
+export const OTP_LIMIT_IP = 10
+export const OTP_LIMIT_IDENTIFIER = 1
+export const OTP_WINDOW_SECONDS = 60
 
-export type VerdictLimiteOtp =
-  | { autorise: true }
-  | { autorise: false; message: string }
+export type OtpLimitVerdict =
+  | { allowed: true }
+  | { allowed: false; message: string }
 
-export function verdictLimiteOtp(compteurIp: number, compteurIdentifiant: number): VerdictLimiteOtp {
-  if (compteurIdentifiant > LIMITE_OTP_IDENTIFIANT) {
+export function checkOtpLimit(ipCount: number, identifierCount: number): OtpLimitVerdict {
+  if (identifierCount > OTP_LIMIT_IDENTIFIER) {
     return {
-      autorise: false,
-      message: `Un code vient d'être envoyé. Le renvoi est possible dans ${FENETRE_OTP_SECONDES} secondes.`,
+      allowed: false,
+      message: `Un code vient d'être envoyé. Le renvoi est possible dans ${OTP_WINDOW_SECONDS} secondes.`,
     }
   }
-  if (compteurIp > LIMITE_OTP_IP) {
+  if (ipCount > OTP_LIMIT_IP) {
     return {
-      autorise: false,
+      allowed: false,
       message: 'Trop de tentatives. Patientez une minute avant de recommencer.',
     }
   }
-  return { autorise: true }
+  return { allowed: true }
 }

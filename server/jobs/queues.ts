@@ -1,24 +1,24 @@
 import { Queue } from 'bullmq'
-import { FILE_EMAILS, FILE_SYSTEME } from '../../shared/jobs'
+import { FILE_SYSTEM, FILE_EMAILS } from '../../shared/jobs'
 import { redis } from '../utils/redis'
 
 const g = globalThis as typeof globalThis & {
-  __fileSystemeBrandself?: Queue
+  __fileSystemBrandself?: Queue
   __fileEmailsBrandself?: Queue
 }
 
-function creerFile(nom: string): Queue {
-  return new Queue(nom, { connection: redis })
+function createQueue(name: string): Queue {
+  return new Queue(name, { connection: redis })
 }
 
-export function getFileSysteme(): Queue {
-  const file = g.__fileSystemeBrandself ?? creerFile(FILE_SYSTEME)
-  g.__fileSystemeBrandself = file
-  return file
+export function getSystemQueue(): Queue {
+  const queue = g.__fileSystemBrandself ?? createQueue(FILE_SYSTEM)
+  g.__fileSystemBrandself = queue
+  return queue
 }
 
 export function getEmailsQueue(): Queue {
-  const file = g.__fileEmailsBrandself ?? creerFile(FILE_EMAILS)
-  g.__fileEmailsBrandself = file
-  return file
+  const queue = g.__fileEmailsBrandself ?? createQueue(FILE_EMAILS)
+  g.__fileEmailsBrandself = queue
+  return queue
 }

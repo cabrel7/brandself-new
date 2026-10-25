@@ -1,73 +1,73 @@
 import { createHash } from 'node:crypto'
-import { FENETRE_OTP_SECONDES, verdictLimiteOtp } from '../../shared/limiteur'
+import { OTP_WINDOW_SECONDS, checkOtpLimit } from '../../shared/limiteur'
 import { redis } from '../utils/redis'
 
-const CHEMINS_OTP = new Set([
+const OTP_PATHS = new Set([
   '/api/auth/email-otp/send-verification-otp',
   '/api/auth/phone-number/send-otp',
 ])
 
-interface CorpsOtp {
+interface OtpBody {
   email?: string
   phoneNumber?: string
 }
 
-interface EventAvecWeb {
-  web?: { request?: Request; [cle: string]: unknown }
+interface EventWithWeb {
+  web?: { request?: Request; [key: string]: unknown }
 }
 
 export default defineEventHandler(async (event) => {
-  if (event.method !== 'POST' || !CHEMINS_OTP.has(event.path)) {
+  if (event.method !== 'POST' || !OTP_PATHS.has(event.path)) {
     return
   }
 
-  // Lit le corps une seule fois, puis le republie pour Better Auth :
-  // toWebRequest construit un Request sur le flux brut de la requête, que cette
-  // lecture consomme (sinon : « Response body object should not be disturbed »).
-  const brut = await readRawBody(event).catch(() => null)
-  let identifiant: string | undefined
-  if (typeof brut === 'string') {
+  // Read the body once, then republish it for Better Auth:
+  // toWebRequest builds a Request on the raw request stream, which this read
+  // consumes (otherwise: « Response body object should not be disturbed »).
+  const rawBody = await readRawBody(event).catch(() => null)
+  let identifier: string | undefined
+  if (typeof rawBody === 'string') {
     try {
-      const corps = JSON.parse(brut) as CorpsOtp
-      identifiant = corps.email ?? corps.phoneNumber
+      const body = JSON.parse(rawBody) as OtpBody
+      identifier = body.email ?? body.phoneNumber
     } catch {
-      identifiant = undefined
+      identifier = undefined
     }
-    const entetes = new Headers()
-    for (const [cle, valeur] of Object.entries(event.node.req.headers)) {
-      if (valeur === undefined) {
+    const headers = new Headers()
+    for (const [key, value] of Object.entries(event.node.req.headers)) {
+      if (value === undefined) {
         continue
       }
-      if (Array.isArray(valeur)) {
-        for (const element of valeur) {
-          entetes.append(cle, element)
+      if (Array.isArray(value)) {
+        for (const element of value) {
+          headers.append(key, element)
         }
       } else {
-        entetes.set(cle, valeur)
+        headers.set(key, value)
       }
     }
-    const ev = event as unknown as EventAvecWeb
+    const ev = event as unknown as EventWithWeb
     ev.web = {
       ...ev.web,
       request: new Request(getRequestURL(event), {
         method: 'POST',
-        headers: entetes,
-        body: brut,
+        headers,
+        body: rawBody,
       }),
     }
   }
 
   const ip = getRequestIP(event, { xForwardedFor: true }) ?? 'inconnue'
 
-  const [compteurIp, compteurIdentifiant] = await Promise.all([
-    incrementer(`otp:ip:${ip}`),
-    identifiant
-      ? incrementer(`otp:id:${createHash('sha256').update(identifiant).digest('hex')}`)
+  const [ipCount, identifierCount] = await Promise.all([
+    increment(`otp:ip:${ip}`),
+    identifier
+      ? increment(`otp:id:${createHash('sha256').update(identifier).digest('hex')}`)
       : Promise.resolve(0),
   ])
 
-  const verdict = verdictLimiteOtp(compteurIp, compteurIdentifiant)
-  if (!verdict.autorise) {
+  const verdict = checkOtpLimit(ipCount, identifierCount)
+  if (!verdict.allowed) {
     throw createError({
       statusCode: 429,
       statusMessage: verdict.message,
@@ -75,10 +75,10 @@ export default defineEventHandler(async (event) => {
   }
 })
 
-async function incrementer(cle: string): Promise<number> {
-  const compteur = await redis.incr(cle)
-  if (compteur === 1) {
-    await redis.expire(cle, FENETRE_OTP_SECONDES)
+async function increment(key: string): Promise<number> {
+  const count = await redis.incr(key)
+  if (count === 1) {
+    await redis.expire(key, OTP_WINDOW_SECONDS)
   }
-  return compteur
+  return count
 }

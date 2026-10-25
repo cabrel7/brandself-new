@@ -15,6 +15,13 @@
       "when": 1792872353906,
       "tag": "0001_pretty_cammi",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1792930250998,
+      "tag": "0002_vitrines_medias",
+      "breakpoints": true
     }
   ]
 }
