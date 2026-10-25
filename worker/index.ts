@@ -1,11 +1,15 @@
 import { Worker } from 'bullmq'
 import Redis from 'ioredis'
 import { env } from '../shared/env'
-import { FILE_SYSTEME, JOBS } from '../shared/jobs'
+import type { DonneesOtpJob } from '../shared/jobs'
+import { FILE_EMAILS, FILE_SYSTEME, JOBS } from '../shared/jobs'
+import { senderOtpEmail, senderOtpSms } from '../server/services/otp/envoi'
 
-const connexion = new Redis(env.REDIS_URL, { maxRetriesPerRequest: null })
+function creerConnexion(): Redis {
+  return new Redis(env.REDIS_URL, { maxRetriesPerRequest: null })
+}
 
-const worker = new Worker(
+const workerSysteme = new Worker(
   FILE_SYSTEME,
   async (job) => {
     if (job.name === JOBS.ping) {
@@ -14,23 +18,40 @@ const worker = new Worker(
     }
     throw new Error(`Job inconnu : ${job.name}`)
   },
-  { connection: connexion },
+  { connection: creerConnexion() },
 )
 
-worker.on('completed', (job) => {
-  console.info(`[worker] job « ${job.name} » #${job.id} terminé`)
-})
+const workerEmails = new Worker(
+  FILE_EMAILS,
+  async (job) => {
+    const donnees = job.data as DonneesOtpJob
+    if (job.name === JOBS.envoyerOtpEmail) {
+      await senderOtpEmail.envoyer(donnees.identifiant, donnees.code)
+      return
+    }
+    if (job.name === JOBS.envoyerOtpSms) {
+      await senderOtpSms.envoyer(donnees.identifiant, donnees.code)
+      return
+    }
+    throw new Error(`Job inconnu : ${job.name}`)
+  },
+  { connection: creerConnexion() },
+)
 
-worker.on('failed', (job, erreur) => {
-  console.error(`[worker] job « ${job?.name} » échoué : ${erreur.message}`)
-})
+for (const worker of [workerSysteme, workerEmails]) {
+  worker.on('completed', (job) => {
+    console.info(`[worker] job « ${job.name} » #${job.id} terminé`)
+  })
+  worker.on('failed', (job, erreur) => {
+    console.error(`[worker] job « ${job?.name} » échoué : ${erreur.message}`)
+  })
+}
 
-console.info(`[worker] démarré sur la file « ${FILE_SYSTEME} » (${env.REDIS_URL})`)
+console.info(`[worker] démarré — files « ${FILE_SYSTEME} » et « ${FILE_EMAILS} » (${env.REDIS_URL})`)
 
 async function arreter(signal: string): Promise<void> {
   console.info(`[worker] arrêt (${signal})…`)
-  await worker.close()
-  connexion.disconnect()
+  await Promise.all([workerSysteme.close(), workerEmails.close()])
   process.exit(0)
 }
 

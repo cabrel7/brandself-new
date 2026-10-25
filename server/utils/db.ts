@@ -1,7 +1,7 @@
 import { drizzle } from 'drizzle-orm/node-postgres'
 import { Pool } from 'pg'
 import { env } from '../../shared/env'
-import * as schema from '../db/schema'
+import * as schema from '../../shared/db/schema'
 
 function creerDb() {
   const pool = new Pool({

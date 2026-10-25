@@ -8,6 +8,13 @@
       "when": 1792811681118,
       "tag": "0000_active_btree_gist",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1792872353906,
+      "tag": "0001_pretty_cammi",
+      "breakpoints": true
     }
   ]
 }
