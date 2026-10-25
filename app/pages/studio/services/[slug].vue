@@ -130,7 +130,7 @@ onMounted(() => {
         <h2>Détails du service</h2>
 
         <BsField label="Titre" required>
-          <input v-model="titre" type="text" required />
+          <input v-model="titre" type="text" required>
         </BsField>
 
         <BsField label="Description">
@@ -144,7 +144,7 @@ onMounted(() => {
         </BsField>
 
         <BsField label="Durée (minutes)">
-          <input v-model.number="dureeMin" type="number" min="5" required />
+          <input v-model.number="dureeMin" type="number" min="5" required>
         </BsField>
 
         <BsField label="Tarif">
@@ -155,10 +155,10 @@ onMounted(() => {
 
         <div v-if="tarif === 'payant'" class="studio__champ">
           <BsField label="Prix (montant)">
-            <input v-model="prixMontant" type="number" min="0" />
+            <input v-model="prixMontant" type="number" min="0">
           </BsField>
           <BsField label="Devise">
-            <input v-model="prixDevise" type="text" maxlength="3" />
+            <input v-model="prixDevise" type="text" maxlength="3">
           </BsField>
         </div>
 
