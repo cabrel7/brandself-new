@@ -62,10 +62,6 @@ useHead({
         <NuxtLink to="/" class="vitrine-nav__logo">Brandself</NuxtLink>
       </div>
       <div class="vitrine-nav__droite">
-        <NuxtLink to="/services" class="vitrine-nav__lien">Services</NuxtLink>
-        <NuxtLink to="/realisations" class="vitrine-nav__lien">Réalisations</NuxtLink>
-        <NuxtLink to="/agenda" class="vitrine-nav__lien">Agenda</NuxtLink>
-        <NuxtLink to="/contact" class="vitrine-nav__lien">Contact</NuxtLink>
         <BsButton variant="principal" class="vitrine-nav__reserver">Réserver</BsButton>
       </div>
     </nav>
