@@ -1,6 +1,6 @@
 # PROJECT_STATE.md — Brandself
 
-Dernière mise à jour : **2026-10-25** · Phase : **S2 (Studio, Profil, accueil public) livré** · Prochaine action : **Sprint S3 (Services)**.
+Dernière mise à jour : **2026-10-25** · Phase : **S5 (Témoignages) livré** · Prochaine action : **Sprint S6 (Liens et link-in-bio)**.
 
 À mettre à jour à la fin de chaque sprint (statut, décisions prises, décisions ouvertes, dette connue).
 
@@ -15,9 +15,9 @@ L'ancien projet (Laravel + Nuxt, système de blocs polymorphique, ~60 tables, do
 | S0 | Fondations | **fait** | base (btree_gist actif), worker BullMQ (file `systeme`, job `ping`), `/api/health`, Zod au démarrage, Vitest + Playwright + CI, lint/typecheck/build verts |
 | S1 | Authentification (OTP, Google) | **fait** | connexions email/téléphone + code 6 chiffres, garde OTP Redis, pages `/connexion`, `/connexion/code`, `/studio`, onboarding, vitrines statiques `@username`/`[username]`, e2e 8/8 verts |
 | S2 | Studio (coque), Profil, accueil public | **fait** | navigation 5 entrées (Vitrine/Services/Réalisations/Liens/Agenda), pages `/studio`, `/studio/profil`, `/studio/compte`, `/onboarding`, `/[username]` SSR, design system sur variables CSS (5 palettes), composants BsButton/BsField/BsSwitch/BsBadge/BsCard/BsTopNav/BsBottomNav, API studio (vitrine, medias, username-disponible, moi, publier/depublier), API publique `/api/public/[username]`, migrations vitrines/medias, upload sharp (WebP, EXIF, octets magiques) |
-| S3 | Services | à faire | |
-| S4 | Réalisations | à faire | |
-| S5 | Témoignages | à faire | **Fin S5 : première version utilisable en interne** |
+| S3 | Services | **fait** | schéma `services`, API studio (POST/GET/PUT/DELETE), API publique (liste + détail), pages studio (grille, création, modification), pages publiques (liste, détail) |
+| S4 | Réalisations | **fait** | schéma `realisations`, API studio (POST/GET/PUT/DELETE), API publique (liste + détail), pages studio (grille, création, modification), pages publiques (liste, détail) |
+| S5 | Témoignages | **fait** | schéma `temoignages`, API studio (POST/GET/PUT/DELETE), API publique (liste + détail), pages studio (grille, création, modification), pages publiques (liste, détail) |
 | S6 | Liens et link-in-bio | à faire | |
 | S7 | Agenda, réservations, demandes | à faire | **Fin S7 : bêta fermée** (avec S8 pour l'inscription guidée) |
 | S8 | Inscription guidée + IA | à faire | |
