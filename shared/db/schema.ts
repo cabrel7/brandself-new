@@ -137,3 +137,39 @@ export const medias = pgTable(
   },
   (table) => [index('medias_user_id_idx').on(table.userId)],
 )
+
+// Un service proposé par une vitrine (rendez-vous, accompagnement, atelier, devis).
+// Les colonnes sont en français sans accents (PROJECT_CONTEXT.md §11).
+export const services = pgTable(
+  'services',
+  {
+    id: text('id').primaryKey(),
+    vitrineId: text('vitrine_id')
+      .notNull()
+      .references(() => vitrines.id, { onDelete: 'cascade' }),
+    slug: text('slug').notNull(),
+    titre: text('titre').notNull(),
+    description: text('description'),
+    imageMediaId: text('image_media_id'),
+    type: text('type').notNull(), // rdv | accompagnement | atelier | devis
+    nbSeances: integer('nb_seances'),
+    rythme: text('rythme'),
+    dureeMin: integer('duree_min').notNull(),
+    tarif: text('tarif').notNull(), // gratuit | payant | devis
+    prixMontant: integer('prix_montant'),
+    prixDevise: text('prix_devise'),
+    paiementMode: text('paiement_mode'), // en_ligne | sur_place | au_choix
+    paiementInstructions: text('paiement_instructions'),
+    reservable: boolean('reservable').notNull().default(true),
+    enVedette: boolean('en_vedette').notNull().default(false),
+    ordre: integer('ordre').notNull().default(0),
+    actif: boolean('actif').notNull().default(true),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('services_vitrine_id_idx').on(table.vitrineId),
+    index('services_slug_idx').on(table.slug),
+    index('services_actif_idx').on(table.actif),
+  ],
+)
