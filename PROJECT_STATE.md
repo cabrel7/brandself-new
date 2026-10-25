@@ -1,6 +1,6 @@
 # PROJECT_STATE.md — Brandself
 
-Dernière mise à jour : **2026-10-24** · Phase : **S0 (Fondations) livré** · Prochaine action : **Sprint S1 (Authentification)**.
+Dernière mise à jour : **2026-10-25** · Phase : **S1 (Authentification) livré** · Prochaine action : **Sprint S2 (Studio, Profil, accueil)**.
 
 À mettre à jour à la fin de chaque sprint (statut, décisions prises, décisions ouvertes, dette connue).
 
@@ -13,7 +13,7 @@ L'ancien projet (Laravel + Nuxt, système de blocs polymorphique, ~60 tables, do
 | Sprint | Domaine | Statut | Jalon |
 |---|---|---|---|
 | S0 | Fondations | **fait** | base (btree_gist actif), worker BullMQ (file `systeme`, job `ping`), `/api/health`, Zod au démarrage, Vitest + Playwright + CI, lint/typecheck/build verts |
-| S1 | Authentification (OTP, Google) | à faire | |
+| S1 | Authentification (OTP, Google) | **fait** | connexions email/téléphone + code 6 chiffres, garde OTP Redis, pages `/connexion`, `/connexion/code`, `/studio`, onboarding, vitrines statiques `@username`/`[username]`, e2e 8/8 verts |
 | S2 | Studio (coque) + Profil + accueil public | à faire | |
 | S3 | Services | à faire | |
 | S4 | Réalisations | à faire | |
@@ -62,13 +62,21 @@ Les textes entre crochets (`[Prix]`, `[numéro]`, `[Témoignage d'un patient]`) 
 - **Le mélange refait surface** : toute idée nouvelle passe par PROJECT_CONTEXT.md avant d'arriver dans le code.
 - **Le worker BullMQ** tourne dans un process séparé : à superviser (PM2) et à tester tôt (S0).
 - **Les images en local** : prévoir des sauvegardes régulières du dossier dès S2.
-- **La route `@username`** : à valider en S1, repli `/l/username`.
+- **La route `@username`** : validée en S1 (e2e : `/@dr-cabrel` et `/dr-cabrel`), repli `/l/username` non nécessaire pour l'instant.
 - **Les OTP** : coût et fiabilité des SMS, protection contre l'abus (limites par IP et par identifiant).
 - **K-PAY** : pas de SDK Nuxt, pas de renouvellement automatique ; documentation et sandbox à obtenir avant S10.
 - **Priorité** : le cœur (connexion → vitrine publiée → réservation) avant tout le reste. Ne pas spécifier ni construire de fonctionnalité périphérique plus détaillée que le cœur.
 
 ## 7. Dette connue
 
+- `useAuthClient()` null côté SSR (le composant du module ne fournit le client que côté client) : garde null dans les handlers des pages de connexion.
+- Rate-limit Better Auth désactivé sur les paths d'envoi OTP (`customRules: false`) : notre garde Redis (10/min IP, 1/60s identifiant) fait foi ; pas de double gouvernance en mémoire.
+- `otp-limiteur` lit et republie le corps de la requête pour Better Auth (`event.web.request`) : fragile si le module change `toWebRequest` — à surveiller.
+- Hydration lente (~54 s au 1er load sur cette machine) : les tests e2e attendent `__vue_app__` avant d'interagir ; `playwright.config.ts` : `workers: 1`, `timeout: 120s`, `expect.timeout: 15s`.
+- `dayjs` était déclaré mais absent de `package.json` : ajouté en dépendance directe (corrige le crash UMD de l'hydratation client).
+- `vue-qrcode-reader` non installé : avertissement `optimizeDeps.include` inoffensif, rien ne l'importe (S9+).
+- Pages publiques : `/` = placeholder (à remplacer par l'accueil maquetté en S2).
+- `storeOTP: 'plain'` en dev / `hashed` en prod : vérifier le comportement hashed en production (S13).
 - Migrations par `drizzle-kit` (pas de `down` généré) : les scripts du kit multi-agent qui attendent les marqueurs dbmate `-- migrate:up/down` ne s'appliquent pas ; réversibilité par migration forward (à accepter explicitement).
 - `pnpm typecheck` ~8 min sur cette machine (vue-tsc) : acceptable, à surveiller en CI.
 - Worker en production : PM2 lance `tsx` (interpréteur TS) — à valider en S13 (un build dédié esbuild serait plus propre).
@@ -80,3 +88,4 @@ Les textes entre crochets (`[Prix]`, `[numéro]`, `[Témoignage d'un patient]`) 
 
 - 2026-10-23 : cadrage terminé, documents PROJECT_CONTEXT.md, CLAUDE.md, PROJECT_STATE.md et SPRINTS.md rédigés.
 - 2026-10-24 : S0 Fondations livré (build 13m18s, lint/typecheck/test/e2e verts ; worker et job `ping` prouvés ; dépôt poussé sur GitHub `cabrel7/brandself-new`).
+- 2026-10-25 : S1 Authentification livré (build 16m56s, lint/typecheck/test/e2e verts, 8/8 e2e ; branche `sprint/s1-authentification`, prête à merger sur `main`).

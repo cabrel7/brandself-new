@@ -27,6 +27,7 @@
     "@vueuse/nuxt": "15.0.0",
     "better-auth": "^1.7.12",
     "bullmq": "^6.4.0",
+    "dayjs": "1.11.23",
     "dayjs-nuxt": "2.1.11",
     "drizzle-orm": "^0.45.4",
     "ioredis": "^6.0.0",
@@ -34,6 +35,7 @@
     "nuxt-phosphor-icons": "2.3.3",
     "nuxt-qrcode": "0.4.10",
     "pg": "^8.23.1",
+    "resend": "^6.34.1",
     "vue": "^3.5.44",
     "vue-router": "^5.4.0",
     "zod": "^4.6.7"
