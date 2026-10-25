@@ -19,8 +19,6 @@ interface Service {
 const services = ref<Service[]>([])
 const chargement = ref(true)
 const erreur = ref('')
-const openModale = ref(false)
-const serviceSelectionne = ref<Service | null>(null)
 
 async function chargerServices() {
   chargement.value = true
@@ -68,11 +66,7 @@ onMounted(() => {
       <section class="studio__en-tete">
         <div class="studio__en-tete__groupe">
           <h1>Services</h1>
-          <BsButton
-            variant="principal"
-            @click="openModale = true"
-            >Ajouter un service</BsButton
-          >
+          <BsButton variant="principal" to="/studio/services/nouveau">Ajouter un service</BsButton>
         </div>
         <p class="studio__sous-titre">
           {{ services.length }} service{{ services.length > 1 ? 's' : '' }}
@@ -109,9 +103,7 @@ onMounted(() => {
             </span>
           </div>
           <div class="services__carte__actions">
-            <BsButton variant="lien" @click="serviceSelectionne = service; openModale = true"
-              >Modifier</BsButton
-            >
+            <BsButton variant="lien" :to="`/studio/services/${service.slug}`">Modifier</BsButton>
             <BsButton variant="lien" @click="supprimerService(service.slug)"
               >Supprimer</BsButton
             >
@@ -129,7 +121,7 @@ onMounted(() => {
 
       <div v-else class="services__vide">
         <p>Aucun service pour le moment.</p>
-        <BsButton variant="principal" @click="openModale = true">Créer un premier service</BsButton>
+        <BsButton variant="principal" to="/studio/services/nouveau">Créer un premier service</BsButton>
       </div>
     </main>
 
