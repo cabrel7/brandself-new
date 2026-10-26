@@ -41,4 +41,21 @@ describe('loadEnv (configuration validation)', () => {
       loadEnv({ ...base, NUXT_BETTER_AUTH_SECRET: 'court', DATABASE_URL: 'postgresql://u:p@localhost:5432/db' }),
     ).toThrow(/NUXT_BETTER_AUTH_SECRET/)
   })
+
+  describe('PAIEMENT_EN_LIGNE (S3)', () => {
+    const complet = { ...base, DATABASE_URL: 'postgresql://u:p@localhost:5432/db' }
+
+    it('vaut false par défaut', () => {
+      expect(loadEnv(complet).PAIEMENT_EN_LIGNE).toBe(false)
+    })
+
+    it("vaut true avec 'true' et false avec 'false'", () => {
+      expect(loadEnv({ ...complet, PAIEMENT_EN_LIGNE: 'true' }).PAIEMENT_EN_LIGNE).toBe(true)
+      expect(loadEnv({ ...complet, PAIEMENT_EN_LIGNE: 'false' }).PAIEMENT_EN_LIGNE).toBe(false)
+    })
+
+    it.each([['peut-etre'], ['2']])('échoue en nommant la variable pour la valeur invalide %j', (valeur) => {
+      expect(() => loadEnv({ ...complet, PAIEMENT_EN_LIGNE: valeur })).toThrow(/PAIEMENT_EN_LIGNE/)
+    })
+  })
 })

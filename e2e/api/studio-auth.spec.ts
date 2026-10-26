@@ -29,15 +29,28 @@ const ROUTES_S2: Route[] = [
   { methode: 'DELETE', chemin: `/api/studio/appareils/${ID}` },
 ]
 
-// Collections des sprints suivants (leurs routes `[slug]` seront ajoutées au fil de S3 à S6,
+// S3 (S3-CA38) : services. Toutes les routes, y compris celles d'un élément (`:id` uuid) et l'action
+// `reordonner` (route statique : ne doit jamais être capturée par `:id`).
+const ROUTES_S3: Route[] = [
+  { methode: 'GET', chemin: '/api/studio/services' },
+  { methode: 'POST', chemin: '/api/studio/services', corps: {} },
+  { methode: 'GET', chemin: `/api/studio/services/${ID}` },
+  { methode: 'PUT', chemin: `/api/studio/services/${ID}`, corps: {} },
+  { methode: 'DELETE', chemin: `/api/studio/services/${ID}` },
+  { methode: 'POST', chemin: '/api/studio/services/reordonner', corps: {} },
+  // Identifiant mal formé : l'authentification passe quand même avant la validation (401, pas 400).
+  { methode: 'GET', chemin: '/api/studio/services/pas-un-uuid' },
+]
+
+// Collections des sprints suivants (leurs routes `[slug]` seront ajoutées au fil de S4 à S6,
 // quand leurs fichiers `x.[slug].ts` seront renommés et deviendront atteignables).
-const ROUTES_COLLECTIONS: Route[] = ['services', 'realisations', 'temoignages', 'liens'].flatMap((ressource) => [
+const ROUTES_COLLECTIONS: Route[] = ['realisations', 'temoignages', 'liens'].flatMap((ressource) => [
   { methode: 'GET' as const, chemin: `/api/studio/${ressource}` },
   { methode: 'POST' as const, chemin: `/api/studio/${ressource}`, corps: {} },
 ])
 
 test.describe('CA32 /api/studio/** sans session', () => {
-  for (const route of [...ROUTES_S2, ...ROUTES_COLLECTIONS]) {
+  for (const route of [...ROUTES_S2, ...ROUTES_S3, ...ROUTES_COLLECTIONS]) {
     test(`CA32 ${route.methode} ${route.chemin} répond 401`, async ({ request }) => {
       const reponse = await request.fetch(route.chemin, { method: route.methode, data: route.corps })
 

@@ -110,15 +110,42 @@ export async function insertVitrineRow(userId: string, seed: VitrineSeed = {}): 
   return ligne
 }
 
-export async function insertService(vitrineId: string, surcharges: Partial<typeof services.$inferInsert> = {}): Promise<void> {
-  await db.insert(services).values({
-    id: randomUUID(),
-    vitrineId,
-    slug: `service-${randomUUID().slice(0, 8)}`,
-    titre: 'Consultation',
-    type: 'rdv',
-    dureeMin: 30,
-    tarif: 'gratuit',
+export type ServiceRow = typeof services.$inferSelect
+
+/**
+ * Service inséré directement. Les défauts respectent les CHECK de la migration 0010 :
+ * rendez-vous gratuit de 30 minutes, durée renseignée, aucun prix, slug conforme (`service-xxxxxxxx`).
+ * Les surcharges peuvent volontairement violer une contrainte (tests des CHECK).
+ */
+export async function insertService(vitrineId: string, surcharges: Partial<typeof services.$inferInsert> = {}): Promise<ServiceRow> {
+  const [ligne] = await db
+    .insert(services)
+    .values({
+      id: randomUUID(),
+      vitrineId,
+      slug: `service-${randomUUID().slice(0, 8)}`,
+      titre: 'Consultation',
+      type: 'rdv',
+      dureeMin: 30,
+      tarif: 'gratuit',
+      ...surcharges,
+    })
+    .returning()
+  return ligne
+}
+
+/** Service payant complet (rendez-vous de 45 minutes à 15 000 XAF, règlement sur place, avec liste « inclus »). */
+export async function insertServiceComplet(vitrineId: string, surcharges: Partial<typeof services.$inferInsert> = {}): Promise<ServiceRow> {
+  return insertService(vitrineId, {
+    titre: 'Consultation de cardiologie',
+    description: 'Un bilan complet de votre santé cardiaque.',
+    dureeMin: 45,
+    tarif: 'payant',
+    prixMontant: 15000,
+    prixDevise: 'XAF',
+    paiementMode: 'sur_place',
+    paiementInstructions: 'Règlement en espèces ou par Mobile Money.',
+    inclus: ['Examen clinique', 'Électrocardiogramme', 'Compte rendu écrit'],
     ...surcharges,
   })
 }

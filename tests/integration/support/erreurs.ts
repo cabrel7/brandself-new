@@ -15,11 +15,24 @@ function lire(valeur: unknown, cle: string): unknown {
   return typeof valeur === 'object' && valeur !== null ? (valeur as Record<string, unknown>)[cle] : undefined
 }
 
+/** Un module de production absent (phase RED) n'est jamais « une erreur métier attendue » : on la laisse remonter telle quelle. */
+const MODULE_ABSENT = /Cannot find module|Failed to load url|Failed to resolve import|ERR_MODULE_NOT_FOUND/
+
+/** Pour les `Promise.allSettled` : relance une erreur « module absent » plutôt que de la compter comme un rejet. */
+export function exigerModulesPresents(resultats: PromiseSettledResult<unknown>[]): void {
+  for (const resultat of resultats) {
+    if (resultat.status === 'rejected' && resultat.reason instanceof Error && MODULE_ABSENT.test(resultat.reason.message)) {
+      throw resultat.reason
+    }
+  }
+}
+
 /** Attend le rejet d'une promesse et décrit l'erreur ; échoue si elle aboutit. */
 export async function rejet(promesse: Promise<unknown>): Promise<ErreurCapturee> {
   try {
     await promesse
   } catch (erreur) {
+    if (erreur instanceof Error && MODULE_ABSENT.test(erreur.message)) throw erreur
     const data = lire(erreur, 'data')
     const retryAfter = lire(erreur, 'retryAfter') ?? lire(data, 'retryAfter')
     const status = lire(erreur, 'status') ?? lire(erreur, 'statusCode')
