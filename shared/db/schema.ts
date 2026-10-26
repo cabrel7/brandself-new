@@ -229,3 +229,29 @@ export const temoignages = pgTable(
     index('temoignages_actif_idx').on(table.actif),
   ],
 )
+
+// Un lien publié sur une vitrine (site externe, WhatsApp, email, téléphone, autre vitrine...).
+// Les colonnes sont en français sans accents (PROJECT_CONTEXT.md §11).
+export const liens = pgTable(
+  'liens',
+  {
+    id: text('id').primaryKey(),
+    vitrineId: text('vitrine_id')
+      .notNull()
+      .references(() => vitrines.id, { onDelete: 'cascade' }),
+    slug: text('slug').notNull(),
+    libelle: text('libelle').notNull(),
+    url: text('url').notNull(),
+    type: text('type').notNull(), // libre | whatsapp | reseau | email | telephone | vitrine
+    ordre: integer('ordre').notNull().default(0),
+    clics: integer('clics').notNull().default(0),
+    actif: boolean('actif').notNull().default(true),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('liens_vitrine_id_idx').on(table.vitrineId),
+    index('liens_slug_idx').on(table.slug),
+    index('liens_actif_idx').on(table.actif),
+  ],
+)

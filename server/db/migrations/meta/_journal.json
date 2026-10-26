@@ -50,6 +50,20 @@
       "when": 1792949266906,
       "tag": "0006_temoignages_slug",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1792960083392,
+      "tag": "0007_liens",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1792960877231,
+      "tag": "0008_liens_slug",
+      "breakpoints": true
     }
   ]
 }
