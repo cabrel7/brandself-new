@@ -245,7 +245,7 @@ Règles : une donnée interrogeable = une colonne typée, jamais du JSON. Une im
 | SMS / WhatsApp (OTP) | fournisseur à choisir, derrière une interface `OtpSender` |
 | Paiement | **K-PAY** (API REST + webhooks signés, client TypeScript maison) ; multi-devise ; pas de renouvellement automatique |
 | IA | un seul service, fournisseur interchangeable, prompts versionnés en base |
-| UI | Tailwind + composants maison (Switch, Segmented, RadioCard, Chip…) ; `@nuxt/ui` possible comme base ⚠️ ; icônes Phosphor |
+| UI | Tailwind + **`@nuxt/ui` comme base de composants** (décision #10, PROJECT_STATE.md), thémé sur les variables CSS des palettes ; composants `Bs*` = fines surcouches métier seulement quand `@nuxt/ui` ne couvre pas le besoin ; icônes Phosphor (`ph`) via le module d'icônes de `@nuxt/ui` (`@nuxt/icon`), jamais Lucide |
 | SEO | `@nuxtjs/seo` (sitemap, robots, image de partage, données structurées) ; `@nuxt/image` ; `@nuxt/fonts` |
 | Divers | VueUse, dayjs ou date-fns, `qrcode` |
 | Tests | Vitest (unitaires), Playwright (bout en bout) |

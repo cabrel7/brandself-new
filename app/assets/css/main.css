@@ -12,14 +12,49 @@
   --bordure: #E6DCCB;
   --erreur: #B3261E;
   --champ: #FFFFFF;
+  /* Texte posé sur l'accent (PROJECT_CONTEXT.md §9.2 : blanc). */
+  --sur-accent: #FFFFFF;
   --font-titre: "Fraunces", Georgia, serif;
   --font-texte: "Figtree", system-ui, sans-serif;
+
+  /* Échelle typographique : 12 / 14 / 16 / 20 / 24 / 32 / 48 px. */
+  --fs-12: 0.75rem;
+  --fs-14: 0.875rem;
+  --fs-16: 1rem;
+  --fs-20: 1.25rem;
+  --fs-24: 1.5rem;
+  --fs-32: 2rem;
+  --fs-48: 3rem;
+
+  --rayon: 1rem;
+  --rayon-interne: 0.75rem;
+  --hauteur-controle: 3.5rem;
+  --cible-tactile: 2.75rem;
+  --transition: 150ms ease-out;
+}
+
+/* Les variables des palettes deviennent des utilitaires Tailwind
+   (bg-accent, text-encre, border-bordure…). `inline` : la valeur reste
+   `var(--accent)`, donc un changement de palette est suivi. */
+@theme inline {
+  --color-fond: var(--fond);
+  --color-surface: var(--surface);
+  --color-encre: var(--encre);
+  --color-texte-secondaire: var(--texte-secondaire);
+  --color-accent: var(--accent);
+  --color-accent-doux: var(--accent-doux);
+  --color-bordure: var(--bordure);
+  --color-erreur: var(--erreur);
+  --color-champ: var(--champ);
+  --color-sur-accent: var(--sur-accent);
 }
 
 body {
   background-color: var(--fond);
   color: var(--encre);
   font-family: var(--font-texte);
+  font-size: var(--fs-16);
+  line-height: 1.5;
 }
 
 h1,
@@ -31,4 +66,172 @@ h3 {
 :where(button, a, input, select, textarea):focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
+}
+
+/* ---------- Pages d'authentification et formulaires ---------- */
+
+.colonne-auth {
+  max-width: 30rem;
+  width: 100%;
+  margin: 0 auto;
+  padding: 2rem 1.5rem 3rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.titre-auth {
+  font-family: var(--font-titre);
+  font-size: var(--fs-32);
+  font-weight: 700;
+  line-height: 1.15;
+  color: var(--encre);
+  margin: 0;
+}
+
+.texte-intro {
+  color: var(--texte-secondaire);
+  font-size: var(--fs-16);
+  line-height: 1.5;
+  margin: 0;
+}
+
+.note {
+  color: var(--texte-secondaire);
+  font-size: var(--fs-14);
+  line-height: 1.5;
+  margin: 0;
+}
+
+.champ {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.champ-label {
+  font-size: var(--fs-16);
+  font-weight: 600;
+  color: var(--encre);
+}
+
+.saisie {
+  width: 100%;
+  min-height: var(--hauteur-controle);
+  border: 1px solid var(--bordure);
+  border-radius: var(--rayon);
+  background-color: var(--champ);
+  padding: 0 1rem;
+  font-family: var(--font-texte);
+  font-size: var(--fs-16);
+  color: var(--encre);
+  transition: border-color var(--transition);
+}
+
+.saisie::placeholder {
+  color: var(--texte-secondaire);
+}
+
+.saisie:hover:not(:disabled) {
+  border-color: var(--texte-secondaire);
+}
+
+.saisie[aria-invalid="true"] {
+  border-color: var(--erreur);
+}
+
+.saisie:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.message-erreur {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  margin: 0;
+  color: var(--erreur);
+  font-size: var(--fs-16);
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+/* Choix exclusif à deux ou trois options (canal de connexion, mode d'envoi).
+   Vrais boutons radio : flèches du clavier et lecteurs d'écran natifs. */
+.segment {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  gap: 0.25rem;
+  padding: 0.25rem;
+  background-color: var(--accent-doux);
+  border: 1px solid var(--bordure);
+  border-radius: var(--rayon);
+}
+
+.segment__option {
+  position: relative;
+  display: flex;
+}
+
+.segment__option input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.segment__option input:focus-visible {
+  outline: none;
+}
+
+.segment__option span {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--cible-tactile);
+  border-radius: var(--rayon-interne);
+  color: var(--encre);
+  font-size: var(--fs-16);
+  font-weight: 500;
+  transition:
+    background-color var(--transition),
+    color var(--transition);
+}
+
+.segment__option:hover input:not(:checked, :disabled) + span {
+  background-color: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+.segment__option input:checked + span {
+  background-color: var(--accent);
+  color: var(--sur-accent);
+  font-weight: 600;
+}
+
+.segment__option input:focus-visible + span {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.segment__option input:disabled {
+  cursor: not-allowed;
+}
+
+.segment__option input:disabled + span {
+  opacity: 0.55;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
 }

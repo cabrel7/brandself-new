@@ -73,7 +73,7 @@ test('parcours complet : téléphone → code → onboarding', async ({ page }) 
   const telephone = `+2376${Date.now().toString().slice(-8)}`
   await page.goto('/connexion')
   await attendreHydration(page)
-  await page.getByRole('tab', { name: 'Téléphone' }).click()
+  await page.getByRole('radio', { name: 'Téléphone' }).click()
   await page.getByLabel('Numéro de téléphone').fill(telephone.slice(4))
   await page.getByRole('button', { name: 'Recevoir un code' }).click()
   await expect(page).toHaveURL(/\/connexion\/code/)

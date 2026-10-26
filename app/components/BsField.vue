@@ -1,27 +1,25 @@
 <script setup lang="ts">
-defineProps<{
+const props = defineProps<{
   label?: string
-  disabled?: boolean
-  modelValue?: string | number
   error?: string
 }>()
+
+const uid = useId()
+const controlId = `${uid}-champ`
+const errorId = `${uid}-erreur`
+
+// Fournis au champ via le slot : `v-slot="{ id, invalid, describedby }"`.
+const invalid = computed(() => Boolean(props.error))
+const describedby = computed(() => (props.error ? errorId : undefined))
 </script>
 
 <template>
   <div class="champ">
-    <label v-if="label" class="label">{{ label }}</label>
-    <slot />
-    <p v-if="$props.error" class="erreur" role="alert">{{ $props.error }}</p>
+    <label v-if="label" class="champ-label" :for="controlId">{{ label }}</label>
+    <slot :id="controlId" :invalid="invalid" :describedby="describedby" />
+    <p v-if="error" :id="errorId" class="message-erreur" role="alert">
+      <PhosphorIcon name="warning-circle" size="1.25rem" aria-hidden="true" />
+      <span>{{ error }}</span>
+    </p>
   </div>
 </template>
-
-<style scoped>
-.label {
-  font-size: 0.85rem;
-  color: var(--texte-secondaire);
-}
-.erreur {
-  color: var(--erreur);
-  font-size: 0.9rem;
-}
-</style>

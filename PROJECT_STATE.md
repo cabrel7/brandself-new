@@ -40,7 +40,7 @@ L'ancien projet (Laravel + Nuxt, système de blocs polymorphique, ~60 tables, do
 | 7 | Essais de code OTP, durée, renvoi | 3 essais, 10 min, renvoi après 60 s | S1 |
 | 8 | Statistiques : gratuit vs payant | gratuit 7 jours ; payant 90 jours avec pages et sources | S11 |
 | 9 | Langue des identifiants de code | **appliqué en S0** : tables/champs d'API en français sans accents, code TypeScript en anglais | S0 ✅ |
-| 10 | `@nuxt/ui` comme base de composants ou composants maison | **composants maison (BsButton, BsField, BsSwitch, BsBadge, BsCard, BsTopNav, BsBottomNav)** sur variables CSS des 5 palettes | S2 ✅ |
+| 10 | `@nuxt/ui` comme base de composants ou composants maison | **`@nuxt/ui` comme base** (UButton, UInput, USwitch…), thémé sur les variables CSS des 5 palettes ; `Bs*` = surcouches métier uniquement. Révisé le 2026-10-26 (remplace « composants maison » de S2) ; migration des `Bs*` en cours | S2 ↻ |
 | 11 | Fournisseur et modèle d'IA | interchangeable ; à choisir | S8 |
 | 12 | Hébergement, nom de domaine, serveur de courriels de production | VPS Ubuntu existant | S13 |
 | 13 | Accès sandbox K-PAY (clés, documentation des webhooks) | à fournir par Cabrel | S10 |

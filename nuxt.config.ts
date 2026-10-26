@@ -34,6 +34,7 @@ export default defineNuxtConfig({
   },
   app: {
     head: {
+      htmlAttrs: { lang: 'fr' },
       title: 'Brandself',
     },
   },

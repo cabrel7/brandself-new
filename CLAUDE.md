@@ -40,7 +40,7 @@ Dans toute l'interface, les textes, les commentaires et les noms visibles : **vi
 - **Mobile d'abord** : concevoir à 390 px, puis tablette (768) et PC (1280). Zones tactiles ≥ 44 px.
 - **Interrupteurs (Switch) pour tout réglage oui/non. Jamais de case à cocher** pour un réglage.
 - **Aucun mot de titre ne change de couleur ni ne passe en italique.** Tout titre s'écrit uniformément.
-- Icônes : **Phosphor uniquement** (via `@nuxt/icon`), une seule famille, un seul style de trait. **Jamais Lucide.**
+- Icônes : **Phosphor uniquement** (collection `ph`, via `@nuxt/icon` fourni par `@nuxt/ui`), une seule famille, un seul style de trait. **Jamais Lucide.**
 - Couleurs : variables CSS des palettes (voir PROJECT_CONTEXT.md §9.2). **Aucune couleur en dur dans un composant.**
 - Polices : Fraunces (titres), Figtree (texte), via `@nuxt/fonts`.
 - Un seul message à l'écran à la fois (pas deux bandeaux, pas de fenêtre sur fenêtre).
@@ -71,7 +71,9 @@ Dans toute l'interface, les textes, les commentaires et les noms visibles : **vi
 | Drizzle (+ drizzle-kit) | base typée, migrations `db:generate`/`db:migrate` (drizzle-zod : à installer avec les premiers schémas, S1) |
 | `pg` (node-postgres) | driver PostgreSQL de Drizzle (process Node longs) |
 | BullMQ + ioredis | jobs et planification (rappels, emails, IA) |
-| `@nuxtjs/seo`, `@nuxt/image`, `@nuxt/fonts`, `@nuxt/icon` | SEO, images, polices, icônes Phosphor |
+| `@nuxt/ui` | base de composants accessibles (boutons, champs, interrupteurs…) thémée sur les variables CSS des palettes ; embarque `@nuxt/icon` (icônes Phosphor `ph`). Les `Bs*` ne sont que des surcouches métier |
+| `@nuxtjs/seo`, `@nuxt/image`, `@nuxt/fonts` | SEO, images, polices |
+| `concurrently` | `pnpm dev` lance app et worker ensemble |
 | Tailwind CSS 4 (`@tailwindcss/vite`) | styles branchés sur les variables CSS des palettes |
 | `sharp` | traitement d'images |
 | Resend | emails |
