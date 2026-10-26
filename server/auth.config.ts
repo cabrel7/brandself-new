@@ -73,7 +73,6 @@ export const optionsAuth: OptionsAuth = {
       otpLength: 6,
       expiresIn: 600,
       allowedAttempts: 3,
-      rateLimit: { window: 60, max: 1 },
       storeOTP: env.NODE_ENV === 'production' ? 'hashed' : 'plain',
       sendVerificationOTP: async ({ email, otp }) => {
         await enqueueOtpEmail(email, otp)
@@ -113,6 +112,12 @@ export const optionsAuth: OptionsAuth = {
       // non-divulgation.
       '/email-otp/send-verification-otp': false,
       '/phone-number/send-otp': false,
+      // Le plugin email-otp applique sa règle à TOUS ses chemins (3/min/IP par
+      // défaut). Une connexion = 1 appel : derrière une même IP (réseau mobile,
+      // CGNAT) cela bloquait tous les utilisateurs sauf un par minute. Les essais
+      // par code restent bornés par `allowedAttempts` (3) côté Better Auth.
+      '/sign-in/email-otp': { window: 60, max: 30 },
+      '/email-otp/check-verification-otp': { window: 60, max: 30 },
     },
   },
 }

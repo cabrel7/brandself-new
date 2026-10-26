@@ -3,6 +3,9 @@ import { expect, test } from '@playwright/test'
 import { Pool } from 'pg'
 
 function lireEnv(nom: string): string {
+  // L'environnement du process prime (CI, base jetable) : même source que le serveur testé.
+  const depuisProcess = process.env[nom]
+  if (depuisProcess) return depuisProcess
   const contenu = readFileSync('.env', 'utf-8')
   const ligne = contenu.split('\n').find((l) => l.startsWith(`${nom}=`))
   if (!ligne) {
@@ -143,9 +146,10 @@ test('/studio exige une session', async ({ page }) => {
 test('déconnexion puis /studio redirige vers /connexion', async ({ page }) => {
   const email = `e2e-deconnexion-${Date.now()}@exemple.com`
   await seConnecterParEmail(page, email)
-  await page.goto('/studio')
+  // La déconnexion vit désormais dans « Compte » (S2), plus dans la coque du studio.
+  await page.goto('/studio/compte')
   await attendreHydration(page)
-  await page.getByRole('button', { name: 'Déconnexion' }).click()
+  await page.getByRole('button', { name: 'Se déconnecter' }).click()
   await expect(page).toHaveURL(/\/connexion/)
   await page.goto('/studio')
   await expect(page).toHaveURL(/\/connexion/)
@@ -155,7 +159,7 @@ test('@username et [username] coexistent', async ({ page }) => {
   await page.goto('/@dr-cabrel')
   await expect(page.getByRole('heading', { name: 'Page de liens' })).toBeVisible()
   await page.goto('/dr-cabrel')
-  await expect(page.getByRole('heading', { name: /Cabrel/ })).toBeVisible()
+  await expect(page.getByRole('heading', { level: 1, name: /Cardiologue interventionnel/ })).toBeVisible()
 })
 
 test.afterAll(async () => {

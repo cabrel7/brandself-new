@@ -117,7 +117,7 @@ async function validerAdresse(): Promise<void> {
         <UInput v-model="form.metier" autocomplete="organization-title" :maxlength="METIER_MAX" @update:model-value="viderErreur('metier')" />
       </UFormField>
 
-      <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+      <div class="grid grid-cols-2 gap-4">
         <UFormField label="Ville" name="ville" :error="erreurs.ville">
           <UInput v-model="form.ville" autocomplete="address-level2" :maxlength="VILLE_MAX" @update:model-value="viderErreur('ville')" />
         </UFormField>

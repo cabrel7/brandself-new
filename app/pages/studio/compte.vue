@@ -118,7 +118,7 @@ function annulerSuppression(): void {
           </div>
         </dl>
 
-        <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div class="grid grid-cols-2 gap-4">
           <UFormField label="Langue" name="locale">
             <USelect v-model="locale" :items="ITEMS_LOCALES" :disabled="enregistrement" @update:model-value="enregistrerLocale" />
           </UFormField>

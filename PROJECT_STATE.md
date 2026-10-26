@@ -1,6 +1,6 @@
 # PROJECT_STATE.md — Brandself
 
-Dernière mise à jour : **2026-10-25** · Phase : **S5 (Témoignages) livré** · Prochaine action : **Sprint S6 (Liens et link-in-bio)**.
+Dernière mise à jour : **2026-10-26** · Phase : **reprise sprint par sprint** (audit + correction + alignement maquettes) · S0–S2 repris et validés · Prochaine action : **S3 (Services) à reprendre**.
 
 À mettre à jour à la fin de chaque sprint (statut, décisions prises, décisions ouvertes, dette connue).
 
@@ -12,12 +12,12 @@ L'ancien projet (Laravel + Nuxt, système de blocs polymorphique, ~60 tables, do
 
 | Sprint | Domaine | Statut | Jalon |
 |---|---|---|---|
-| S0 | Fondations | **fait** | base (btree_gist actif), worker BullMQ (file `systeme`, job `ping`), `/api/health`, Zod au démarrage, Vitest + Playwright + CI, lint/typecheck/build verts |
-| S1 | Authentification (OTP, Google) | **fait** | connexions email/téléphone + code 6 chiffres, garde OTP Redis, pages `/connexion`, `/connexion/code`, `/studio`, onboarding, vitrines statiques `@username`/`[username]`, e2e 8/8 verts |
-| S2 | Studio (coque), Profil, accueil public | **fait** | navigation 5 entrées (Vitrine/Services/Réalisations/Liens/Agenda), pages `/studio`, `/studio/profil`, `/studio/compte`, `/onboarding`, `/[username]` SSR, design system sur variables CSS (5 palettes), composants BsButton/BsField/BsSwitch/BsBadge/BsCard/BsTopNav/BsBottomNav, API studio (vitrine, medias, username-disponible, moi, publier/depublier), API publique `/api/public/[username]`, migrations vitrines/medias, upload sharp (WebP, EXIF, octets magiques) |
-| S3 | Services | **fait** | schéma `services`, API studio (POST/GET/PUT/DELETE), API publique (liste + détail), pages studio (grille, création, modification), pages publiques (liste, détail) |
-| S4 | Réalisations | **fait** | schéma `realisations`, API studio (POST/GET/PUT/DELETE), API publique (liste + détail), pages studio (grille, création, modification), pages publiques (liste, détail) |
-| S5 | Témoignages | **fait** | schéma `temoignages`, API studio (POST/GET/PUT/DELETE), API publique (liste + détail), pages studio (grille, création, modification), pages publiques (liste, détail) |
+| S0 | Fondations | **repris, fait** | base (btree_gist actif), worker BullMQ (file `systeme`, job `ping`), `/api/health`, Zod au démarrage, Vitest + Playwright + CI, lint/typecheck/build verts |
+| S1 | Authentification (OTP, Google) | **repris, fait** | connexions email/téléphone + code 6 chiffres, garde OTP Redis, pages `/connexion`, `/connexion/code`, `/studio`, onboarding, vitrines statiques `@username`/`[username]`, e2e 8/8 verts |
+| S2 | Studio (coque), Profil, accueil public | **repris, fait** | Backend refait (services, resources, `defineApiHandler`, médias sharp+unstorage, suppression de compte, appareils, routes un-dossier-par-ressource), fuite PII fermée, studio/profil/compte/vitrine publique/onboarding sur `@nuxt/ui`, 5 palettes. 370 tests unit, 157 intégration, 97 e2e verts ; build OK (RESEND_API_KEY requis). Écarts maquette restants : voir docs/JOURNAL_DECISIONS.md |
+| S3 | Services | **à reprendre** (livré cassé : routes `*.[slug].*` 404, API publiques absentes, UI hors maquettes) | schéma `services`, API studio (POST/GET/PUT/DELETE), API publique (liste + détail), pages studio (grille, création, modification), pages publiques (liste, détail) |
+| S4 | Réalisations | **à reprendre** (livré cassé : routes `*.[slug].*` 404, API publiques absentes, UI hors maquettes) | schéma `realisations`, API studio (POST/GET/PUT/DELETE), API publique (liste + détail), pages studio (grille, création, modification), pages publiques (liste, détail) |
+| S5 | Témoignages | **à reprendre** (livré cassé : routes `*.[slug].*` 404, API publiques absentes, UI hors maquettes) | schéma `temoignages`, API studio (POST/GET/PUT/DELETE), API publique (liste + détail), pages studio (grille, création, modification), pages publiques (liste, détail) |
 | S6 | Liens et link-in-bio | à faire | |
 | S7 | Agenda, réservations, demandes | à faire | **Fin S7 : bêta fermée** (avec S8 pour l'inscription guidée) |
 | S8 | Inscription guidée + IA | à faire | |

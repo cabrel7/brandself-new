@@ -59,6 +59,7 @@ const bloque = computed(() => etat.value === 'pris' || etat.value === 'reserve' 
           spellcheck="false"
           placeholder="dr-cabrel"
           :loading="etat === 'verification'"
+          :ui="{ base: 'ps-32!' }"
         >
           <template #leading>
             <span class="pointer-events-none text-muted" aria-hidden="true">{{ HOTE_VITRINES }}/</span>
