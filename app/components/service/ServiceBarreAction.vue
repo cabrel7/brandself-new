@@ -8,6 +8,8 @@ defineProps<{ service: ServicePublicDetailDTO, action: ServiceLien }>()
 
 <template>
   <div
+    role="region"
+    aria-label="Réservation"
     class="fixed inset-x-0 bottom-0 z-10 border-t border-bordure bg-fond px-6 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] lg:hidden"
   >
     <div class="mx-auto flex max-w-2xl items-center justify-between gap-4">

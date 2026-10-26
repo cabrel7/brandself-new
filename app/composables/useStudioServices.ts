@@ -73,6 +73,10 @@ export function useStudioServices(listeEl?: Ref<HTMLElement | null>) {
     }
   }
 
+  function annoncerPosition(titre: string, index: number): void {
+    annonce.value = `${titre} : position ${index + 1} sur ${services.value.length}.`
+  }
+
   // Les envois d'ordre sont sérialisés : chacun part de l'état de la liste à son tour.
   let file: Promise<void> = Promise.resolve()
 
@@ -105,7 +109,7 @@ export function useStudioServices(listeEl?: Ref<HTMLElement | null>) {
     copie[index] = voisin
     copie[cible] = courant
     services.value = copie
-    annonce.value = `${courant.titre} : position ${cible + 1} sur ${copie.length}.`
+    annoncerPosition(courant.titre, cible)
     enregistrerOrdre()
     // Le déplacement du nœud fait perdre le focus à la poignée : on le lui rend.
     await nextTick()
@@ -118,7 +122,11 @@ export function useStudioServices(listeEl?: Ref<HTMLElement | null>) {
       handle: '[data-poignee]',
       animation: animationReduite.value ? 0 : ANIMATION_MS,
       watchElement: true,
-      onEnd: () => {
+      onEnd: (evenement) => {
+        // Souris ou toucher : même annonce que le clavier (le tableau est déjà réordonné par useSortable).
+        const { oldIndex, newIndex } = evenement
+        const deplace = newIndex === undefined ? undefined : services.value[newIndex]
+        if (deplace && oldIndex !== newIndex && newIndex !== undefined) annoncerPosition(deplace.titre, newIndex)
         enregistrerOrdre()
       },
     })

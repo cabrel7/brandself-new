@@ -11,9 +11,9 @@ defineProps<{
 </script>
 
 <template>
-  <aside aria-label="Tarif et réservation" class="flex flex-col gap-5 rounded-3xl border border-bordure bg-surface p-6 lg:sticky lg:top-6">
+  <aside aria-label="Tarif et réservation" class="flex flex-col gap-5 rounded-(--rayon-carte) border border-bordure bg-surface p-6 lg:sticky lg:top-6">
     <div class="flex flex-col gap-2">
-      <p class="text-(length:--fs-14) font-semibold tracking-widest text-accent uppercase">
+      <p class="text-(length:--fs-14) font-semibold tracking-widest text-accent-texte uppercase">
         {{ service.type === 'accompagnement' && service.tarif === 'payant' ? 'Forfait' : 'Tarif' }}
       </p>
       <p class="font-(family-name:--font-titre) text-(length:--fs-32) leading-tight font-bold">{{ prixSeul(service) }}</p>

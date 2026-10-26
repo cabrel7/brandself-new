@@ -16,7 +16,7 @@ const detail = computed(() => props.hauteur === 'detail')
 <template>
   <div
     class="relative w-full overflow-hidden bg-accent-doux"
-    :class="detail ? 'aspect-[16/10] lg:rounded-3xl' : 'h-52'"
+    :class="detail ? 'aspect-[16/10] lg:rounded-(--rayon-carte)' : 'h-52'"
   >
     <img
       v-if="image"
@@ -32,7 +32,7 @@ const detail = computed(() => props.hauteur === 'detail')
     >
     <div v-else aria-hidden="true" class="size-full bg-accent">
       <span class="absolute -top-12 -right-12 size-44 rounded-full bg-fond/20" />
-      <span class="absolute bottom-0 left-6 font-(family-name:--font-titre) text-[length:8rem] leading-none font-medium text-fond">
+      <span class="absolute bottom-0 left-6 font-(family-name:--font-titre) text-(length:--fs-initiale) leading-none font-medium text-fond">
         {{ initiale }}
       </span>
     </div>

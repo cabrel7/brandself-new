@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { toMajorUnits } from '#shared/devises'
-import { libellePrix, SERVICE_TYPE_PASTILLES } from '#shared/services'
+import { SERVICE_TYPE_PASTILLES } from '#shared/services'
 
 const route = useRoute()
 const username = String(route.params.username)
@@ -52,7 +52,7 @@ useSchemaOrg([
           <ServiceVisuel :image="service.image" :titre="service.titre" hauteur="detail" />
 
           <div class="flex flex-col gap-4 px-6 lg:px-0">
-            <p class="self-start rounded-full bg-accent-doux px-3 py-1 text-(length:--fs-14) font-medium text-accent">
+            <p class="self-start rounded-full bg-accent-doux px-3 py-1 text-(length:--fs-14) font-medium text-accent-texte">
               {{ SERVICE_TYPE_PASTILLES[service.type] }}
             </p>
             <h1 class="font-(family-name:--font-titre) text-(length:--fs-32) leading-[1.1] font-bold md:text-(length:--fs-48)">
@@ -84,15 +84,12 @@ useSchemaOrg([
 
             <div
               v-if="texteReglement(service)"
-              class="flex items-start gap-3 rounded-3xl bg-accent-doux p-6 lg:hidden"
+              class="flex items-start gap-3 rounded-(--rayon-carte) bg-accent-doux p-6 lg:hidden"
             >
               <UIcon name="i-ph-wallet" class="mt-1 size-5 shrink-0 text-accent" aria-hidden="true" />
-              <div class="flex flex-col gap-1">
-                <p class="font-semibold">{{ libellePrix(service) }}</p>
-                <p class="text-(length:--fs-14) whitespace-pre-line text-texte-secondaire">
-                  {{ texteReglement(service) }}
-                </p>
-              </div>
+              <p class="text-(length:--fs-14) whitespace-pre-line text-encre">
+                {{ texteReglement(service) }}
+              </p>
             </div>
 
             <ServiceAutres :autres="reponse.autres" :total="reponse.total" :username="vitrine.username" />

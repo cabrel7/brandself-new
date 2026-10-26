@@ -18,11 +18,16 @@ const deviseParDefaut = computed<Devise>(() => moi.value?.devise ?? DEVISE_REPLI
   <div>
     <StudioRetour to="/studio/services" label="Services" />
 
-    <div v-if="enChargement" class="mt-4 flex flex-col gap-6" aria-busy="true" aria-label="Chargement du formulaire">
-      <USkeleton class="h-10 w-56" />
-      <USkeleton class="h-24 w-full" />
-      <USkeleton class="h-14 w-full" />
-      <USkeleton class="h-14 w-full" />
+    <div v-if="enChargement" class="mt-4 flex flex-col gap-6">
+      <h1 class="m-0 text-(length:--fs-32) leading-tight font-bold text-encre">
+        Nouveau service
+      </h1>
+      <div role="status" class="flex flex-col gap-6">
+        <span class="sr-only">Chargement du formulaire</span>
+        <USkeleton class="h-24 w-full" aria-hidden="true" />
+        <USkeleton class="h-14 w-full" aria-hidden="true" />
+        <USkeleton class="h-14 w-full" aria-hidden="true" />
+      </div>
     </div>
 
     <UEmpty
@@ -43,6 +48,11 @@ const deviseParDefaut = computed<Devise>(() => moi.value?.devise ?? DEVISE_REPLI
       :actions="[{ label: 'Réessayer', size: 'xl', onClick: () => refresh() }]"
     />
 
-    <StudioServiceForm v-else class="mt-4" :service="null" :compteurs="compteurs" :devise-par-defaut="deviseParDefaut" />
+    <div v-else class="mt-4 flex flex-col gap-6">
+      <h1 class="m-0 text-(length:--fs-32) leading-tight font-bold text-encre">
+        Nouveau service
+      </h1>
+      <StudioServiceForm :service="null" :compteurs="compteurs" :devise-par-defaut="deviseParDefaut" />
+    </div>
   </div>
 </template>

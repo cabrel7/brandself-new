@@ -26,27 +26,17 @@ function surTouche(event: KeyboardEvent): void {
 </script>
 
 <template>
-  <li class="flex items-center gap-1 border-b border-bordure bg-fond py-3">
-    <UButton
-      v-if="triable"
-      icon="i-ph-dots-six-vertical"
-      variant="ghost"
-      color="neutral"
-      size="lg"
-      class="size-(--cible-tactile) shrink-0 cursor-grab touch-none justify-center px-0 active:cursor-grabbing"
-      :data-poignee="service.id"
-      :aria-label="`Déplacer ${service.titre} (flèches haut et bas)`"
-      @keydown="surTouche"
-    />
-
+  <li class="flex items-center gap-1 border-b border-bordure bg-fond py-3 transition-colors hover:bg-surface">
     <NuxtLink
       :to="`/studio/services/${service.id}`"
       class="flex min-w-0 flex-1 items-center gap-3 rounded-(--rayon-interne) text-encre no-underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-      :class="{ 'opacity-70': !service.actif }"
     >
       <span
         class="flex size-14 shrink-0 items-center justify-center overflow-hidden rounded-(--rayon-interne)"
-        :class="service.image ? 'bg-accent-doux' : 'border border-dashed border-bordure'"
+        :class="[
+          service.image ? 'bg-accent-doux' : 'border border-dashed border-bordure',
+          { 'opacity-50 grayscale': !service.actif },
+        ]"
       >
         <img
           v-if="service.image"
@@ -60,9 +50,18 @@ function surTouche(event: KeyboardEvent): void {
         >
       </span>
       <span class="flex min-w-0 flex-col items-start gap-1">
-        <span class="text-base font-semibold wrap-break-word text-encre">{{ service.titre }}</span>
+        <span
+          class="text-base font-semibold wrap-break-word"
+          :class="service.actif ? 'text-encre' : 'text-texte-secondaire'"
+        >{{ service.titre }}</span>
         <span class="text-(length:--fs-14) text-texte-secondaire">{{ meta }}</span>
-        <UBadge v-if="enVedette" label="En vedette" color="primary" variant="soft" />
+        <UBadge
+          v-if="enVedette"
+          label="En vedette"
+          color="primary"
+          variant="soft"
+          class="bg-accent-doux text-(length:--fs-14) font-semibold text-accent-texte"
+        />
       </span>
     </NuxtLink>
 
@@ -71,8 +70,20 @@ function surTouche(event: KeyboardEvent): void {
       :disabled="occupe"
       :loading="occupe"
       :aria-label="`Visible sur la vitrine : ${service.titre}`"
-      class="shrink-0"
+      class="min-w-(--cible-tactile) shrink-0 justify-center"
       @update:model-value="emit('basculer', $event)"
+    />
+
+    <UButton
+      v-if="triable"
+      icon="i-ph-dots-six-vertical"
+      variant="ghost"
+      color="neutral"
+      size="lg"
+      class="size-(--cible-tactile) shrink-0 cursor-grab touch-none justify-center px-0 active:cursor-grabbing"
+      :data-poignee="service.id"
+      :aria-label="`Déplacer ${service.titre} (flèches haut et bas)`"
+      @keydown="surTouche"
     />
   </li>
 </template>

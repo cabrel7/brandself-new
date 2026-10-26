@@ -11,13 +11,8 @@ const {
 
 <template>
   <div>
-    <div v-if="enChargement" class="flex flex-col gap-4" aria-busy="true" aria-label="Chargement de vos services">
-      <USkeleton class="h-10 w-48" />
-      <USkeleton v-for="n in 4" :key="n" class="h-20 w-full" />
-    </div>
-
     <UEmpty
-      v-else-if="absente"
+      v-if="absente"
       icon="i-ph-storefront"
       title="Créons d’abord votre vitrine"
       description="Vos services apparaissent ici dès que votre vitrine existe."
@@ -46,10 +41,10 @@ const {
     <template v-else>
       <header class="flex items-start justify-between gap-4">
         <div class="min-w-0">
-          <h1 class="m-0 text-(length:--fs-32) leading-tight font-semibold text-encre">
+          <h1 class="m-0 text-(length:--fs-32) leading-tight font-bold text-encre">
             Services
           </h1>
-          <p class="m-0 mt-1 text-base text-texte-secondaire">
+          <p v-if="!enChargement" class="m-0 mt-1 text-base text-texte-secondaire">
             {{ resume.visibles }} {{ resume.visibles > 1 ? 'visibles' : 'visible' }} · {{ resume.enVedette }} en vedette sur {{ resume.vedetteMax }}
           </p>
         </div>
@@ -61,7 +56,12 @@ const {
         <span>{{ message }}</span>
       </p>
 
-      <ul ref="liste" class="m-0 mt-4 list-none border-t border-bordure p-0">
+      <div v-if="enChargement" role="status" class="mt-4 flex flex-col gap-4">
+        <span class="sr-only">Chargement de vos services</span>
+        <USkeleton v-for="n in 4" :key="n" class="h-20 w-full" aria-hidden="true" />
+      </div>
+
+      <ul v-else ref="liste" class="m-0 mt-4 list-none border-t border-bordure p-0">
         <StudioServiceLigne
           v-for="service in services"
           :key="service.id"
@@ -76,7 +76,7 @@ const {
         {{ annonce }}
       </p>
 
-      <p class="m-0 mt-6 text-base text-texte-secondaire">
+      <p v-if="!enChargement" class="m-0 mt-6 text-base text-texte-secondaire">
         L’interrupteur masque un service sur votre vitrine sans le supprimer. Les services en vedette s’affichent en premier sur l’accueil.
       </p>
     </template>

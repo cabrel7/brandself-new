@@ -8,7 +8,7 @@ defineProps<{ username: string, services: ServicePublicCarteDTO[], total: number
   <section aria-labelledby="services-a-la-une" class="mx-auto flex w-full max-w-6xl flex-col gap-6 px-6 py-12">
     <div class="flex items-end justify-between gap-4">
       <div class="flex flex-col gap-2">
-        <p class="text-(length:--fs-14) font-semibold tracking-widest text-accent uppercase">Services · à la une</p>
+        <p class="text-(length:--fs-14) font-semibold tracking-widest text-accent-texte uppercase">Services · à la une</p>
         <h2 id="services-a-la-une" class="font-(family-name:--font-titre) text-(length:--fs-32) leading-tight font-bold">
           Ce que je propose
         </h2>
@@ -27,7 +27,7 @@ defineProps<{ username: string, services: ServicePublicCarteDTO[], total: number
       role="region"
       aria-label="Services à la une"
       tabindex="0"
-      class="-mx-6 snap-x snap-mandatory scroll-px-6 overflow-x-auto px-6 pb-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent lg:mx-0 lg:overflow-visible lg:px-0"
+      class="-mx-6 snap-x snap-mandatory scroll-px-6 overflow-x-auto px-6 py-2 -mt-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent lg:mx-0 lg:overflow-visible lg:px-0"
     >
       <ul class="flex gap-4 lg:grid lg:grid-cols-3 lg:gap-6">
         <li

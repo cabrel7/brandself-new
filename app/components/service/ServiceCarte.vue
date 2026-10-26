@@ -10,7 +10,7 @@ const action = computed(() => actionCarte(props.service, props.username))
 </script>
 
 <template>
-  <article class="relative flex h-full flex-col overflow-hidden rounded-3xl border border-bordure bg-surface">
+  <article class="relative flex h-full flex-col overflow-hidden rounded-(--rayon-carte) border border-bordure bg-surface transition-[border-color,box-shadow] hover:border-texte-secondaire hover:shadow-sm has-[h3_a:focus-visible]:outline-2 has-[h3_a:focus-visible]:outline-offset-2 has-[h3_a:focus-visible]:outline-accent">
     <div class="relative">
       <ServiceVisuel :image="service.image" :titre="service.titre" hauteur="carte" />
       <span class="absolute top-4 left-4 rounded-full bg-champ px-3 py-1 text-(length:--fs-14) font-medium text-encre">

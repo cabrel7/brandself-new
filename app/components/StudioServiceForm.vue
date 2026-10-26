@@ -20,6 +20,11 @@ const props = defineProps<{
 
 const SWITCH_UI = { root: 'w-full flex-row-reverse items-center justify-between gap-4', wrapper: 'ms-0' }
 const RADIO_UI = { legend: 'mb-2 text-base font-semibold text-encre', item: 'flex-1' }
+// Segment actif plein (accent + texte blanc) : l'option choisie se lit d'un coup d'oeil.
+const TARIF_UI = {
+  ...RADIO_UI,
+  item: 'flex-1 has-data-[state=checked]:border-accent has-data-[state=checked]:bg-accent has-data-[state=checked]:**:text-sur-accent',
+}
 
 const {
   form, image, erreurs, erreurGenerale, enregistrement, aDesModifications, viderErreur,
@@ -33,19 +38,16 @@ const {
   deviseParDefaut: props.deviseParDefaut,
 })
 
-const enModification = computed(() => props.service !== null)
-const labelDuree = computed(() => (dureeRequise.value ? 'Durée (min)' : 'Durée (min) · facultative'))
+const aidePrix = computed(() =>
+  prixDecimal.value ? 'Exemple : 12,50 (deux décimales au plus).' : 'Montant entier, sans décimale. Exemple : 15 000.',
+)
 </script>
 
 <template>
   <form class="flex flex-col gap-6" novalidate @submit.prevent="enregistrer">
-    <h1 class="m-0 text-(length:--fs-32) leading-tight font-semibold text-encre">
-      {{ enModification ? 'Modifier le service' : 'Nouveau service' }}
-    </h1>
-
     <UFormField name="imageMediaId">
       <template #label>
-        Photo <span class="font-normal text-texte-secondaire">· facultative</span>
+        Photo <StudioMentionFacultative feminin />
       </template>
       <StudioServicePhoto
         :photo="image"
@@ -86,7 +88,7 @@ const labelDuree = computed(() => (dureeRequise.value ? 'Durée (min)' : 'Durée
       aria-labelledby="titre-accompagnement"
       class="flex flex-col gap-4 rounded-(--rayon) bg-surface p-4"
     >
-      <h2 id="titre-accompagnement" class="m-0 text-(length:--fs-14) font-semibold tracking-wider text-accent uppercase">
+      <h2 id="titre-accompagnement" class="m-0 text-(length:--fs-14) font-semibold tracking-wider text-accent-texte uppercase">
         Accompagnement
       </h2>
       <div class="grid grid-cols-2 gap-4">
@@ -98,16 +100,19 @@ const labelDuree = computed(() => (dureeRequise.value ? 'Durée (min)' : 'Durée
             @update:model-value="viderErreur('nbSeances')"
           />
         </UFormField>
-        <UFormField :label="labelDuree" name="dureeMin" required :error="erreurs.dureeMin">
+        <UFormField label="Durée (min)" name="dureeMin" required :error="erreurs.dureeMin">
           <UInput v-model="form.dureeMin" inputmode="numeric" @update:model-value="viderErreur('dureeMin')" />
         </UFormField>
       </div>
-      <UFormField label="Rythme · facultatif" name="rythme" :error="erreurs.rythme">
+      <UFormField label="Rythme" name="rythme" :error="erreurs.rythme">
         <USelect v-model="form.rythme" :items="ITEMS_RYTHMES" @update:model-value="viderErreur('rythme')" />
       </UFormField>
     </section>
 
-    <UFormField v-else :label="labelDuree" name="dureeMin" :required="dureeRequise" :error="erreurs.dureeMin">
+    <UFormField v-else name="dureeMin" :required="dureeRequise" :error="erreurs.dureeMin">
+      <template #label>
+        Durée (min) <StudioMentionFacultative v-if="!dureeRequise" feminin />
+      </template>
       <UInput v-model="form.dureeMin" inputmode="numeric" @update:model-value="viderErreur('dureeMin')" />
     </UFormField>
 
@@ -120,7 +125,7 @@ const labelDuree = computed(() => (dureeRequise.value ? 'Durée (min)' : 'Durée
         indicator="hidden"
         orientation="horizontal"
         size="lg"
-        :ui="RADIO_UI"
+        :ui="TARIF_UI"
         @update:model-value="viderErreur('tarif')"
       />
       <p v-if="tarifVerrouille" class="m-0 text-(length:--fs-14) text-texte-secondaire">
@@ -134,12 +139,16 @@ const labelDuree = computed(() => (dureeRequise.value ? 'Durée (min)' : 'Durée
 
     <template v-if="payant">
       <div class="grid grid-cols-[minmax(0,1fr)_8rem] gap-4">
-        <UFormField :label="libellePrix" name="prix" required :error="erreurs.prix">
+        <UFormField :label="libellePrix" name="prix" required :error="erreurs.prix" :help="aidePrix">
           <UInput
             v-model="form.prix"
             :inputmode="prixDecimal ? 'decimal' : 'numeric'"
             @update:model-value="viderErreur('prix')"
-          />
+          >
+            <template #trailing>
+              <span class="text-base font-semibold text-texte-secondaire" aria-hidden="true">{{ form.devise }}</span>
+            </template>
+          </UInput>
         </UFormField>
         <UFormField label="Devise" name="devise" :error="erreurs.devise">
           <USelect v-model="form.devise" :items="ITEMS_DEVISES_SERVICE" @update:model-value="viderErreur('devise')" />
@@ -162,7 +171,10 @@ const labelDuree = computed(() => (dureeRequise.value ? 'Durée (min)' : 'Durée
         </p>
       </div>
 
-      <UFormField label="Instructions de règlement · facultatif" name="paiementInstructions" :error="erreurs.paiementInstructions">
+      <UFormField name="paiementInstructions" :error="erreurs.paiementInstructions">
+        <template #label>
+          Instructions de règlement <StudioMentionFacultative />
+        </template>
         <UTextarea
           v-model="form.paiementInstructions"
           :rows="3"
@@ -175,11 +187,13 @@ const labelDuree = computed(() => (dureeRequise.value ? 'Durée (min)' : 'Durée
     </template>
 
     <UFormField
-      label="Ce que comprend le service · facultatif"
       name="inclus"
       :error="erreurs.inclus"
       :help="`Une ligne par élément, ${INCLUS_MAX} au maximum (${INCLUS_LIGNE_MAX} caractères par ligne). Pour un accompagnement, une ligne par étape du programme.`"
     >
+      <template #label>
+        Ce que comprend le service <StudioMentionFacultative />
+      </template>
       <UTextarea v-model="form.inclus" :rows="5" class="w-full" @update:model-value="viderErreur('inclus')" />
     </UFormField>
 

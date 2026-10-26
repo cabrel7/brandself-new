@@ -28,8 +28,13 @@
   --fs-32: 2rem;
   --fs-48: 3rem;
 
+  /* Initiale géante d'un service sans photo (ServiceVisuel). */
+  --fs-initiale: 8rem;
+
   --rayon: 1rem;
   --rayon-interne: 0.75rem;
+  /* Carte publique, panneau tarif, bloc de règlement, visuel du détail. */
+  --rayon-carte: 1.5rem;
   --hauteur-controle: 3.5rem;
   --cible-tactile: 2.75rem;
   --transition: 150ms ease-out;
@@ -90,6 +95,7 @@
   --color-texte-secondaire: var(--texte-secondaire);
   --color-accent: var(--accent);
   --color-accent-doux: var(--accent-doux);
+  --color-accent-texte: var(--accent-texte);
   --color-bordure: var(--bordure);
   --color-erreur: var(--erreur);
   --color-champ: var(--champ);
@@ -104,6 +110,12 @@
    déclaré, il faut donc redéclarer le pont sur chaque racine de palette. */
 :root,
 [data-palette] {
+  /* Accent pour petit texte (badge, surtitre, pastille) : l'accent assombri
+     de 30 % vers l'encre. Ratios >= 5,5:1 sur fond, surface et accent-doux
+     des 5 palettes (l'accent seul tombe à 3,8:1 sur accent-doux en Terracotta).
+     Redéclaré ici avec le pont : `var(--accent)` doit se résoudre sur chaque
+     racine de palette. Fonds et boutons gardent `--accent`. */
+  --accent-texte: color-mix(in srgb, var(--accent) 70%, var(--encre));
   --ui-primary: var(--accent);
   --ui-error: var(--erreur);
   --ui-text-inverted: var(--sur-accent);

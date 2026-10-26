@@ -18,6 +18,7 @@ const champ = useTemplateRef<HTMLInputElement>('champ')
 const { enCours, erreur, televerser } = useMediaUpload()
 const messageErreur = computed(() => erreur.value || props.erreurExterne || '')
 const idErreur = useId()
+const idAction = useId()
 
 function ouvrir(): void {
   champ.value?.click()
@@ -47,9 +48,10 @@ async function surChoix(event: Event): Promise<void> {
       >
       <button
         type="button"
-        class="flex size-24 shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-(--rayon) border border-dashed border-accent bg-accent-doux transition-colors hover:bg-surface focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:cursor-wait"
+        class="relative flex size-24 shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-(--rayon) border border-dashed border-accent bg-accent-doux transition-colors hover:bg-surface focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:cursor-wait"
         :disabled="enCours"
-        :aria-label="photo ? 'Changer la photo du service' : 'Ajouter une photo au service'"
+        tabindex="-1"
+        :aria-labelledby="idAction"
         :aria-describedby="messageErreur ? idErreur : undefined"
         @click="ouvrir"
       >
@@ -65,10 +67,15 @@ async function surChoix(event: Event): Promise<void> {
         >
         <UIcon v-else-if="enCours" name="i-ph-circle-notch" class="size-8 animate-spin text-accent" aria-hidden="true" />
         <UIcon v-else name="i-ph-image" class="size-8 text-accent" aria-hidden="true" />
+        <span v-if="photo && enCours" class="absolute inset-0 flex items-center justify-center bg-fond/70" aria-hidden="true">
+          <UIcon name="i-ph-circle-notch" class="size-8 animate-spin text-accent" />
+        </span>
       </button>
 
       <div class="flex min-w-0 flex-1 flex-col items-start gap-1">
         <UButton
+          :id="idAction"
+          :aria-describedby="messageErreur ? idErreur : undefined"
           :label="photo ? 'Changer la photo' : 'Ajouter une photo'"
           variant="link"
           size="lg"
