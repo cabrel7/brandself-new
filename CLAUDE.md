@@ -73,6 +73,7 @@ Dans toute l'interface, les textes, les commentaires et les noms visibles : **vi
 | BullMQ + ioredis | jobs et planification (rappels, emails, IA) |
 | `@nuxt/ui` | base de composants accessibles (boutons, champs, interrupteurs…) thémée sur les variables CSS des palettes ; embarque `@nuxt/icon` (icônes Phosphor `ph`). Les `Bs*` ne sont que des surcouches métier |
 | `@nuxtjs/seo`, `@nuxt/image`, `@nuxt/fonts` | SEO, images, polices |
+| `@iconify-json/ph` | collection Phosphor installée en local : icônes `i-ph-*` sans appel à l'API publique d'Iconify |
 | `concurrently` | `pnpm dev` lance app et worker ensemble |
 | Tailwind CSS 4 (`@tailwindcss/vite`) | styles branchés sur les variables CSS des palettes |
 | `sharp` | traitement d'images |

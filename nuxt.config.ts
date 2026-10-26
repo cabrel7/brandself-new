@@ -9,6 +9,8 @@ const { googleActif, boiteOtpDev } = loadDrapeauxPublics(process.env, process.ar
 export default defineNuxtConfig({
   modules: ['@nuxt/eslint', '@nuxt/fonts', 'nuxt-phosphor-icons', '@nuxtjs/better-auth', '@nuxtjs/seo', '@nuxt/image', '@nuxt/icon/module', 'nuxt-qrcode', 'dayjs-nuxt', '@vueuse/nuxt/module', '@nuxt/ui'],
   css: ['~/assets/css/main.css'],
+  // Pas de mode sombre en v1 : évite la classe `dark` selon la préférence système.
+  ui: { colorMode: false },
   vite: {
     plugins: [tailwindcss()],
     // dayjs publie un bundle UMD sans export ESM : sans pré-bundling, le

@@ -11,8 +11,11 @@ const authClient = useAuthClient()
 const devMode = import.meta.dev && useRuntimeConfig().public.boiteOtpDev === true
 
 const storedIdentifier = ref<StoredIdentifier | null>(null)
-const digits = ref<string[]>(['', '', '', '', '', ''])
-const cases = ref<HTMLInputElement[]>([])
+const CODE_LENGTH = 6
+
+// Un chiffre par case (UPinInput en mode numérique) ; une case vidée n'est plus un nombre.
+const digits = ref<number[]>([])
+const pin = useTemplateRef('pin')
 const loading = ref(false)
 const error = ref('')
 const erreurVisible = ref(false)
@@ -31,7 +34,9 @@ let timer: ReturnType<typeof setInterval> | null = null
 let boiteTimer: ReturnType<typeof setInterval> | null = null
 let boiteTentatives = 0
 
-const codeComplete = computed(() => digits.value.every((d) => d !== ''))
+const codeComplete = computed(() =>
+  Array.from({ length: CODE_LENGTH }, (_, i) => digits.value[i]).every((d) => typeof d === 'number'),
+)
 
 const identifiantAffiche = computed(() => storedIdentifier.value?.value ?? '')
 
@@ -110,51 +115,11 @@ function clearError(): void {
   erreurVisible.value = false
 }
 
-function enterDigit(index: number, event: Event): void {
-  const target = event.target as HTMLInputElement
-  const value = target.value.replace(/\D/g, '')
-  target.value = value.slice(-1)
-  digits.value[index] = target.value
-  clearError()
-  if (target.value && index < 5) {
-    cases.value[index + 1]?.focus()
-  }
-}
-
-function paste(index: number, event: ClipboardEvent): void {
-  event.preventDefault()
-  const text = event.clipboardData?.getData('text').replace(/\D/g, '') ?? ''
-  if (!text) {
-    return
-  }
-  clearError()
-  for (let i = 0; i < 6; i += 1) {
-    const digit = text[i] ?? ''
-    digits.value[i] = digit
-    const currentCase = cases.value[i]
-    if (currentCase) {
-      currentCase.value = digit
-    }
-  }
-  const target = Math.min(index + text.length, 5)
-  cases.value[target]?.focus()
-}
-
-function goBack(index: number, event: KeyboardEvent): void {
-  if (event.key === 'Backspace' && !digits.value[index] && index > 0) {
-    cases.value[index - 1]?.focus()
-  }
-}
-
-function pointCase(index: number, element: unknown): void {
-  if (element instanceof HTMLInputElement) {
-    cases.value[index] = element
-  }
-}
-
 function focusCaseVide(): void {
-  const index = digits.value.findIndex((d) => d === '')
-  cases.value[index === -1 ? 0 : index]?.focus()
+  const index = Array.from({ length: CODE_LENGTH }, (_, i) => digits.value[i]).findIndex(
+    (d) => typeof d !== 'number',
+  )
+  pin.value?.inputsRef[index === -1 ? 0 : index]?.$el.focus()
 }
 
 function failureMessage(): string {
@@ -246,7 +211,6 @@ onMounted(() => {
     return
   }
   startCountdown()
-  cases.value[0]?.focus()
   lancerLectureBoite()
 })
 
@@ -259,147 +223,79 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <main class="colonne-auth">
-    <NuxtLink class="retour" to="/connexion">
-      <PhosphorIcon name="arrow-left" size="1rem" aria-hidden="true" />
-      <span>{{ lienRetour }}</span>
-    </NuxtLink>
+  <main class="mx-auto flex w-full max-w-120 flex-col gap-4 px-6 pt-8 pb-12">
+    <UButton
+      to="/connexion"
+      color="neutral"
+      variant="link"
+      size="lg"
+      icon="i-ph-arrow-left"
+      class="-ml-3 self-start font-normal"
+    >
+      {{ lienRetour }}
+    </UButton>
 
-    <h1 class="titre-auth">Saisissez votre code</h1>
-    <p class="texte-intro">
-      Nous avons envoyé un code à 6 chiffres à <strong class="identifiant">{{ identifiantAffiche }}</strong>.
+    <h1 class="font-(family-name:--font-titre) text-(length:--fs-32) leading-[1.15] font-bold">
+      Saisissez votre code
+    </h1>
+    <p class="text-muted">
+      Nous avons envoyé un code à 6 chiffres à
+      <strong class="font-semibold text-default">{{ identifiantAffiche }}</strong>.
     </p>
 
-    <form class="cases" role="group" aria-label="Code à 6 chiffres" novalidate @submit.prevent="verify">
-      <input
-        v-for="(_, i) in digits"
-        :key="i"
-        :ref="(el) => pointCase(i, el)"
-        :value="digits[i]"
-        type="text"
-        inputmode="numeric"
-        autocomplete="one-time-code"
-        maxlength="1"
-        :aria-label="`Chiffre ${i + 1}`"
-        :aria-invalid="erreurVisible"
-        :aria-describedby="erreurVisible ? 'erreur-code' : undefined"
-        :class="{ 'saisie-erreur': erreurVisible }"
-        :readonly="loading"
-        @input="enterDigit(i, $event)"
-        @keydown="goBack(i, $event)"
-        @paste="paste(i, $event)"
-      >
+    <form novalidate @submit.prevent="verify">
+      <UPinInput
+        ref="pin"
+        v-model="digits"
+        class="cases"
+        type="number"
+        otp
+        autofocus
+        :length="CODE_LENGTH"
+        :color="erreurVisible ? 'error' : 'primary'"
+        :highlight="erreurVisible"
+        :disabled="loading"
+        @update:model-value="clearError"
+      />
     </form>
 
-    <p v-if="error" id="erreur-code" class="message-erreur" role="alert">
-      <PhosphorIcon name="warning-circle" size="1.25rem" aria-hidden="true" />
-      <span>{{ error }}</span>
-    </p>
-    <p v-else class="note expiration">Le code expire dans 10 minutes.</p>
+    <UAlert
+      v-if="error"
+      id="erreur-code"
+      role="alert"
+      color="error"
+      variant="soft"
+      icon="i-ph-warning-circle"
+      :description="error"
+    />
+    <p v-else class="text-sm text-muted">Le code expire dans 10 minutes.</p>
 
-    <BsButton block :loading="loading" @click="verify">
+    <UButton block :loading="loading" @click="verify">
       {{ loading ? 'Vérification…' : 'Valider' }}
-    </BsButton>
+    </UButton>
 
-    <div class="pied">
-      <p v-if="seconds > 0" class="ligne-pied">Renvoyer le code dans {{ compteARebours }}</p>
-      <BsButton v-else variant="lien" class="renvoi" :loading="resending" @click="resend">
+    <div class="flex flex-col">
+      <p v-if="seconds > 0" class="flex min-h-(--cible-tactile) items-center text-muted">
+        Renvoyer le code dans {{ compteARebours }}
+      </p>
+      <UButton
+        v-else
+        variant="link"
+        size="lg"
+        class="-ml-3 self-start font-medium underline underline-offset-4"
+        :loading="resending"
+        @click="resend"
+      >
         Renvoyer le code
-      </BsButton>
-      <p class="ligne-pied">{{ aideIndesirables }}</p>
+      </UButton>
+      <p class="flex min-h-(--cible-tactile) items-center text-muted">{{ aideIndesirables }}</p>
       <template v-if="devMode && boiteVisible">
-        <p v-if="boiteCode" class="code-dev">Code de test : {{ boiteCode }}</p>
-        <p v-else-if="boiteManquant" class="code-dev">
+        <p v-if="boiteCode" class="font-mono text-xs text-muted">Code de test : {{ boiteCode }}</p>
+        <p v-else-if="boiteManquant" class="font-mono text-xs text-muted">
           Aucun code reçu : le worker est-il lancé ? (pnpm dev)
         </p>
-        <p v-else class="code-dev">Code de test : en attente…</p>
+        <p v-else class="font-mono text-xs text-muted">Code de test : en attente…</p>
       </template>
     </div>
   </main>
 </template>
-
-<style scoped>
-.retour {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-  align-self: flex-start;
-  min-height: var(--cible-tactile);
-  color: var(--texte-secondaire);
-  font-size: var(--fs-16);
-  text-decoration: none;
-  transition: color var(--transition);
-}
-
-.retour:hover {
-  color: var(--encre);
-  text-decoration: underline;
-}
-
-.identifiant {
-  color: var(--encre);
-  font-weight: 600;
-}
-
-.cases {
-  display: grid;
-  grid-template-columns: repeat(6, 1fr);
-  gap: 0.5rem;
-}
-
-.cases input {
-  min-height: 4rem;
-  min-width: 0;
-  text-align: center;
-  font-family: var(--font-titre);
-  font-size: var(--fs-24);
-  font-weight: 700;
-  color: var(--encre);
-  border: 1px solid var(--bordure);
-  border-radius: var(--rayon);
-  background-color: var(--champ);
-  transition: border-color var(--transition);
-}
-
-.cases input:hover {
-  border-color: var(--texte-secondaire);
-}
-
-.cases input.saisie-erreur {
-  border-color: var(--erreur);
-}
-
-/* Focus : bordure + anneau = 2 px, visible même sur une case en erreur. */
-.cases input:focus {
-  border-color: var(--accent);
-  outline: none;
-  box-shadow: 0 0 0 1px var(--accent);
-}
-
-.pied {
-  display: flex;
-  flex-direction: column;
-}
-
-.ligne-pied {
-  display: flex;
-  align-items: center;
-  min-height: var(--cible-tactile);
-  margin: 0;
-  color: var(--texte-secondaire);
-  font-size: var(--fs-16);
-}
-
-.renvoi {
-  align-self: flex-start;
-  padding-left: 0;
-  text-decoration: underline;
-}
-
-.code-dev {
-  margin: 0;
-  color: var(--texte-secondaire);
-  font-family: ui-monospace, monospace;
-  font-size: var(--fs-12);
-}
-</style>

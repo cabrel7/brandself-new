@@ -18,7 +18,7 @@ const describedby = computed(() => (props.error ? errorId : undefined))
     <label v-if="label" class="champ-label" :for="controlId">{{ label }}</label>
     <slot :id="controlId" :invalid="invalid" :describedby="describedby" />
     <p v-if="error" :id="errorId" class="message-erreur" role="alert">
-      <PhosphorIcon name="warning-circle" size="1.25rem" aria-hidden="true" />
+      <UIcon name="i-ph-warning-circle" class="size-5 shrink-0" />
       <span>{{ error }}</span>
     </p>
   </div>

@@ -44,6 +44,7 @@
     "zod": "^4.6.7"
   },
   "devDependencies": {
+    "@iconify-json/ph": "^1.2.2",
     "@nuxt/eslint": "^1.17.0",
     "@nuxt/ui": "^4.12.0",
     "@playwright/test": "^1.62.0",

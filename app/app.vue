@@ -1,6 +1,10 @@
+<script setup lang="ts">
+import { fr } from '@nuxt/ui/locale'
+</script>
+
 <template>
-  <div>
+  <UApp :locale="fr">
     <NuxtRouteAnnouncer />
     <NuxtPage />
-  </div>
+  </UApp>
 </template>

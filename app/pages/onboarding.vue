@@ -42,138 +42,60 @@ async function creerVitrine(): Promise<void> {
 </script>
 
 <template>
-  <main class="colonne-auth">
-    <h1 class="titre-auth">Créer votre vitrine</h1>
-    <p class="texte-intro">
+  <main class="mx-auto flex w-full max-w-120 flex-col gap-4 px-6 pt-8 pb-12">
+    <h1 class="font-(family-name:--font-titre) text-(length:--fs-32) leading-[1.15] font-bold">
+      Créer votre vitrine
+    </h1>
+    <p class="text-muted">
       Quelques informations pour débuter. Vous pourrez les modifier plus tard depuis le studio.
     </p>
 
-    <form class="formulaire" @submit.prevent="creerVitrine">
-      <BsField v-slot="{ id }" label="Titre de votre vitrine">
-        <input
-          :id="id"
-          v-model="titre"
-          class="saisie"
+    <form class="flex flex-col gap-4" @submit.prevent="creerVitrine">
+      <UFormField label="Titre de votre vitrine" name="titre">
+        <UInput v-model="titre" type="text" placeholder="Mon activité" required />
+      </UFormField>
+
+      <UFormField label="Prénom" name="prenom">
+        <UInput v-model="prenom" type="text" autocomplete="given-name" placeholder="Jean" required />
+      </UFormField>
+
+      <UFormField label="Nom" name="nom">
+        <UInput v-model="nom" type="text" autocomplete="family-name" placeholder="Dupont" required />
+      </UFormField>
+
+      <UFormField label="Métier" name="metier">
+        <UInput v-model="metier" type="text" placeholder="Cardiologue" required />
+      </UFormField>
+
+      <UFormField label="Adresse de votre vitrine" name="username">
+        <UInput
+          v-model="username"
           type="text"
-          placeholder="Mon activité"
+          autocapitalize="none"
+          autocomplete="off"
+          spellcheck="false"
+          placeholder="dr-cabrel"
           required
+          :ui="{ base: 'ps-29' }"
         >
-      </BsField>
+          <template #leading>
+            <span class="pointer-events-none text-muted" aria-hidden="true">brandself.io/</span>
+          </template>
+        </UInput>
+      </UFormField>
 
-      <BsField v-slot="{ id }" label="Prénom">
-        <input
-          :id="id"
-          v-model="prenom"
-          class="saisie"
-          type="text"
-          autocomplete="given-name"
-          placeholder="Jean"
-          required
-        >
-      </BsField>
+      <UAlert
+        v-if="erreur"
+        role="alert"
+        color="error"
+        variant="soft"
+        icon="i-ph-warning-circle"
+        :description="erreur"
+      />
 
-      <BsField v-slot="{ id }" label="Nom">
-        <input
-          :id="id"
-          v-model="nom"
-          class="saisie"
-          type="text"
-          autocomplete="family-name"
-          placeholder="Dupont"
-          required
-        >
-      </BsField>
-
-      <BsField v-slot="{ id }" label="Métier">
-        <input
-          :id="id"
-          v-model="metier"
-          class="saisie"
-          type="text"
-          placeholder="Cardiologue"
-          required
-        >
-      </BsField>
-
-      <BsField v-slot="{ id }" label="Adresse de votre vitrine">
-        <div class="adresse">
-          <span class="adresse__prefixe" aria-hidden="true">brandself.io/</span>
-          <input
-            :id="id"
-            v-model="username"
-            class="adresse__saisie"
-            type="text"
-            autocapitalize="none"
-            autocomplete="off"
-            spellcheck="false"
-            placeholder="dr-cabrel"
-            required
-          >
-        </div>
-      </BsField>
-
-      <p v-if="erreur" class="message-erreur" role="alert">
-        <PhosphorIcon name="warning-circle" size="1.25rem" aria-hidden="true" />
-        <span>{{ erreur }}</span>
-      </p>
-
-      <BsButton type="submit" block :loading="chargement">
+      <UButton type="submit" block :loading="chargement">
         {{ chargement ? 'Création en cours…' : 'Créer ma vitrine' }}
-      </BsButton>
+      </UButton>
     </form>
   </main>
 </template>
-
-<style scoped>
-.formulaire {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-}
-
-/* Même gabarit qu'un champ .saisie : le préfixe fait partie du cadre. */
-.adresse {
-  display: flex;
-  align-items: center;
-  min-height: var(--hauteur-controle);
-  padding: 0 1rem;
-  border: 1px solid var(--bordure);
-  border-radius: var(--rayon);
-  background-color: var(--champ);
-  transition: border-color var(--transition);
-}
-
-.adresse:hover {
-  border-color: var(--texte-secondaire);
-}
-
-.adresse:focus-within {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
-}
-
-.adresse__prefixe {
-  color: var(--texte-secondaire);
-  font-size: var(--fs-16);
-}
-
-.adresse__saisie {
-  flex: 1;
-  min-width: 0;
-  min-height: calc(var(--hauteur-controle) - 2px);
-  padding: 0;
-  border: none;
-  background: transparent;
-  color: var(--encre);
-  font-family: var(--font-texte);
-  font-size: var(--fs-16);
-}
-
-.adresse__saisie:focus-visible {
-  outline: none;
-}
-
-.adresse__saisie::placeholder {
-  color: var(--texte-secondaire);
-}
-</style>
