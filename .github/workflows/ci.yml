@@ -8,6 +8,37 @@ on:
 jobs:
   verification:
     runs-on: ubuntu-latest
+    timeout-minutes: 25
+    # Les tests d'intégration (vrai PostgreSQL, vrai Redis, vrai disque) tournent ici : sans ces
+    # services, `pnpm test` échoue (le globalSetup exige une base `*_test` et Redis /15).
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_USER: brandself
+          POSTGRES_PASSWORD: brandself
+          POSTGRES_DB: brandself_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U brandself -d brandself_test"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+      redis:
+        image: redis:8-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    env:
+      # Valeurs factices de test, non secrètes (jamais de vrai secret en CI).
+      DATABASE_URL: postgresql://brandself:brandself@localhost:5432/brandself_test
+      REDIS_URL: redis://localhost:6379/15
+      NUXT_BETTER_AUTH_SECRET: secret-de-test-au-moins-trente-deux-caracteres
     steps:
       - uses: actions/checkout@v4
 
@@ -26,14 +57,25 @@ jobs:
 
       - run: pnpm typecheck
 
-      - run: pnpm test
+      # Unitaires + intégration (les migrations sont appliquées par le globalSetup d'intégration).
+      # Le rapport JSON alimente la vérification des tests sautés juste après.
+      - name: Tests (unitaires et intégration)
+        run: pnpm test --reporter=default --reporter=json --outputFile=test-results/vitest.json
+
+      # Un test sauté (skip/todo) n'est pas un test réussi : le job échoue s'il y en a un.
+      - name: Aucun test sauté
+        run: node scripts/verifier-tests-sautes.mjs test-results/vitest.json
 
       # Le build doit passer : valide la compilation Nuxt/Nitro de production.
       - run: pnpm build
-        env:
-          DATABASE_URL: postgresql://test:test@localhost:5432/test
-          REDIS_URL: redis://localhost:6379
-          NUXT_BETTER_AUTH_SECRET: secret-de-test-au-moins-trente-deux-caracteres
+
+      - name: Rapport Vitest en cas d'échec
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: vitest-results
+          path: test-results/
+          if-no-files-found: ignore
 
   e2e:
     runs-on: ubuntu-latest
@@ -83,6 +125,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
 
       # Les scripts db:* et worker utilisent `node --env-file=.env` : le fichier doit exister.
+      # Les specs e2e/api lisent aussi ce fichier (code OTP lu en base, nettoyage Redis).
       - name: Créer .env de test
         run: |
           {
