@@ -2,15 +2,31 @@ import { env } from '../../../shared/env'
 
 export type OtpChannel = 'email' | 'sms' | 'whatsapp'
 
+// Boîte aux lettres de développement : aucun fournisseur n'étant configuré en
+// local (pas de clé Resend, pas de passerelle SMS), le code est déposé en
+// Redis et lu par /api/dev/boite-otp, visible sur la page /connexion/code.
+// Strictement inactif en production (le dépôt et la lecture sont refusés).
+export const BOITE_OTP_PREFIXE = 'otp:boite:'
+export const BOITE_OTP_DUREE_SECONDES = 600
+
 export interface OtpSender {
   readonly canal: OtpChannel
   send(identifier: string, code: string): Promise<void>
+}
+
+async function deposerDansLaBoite(identifier: string, code: string): Promise<void> {
+  if (env.NODE_ENV === 'production') {
+    return
+  }
+  const { redis } = await import('../../utils/redis')
+  await redis.set(`${BOITE_OTP_PREFIXE}${identifier}`, code, 'EX', BOITE_OTP_DUREE_SECONDES)
 }
 
 export class SenderOtpEmail implements OtpSender {
   readonly canal = 'email' as const
 
   async send(identifier: string, code: string): Promise<void> {
+    await deposerDansLaBoite(identifier, code)
     if (env.RESEND_API_KEY && env.NODE_ENV === 'production') {
       const { Resend } = await import('resend')
       const resend = new Resend(env.RESEND_API_KEY)
@@ -33,6 +49,7 @@ export class SenderOtpSms implements OtpSender {
   readonly canal = 'sms' as const
 
   async send(identifier: string, code: string): Promise<void> {
+    await deposerDansLaBoite(identifier, code)
     console.info(`[otp:sms] code pour ${identifier} : ${code}`)
   }
 }

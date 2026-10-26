@@ -7,23 +7,42 @@ interface StoredIdentifier {
 }
 
 const authClient = useAuthClient()
+const devMode = useRuntimeConfig().public.boiteOtpDev === true
 
 const storedIdentifier = ref<StoredIdentifier | null>(null)
 const digits = ref<string[]>(['', '', '', '', '', ''])
 const cases = ref<HTMLInputElement[]>([])
 const loading = ref(false)
 const error = ref('')
+const erreurVisible = ref(false)
 const failedAttempts = ref(0)
 const seconds = ref(60)
+const boiteCode = ref('')
+const boiteManquant = ref(false)
+const boiteVisible = ref(false)
 
 let timer: ReturnType<typeof setInterval> | null = null
+let boiteTimer: ReturnType<typeof setInterval> | null = null
+let boiteTentatives = 0
 
 const codeComplete = computed(() => digits.value.every((d) => d !== ''))
-const identifierLabel = computed(() => {
-  if (!storedIdentifier.value) {
-    return ''
-  }
-  return storedIdentifier.value.channel === 'email' ? 'email' : 'numéro'
+
+const identifiantAffiche = computed(() => storedIdentifier.value?.value ?? '')
+
+const lienRetour = computed(() =>
+  storedIdentifier.value?.channel === 'telephone' ? 'Modifier le numéro' : "Modifier l'email",
+)
+
+const aideIndesirables = computed(() =>
+  storedIdentifier.value?.channel === 'telephone'
+    ? 'Rien reçu ? Vérifiez vos messages indésirables.'
+    : 'Rien reçu ? Vérifiez vos courriels indésirables.',
+)
+
+const compteARebours = computed(() => {
+  const minutes = Math.floor(seconds.value / 60)
+  const reste = seconds.value % 60
+  return `${String(minutes).padStart(2, '0')}:${String(reste).padStart(2, '0')}`
 })
 
 function startCountdown(): void {
@@ -38,11 +57,54 @@ function startCountdown(): void {
   }, 1_000)
 }
 
+function stopBoite(): void {
+  if (boiteTimer) {
+    clearInterval(boiteTimer)
+    boiteTimer = null
+  }
+}
+
+// Aucun fournisseur n'est configuré en développement : le code atterrit dans la
+// boîte OTP (Redis) lue par /api/dev/boite-otp, en attendant le branchement de
+// Resend ou d'une passerelle SMS.
+function lancerLectureBoite(): void {
+  if (!devMode || !storedIdentifier.value) {
+    return
+  }
+  stopBoite()
+  boiteCode.value = ''
+  boiteManquant.value = false
+  boiteTentatives = 0
+  boiteTimer = setInterval(() => {
+    boiteTentatives += 1
+    void $fetch<{ code: string | null }>(`/api/dev/boite-otp?identifiant=${encodeURIComponent(storedIdentifier.value?.value ?? '')}`)
+      .then((reponse) => {
+        if (reponse.code) {
+          boiteCode.value = reponse.code
+          stopBoite()
+        } else if (boiteTentatives >= 20) {
+          boiteManquant.value = true
+          stopBoite()
+        }
+      })
+      .catch(() => {
+        if (boiteTentatives >= 20) {
+          boiteManquant.value = true
+          stopBoite()
+        }
+      })
+    if (boiteTentatives === 1) {
+      boiteVisible.value = true
+    }
+  }, 1_000)
+}
+
 function enterDigit(index: number, event: Event): void {
   const target = event.target as HTMLInputElement
   const value = target.value.replace(/\D/g, '')
   target.value = value.slice(-1)
   digits.value[index] = target.value
+  erreurVisible.value = false
   if (target.value && index < 5) {
     cases.value[index + 1]?.focus()
   }
@@ -78,6 +140,11 @@ function pointCase(index: number, element: unknown): void {
   }
 }
 
+function focusCaseVide(): void {
+  const index = digits.value.findIndex((d) => d === '')
+  cases.value[index === -1 ? 0 : index]?.focus()
+}
+
 function failureMessage(): string {
   const remaining = 3 - failedAttempts.value
   if (remaining > 0) {
@@ -87,7 +154,11 @@ function failureMessage(): string {
 }
 
 async function verify(): Promise<void> {
-  if (!storedIdentifier.value || !codeComplete.value) {
+  if (!storedIdentifier.value) {
+    return
+  }
+  if (!codeComplete.value) {
+    focusCaseVide()
     return
   }
   error.value = ''
@@ -105,9 +176,11 @@ async function verify(): Promise<void> {
     if (response.error) {
       failedAttempts.value += 1
       error.value = failureMessage()
+      erreurVisible.value = true
       return
     }
     sessionStorage.removeItem('brandself:identifiant')
+    stopBoite()
     await navigateTo('/onboarding')
   } finally {
     loading.value = false
@@ -119,6 +192,7 @@ async function resend(): Promise<void> {
     return
   }
   error.value = ''
+  erreurVisible.value = false
   if (!authClient) {
     error.value = 'La page a rencontré un problème. Rechargez-la et réessayez.'
     return
@@ -136,6 +210,7 @@ async function resend(): Promise<void> {
   }
   failedAttempts.value = 0
   startCountdown()
+  lancerLectureBoite()
 }
 
 onMounted(() => {
@@ -152,21 +227,27 @@ onMounted(() => {
   }
   startCountdown()
   cases.value[0]?.focus()
+  lancerLectureBoite()
 })
 
 onUnmounted(() => {
   if (timer) {
     clearInterval(timer)
   }
+  stopBoite()
 })
 </script>
 
 <template>
   <main class="page-code">
-    <h1>Votre code</h1>
+    <NuxtLink class="retour" to="/connexion">
+      <PhosphorIcon name="arrow-left" size="1rem" aria-hidden="true" />
+      <span>{{ lienRetour }}</span>
+    </NuxtLink>
+
+    <h1>Saisissez votre code</h1>
     <p class="introduction">
-      Nous avons envoyé un code à 6 chiffres à votre {{ identifierLabel }}
-      <strong v-if="storedIdentifier">{{ storedIdentifier.value }}</strong>. Il est valable 10 minutes.
+      Nous avons envoyé un code à 6 chiffres à <strong>{{ identifiantAffiche }}</strong>.
     </p>
 
     <form class="cases" novalidate @submit.prevent="verify">
@@ -178,8 +259,9 @@ onUnmounted(() => {
         type="text"
         inputmode="numeric"
         autocomplete="one-time-code"
-        maxlength="2"
+        maxlength="1"
         :aria-label="`Chiffre ${i + 1}`"
+        :class="{ 'saisie-erreur': erreurVisible }"
         :disabled="loading"
         @input="enterDigit(i, $event)"
         @keydown="goBack(i, $event)"
@@ -187,68 +269,177 @@ onUnmounted(() => {
       >
     </form>
 
-    <p v-if="error" class="error" role="alert">{{ error }}</p>
+    <p class="expiration">Le code expire dans 10 minutes.</p>
 
-    <button type="button" class="bouton bouton-principal" :disabled="loading || !codeComplete" @click="verify">
-      {{ loading ? 'Vérification…' : 'Me connecter' }}
-    </button>
-
-    <p class="renvoi">
-      <button
-        type="button"
-        class="lien"
-        :disabled="seconds > 0"
-        @click="resend"
-      >
-        {{ seconds > 0 ? `Renvoyer le code (${seconds} s)` : 'Renvoyer le code' }}
-      </button>
+    <p v-if="error" class="erreur" role="alert">
+      <PhosphorIcon name="warning-circle" size="1.15rem" aria-hidden="true" />
+      <span>{{ error }}</span>
     </p>
 
-    <NuxtLink class="lien modifier" to="/connexion">
-      Modifier mon email / mon numéro
-    </NuxtLink>
+    <div v-if="boiteVisible" class="boite-dev">
+      <p class="boite-dev__titre">Mode développement — aucun fournisseur configuré</p>
+      <p v-if="boiteCode" class="boite-dev__code">
+        Code : <strong>{{ boiteCode }}</strong>
+      </p>
+      <p v-else-if="boiteManquant" class="boite-dev__vide">
+        Aucun code reçu. Le worker est-il lancé&nbsp;? Lancez <code>pnpm dev</code> (app + worker).
+      </p>
+      <p v-else class="boite-dev__attente">Envoi en cours…</p>
+    </div>
+
+    <button
+      type="button"
+      class="bouton bouton-principal"
+      :disabled="loading"
+      @click="verify"
+    >
+      {{ loading ? 'Vérification…' : 'Valider' }}
+    </button>
+
+    <div class="pied">
+      <button
+        v-if="seconds > 0"
+        type="button"
+        class="texte"
+        disabled
+      >
+        Renvoyer le code dans {{ compteARebours }}
+      </button>
+      <button v-else type="button" class="texte lien" @click="resend">Renvoyer le code</button>
+      <p class="texte">{{ aideIndesirables }}</p>
+    </div>
   </main>
 </template>
 
 <style scoped>
 .page-code {
-  max-width: 26rem;
+  max-width: 30rem;
   margin: 0 auto;
-  padding: 2rem 1.25rem 3rem;
+  padding: 2rem 1.5rem 3rem;
   display: flex;
   flex-direction: column;
   gap: 1rem;
 }
 
+.retour {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  align-self: flex-start;
+  color: var(--accent);
+  font-size: 1rem;
+  text-decoration: none;
+  min-height: 2.75rem;
+}
+
+.retour:hover {
+  text-decoration: underline;
+}
+
 h1 {
-  font-size: 2rem;
+  font-size: clamp(2.25rem, 8vw, 2.75rem);
   font-weight: 600;
+  line-height: 1.1;
+  margin: 0;
 }
 
 .introduction {
   color: var(--texte-secondaire);
-  font-size: 0.95rem;
+  font-size: 1.05rem;
   line-height: 1.5;
+  margin: 0;
+}
+
+.introduction strong {
+  color: var(--encre);
 }
 
 .cases {
   display: grid;
   grid-template-columns: repeat(6, 1fr);
-  gap: 0.4rem;
+  gap: 0.5rem;
 }
 
 .cases input {
-  min-height: 3.25rem;
+  min-height: 4rem;
+  min-width: 0;
   text-align: center;
-  font-size: 1.4rem;
+  font-family: var(--font-titre);
+  font-size: 1.75rem;
+  color: var(--encre);
   border: 1px solid var(--bordure);
-  border-radius: 0.75rem;
-  background-color: #FFFFFF;
+  border-radius: 1rem;
+  background-color: var(--champ);
+}
+
+.cases input:focus {
+  border-color: var(--accent);
+  outline: none;
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+.cases input.saisie-erreur {
+  border-color: var(--accent);
+}
+
+.expiration {
+  color: var(--texte-secondaire);
+  font-size: 0.95rem;
+  margin: 0;
+}
+
+.erreur {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--erreur);
+  font-size: 1rem;
+  font-weight: 500;
+  margin: 0;
+}
+
+.boite-dev {
+  border: 1px dashed var(--accent);
+  border-radius: 1rem;
+  background-color: var(--accent-doux);
+  padding: 0.75rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.boite-dev__titre {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--texte-secondaire);
+  margin: 0;
+}
+
+.boite-dev__code,
+.boite-dev__vide,
+.boite-dev__attente {
+  font-size: 0.95rem;
+  color: var(--encre);
+  margin: 0;
+}
+
+.boite-dev__code strong {
+  font-family: var(--font-titre);
+  font-size: 1.35rem;
+  letter-spacing: 0.15em;
+}
+
+.boite-dev code {
+  background-color: var(--champ);
+  border: 1px solid var(--bordure);
+  border-radius: 0.35rem;
+  padding: 0 0.3rem;
+  font-size: 0.85rem;
 }
 
 .bouton {
-  min-height: 3rem;
-  border-radius: 0.75rem;
+  min-height: 3.5rem;
+  border-radius: 1rem;
   border: 1px solid var(--bordure);
   font-family: var(--font-texte);
   font-size: 1rem;
@@ -264,32 +455,36 @@ h1 {
 .bouton-principal {
   background-color: var(--accent);
   border-color: var(--accent);
-  color: #FFFFFF;
+  color: var(--champ);
 }
 
-.erreur {
-  color: var(--erreur);
-  font-size: 0.9rem;
+.pied {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.texte {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--texte-secondaire);
+  font-family: var(--font-texte);
+  font-size: 0.95rem;
+  line-height: 1.5;
+  text-align: left;
+  min-height: auto;
+}
+
+button.texte:disabled {
+  cursor: default;
 }
 
 .lien {
-  background: none;
-  border: none;
   color: var(--accent);
-  font-family: var(--font-texte);
-  font-size: 0.95rem;
   text-decoration: underline;
   cursor: pointer;
   min-height: 2.75rem;
-}
-
-.lien:disabled {
-  color: var(--texte-secondaire);
-  cursor: not-allowed;
-}
-
-.modifier {
   align-self: flex-start;
-  color: var(--texte-secondaire);
 }
 </style>

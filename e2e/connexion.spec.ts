@@ -52,21 +52,21 @@ async function seConnecterParEmail(page: import('@playwright/test').Page, email:
   await page.goto('/connexion')
   await attendreHydration(page)
   await page.getByLabel('Adresse email').fill(email)
-  await page.getByRole('button', { name: 'Recevoir mon code' }).click()
+  await page.getByRole('button', { name: 'Recevoir un code' }).click()
   await expect(page).toHaveURL(/\/connexion\/code/)
   const code = await lireDernierCode(email)
   const cases = page.locator('.cases input')
   for (let i = 0; i < 6; i += 1) {
     await cases.nth(i).fill(code[i])
   }
-  await page.getByRole('button', { name: 'Me connecter' }).click()
+  await page.getByRole('button', { name: 'Valider' }).click()
   await expect(page).toHaveURL(/\/onboarding/)
 }
 
 test('parcours complet : email → code → onboarding', async ({ page }) => {
   const email = `e2e-${Date.now()}@exemple.com`
   await seConnecterParEmail(page, email)
-  await expect(page.getByRole('heading', { name: 'Bienvenue.' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Créer votre vitrine' })).toBeVisible()
 })
 
 test('parcours complet : téléphone → code → onboarding', async ({ page }) => {
@@ -75,16 +75,16 @@ test('parcours complet : téléphone → code → onboarding', async ({ page }) 
   await attendreHydration(page)
   await page.getByRole('tab', { name: 'Téléphone' }).click()
   await page.getByLabel('Numéro de téléphone').fill(telephone.slice(4))
-  await page.getByRole('button', { name: 'Recevoir mon code' }).click()
+  await page.getByRole('button', { name: 'Recevoir un code' }).click()
   await expect(page).toHaveURL(/\/connexion\/code/)
   const code = await lireDernierCode(telephone, 'telephone')
   const cases = page.locator('.cases input')
   for (let i = 0; i < 6; i += 1) {
     await cases.nth(i).fill(code[i])
   }
-  await page.getByRole('button', { name: 'Me connecter' }).click()
+  await page.getByRole('button', { name: 'Valider' }).click()
   await expect(page).toHaveURL(/\/onboarding/)
-  await expect(page.getByRole('heading', { name: 'Bienvenue.' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Créer votre vitrine' })).toBeVisible()
 })
 
 test('mauvais code : message avec essais restants', async ({ page }) => {
@@ -92,13 +92,13 @@ test('mauvais code : message avec essais restants', async ({ page }) => {
   await page.goto('/connexion')
   await attendreHydration(page)
   await page.getByLabel('Adresse email').fill(email)
-  await page.getByRole('button', { name: 'Recevoir mon code' }).click()
+  await page.getByRole('button', { name: 'Recevoir un code' }).click()
   await expect(page).toHaveURL(/\/connexion\/code/)
   const cases = page.locator('.cases input')
   for (let i = 0; i < 6; i += 1) {
     await cases.nth(i).fill('0')
   }
-  await page.getByRole('button', { name: 'Me connecter' }).click()
+  await page.getByRole('button', { name: 'Valider' }).click()
   await expect(page.getByRole('alert')).toContainText('Il vous reste 2 essais')
 })
 
@@ -155,7 +155,7 @@ test('@username et [username] coexistent', async ({ page }) => {
   await page.goto('/@dr-cabrel')
   await expect(page.getByRole('heading', { name: 'Page de liens' })).toBeVisible()
   await page.goto('/dr-cabrel')
-  await expect(page.getByRole('heading', { name: 'Vitrine' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: /Cabrel/ })).toBeVisible()
 })
 
 test.afterAll(async () => {

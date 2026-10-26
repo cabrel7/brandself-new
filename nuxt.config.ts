@@ -19,6 +19,9 @@ export default defineNuxtConfig({
     public: {
       version: '0.1.0',
       googleActif: Boolean(process.env.GOOGLE_CLIENT_ID),
+      // Boîte aux lettres de développement (aucun fournisseur configuré en
+      // local) : affichée sur /connexion/code. Jamais vraie en production.
+      boiteOtpDev: process.env.NODE_ENV !== 'production',
     },
   },
   site: {
