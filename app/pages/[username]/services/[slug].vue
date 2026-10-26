@@ -1,125 +1,110 @@
 <script setup lang="ts">
-interface ServicePublique {
-  id: string
-  slug: string
-  titre: string
-  description?: string
-  type: string
-  dureeMin: number
-  tarif: string
-  prixMontant?: number
-  prixDevise?: string
-  reservable: boolean
-}
+import { toMajorUnits } from '#shared/devises'
+import { libellePrix, SERVICE_TYPE_PASTILLES } from '#shared/services'
 
 const route = useRoute()
-const username = route.params.username as string
-const slug = route.params.slug as string
+const username = String(route.params.username)
+const slug = String(route.params.slug)
 
-const { data: service, error } = await useAsyncData<ServicePublique | null>(
-  'service-publique',
-  () => $fetch<ServicePublique | null>(`/api/public/${username}/services/${slug}`)
+const [vitrine, reponse] = await Promise.all([usePublicVitrine(username), usePublicService(username, slug)])
+
+const service = computed(() => reponse.value.service)
+const lieu = computed(() => `${vitrine.value.ville}, ${vitrine.value.paysLibelle}`)
+const whatsapp = computed(() =>
+  lienWhatsapp(vitrine.value.contact.whatsapp, `Bonjour, j'ai une question sur « ${service.value.titre} ».`),
 )
+const actionLongue = computed(() => actionDetail(service.value, vitrine.value.username, whatsapp.value, 'long'))
+const actionCourte = computed(() => actionDetail(service.value, vitrine.value.username, whatsapp.value, 'court'))
 
-if (error.value) {
-  throw createError({
-    statusCode: error.value.statusCode ?? 500,
-    statusMessage: error.value.statusMessage ?? 'Chargement impossible.',
-  })
-}
+useSeoMeta({
+  title: () => service.value.seo.titre,
+  description: () => service.value.seo.description,
+  ogTitle: () => service.value.seo.titre,
+  ogDescription: () => service.value.seo.description,
+})
 
-if (!service.value) {
-  throw createError({ statusCode: 404, statusMessage: 'Service introuvable.' })
-}
-
-const s = service.value
+useSchemaOrg([
+  defineService({
+    name: () => service.value.titre,
+    description: () => service.value.seo.description,
+    provider: { '@type': 'Person', 'name': vitrine.value.nomAffiche },
+    areaServed: vitrine.value.ville,
+    ...(service.value.tarif === 'payant' && service.value.prixMontant !== null && service.value.prixDevise !== null
+      ? { offers: { price: toMajorUnits(service.value.prixMontant, service.value.prixDevise), priceCurrency: service.value.prixDevise } }
+      : {}),
+  }),
+])
 </script>
 
 <template>
-  <div class="service-publique">
-    <nav class="service-publique__nav">
-      <NuxtLink to="/" class="service-publique__retour">← Retour à la vitrine</NuxtLink>
-    </nav>
+  <VitrineCadre :vitrine="vitrine" :services-total="reponse.total" barre-basse>
+    <div class="mx-auto flex w-full max-w-6xl flex-col gap-6 py-4 lg:px-6 lg:py-8">
+      <NuxtLink
+        :to="`/${vitrine.username}/services`"
+        class="inline-flex min-h-(--cible-tactile) items-center gap-2 self-start px-6 text-texte-secondaire hover:text-accent lg:px-0"
+      >
+        <UIcon name="i-ph-arrow-left" class="size-4" aria-hidden="true" />
+        Tous les services
+      </NuxtLink>
 
-    <article class="service-publique__carte">
-      <div class="service-publique__en-tete">
-        <BsVariant :valeur="s.type" />
-        <h1 class="service-publique__titre">{{ s.titre }}</h1>
+      <div class="grid gap-8 lg:grid-cols-[minmax(0,1fr)_24rem] lg:gap-12">
+        <article class="flex flex-col gap-6">
+          <ServiceVisuel :image="service.image" :titre="service.titre" hauteur="detail" />
+
+          <div class="flex flex-col gap-4 px-6 lg:px-0">
+            <p class="self-start rounded-full bg-accent-doux px-3 py-1 text-(length:--fs-14) font-medium text-accent">
+              {{ SERVICE_TYPE_PASTILLES[service.type] }}
+            </p>
+            <h1 class="font-(family-name:--font-titre) text-(length:--fs-32) leading-[1.1] font-bold md:text-(length:--fs-48)">
+              {{ service.titre }}
+            </h1>
+
+            <ul class="flex flex-col gap-2 lg:hidden">
+              <li v-if="resumeDuree(service, 'long')" class="flex items-center gap-3">
+                <UIcon name="i-ph-clock" class="size-5 shrink-0 text-accent" aria-hidden="true" />
+                {{ resumeDuree(service, 'long') }}
+              </li>
+              <li class="flex items-center gap-3">
+                <UIcon name="i-ph-wallet" class="size-5 shrink-0 text-accent" aria-hidden="true" />
+                {{ prixEtReglement(service) }}
+              </li>
+              <li class="flex items-center gap-3">
+                <UIcon name="i-ph-map-pin" class="size-5 shrink-0 text-accent" aria-hidden="true" />
+                {{ lieu }}
+              </li>
+            </ul>
+
+            <p v-if="service.description" class="max-w-prose text-(length:--fs-16) whitespace-pre-line text-texte-secondaire">
+              {{ service.description }}
+            </p>
+          </div>
+
+          <div class="flex flex-col gap-8 px-6 lg:px-0">
+            <ServiceInclus :type="service.type" :inclus="service.inclus" />
+
+            <div
+              v-if="texteReglement(service)"
+              class="flex items-start gap-3 rounded-3xl bg-accent-doux p-6 lg:hidden"
+            >
+              <UIcon name="i-ph-wallet" class="mt-1 size-5 shrink-0 text-accent" aria-hidden="true" />
+              <div class="flex flex-col gap-1">
+                <p class="font-semibold">{{ libellePrix(service) }}</p>
+                <p class="text-(length:--fs-14) whitespace-pre-line text-texte-secondaire">
+                  {{ texteReglement(service) }}
+                </p>
+              </div>
+            </div>
+
+            <ServiceAutres :autres="reponse.autres" :total="reponse.total" :username="vitrine.username" />
+          </div>
+        </article>
+
+        <div class="hidden lg:block">
+          <ServiceTarifCarte :service="service" :action="actionLongue" :lieu="lieu" :whatsapp="whatsapp" />
+        </div>
       </div>
+    </div>
 
-      <p v-if="s.description" class="service-publique__description">{{ s.description }}</p>
-
-      <div class="service-publique__meta">
-        <span>{{ s.dureeMin }} min</span>
-        <span v-if="s.prixMontant != null && s.prixDevise != null"
-          >{{ s.prixMontant }} {{ s.prixDevise }}</span
-        >
-        <span v-else-if="s.tarif === 'gratuit'">Gratuit</span>
-        <span v-else-if="s.tarif === 'devis'">Sur devis</span>
-      </div>
-
-      <div class="service-publique__actions">
-        <BsButton
-          variant="principal"
-          :disabled="!s.reservable"
-          >Réserver ce service</BsButton
-        >
-      </div>
-    </article>
-  </div>
+    <ServiceBarreAction :service="service" :action="actionCourte" />
+  </VitrineCadre>
 </template>
-
-<style scoped>
-.service-publique {
-  max-width: 28rem;
-  margin: 0 auto;
-  padding: 1.5rem;
-}
-.service-publique__nav {
-  margin-bottom: 1.5rem;
-}
-.service-publique__retour {
-  color: var(--accent);
-  text-decoration: none;
-  font-size: 0.9rem;
-}
-.service-publique__retour:hover {
-  text-decoration: underline;
-}
-.service-publique__carte {
-  background-color: var(--surface);
-  border: 1px solid var(--bordure);
-  border-radius: 1rem;
-  padding: 1.5rem;
-}
-.service-publique__en-tete {
-  display: flex;
-  gap: 0.5rem;
-  flex-wrap: wrap;
-  margin-bottom: 1rem;
-}
-.service-publique__titre {
-  font-family: var(--font-titre);
-  font-size: 1.75rem;
-  font-weight: 600;
-  color: var(--encre);
-  margin: 0;
-}
-.service-publique__description {
-  font-size: 1rem;
-  color: var(--encre);
-  line-height: 1.6;
-  margin: 1rem 0;
-}
-.service-publique__meta {
-  display: flex;
-  gap: 0.75rem;
-  font-size: 0.85rem;
-  color: var(--texte-secondaire);
-  margin-bottom: 1.5rem;
-}
-.service-publique__actions {
-  display: flex;
-  gap: 0.75rem;
-}
-</style>

@@ -15,6 +15,9 @@ export const ENTREES_NAV: readonly EntreeNav[] = [
 /** Écrans enfants : ils ont leur propre retour, la barre du bas est masquée. */
 const ECRANS_ENFANTS: readonly string[] = ['/studio/profil', '/studio/compte']
 
+/** Écrans enfants par préfixe : formulaire de service (nouveau, modification). */
+const PREFIXES_ENFANTS: readonly string[] = ['/studio/services/']
+
 /** Écrans rattachés à l'entrée « Vitrine » (accueil, profil, témoignages). */
 const RATTACHES_VITRINE: readonly string[] = ['/studio/profil', '/studio/temoignages']
 
@@ -32,7 +35,9 @@ export function useStudioNav() {
     return estSousChemin(route.path, to)
   }
 
-  const estEcranEnfant = computed(() => ECRANS_ENFANTS.includes(route.path))
+  const estEcranEnfant = computed(() =>
+    ECRANS_ENFANTS.includes(route.path) || PREFIXES_ENFANTS.some((prefixe) => route.path.startsWith(prefixe)),
+  )
 
   return { entrees: ENTREES_NAV, estActive, estEcranEnfant }
 }
