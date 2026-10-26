@@ -1,70 +1,22 @@
 <script setup lang="ts">
-const props = defineProps<{
-  actif: string
-}>()
-
-const { actif } = props
-
-const entrees = [
-  { to: '/studio', label: 'Vitrine', icon: 'house' },
-  { to: '/studio/services', label: 'Services', icon: 'briefcase' },
-  { to: '/studio/realisations', label: 'Réalisations', icon: 'image' },
-  { to: '/studio/liens', label: 'Liens', icon: 'link' },
-  { to: '/studio/agenda', label: 'Agenda', icon: 'calendar' },
-]
+const { entrees, estActive } = useStudioNav()
 </script>
 
 <template>
-  <nav class="bottom-nav">
+  <nav
+    aria-label="Navigation du studio"
+    class="fixed inset-x-0 bottom-0 z-20 grid grid-cols-5 border-t border-bordure bg-fond pb-[env(safe-area-inset-bottom)] md:hidden"
+  >
     <NuxtLink
       v-for="entree in entrees"
       :key="entree.to"
       :to="entree.to"
-      :class="[
-        'bottom-nav__entree',
-        { 'bottom-nav__entree--actif': actif === entree.to.split('/').pop() || actif === entree.to }
-      ]"
-      :aria-label="entree.label"
+      :aria-current="estActive(entree.to) ? 'page' : undefined"
+      class="flex min-h-16 min-w-0 flex-col items-center justify-center gap-1 px-1 text-(length:--fs-12) font-medium whitespace-nowrap transition-colors hover:text-accent"
+      :class="estActive(entree.to) ? 'text-accent' : 'text-texte-secondaire'"
     >
-      <PhosphorIcon :name="entree.icon" weight="fill" size="1.5rem" />
-      <span class="bottom-nav__label">{{ entree.label }}</span>
+      <UIcon :name="entree.icon" class="size-6" aria-hidden="true" />
+      <span>{{ entree.label }}</span>
     </NuxtLink>
   </nav>
 </template>
-
-<style scoped>
-.bottom-nav {
-  display: flex;
-  justify-content: space-around;
-  align-items: center;
-  height: 4rem;
-  padding: 0 1rem;
-  background-color: var(--surface);
-  border-top: 1px solid var(--bordure);
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  z-index: 20;
-}
-.bottom-nav__entree {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.25rem;
-  font-size: 0.7rem;
-  color: var(--texte-secondaire);
-  text-decoration: none;
-  font-weight: 500;
-  transition: color 0.2s;
-}
-.bottom-nav__entree:hover {
-  color: var(--accent);
-}
-.bottom-nav__entree--actif {
-  color: var(--accent);
-}
-.bottom-nav__label {
-  line-height: 1;
-}
-</style>

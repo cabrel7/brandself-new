@@ -1,73 +1,56 @@
 <script setup lang="ts">
-const titre = ref('')
-const prenom = ref('')
-const nom = ref('')
-const metier = ref('')
-const username = ref('')
-const chargement = ref(false)
-const erreur = ref('')
+import { TITRE_LABELS, TITRES } from '#shared/vitrine'
+import type { EtatUsername } from '~/composables/useUsernameDisponible'
 
-const ERREUR_CREATION = "Nous n'avons pas pu créer votre vitrine. Réessayez dans un instant."
-const ERREUR_SAISIE = 'Vérifiez les informations saisies, puis réessayez.'
+const { titre, prenom, nom, metier, username, palette, chargement, erreurs, erreurGenerale, enLigne, soumettre }
+  = useOnboardingVitrine()
+const { etat } = useUsernameDisponible(username)
 
-function statusCodeOf(err: unknown): number | undefined {
-  if (typeof err === 'object' && err !== null && 'statusCode' in err) {
-    const { statusCode } = err
-    return typeof statusCode === 'number' ? statusCode : undefined
-  }
-  return undefined
+const optionsTitre = [
+  { label: 'Sans titre', value: TITRE_AUCUN },
+  ...TITRES.map((valeur) => ({ label: TITRE_LABELS[valeur], value: valeur })),
+]
+
+const MESSAGES_USERNAME: Partial<Record<EtatUsername, string>> = {
+  pris: 'Cette adresse est déjà prise. Essayez-en une autre.',
+  reserve: 'Cette adresse est réservée. Essayez-en une autre.',
+  format: 'Utilisez 3 à 30 lettres minuscules, chiffres ou tirets, sans tiret au début ni à la fin.',
+  erreur: "Nous n'avons pas pu vérifier cette adresse. Elle sera contrôlée à la création.",
 }
 
-async function creerVitrine(): Promise<void> {
-  erreur.value = ''
-  chargement.value = true
-  try {
-    await $fetch('/api/studio/vitrine', {
-      method: 'POST',
-      body: {
-        titre: titre.value,
-        prenom: prenom.value,
-        nom: nom.value,
-        metier: metier.value,
-        username: username.value.trim().toLowerCase(),
-      },
-    })
-    await navigateTo('/studio')
-  } catch (err: unknown) {
-    erreur.value = statusCodeOf(err) === 400 ? ERREUR_SAISIE : ERREUR_CREATION
-  } finally {
-    chargement.value = false
-  }
-}
+const erreurUsername = computed(() => erreurs.value.username ?? MESSAGES_USERNAME[etat.value])
+const bloque = computed(() => etat.value === 'pris' || etat.value === 'reserve' || etat.value === 'format')
 </script>
 
 <template>
-  <main class="mx-auto flex w-full max-w-120 flex-col gap-4 px-6 pt-8 pb-12">
+  <VitrineEnLigne v-if="enLigne" :username="enLigne.username" :prochaine-etape="enLigne.prochaineEtape" />
+
+  <main v-else class="mx-auto flex w-full max-w-120 flex-col gap-4 px-6 pt-8 pb-12">
     <h1 class="font-(family-name:--font-titre) text-(length:--fs-32) leading-[1.15] font-bold">
-      Créer votre vitrine
+      Bienvenue. Construisons votre vitrine ensemble.
     </h1>
-    <p class="text-muted">
+    <p class="text-texte-secondaire">
       Quelques informations pour débuter. Vous pourrez les modifier plus tard depuis le studio.
     </p>
 
-    <form class="flex flex-col gap-4" @submit.prevent="creerVitrine">
-      <UFormField label="Titre de votre vitrine" name="titre">
-        <UInput v-model="titre" type="text" placeholder="Mon activité" required />
+    <form class="flex flex-col gap-4" novalidate @submit.prevent="soumettre">
+      <UFormField label="Titre" name="titre" :error="erreurs.titre">
+        <USelect v-model="titre" :items="optionsTitre" value-key="value" class="w-full" />
       </UFormField>
 
-      <UFormField label="Prénom" name="prenom">
-        <UInput v-model="prenom" type="text" autocomplete="given-name" placeholder="Jean" required />
+      <UFormField label="Prénom" name="prenom" :error="erreurs.prenom" required>
+        <UInput v-model="prenom" type="text" autocomplete="given-name" placeholder="Cabrel" />
       </UFormField>
 
-      <UFormField label="Nom" name="nom">
-        <UInput v-model="nom" type="text" autocomplete="family-name" placeholder="Dupont" required />
+      <UFormField label="Nom" name="nom" :error="erreurs.nom" required>
+        <UInput v-model="nom" type="text" autocomplete="family-name" placeholder="Nguesso" />
       </UFormField>
 
-      <UFormField label="Métier" name="metier">
-        <UInput v-model="metier" type="text" placeholder="Cardiologue" required />
+      <UFormField label="Métier" name="metier" :error="erreurs.metier" required>
+        <UInput v-model="metier" type="text" placeholder="Cardiologue" />
       </UFormField>
 
-      <UFormField label="Adresse de votre vitrine" name="username">
+      <UFormField label="Adresse de votre vitrine" name="username" :error="erreurUsername" required>
         <UInput
           v-model="username"
           type="text"
@@ -75,25 +58,31 @@ async function creerVitrine(): Promise<void> {
           autocomplete="off"
           spellcheck="false"
           placeholder="dr-cabrel"
-          required
-          :ui="{ base: 'ps-29' }"
+          :loading="etat === 'verification'"
         >
           <template #leading>
-            <span class="pointer-events-none text-muted" aria-hidden="true">brandself.io/</span>
+            <span class="pointer-events-none text-muted" aria-hidden="true">{{ HOTE_VITRINES }}/</span>
           </template>
         </UInput>
+        <template #help>
+          <span v-if="etat === 'libre'" class="flex items-center gap-2 font-semibold text-[color-mix(in_srgb,var(--ui-success)_55%,var(--encre))]">
+            <UIcon name="i-ph-check" /> Cette adresse est disponible
+          </span>
+        </template>
       </UFormField>
 
+      <PaletteChoice v-model="palette" />
+
       <UAlert
-        v-if="erreur"
+        v-if="erreurGenerale"
         role="alert"
         color="error"
         variant="soft"
         icon="i-ph-warning-circle"
-        :description="erreur"
+        :description="erreurGenerale"
       />
 
-      <UButton type="submit" block :loading="chargement">
+      <UButton type="submit" block :loading="chargement" :disabled="bloque">
         {{ chargement ? 'Création en cours…' : 'Créer ma vitrine' }}
       </UButton>
     </form>

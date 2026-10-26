@@ -1,32 +1,19 @@
 <script setup lang="ts">
 defineProps<{
-  variant?: 'default' | 'surligne'
-}>()
-
-defineEmits<{
-  (e: 'update:modelValue', value: boolean): void
+  /** `doux` : fond d'accent doux (point focal d'un écran) ; `surligne` : légère élévation. */
+  variant?: 'default' | 'doux' | 'surligne'
 }>()
 </script>
 
 <template>
   <div
-    :class="['carte', { 'carte-surlignee': variant === 'surligne' }]"
+    class="flex flex-col gap-4 rounded-(--rayon) border border-bordure p-5"
+    :class="{
+      'bg-surface': variant !== 'doux',
+      'bg-accent-doux': variant === 'doux',
+      'shadow-[0_4px_12px_-2px_color-mix(in_srgb,var(--encre)_12%,transparent)]': variant === 'surligne',
+    }"
   >
     <slot />
   </div>
 </template>
-
-<style scoped>
-.carte {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-  background-color: var(--surface);
-  border: 1px solid var(--bordure);
-  border-radius: 1rem;
-  padding: 1.25rem;
-}
-.carte-surlignee {
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
-}
-</style>

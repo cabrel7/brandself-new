@@ -2,7 +2,8 @@
 @import "@nuxt/ui";
 
 /* Palette Terracotta (défaut) — PROJECT_CONTEXT.md §9.2.
-   Les 4 autres palettes redéfinissent ces mêmes variables (S2). */
+   Les 4 autres palettes redéfinissent ces mêmes variables via
+   `[data-palette="…"]` (voir plus bas). */
 :root {
   --fond: #FBF7F0;
   --surface: #F3EBDD;
@@ -34,6 +35,51 @@
   --transition: 150ms ease-out;
 }
 
+/* Palettes de vitrine (PROJECT_CONTEXT.md §9.2). Un attribut `data-palette`
+   sur un élément racine suffit : tout le sous-arbre change, aucun composant
+   n'est modifié. Texte sur l'accent : blanc (>= 4,5:1 vérifié sur chaque
+   palette). Écart : l'accent Ocre du document (#9A6A0F) donne 4,46:1 sur le
+   fond ; il est assombri à #946409 (4,85:1 sur le fond, 5,14:1 pour le blanc). */
+[data-palette="sauge"] {
+  --fond: #F8F7F1;
+  --surface: #ECEFE3;
+  --encre: #1F2420;
+  --texte-secondaire: #5C6358;
+  --accent: #3F6B4F;
+  --accent-doux: #DDE8DC;
+  --bordure: #DCE0D0;
+}
+
+[data-palette="indigo"] {
+  --fond: #F7F5F1;
+  --surface: #E9E7EF;
+  --encre: #1E1B2E;
+  --texte-secondaire: #5A5670;
+  --accent: #3B3F8C;
+  --accent-doux: #DDDFF2;
+  --bordure: #DEDBE6;
+}
+
+[data-palette="ocre"] {
+  --fond: #FCF8EE;
+  --surface: #F6EBCB;
+  --encre: #26200F;
+  --texte-secondaire: #6A5E3F;
+  --accent: #946409;
+  --accent-doux: #F6E3B0;
+  --bordure: #EADFBE;
+}
+
+[data-palette="bordeaux"] {
+  --fond: #FAF5F3;
+  --surface: #F1E4E1;
+  --encre: #2A1C1E;
+  --texte-secondaire: #6B5558;
+  --accent: #8A2F45;
+  --accent-doux: #F0D8DD;
+  --bordure: #E8D5D3;
+}
+
 /* Les variables des palettes deviennent des utilitaires Tailwind
    (bg-accent, text-encre, border-bordure…). `inline` : la valeur reste
    `var(--accent)`, donc un changement de palette est suivi. */
@@ -53,8 +99,11 @@
 /* Pont @nuxt/ui -> palettes Brandself. Les variables `--ui-*` (définies par
    @nuxt/ui dans @layer theme) sont redéfinies ici, hors couche : elles
    l'emportent toujours. Aucune couleur en dur : tout suit les variables de la
-   palette active. Pas de mode sombre en v1 (colorMode désactivé). */
-:root {
+   palette active. Pas de mode sombre en v1 (colorMode désactivé).
+   Le sélecteur inclut `[data-palette]` : un `var()` est résolu là où il est
+   déclaré, il faut donc redéclarer le pont sur chaque racine de palette. */
+:root,
+[data-palette] {
   --ui-primary: var(--accent);
   --ui-error: var(--erreur);
   --ui-text-inverted: var(--sur-accent);

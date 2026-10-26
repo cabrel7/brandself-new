@@ -83,6 +83,8 @@ Dans toute l'interface, les textes, les commentaires et les noms visibles : **vi
 | `@nuxt/eslint` (eslint + typescript-eslint) | lint ; **TypeScript 6 obligatoire** : typescript-eslint ne supporte pas TS 7 |
 | tsx | exécuter `worker/`, `db:seed` et scripts en TypeScript (process séparé de Nitro) |
 | Vitest, Playwright (1.62) | tests ; version épinglée sur la révision Chromium déjà en cache |
+| `unstorage` (driver `fs`) | stockage des médias derrière une interface unique (disque aujourd'hui, S3/R2 plus tard) ; `createStorage` direct pour rester testable hors Nitro |
+| `h3` (1.15.11, épinglé sur la version de Nitro) | dépendance directe : `server/utils/api.ts`, `validation.ts` et les routes l'importent explicitement (pnpm strict) ; doit suivre la version embarquée par Nuxt |
 
 ## 9. Documents
 

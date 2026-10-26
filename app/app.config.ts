@@ -147,6 +147,15 @@ export default defineAppConfig({
       defaultVariants: { size: 'xl' },
     },
 
+    // Réglage oui/non : zone tactile de 44 px même sans libellé.
+    switch: {
+      slots: {
+        root: 'min-h-(--cible-tactile) items-center',
+        label: 'text-base font-medium',
+        description: 'text-sm',
+      },
+    },
+
     separator: {
       slots: {
         label: 'text-sm text-muted font-normal',

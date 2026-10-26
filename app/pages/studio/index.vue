@@ -1,130 +1,250 @@
 <script setup lang="ts">
-interface Moi {
-  id: string
-  email: string | null
-  telephone: string | null
-  nom: string
-  locale: string
-  devise: string
-  fuseau: string
-  aUneVitrine: boolean
+import type { NextStep } from '#shared/vitrine'
+
+definePageMeta({ layout: 'studio' })
+useSeoMeta({ title: 'Votre vitrine — Brandself' })
+
+interface Etape {
+  titre: string
+  texte: string
+  to: string
 }
 
-const moi = ref<Moi | null>(null)
-const chargement = ref(true)
+const ETAPES: Record<NextStep, Etape> = {
+  photo: {
+    titre: 'Ajoutez votre photo',
+    texte: 'Une photo de face, bien éclairée, rend votre vitrine plus chaleureuse.',
+    to: '/studio/profil',
+  },
+  service: {
+    titre: 'Ajoutez votre premier service',
+    texte: 'Vos visiteurs voient tout de suite ce que vous proposez.',
+    to: '/studio/services/nouveau',
+  },
+  realisation: {
+    titre: 'Ajoutez une première réalisation',
+    texte: 'Montrer votre travail rassure vos visiteurs.',
+    to: '/studio/realisations/nouveau',
+  },
+}
 
-onMounted(async () => {
-  try {
-    moi.value = await $fetch<Moi>('/api/studio/moi')
-  } finally {
-    chargement.value = false
-  }
+const {
+  vitrine, resume, enChargement, enErreur, absente, refresh, publicationEnCours, changerPublication,
+} = useStudioVitrine()
+const { affichee } = useAdressePublique(() => vitrine.value?.username)
+
+const etape = computed(() => (resume.value?.prochaineEtape ? ETAPES[resume.value.prochaineEtape] : null))
+const manquants = computed(() => resume.value?.manquantsPourPublier ?? [])
+
+function compteur(nombre: number): string {
+  return nombre === 0 ? 'À ajouter' : String(nombre)
+}
+
+function pluriel(nombre: number, singulier: string, pluralise: string): string {
+  return nombre > 1 ? pluralise : singulier
+}
+
+const lignes = computed(() => [
+  { label: 'Profil', to: '/studio/profil', valeur: manquants.value.length === 0 ? 'Complet' : 'À compléter' },
+  { label: 'Services', to: '/studio/services', valeur: compteur(resume.value?.compteurs.services ?? 0) },
+  { label: 'Réalisations', to: '/studio/realisations', valeur: compteur(resume.value?.compteurs.realisations ?? 0) },
+  { label: 'Témoignages', to: '/studio/temoignages', valeur: compteur(resume.value?.compteurs.temoignages ?? 0) },
+  { label: 'Agenda', to: '/studio/agenda', valeur: '' },
+  { label: 'Liens', to: '/studio/liens', valeur: compteur(resume.value?.compteurs.liens ?? 0) },
+])
+
+const statistiques = computed(() => {
+  const stats = resume.value?.statistiques7j
+  if (!stats) return []
+  return [
+    { nombre: stats.visites, label: pluriel(stats.visites, 'visite', 'visites') },
+    { nombre: stats.clics, label: pluriel(stats.clics, 'clic', 'clics') },
+    { nombre: stats.reservations, label: pluriel(stats.reservations, 'réservation', 'réservations') },
+  ]
 })
 
-const actif = ref('Vitrine')
+// Un seul message de publication à la fois.
+const messagePublication = ref('')
+const profilIncomplet = ref(false)
+const confirmerDepublication = ref(false)
 
-async function deconnecter() {
-  await $fetch('/api/auth/sign-out', { method: 'POST' })
-  await navigateTo('/connexion')
+async function publier(): Promise<void> {
+  messagePublication.value = ''
+  profilIncomplet.value = false
+  const resultat = await changerPublication('publier')
+  if (!resultat.ok) {
+    messagePublication.value = resultat.message
+    profilIncomplet.value = resultat.manquants.length > 0
+  }
+}
+
+async function depublier(): Promise<void> {
+  messagePublication.value = ''
+  profilIncomplet.value = false
+  const resultat = await changerPublication('depublier')
+  if (resultat.ok) confirmerDepublication.value = false
+  else messagePublication.value = resultat.message
 }
 </script>
 
 <template>
-  <div class="studio">
-    <BsTopNav actif="vitrine" />
+  <div>
+    <div v-if="enChargement" class="flex flex-col gap-6" aria-busy="true" aria-label="Chargement de votre vitrine">
+      <USkeleton class="h-16 w-full" />
+      <USkeleton class="h-28 w-full" />
+      <USkeleton class="h-48 w-full" />
+      <USkeleton class="h-64 w-full" />
+    </div>
 
-    <main class="studio__contenu">
-      <section class="studio__en-tete">
-        <h1>Studio</h1>
-        <p class="studio__sous-titre">
-          Version provisoire — la coque complète du studio arrive au sprint suivant.
+    <UEmpty
+      v-else-if="absente"
+      icon="i-ph-storefront"
+      title="Créons votre vitrine"
+      description="Quelques informations suffisent pour mettre votre vitrine en ligne."
+      :as="{ title: 'h1' }"
+      :actions="[{ label: 'Créer ma vitrine', to: '/onboarding', size: 'xl' }]"
+    />
+
+    <UEmpty
+      v-else-if="enErreur || !vitrine || !resume"
+      icon="i-ph-warning-circle"
+      title="Votre vitrine ne s’affiche pas"
+      description="Nous n’avons pas pu la charger. Vos informations sont intactes."
+      :as="{ title: 'h1' }"
+      :actions="[{ label: 'Réessayer', size: 'xl', onClick: () => refresh() }]"
+    />
+
+    <div v-else class="flex flex-col gap-8">
+      <header class="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
+        <div class="min-w-0">
+          <h1 class="m-0 text-(length:--fs-24) leading-tight font-semibold text-encre md:text-(length:--fs-32)">
+            Bonjour {{ vitrine.prenom }}
+          </h1>
+          <p class="m-0 break-all text-base text-texte-secondaire">
+            {{ affichee }}
+          </p>
+        </div>
+        <UBadge color="neutral" variant="outline" size="lg">
+          <span
+            class="size-2 rounded-full"
+            :class="vitrine.publiee ? 'bg-accent' : 'bg-texte-secondaire'"
+            aria-hidden="true"
+          />
+          {{ vitrine.publiee ? 'Publiée' : 'Brouillon' }}
+        </UBadge>
+      </header>
+
+      <section aria-label="Statistiques des 7 derniers jours">
+        <BsCard>
+          <dl class="m-0 grid grid-cols-3 gap-4">
+            <div v-for="stat in statistiques" :key="stat.label" class="flex flex-col-reverse">
+              <dt class="text-base text-texte-secondaire">
+                {{ stat.label }}
+              </dt>
+              <dd class="m-0 font-(family-name:--font-titre) text-(length:--fs-32) leading-tight font-semibold text-encre">
+                {{ stat.nombre }}
+              </dd>
+            </div>
+          </dl>
+          <p class="m-0 text-(length:--fs-14) text-texte-secondaire">
+            7 derniers jours
+          </p>
+        </BsCard>
+      </section>
+
+      <section v-if="etape" aria-labelledby="titre-etape">
+        <BsCard variant="doux">
+          <p class="m-0 text-(length:--fs-12) font-semibold tracking-widest text-encre uppercase">
+            Prochaine étape
+          </p>
+          <h2 id="titre-etape" class="m-0 text-(length:--fs-20) leading-snug font-semibold text-encre">
+            {{ etape.titre }}
+          </h2>
+          <p class="m-0 text-base text-texte-secondaire">
+            {{ etape.texte }}
+          </p>
+          <UButton label="Ajouter" :to="etape.to" block />
+        </BsCard>
+      </section>
+
+      <section aria-labelledby="titre-liste">
+        <h2 id="titre-liste" class="m-0 mb-2 text-(length:--fs-20) font-semibold text-encre">
+          Votre vitrine
+        </h2>
+        <ul class="m-0 list-none p-0">
+          <li v-for="ligne in lignes" :key="ligne.to" class="border-b border-bordure">
+            <NuxtLink
+              :to="ligne.to"
+              class="flex min-h-14 items-center justify-between gap-3 px-1 text-base text-encre no-underline transition-colors hover:bg-surface"
+            >
+              <span>{{ ligne.label }}</span>
+              <span class="flex items-center gap-2 text-texte-secondaire">
+                <span v-if="ligne.valeur">{{ ligne.valeur }}</span>
+                <UIcon name="i-ph-caret-right" class="size-5" aria-hidden="true" />
+              </span>
+            </NuxtLink>
+          </li>
+        </ul>
+      </section>
+
+      <section aria-labelledby="titre-publication" class="flex flex-col gap-3">
+        <h2 id="titre-publication" class="m-0 text-(length:--fs-20) font-semibold text-encre">
+          Publication
+        </h2>
+
+        <p v-if="messagePublication" role="alert" class="message-erreur">
+          <UIcon name="i-ph-warning-circle" class="size-5 shrink-0" aria-hidden="true" />
+          <span>{{ messagePublication }}</span>
         </p>
-      </section>
+        <UButton
+          v-if="messagePublication && profilIncomplet"
+          label="Compléter mon profil"
+          to="/studio/profil"
+          size="lg"
+          variant="link"
+          class="self-start"
+        />
 
-      <section v-if="moi" class="studio__compte">
-        <h2>Votre compte</h2>
-        <dl class="studio__liste">
-          <dt>Email</dt>
-          <dd>{{ moi.email ?? '—' }}</dd>
-          <dt>Téléphone</dt>
-          <dd>{{ moi.telephone ?? '—' }}</dd>
-          <dt>Devise</dt>
-          <dd>{{ moi.devise }}</dd>
-          <dt>Fuseau</dt>
-          <dd>{{ moi.fuseau }}</dd>
-        </dl>
-      </section>
+        <template v-if="vitrine.publiee">
+          <p class="m-0 text-base text-texte-secondaire">
+            Votre vitrine est en ligne et visible de tous.
+          </p>
+          <p v-if="confirmerDepublication" class="m-0 text-base text-encre">
+            Elle ne sera plus visible tant que vous ne l’aurez pas publiée de nouveau.
+          </p>
+          <div v-if="confirmerDepublication" class="flex flex-col gap-2 sm:flex-row">
+            <UButton label="Dépublier ma vitrine" color="error" :loading="publicationEnCours" @click="depublier" />
+            <UButton label="Annuler" variant="outline" color="neutral" :disabled="publicationEnCours" @click="confirmerDepublication = false" />
+          </div>
+          <div v-else class="flex flex-col gap-2 sm:flex-row">
+            <UButton label="Voir ma vitrine" :to="`/${vitrine.username}`" target="_blank" variant="outline" />
+            <UButton label="Dépublier" variant="ghost" color="neutral" @click="confirmerDepublication = true" />
+          </div>
+        </template>
 
-      <section class="studio__actions">
-        <BsButton variant="principal" @click="actif = 'compte'">Gérer mon compte</BsButton>
-        <BsButton variant="contour" @click="deconnecter">Déconnexion</BsButton>
+        <template v-else>
+          <p v-if="manquants.length > 0" class="m-0 text-base text-texte-secondaire">
+            Pour publier, complétez votre profil : {{ libelleChampsManquants(manquants) }}.
+          </p>
+          <p v-else class="m-0 text-base text-texte-secondaire">
+            Votre vitrine n’est visible que par vous. Publiez-la quand vous êtes prêt.
+          </p>
+          <div class="flex flex-col gap-2 sm:flex-row">
+            <UButton
+              v-if="manquants.length > 0"
+              label="Compléter mon profil"
+              to="/studio/profil"
+              variant="outline"
+            />
+            <UButton
+              v-else
+              label="Publier ma vitrine"
+              :loading="publicationEnCours"
+              @click="publier"
+            />
+          </div>
+        </template>
       </section>
-    </main>
-
-    <BsBottomNav actif="vitrine" />
+    </div>
   </div>
 </template>
-
-<style scoped>
-.studio {
-  display: flex;
-  flex-direction: column;
-  min-height: 100vh;
-  background-color: var(--fond);
-}
-.studio__contenu {
-  flex: 1;
-  padding: 1.5rem;
-  max-width: 28rem;
-  margin: 0 auto;
-}
-.studio__en-tete {
-  margin-bottom: 2rem;
-}
-.studio__en-tete h1 {
-  font-family: var(--font-titre);
-  font-size: 2rem;
-  font-weight: 600;
-  color: var(--encre);
-  margin: 0 0 0.5rem 0;
-}
-.studio__sous-titre {
-  color: var(--texte-secondaire);
-  font-size: 0.95rem;
-  margin: 0;
-}
-.studio__compte {
-  background-color: var(--surface);
-  border: 1px solid var(--bordure);
-  border-radius: 1rem;
-  padding: 1.25rem;
-  margin-bottom: 1.5rem;
-}
-.studio__compte h2 {
-  font-family: var(--font-titre);
-  font-size: 1.25rem;
-  font-weight: 600;
-  color: var(--encre);
-  margin: 0 0 1rem 0;
-}
-.studio__liste {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  gap: 0.35rem 1rem;
-  margin: 0;
-}
-.studio__liste dt {
-  color: var(--texte-secondaire);
-  font-size: 0.85rem;
-}
-.studio__liste dd {
-  margin: 0;
-  font-size: 1rem;
-  color: var(--encre);
-}
-.studio__actions {
-  display: flex;
-  gap: 0.75rem;
-  flex-wrap: wrap;
-}
-</style>
