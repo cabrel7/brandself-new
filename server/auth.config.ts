@@ -7,6 +7,7 @@ import { emailOTP } from 'better-auth/plugins/email-otp'
 import { phoneNumber } from 'better-auth/plugins/phone-number'
 import Redis from 'ioredis'
 import { Pool } from 'pg'
+import { TEMP_EMAIL_DOMAIN } from '../shared/compte'
 import { env } from '../shared/env'
 import { FILE_EMAILS, JOBS } from '../shared/jobs'
 import * as schema from '../shared/db/schema'
@@ -84,7 +85,7 @@ export const optionsAuth: OptionsAuth = {
       allowedAttempts: 3,
       phoneNumberValidator: validatePhone,
       signUpOnVerification: {
-        getTempEmail: (tel) => `${tel.replace(/[^+\d]/g, '')}@telephone.brandself.local`,
+        getTempEmail: (tel) => `${tel.replace(/[^+\d]/g, '')}@${TEMP_EMAIL_DOMAIN}`,
       },
       sendOTP: async ({ phoneNumber: tel, code }) => {
         await enqueueOtpSms(tel, code)

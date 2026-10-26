@@ -55,8 +55,10 @@ export default defineNuxtConfig({
     },
   },
   routeRules: {
-    '/studio/**': { auth: { only: 'user', redirectTo: '/connexion' } },
-    '/onboarding': { auth: { only: 'user', redirectTo: '/connexion' } },
+    // Studio et onboarding : espace connecté, rendu client uniquement (aucun contenu privé côté serveur).
+    '/studio': { ssr: false },
+    '/studio/**': { ssr: false, auth: { only: 'user', redirectTo: '/connexion' } },
+    '/onboarding': { ssr: false, auth: { only: 'user', redirectTo: '/connexion' } },
     '/connexion': { auth: { only: 'guest', redirectTo: '/studio' } },
     '/connexion/code': { auth: { only: 'guest', redirectTo: '/studio' } },
   },

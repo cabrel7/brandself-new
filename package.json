@@ -34,6 +34,7 @@
     "dayjs": "1.11.23",
     "dayjs-nuxt": "2.1.11",
     "drizzle-orm": "^0.45.4",
+    "h3": "1.15.11",
     "ioredis": "^6.0.0",
     "nuxt": "^4.6.2",
     "nuxt-phosphor-icons": "2.3.3",

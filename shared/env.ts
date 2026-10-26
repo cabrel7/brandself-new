@@ -5,6 +5,8 @@ const schemaEnv = z
     NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
     DATABASE_URL: z.url('doit être une URL PostgreSQL valide'),
     REDIS_URL: z.url('doit être une URL Redis valide'),
+    // Dossier racine des médias (driver disque d'unstorage). Hors dépôt en production.
+    MEDIAS_DIR: z.string().min(1).default('./storage/medias'),
     NUXT_BETTER_AUTH_SECRET: z.string().min(32, 'doit contenir au moins 32 caractères'),
     GOOGLE_CLIENT_ID: z.string().optional(),
     GOOGLE_CLIENT_SECRET: z.string().optional(),

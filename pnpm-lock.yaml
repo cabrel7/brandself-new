@@ -41,6 +41,9 @@ importers:
       drizzle-orm:
         specifier: ^0.45.4
         version: 0.45.4(@types/pg@8.23.1)(kysely@0.29.7)(pg@8.23.1)
+      h3:
+        specifier: 1.15.11
+        version: 1.15.11
       ioredis:
         specifier: ^6.0.0
         version: 6.0.0(supports-color@10.2.2)
