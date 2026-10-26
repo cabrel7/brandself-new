@@ -13,8 +13,8 @@ if command -v node >/dev/null 2>&1; then ok "node $(node -v)"
   if [ -f pnpm-lock.yaml ]; then command -v pnpm >/dev/null 2>&1 || { PMV=$(command -v jq >/dev/null 2>&1 && jq -r '.packageManager // empty' package.json 2>/dev/null); corepack enable >/dev/null 2>&1 || npm i -g "${PMV:-pnpm}" >/dev/null 2>&1; }
     command -v pnpm >/dev/null 2>&1 && ok "pnpm $(pnpm -v)" || warn "pnpm non installable"; fi
 else warn "node absent"; fi
-
-
+command -v psql >/dev/null 2>&1 && ok psql || { apt_i postgresql-client && ok "psql installé" || warn "psql absent"; }
+command -v dbmate >/dev/null 2>&1 && ok dbmate || { [ \$QUICK -eq 0 ] && npm i -g dbmate >/dev/null 2>&1 && ok "dbmate installé" || true; }
 # Dépendances
 if [ -f pnpm-lock.yaml ] && command -v pnpm >/dev/null 2>&1; then
   { [ ! -d node_modules ] || [ $QUICK -eq 0 ]; } && { pnpm install --frozen-lockfile >/dev/null 2>&1 && ok "pnpm install" || warn "pnpm install en échec"; } || ok "node_modules présent"
