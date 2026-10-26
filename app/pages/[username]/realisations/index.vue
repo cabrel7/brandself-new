@@ -14,16 +14,19 @@ interface RealisationPublique {
 const route = useRoute()
 const username = route.params.username as string
 
-const { data: realisations, error, pending } = await useAsyncData<RealisationPublique[] | null>(
+const { data: realisations, error } = await useAsyncData<RealisationPublique[] | null>(
   'realisations-publique',
   () => $fetch<RealisationPublique[] | null>(`/api/public/${username}/realisations`)
 )
 
-if (pending) {
-  throw createError({ statusCode: 503, statusMessage: 'Chargement…' })
+if (error.value) {
+  throw createError({
+    statusCode: error.value.statusCode ?? 500,
+    statusMessage: error.value.statusMessage ?? 'Chargement impossible.',
+  })
 }
 
-if (error || !realisations.value) {
+if (!realisations.value) {
   throw createError({ statusCode: 404, statusMessage: 'Aucune réalisation trouvée.' })
 }
 
@@ -53,7 +56,7 @@ definePageMeta({
         class="realisations-publique__carte"
       >
         <div class="realisations-publique__carte__en-tete">
-          <BsBadge :label="realisation.annee || 'Sans année'" />
+          <BsBadge :label="realisation.annee ? String(realisation.annee) : 'Sans année'" />
         </div>
         <h3 class="realisations-publique__carte__titre">{{ realisation.titre }}</h3>
         <p v-if="realisation.description" class="realisations-publique__carte__description">

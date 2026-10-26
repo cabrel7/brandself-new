@@ -11,16 +11,19 @@ const route = useRoute()
 const username = route.params.username as string
 const slug = route.params.slug as string
 
-const { data: temoignage, error, pending } = await useAsyncData<TemoignagePublique | null>(
+const { data: temoignage, error } = await useAsyncData<TemoignagePublique | null>(
   'temoignage-publique',
   () => $fetch<TemoignagePublique | null>(`/api/public/${username}/temoignages/${slug}`)
 )
 
-if (pending) {
-  throw createError({ statusCode: 503, statusMessage: 'Chargement…' })
+if (error.value) {
+  throw createError({
+    statusCode: error.value.statusCode ?? 500,
+    statusMessage: error.value.statusMessage ?? 'Chargement impossible.',
+  })
 }
 
-if (error || !temoignage.value) {
+if (!temoignage.value) {
   throw createError({ statusCode: 404, statusMessage: 'Témoignage introuvable.' })
 }
 

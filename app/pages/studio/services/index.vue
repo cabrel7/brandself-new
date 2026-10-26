@@ -91,7 +91,7 @@ onMounted(() => {
               {{ service.dureeMin }} min
             </span>
             <span
-              v-if="service.prixMontant !== undefined && service.prixDevise"
+              v-if="service.prixMontant != null && service.prixDevise != null"
               class="services__carte__prix"
               >{{ service.prixMontant }} {{ service.prixDevise }}</span
             >

@@ -32,23 +32,19 @@ interface VitrinePublique {
 const route = useRoute()
 const username = route.params.username as string
 
-const { data: vitrine, error, pending } = await useAsyncData<VitrinePublique | null>(
-  'vitrine-publique',
-  () => $fetch<VitrinePublique | null>(`/api/public/${username}`)
-)
+const reponse = await $fetch<{ vitrine: VitrinePublique; user: { nom: string }; photoMedia: unknown } | null>(
+  `/api/public/${username}`
+).catch(() => null)
 
-if (pending) {
-  throw createError({ statusCode: 503, statusMessage: 'Chargement…' })
-}
-
-if (error || !vitrine.value) {
+if (!reponse?.vitrine) {
   throw createError({ statusCode: 404, statusMessage: 'Vitrine introuvable ou non publiée.' })
 }
 
-const v = vitrine.value
+const v = reponse.vitrine
+const user = reponse.user
 
 useHead({
-  title: `${v.user.nom} — ${v.metier} à ${v.ville}`,
+  title: `${user.nom} — ${v.metier} à ${v.ville}`,
   meta: [
     { name: 'description', content: v.accroche || `Découvrez ${v.titre}, ${v.metier} à ${v.ville}.` },
   ],
@@ -69,9 +65,9 @@ useHead({
     <header class="vitrine-header">
       <div class="vitrine-header__contenu">
         <span class="vitrine-badge">Disponible cette semaine</span>
-        <h1 class="vitrine-titre">{{ vitrine.prenom }} {{ vitrine.nom }}</h1>
-        <p class="vitrine-metier">{{ vitrine.metier }} · {{ vitrine.ville }}</p>
-        <p class="vitrine-accroche">{{ vitrine.accroche }}</p>
+        <h1 class="vitrine-titre">{{ v.prenom }} {{ v.nom }}</h1>
+        <p class="vitrine-metier">{{ v.metier }} · {{ v.ville }}</p>
+        <p class="vitrine-accroche">{{ v.accroche }}</p>
         <div class="vitrine-boutons">
           <BsButton variant="principal">Réserver</BsButton>
           <BsButton variant="contour">Écrire sur WhatsApp</BsButton>
@@ -79,20 +75,20 @@ useHead({
       </div>
       <div class="vitrine-header__photo">
         <div class="vitrine-photo-placeholder">
-          <span class="vitrine-initiales">{{ vitrine.prenom[0] }}{{ vitrine.nom[0] }}</span>
+          <span class="vitrine-initiales">{{ v.prenom?.[0] }}{{ v.nom?.[0] }}</span>
         </div>
       </div>
     </header>
 
     <section class="vitrine-a-propos">
       <h2>Présentation</h2>
-      <p>{{ vitrine.bio || "Aucune présentation pour le moment." }}</p>
+      <p>{{ v.bio || "Aucune présentation pour le moment." }}</p>
     </section>
 
     <section class="vitrine-contact">
       <h2>Contact</h2>
-      <p>{{ vitrine.emailContact ?? '—' }}</p>
-      <p>{{ vitrine.telephone ?? '—' }}</p>
+      <p>{{ v.emailContact ?? '—' }}</p>
+      <p>{{ v.telephone ?? '—' }}</p>
     </section>
 
     <footer class="vitrine-pied">

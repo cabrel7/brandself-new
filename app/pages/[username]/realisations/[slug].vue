@@ -15,16 +15,19 @@ const route = useRoute()
 const username = route.params.username as string
 const slug = route.params.slug as string
 
-const { data: realisation, error, pending } = await useAsyncData<RealisationPublique | null>(
+const { data: realisation, error } = await useAsyncData<RealisationPublique | null>(
   'realisation-publique',
   () => $fetch<RealisationPublique | null>(`/api/public/${username}/realisations/${slug}`)
 )
 
-if (pending) {
-  throw createError({ statusCode: 503, statusMessage: 'Chargement…' })
+if (error.value) {
+  throw createError({
+    statusCode: error.value.statusCode ?? 500,
+    statusMessage: error.value.statusMessage ?? 'Chargement impossible.',
+  })
 }
 
-if (error || !realisation.value) {
+if (!realisation.value) {
   throw createError({ statusCode: 404, statusMessage: 'Réalisation introuvable.' })
 }
 
@@ -39,7 +42,7 @@ const r = realisation.value
 
     <article class="realisation-publique__carte">
       <div class="realisation-publique__en-tete">
-        <BsBadge :label="r.annee || 'Sans année'" />
+        <BsBadge :label="r.annee ? String(r.annee) : 'Sans année'" />
         <h1 class="realisation-publique__titre">{{ r.titre }}</h1>
       </div>
 

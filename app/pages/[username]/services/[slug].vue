@@ -16,16 +16,19 @@ const route = useRoute()
 const username = route.params.username as string
 const slug = route.params.slug as string
 
-const { data: service, error, pending } = await useAsyncData<ServicePublique | null>(
+const { data: service, error } = await useAsyncData<ServicePublique | null>(
   'service-publique',
   () => $fetch<ServicePublique | null>(`/api/public/${username}/services/${slug}`)
 )
 
-if (pending) {
-  throw createError({ statusCode: 503, statusMessage: 'Chargement…' })
+if (error.value) {
+  throw createError({
+    statusCode: error.value.statusCode ?? 500,
+    statusMessage: error.value.statusMessage ?? 'Chargement impossible.',
+  })
 }
 
-if (error || !service.value) {
+if (!service.value) {
   throw createError({ statusCode: 404, statusMessage: 'Service introuvable.' })
 }
 
@@ -48,7 +51,7 @@ const s = service.value
 
       <div class="service-publique__meta">
         <span>{{ s.dureeMin }} min</span>
-        <span v-if="s.prixMontant !== undefined && s.prixDevise"
+        <span v-if="s.prixMontant != null && s.prixDevise != null"
           >{{ s.prixMontant }} {{ s.prixDevise }}</span
         >
         <span v-else-if="s.tarif === 'gratuit'">Gratuit</span>

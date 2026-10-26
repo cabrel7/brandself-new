@@ -88,11 +88,11 @@ onMounted(() => {
         <h2>Détails du témoignage</h2>
 
         <BsField label="Auteur" required>
-          <input v-model="auteur" type="text" required />
+          <input v-model="auteur" type="text" required >
         </BsField>
 
         <BsField label="Fonction">
-          <input v-model="fonction" type="text" placeholder="Directeur, Cliente, etc." />
+          <input v-model="fonction" type="text" placeholder="Directeur, Cliente, etc." >
         </BsField>
 
         <BsField label="Texte" required>

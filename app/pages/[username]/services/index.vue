@@ -14,16 +14,19 @@ interface ServicePublique {
 const route = useRoute()
 const username = route.params.username as string
 
-const { data: services, error, pending } = await useAsyncData<ServicePublique[] | null>(
+const { data: services, error } = await useAsyncData<ServicePublique[] | null>(
   'services-publique',
   () => $fetch<ServicePublique[] | null>(`/api/public/${username}/services`)
 )
 
-if (pending) {
-  throw createError({ statusCode: 503, statusMessage: 'Chargement…' })
+if (error.value) {
+  throw createError({
+    statusCode: error.value.statusCode ?? 500,
+    statusMessage: error.value.statusMessage ?? 'Chargement impossible.',
+  })
 }
 
-if (error || !services.value) {
+if (!services.value) {
   throw createError({ statusCode: 404, statusMessage: 'Aucun service trouvé.' })
 }
 
@@ -61,7 +64,7 @@ definePageMeta({
         </p>
         <div class="services-publique__carte__meta">
           <span>{{ service.dureeMin }} min</span>
-          <span v-if="service.prixMontant !== undefined && service.prixDevise"
+          <span v-if="service.prixMontant != null && service.prixDevise != null"
             >{{ service.prixMontant }} {{ service.prixDevise }}</span
           >
           <span v-else-if="service.tarif === 'gratuit'">Gratuit</span>

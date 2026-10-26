@@ -68,7 +68,7 @@ onMounted(() => {
       <div v-if="realisations.length > 0" class="realisations__grille">
         <div v-for="realisation in realisations" :key="realisation.id" class="realisations__carte">
           <div class="realisations__carte__en-tete">
-            <BsBadge :label="realisation.annee || 'Sans année'" />
+            <BsBadge :label="realisation.annee ? String(realisation.annee) : 'Sans année'" />
             <BsBadge v-if="realisation.enVedette" variant="vedette">En vedette</BsBadge>
           </div>
           <h3 class="realisations__carte__titre">{{ realisation.titre }}</h3>

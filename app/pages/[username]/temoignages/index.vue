@@ -10,16 +10,19 @@ interface TemoignagePublique {
 const route = useRoute()
 const username = route.params.username as string
 
-const { data: temoignages, error, pending } = await useAsyncData<TemoignagePublique[] | null>(
+const { data: temoignages, error } = await useAsyncData<TemoignagePublique[] | null>(
   'temoignages-publique',
   () => $fetch<TemoignagePublique[] | null>(`/api/public/${username}/temoignages`)
 )
 
-if (pending) {
-  throw createError({ statusCode: 503, statusMessage: 'Chargement…' })
+if (error.value) {
+  throw createError({
+    statusCode: error.value.statusCode ?? 500,
+    statusMessage: error.value.statusMessage ?? 'Chargement impossible.',
+  })
 }
 
-if (error || !temoignages.value) {
+if (!temoignages.value) {
   throw createError({ statusCode: 404, statusMessage: 'Aucun témoignage trouvé.' })
 }
 

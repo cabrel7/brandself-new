@@ -22,6 +22,11 @@ onMounted(async () => {
 })
 
 const actif = ref('Vitrine')
+
+async function deconnecter() {
+  await $fetch('/api/auth/sign-out', { method: 'POST' })
+  await navigateTo('/connexion')
+}
 </script>
 
 <template>
@@ -52,7 +57,7 @@ const actif = ref('Vitrine')
 
       <section class="studio__actions">
         <BsButton variant="principal" @click="actif = 'compte'">Gérer mon compte</BsButton>
-        <BsButton variant="contour">Déconnexion</BsButton>
+        <BsButton variant="contour" @click="deconnecter">Déconnexion</BsButton>
       </section>
     </main>
 
