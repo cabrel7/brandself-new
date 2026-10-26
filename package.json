@@ -4,7 +4,9 @@
   "private": true,
   "scripts": {
     "build": "nuxt build",
-    "dev": "nuxt dev",
+    "dev": "concurrently -k -n app,worker -c blue,green \"pnpm:dev:app\" \"pnpm:dev:worker\"",
+    "dev:app": "nuxt dev",
+    "dev:worker": "node --env-file=.env node_modules/tsx/dist/cli.mjs worker/index.ts",
     "generate": "nuxt generate",
     "preview": "nuxt preview",
     "postinstall": "nuxt prepare",
@@ -47,6 +49,7 @@
     "@playwright/test": "^1.62.0",
     "@tailwindcss/vite": "^4.3.3",
     "@types/pg": "^8.23.1",
+    "concurrently": "^10.0.6",
     "drizzle-kit": "^0.31.11",
     "eslint": "^10.13.0",
     "tailwindcss": "^4.3.3",
