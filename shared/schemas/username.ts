@@ -15,3 +15,7 @@ export type UsernameResult = ReturnType<typeof schemaUsername.safeParse>
 export function validateUsername(value: string): UsernameResult {
   return schemaUsername.safeParse(value)
 }
+
+export const schemaUsernameQuery = z.object({
+  username: z.string().max(64),
+})

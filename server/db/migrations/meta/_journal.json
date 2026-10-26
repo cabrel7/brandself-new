@@ -64,6 +64,13 @@
       "when": 1792960877231,
       "tag": "0008_liens_slug",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1792993497020,
+      "tag": "0009_s2_vitrines_medias",
+      "breakpoints": true
     }
   ]
 }

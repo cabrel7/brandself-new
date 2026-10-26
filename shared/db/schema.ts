@@ -1,4 +1,5 @@
-import { boolean, index, integer, pgTable, text, timestamp, uniqueIndex } from 'drizzle-orm/pg-core'
+import { sql } from 'drizzle-orm'
+import { boolean, check, index, integer, pgTable, text, timestamp, uniqueIndex } from 'drizzle-orm/pg-core'
 
 // Tables gérées par Better Auth (source des champs : @better-auth/core dist/db/schema).
 // Propriétés = noms de modèles Better Auth ; colonnes = français sans accents (PROJECT_CONTEXT.md §11).
@@ -77,6 +78,31 @@ export const verifications = pgTable(
   (table) => [index('verifications_identifier_idx').on(table.identifier)],
 )
 
+// Une image = une ligne medias, jamais un chemin dans une autre table.
+// Stockage sur disque local (unstorage), prêt pour S3/R2 plus tard.
+// `chemin` = clé de stockage relative `{userId}/{mediaId}` ; `mime` toujours `image/webp` ;
+// `largeur`/`hauteur` = variante 1600 après rotation EXIF. Déclarée avant vitrines (FK photo_media_id).
+export const medias = pgTable(
+  'medias',
+  {
+    id: text('id').primaryKey(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    disk: text('disk').notNull().default('local'),
+    chemin: text('chemin').notNull(),
+    mime: text('mime').notNull(),
+    taille: integer('taille').notNull(),
+    largeur: integer('largeur'),
+    hauteur: integer('hauteur'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('medias_user_id_idx').on(table.userId),
+    check('medias_taille_check', sql`${table.taille} > 0`),
+  ],
+)
+
 // Une vitrine = un profil public. Une donnée interrogeable est une colonne typée.
 // Les colonnes sont en français sans accents (PROJECT_CONTEXT.md §11).
 export const vitrines = pgTable(
@@ -88,15 +114,15 @@ export const vitrines = pgTable(
       .unique()
       .references(() => users.id, { onDelete: 'cascade' }),
     username: text('username').notNull().unique(),
-    titre: text('titre').notNull(),
+    titre: text('titre'),
     prenom: text('prenom').notNull(),
     nom: text('nom').notNull(),
     metier: text('metier').notNull(),
-    ville: text('ville').notNull(),
-    pays: text('pays').notNull(),
+    ville: text('ville'),
+    pays: text('pays'),
     accroche: text('accroche'),
     bio: text('bio'),
-    photoMediaId: text('photo_media_id'),
+    photoMediaId: text('photo_media_id').references(() => medias.id, { onDelete: 'set null' }),
     emailContact: text('email_contact'),
     telephone: text('telephone'),
     whatsapp: text('whatsapp'),
@@ -113,29 +139,20 @@ export const vitrines = pgTable(
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
-    index('vitrines_username_idx').on(table.username),
-    index('vitrines_user_id_idx').on(table.userId),
+    index('vitrines_photo_media_id_idx').on(table.photoMediaId),
+    // Les listes ci-dessous sont recopiées en dur : la source côté application est
+    // shared/palettes.ts (PALETTES) et shared/vitrine.ts (TITRES). Garder les trois synchronisées.
+    check('vitrines_titre_check', sql`${table.titre} IS NULL OR ${table.titre} IN ('dr','pr','me','m','mme')`),
+    check('vitrines_pays_check', sql`${table.pays} IS NULL OR ${table.pays} ~ '^[A-Z]{2}$'`),
+    check(
+      'vitrines_palette_check',
+      sql`${table.palette} IN ('terracotta','sauge','indigo','ocre','bordeaux')`,
+    ),
+    check(
+      'vitrines_username_format_check',
+      sql`char_length(${table.username}) BETWEEN 3 AND 30 AND ${table.username} ~ '^[a-z0-9]+(-[a-z0-9]+)*$'`,
+    ),
   ],
-)
-
-// Une image = une ligne medias, jamais un chemin dans une autre table.
-// Stockage sur disque local (unstorage), prêt pour S3/R2 plus tard.
-export const medias = pgTable(
-  'medias',
-  {
-    id: text('id').primaryKey(),
-    userId: text('user_id')
-      .notNull()
-      .references(() => users.id, { onDelete: 'cascade' }),
-    disk: text('disk').notNull().default('local'),
-    chemin: text('chemin').notNull(),
-    mime: text('mime').notNull(),
-    taille: integer('taille').notNull(),
-    largeur: integer('largeur'),
-    hauteur: integer('hauteur'),
-    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-  },
-  (table) => [index('medias_user_id_idx').on(table.userId)],
 )
 
 // Un service proposé par une vitrine (rendez-vous, accompagnement, atelier, devis).
@@ -225,7 +242,7 @@ export const temoignages = pgTable(
   },
   (table) => [
     index('temoignages_vitrine_id_idx').on(table.vitrineId),
-    index('temoignages_slug_idx').on(table.slug),
+    uniqueIndex('temoignages_slug_idx').on(table.slug),
     index('temoignages_actif_idx').on(table.actif),
   ],
 )
@@ -251,7 +268,7 @@ export const liens = pgTable(
   },
   (table) => [
     index('liens_vitrine_id_idx').on(table.vitrineId),
-    index('liens_slug_idx').on(table.slug),
+    uniqueIndex('liens_slug_idx').on(table.slug),
     index('liens_actif_idx').on(table.actif),
   ],
 )

@@ -17,6 +17,13 @@ export const RESERVED_USERNAMES = [
   'robots',
   'assets',
   '_nuxt',
+  'medias',
+  'compte',
+  'brandself',
+  'support',
+  'blog',
+  'mentions-legales',
+  'services',
 ]
 
 export function isReserved(value: string): boolean {
