@@ -139,7 +139,7 @@ export function toServicePublicDetailResource(
       titre: `${row.titre} — ${nomAffiche}`,
       description:
         description === ''
-          ? `${row.titre} avec ${nomAffiche}, ${vitrine.metier} à ${vitrine.ville ?? ''}.`
+          ? `${row.titre} avec ${nomAffiche}, ${vitrine.metier}${vitrine.ville ? ` à ${vitrine.ville}` : ''}.`
           : truncateForSeo(description),
     },
   }
