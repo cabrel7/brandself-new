@@ -71,6 +71,13 @@
       "when": 1792993497020,
       "tag": "0009_s2_vitrines_medias",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1793041671847,
+      "tag": "0010_s3_services",
+      "breakpoints": true
     }
   ]
 }

@@ -157,6 +157,10 @@ export const vitrines = pgTable(
 
 // Un service proposé par une vitrine (rendez-vous, accompagnement, atelier, devis).
 // Les colonnes sont en français sans accents (PROJECT_CONTEXT.md §11).
+// Les règles métier (S3, docs/specs/S3-services.md §5) sont doublées par des CHECK : la base refuse
+// un état incohérent même si le code applicatif est contourné. Les listes de valeurs sont recopiées
+// en dur ; leur source côté application est shared/services.ts (types, tarifs, paiements, rythmes,
+// bornes) et shared/compte.ts (devises). Garder les deux synchronisées.
 export const services = pgTable(
   'services',
   {
@@ -167,16 +171,17 @@ export const services = pgTable(
     slug: text('slug').notNull(),
     titre: text('titre').notNull(),
     description: text('description'),
-    imageMediaId: text('image_media_id'),
+    imageMediaId: text('image_media_id').references(() => medias.id, { onDelete: 'set null' }),
     type: text('type').notNull(), // rdv | accompagnement | atelier | devis
     nbSeances: integer('nb_seances'),
-    rythme: text('rythme'),
-    dureeMin: integer('duree_min').notNull(),
+    rythme: text('rythme'), // hebdomadaire | bimensuel | mensuel | libre
+    dureeMin: integer('duree_min'), // facultative pour le type devis seulement
     tarif: text('tarif').notNull(), // gratuit | payant | devis
-    prixMontant: integer('prix_montant'),
+    prixMontant: integer('prix_montant'), // unité mineure de la devise (XAF : francs, EUR/USD : centimes)
     prixDevise: text('prix_devise'),
     paiementMode: text('paiement_mode'), // en_ligne | sur_place | au_choix
     paiementInstructions: text('paiement_instructions'),
+    inclus: text('inclus').array().notNull().default([]),
     reservable: boolean('reservable').notNull().default(true),
     enVedette: boolean('en_vedette').notNull().default(false),
     ordre: integer('ordre').notNull().default(0),
@@ -185,9 +190,48 @@ export const services = pgTable(
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
-    index('services_vitrine_id_idx').on(table.vitrineId),
-    index('services_slug_idx').on(table.slug),
-    index('services_actif_idx').on(table.actif),
+    // Unicité PAR vitrine ; sert aussi les recherches par vitrine_id (préfixe de l'index).
+    uniqueIndex('services_vitrine_id_slug_unique').on(table.vitrineId, table.slug),
+    index('services_image_media_id_idx').on(table.imageMediaId),
+    check('services_type_check', sql`${table.type} IN ('rdv','accompagnement','atelier','devis')`),
+    check('services_tarif_check', sql`${table.tarif} IN ('gratuit','payant','devis')`),
+    check(
+      'services_paiement_mode_check',
+      sql`${table.paiementMode} IS NULL OR ${table.paiementMode} IN ('en_ligne','sur_place','au_choix')`,
+    ),
+    check(
+      'services_rythme_check',
+      sql`${table.rythme} IS NULL OR ${table.rythme} IN ('hebdomadaire','bimensuel','mensuel','libre')`,
+    ),
+    check(
+      'services_prix_devise_check',
+      sql`${table.prixDevise} IS NULL OR ${table.prixDevise} IN ('XAF','EUR','USD')`,
+    ),
+    check(
+      'services_prix_montant_check',
+      sql`${table.prixMontant} IS NULL OR ${table.prixMontant} BETWEEN 1 AND 1000000000`,
+    ),
+    check('services_duree_min_check', sql`${table.dureeMin} IS NULL OR ${table.dureeMin} BETWEEN 5 AND 1440`),
+    check('services_nb_seances_check', sql`${table.nbSeances} IS NULL OR ${table.nbSeances} BETWEEN 2 AND 52`),
+    check('services_ordre_check', sql`${table.ordre} >= 0`),
+    check(
+      'services_slug_format_check',
+      sql`char_length(${table.slug}) BETWEEN 1 AND 80 AND ${table.slug} ~ '^[a-z0-9]+(-[a-z0-9]+)*$'`,
+    ),
+    check('services_inclus_check', sql`cardinality(${table.inclus}) <= 12`),
+    check('services_duree_requise_check', sql`${table.type} = 'devis' OR ${table.dureeMin} IS NOT NULL`),
+    check(
+      'services_seances_type_check',
+      sql`(${table.type} = 'accompagnement') = (${table.nbSeances} IS NOT NULL)`,
+    ),
+    check('services_rythme_type_check', sql`${table.rythme} IS NULL OR ${table.type} = 'accompagnement'`),
+    check('services_devis_tarif_check', sql`${table.type} <> 'devis' OR ${table.tarif} = 'devis'`),
+    check(
+      'services_prix_tarif_check',
+      sql`(${table.tarif} = 'payant') = (${table.prixMontant} IS NOT NULL AND ${table.prixDevise} IS NOT NULL)`,
+    ),
+    check('services_paiement_tarif_check', sql`(${table.tarif} = 'payant') = (${table.paiementMode} IS NOT NULL)`),
+    check('services_vedette_actif_check', sql`NOT ${table.enVedette} OR ${table.actif}`),
   ],
 )
 

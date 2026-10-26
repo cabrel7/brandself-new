@@ -1,5 +1,7 @@
 import { z } from 'zod'
 
+const schemaPaiementEnLigne = z.stringbool().default(false)
+
 const schemaEnv = z
   .object({
     NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
@@ -11,6 +13,8 @@ const schemaEnv = z
     GOOGLE_CLIENT_ID: z.string().optional(),
     GOOGLE_CLIENT_SECRET: z.string().optional(),
     RESEND_API_KEY: z.string().optional(),
+    // Paiement en ligne (K-PAY) : faux en v1, seul le règlement sur place est proposé (PROJECT_CONTEXT §4.1).
+    PAIEMENT_EN_LIGNE: schemaPaiementEnLigne,
   })
   .superRefine((env, ctx) => {
     if (env.NODE_ENV === 'production' && !env.RESEND_API_KEY) {
@@ -51,6 +55,7 @@ const COMMANDES_SANS_ENV = ['prepare', 'typecheck']
 export interface DrapeauxPublics {
   googleActif: boolean
   boiteOtpDev: boolean
+  paiementEnLigne: boolean
 }
 
 /**
@@ -66,12 +71,14 @@ export function loadDrapeauxPublics(
     return {
       googleActif: Boolean(source.GOOGLE_CLIENT_ID),
       boiteOtpDev: source.NODE_ENV !== 'production',
+      paiementEnLigne: schemaPaiementEnLigne.safeParse(source.PAIEMENT_EN_LIGNE).data ?? false,
     }
   }
   const valide = loadEnv(source)
   return {
     googleActif: Boolean(valide.GOOGLE_CLIENT_ID),
     boiteOtpDev: valide.NODE_ENV !== 'production',
+    paiementEnLigne: valide.PAIEMENT_EN_LIGNE,
   }
 }
 

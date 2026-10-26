@@ -1,6 +1,8 @@
-import { eq } from 'drizzle-orm'
+import { and, eq, notInArray } from 'drizzle-orm'
+import sharp from 'sharp'
 import { db } from '../utils/db'
-import { realisations, services, users, vitrines } from '../../shared/db/schema'
+import { uploadMedia } from '../services/medias'
+import { medias, realisations, services, users, vitrines } from '../../shared/db/schema'
 
 // S5 — données de démonstration (PROJECT_CONTEXT.md §15).
 // Profil : Dr Cabrel Nguesso, cardiologue interventionnel, Douala, XAF,
@@ -13,88 +15,165 @@ const ID_UTILISATEUR = 'seed-dr-cabrel'
 const ID_VITRINE = 'seed-vitrine-dr-cabrel'
 const EMAIL_DEMO = 'cabrel@brandself.test'
 
-const servicesDemo = [
+// Les 6 services de la maquette (docs/specs/S3-services.md §3). Ids = UUID fixes : le seed reste
+// idempotent et les routes du studio (`[id]` validé en uuid) peuvent modifier les services de démo.
+// Vedettes : Consultation, Bilan, Suivi (VEDETTE_MAX = 3). `photo` : image de démonstration générée.
+// Prix : VALEURS DE TRAVAIL conservées telles quelles (décision #37) — §15 interdit les chiffres inventés,
+// à faire confirmer par Cabrel avant toute mise en ligne.
+interface ServiceDemo {
+  id: string
+  slug: string
+  titre: string
+  description: string
+  type: 'rdv' | 'accompagnement' | 'devis'
+  nbSeances: number | null
+  rythme: 'hebdomadaire' | null
+  dureeMin: number
+  tarif: 'gratuit' | 'payant' | 'devis'
+  prixMontant: number | null
+  prixDevise: 'XAF' | null
+  paiementMode: 'sur_place' | null
+  inclus: string[]
+  ordre: number
+  enVedette: boolean
+  photo: boolean
+}
+
+const servicesDemo: readonly ServiceDemo[] = [
   {
-    id: 'seed-svc-consultation',
+    id: '6f1c2a10-3b7e-4d58-9a41-0c5e8b2d7a01',
     slug: 'consultation-de-cardiologie',
     titre: 'Consultation de cardiologie',
-    description: 'Première consultation, examen clinique et lecture de vos examens.',
+    description:
+      "Un temps d'écoute et d'examen pour comprendre votre situation, répondre à vos questions et vous orienter vers la meilleure prise en charge.",
     type: 'rdv',
+    nbSeances: null,
+    rythme: null,
     dureeMin: 45,
     tarif: 'payant',
     prixMontant: 15_000,
     prixDevise: 'XAF',
-    ordre: 1,
+    paiementMode: 'sur_place',
+    inclus: [
+      'Un entretien et un examen cardiologique',
+      'Une explication claire de votre situation',
+      'Des recommandations adaptées à votre quotidien',
+    ],
+    ordre: 0,
     enVedette: true,
+    photo: true,
   },
   {
-    id: 'seed-svc-bilan',
+    id: '6f1c2a10-3b7e-4d58-9a41-0c5e8b2d7a02',
     slug: 'bilan-cardiovasculaire-complet',
     titre: 'Bilan cardiovasculaire complet',
-    description: 'Examen clinique, électrocardiogramme et échographie cardiaque.',
+    description: 'Un bilan structuré, des résultats expliqués clairement.',
     type: 'rdv',
+    nbSeances: null,
+    rythme: null,
     dureeMin: 60,
     tarif: 'payant',
     prixMontant: 35_000,
     prixDevise: 'XAF',
-    ordre: 2,
-    enVedette: false,
+    paiementMode: 'sur_place',
+    inclus: [],
+    ordre: 1,
+    enVedette: true,
+    photo: true,
   },
   {
-    id: 'seed-svc-suivi',
+    id: '6f1c2a10-3b7e-4d58-9a41-0c5e8b2d7a03',
     slug: 'suivi-apres-infarctus',
     titre: 'Suivi après infarctus',
-    description: 'Accompagnement en 6 séances de 30 minutes après un infarctus.',
+    description:
+      'Un accompagnement régulier pour reprendre confiance, comprendre votre traitement et retrouver une vie active, étape par étape.',
     type: 'accompagnement',
     nbSeances: 6,
-    rythme: 'Hebdomadaire',
+    rythme: 'hebdomadaire',
     dureeMin: 30,
     tarif: 'payant',
     prixMontant: 60_000,
     prixDevise: 'XAF',
-    ordre: 3,
-    enVedette: false,
+    paiementMode: 'sur_place',
+    inclus: [
+      'Bilan de départ et définition de vos objectifs',
+      "Reprise d'activité progressive",
+      'Alimentation et hygiène de vie',
+      'Gestion du stress et du sommeil',
+      'Suivi des traitements',
+      'Bilan final et plan pour la suite',
+    ],
+    ordre: 2,
+    enVedette: true,
+    photo: false,
   },
   {
-    id: 'seed-svc-echo',
+    id: '6f1c2a10-3b7e-4d58-9a41-0c5e8b2d7a04',
     slug: 'echographie-cardiaque',
     titre: 'Échographie cardiaque',
-    description: 'Échographie cardiaque avec compte rendu remis le jour même.',
+    description: "Un examen d'imagerie réalisé et expliqué sur place.",
     type: 'rdv',
+    nbSeances: null,
+    rythme: null,
     dureeMin: 30,
     tarif: 'payant',
     prixMontant: 25_000,
     prixDevise: 'XAF',
-    ordre: 4,
+    paiementMode: 'sur_place',
+    inclus: [],
+    ordre: 3,
     enVedette: false,
+    photo: true,
   },
   {
-    id: 'seed-svc-teleconsultation',
+    id: '6f1c2a10-3b7e-4d58-9a41-0c5e8b2d7a05',
     slug: 'teleconsultation',
     titre: 'Téléconsultation',
-    description: 'Consultation en visioconférence, sans déplacement.',
+    description: 'Un premier avis à distance, où que vous soyez.',
     type: 'rdv',
-    dureeMin: 30,
+    nbSeances: null,
+    rythme: null,
+    dureeMin: 20,
     tarif: 'gratuit',
     prixMontant: null,
     prixDevise: null,
-    ordre: 5,
+    paiementMode: null,
+    inclus: [],
+    ordre: 4,
     enVedette: false,
+    photo: false,
   },
   {
-    id: 'seed-svc-second-avis',
+    id: '6f1c2a10-3b7e-4d58-9a41-0c5e8b2d7a06',
     slug: 'second-avis',
     titre: 'Second avis',
-    description: "Deuxième lecture de votre dossier sur pièces, avec compte rendu écrit.",
+    description: 'Une relecture de votre dossier par un spécialiste.',
     type: 'devis',
-    dureeMin: 45,
+    nbSeances: null,
+    rythme: null,
+    dureeMin: 40,
     tarif: 'devis',
     prixMontant: null,
     prixDevise: null,
-    ordre: 6,
+    paiementMode: null,
+    inclus: [],
+    ordre: 5,
     enVedette: false,
+    photo: false,
   },
-] as const
+]
+
+// Photo de démonstration : aplat de couleur généré par sharp (aucun binaire commité), téléversé par
+// le service médias comme n'importe quelle image (variantes WebP, ligne `medias`).
+const PHOTO_DEMO = { largeur: 1600, hauteur: 1200, fond: '#ecd3c7' } as const
+
+async function creerPhotoDemo(): Promise<Buffer> {
+  return sharp({
+    create: { width: PHOTO_DEMO.largeur, height: PHOTO_DEMO.hauteur, channels: 3, background: PHOTO_DEMO.fond },
+  })
+    .png()
+    .toBuffer()
+}
 
 const realisationsDemo = [
   {
@@ -189,8 +268,26 @@ async function main(): Promise<void> {
     console.info('[seed] vitrine dr-cabrel mise à jour')
   }
 
-  for (const service of servicesDemo) {
-    const ligne = { ...service, vitrineId: ID_VITRINE, actif: true }
+  // Les anciens services de démonstration (ids non UUID, slugs en collision avec l'unicité par vitrine)
+  // sont supprimés avant l'insertion : la vitrine de démo ne garde que la liste ci-dessus.
+  const idsDemo = servicesDemo.map((service) => service.id)
+  const supprimes = await db
+    .delete(services)
+    .where(and(eq(services.vitrineId, ID_VITRINE), notInArray(services.id, idsDemo)))
+    .returning({ id: services.id })
+  console.info(`[seed] ${supprimes.length} ancien(s) service(s) de démonstration supprimé(s)`)
+
+  for (const { photo, ...service } of servicesDemo) {
+    // Idempotent : une image déjà liée au service (et toujours présente) est réutilisée.
+    const existant = await db.query.services.findFirst({ where: eq(services.id, service.id) })
+    let imageMediaId: string | null = null
+    if (photo) {
+      const mediaExistant = existant?.imageMediaId
+        ? await db.query.medias.findFirst({ where: eq(medias.id, existant.imageMediaId) })
+        : undefined
+      imageMediaId = mediaExistant?.id ?? (await uploadMedia(ID_UTILISATEUR, await creerPhotoDemo())).id
+    }
+    const ligne = { ...service, imageMediaId, vitrineId: ID_VITRINE, reservable: true, actif: true }
     await db
       .insert(services)
       .values(ligne)

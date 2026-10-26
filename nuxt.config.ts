@@ -4,7 +4,7 @@ import { loadDrapeauxPublics } from './shared/env'
 
 // Validation de l'environnement dès le chargement de la configuration :
 // `pnpm dev` / `pnpm build` échouent immédiatement si une variable manque.
-const { googleActif, boiteOtpDev } = loadDrapeauxPublics(process.env, process.argv)
+const { googleActif, boiteOtpDev, paiementEnLigne } =loadDrapeauxPublics(process.env, process.argv)
 
 export default defineNuxtConfig({
   modules: ['@nuxt/eslint', '@nuxt/fonts', 'nuxt-phosphor-icons', '@nuxtjs/better-auth', '@nuxtjs/seo', '@nuxt/image', '@nuxt/icon/module', 'nuxt-qrcode', 'dayjs-nuxt', '@vueuse/nuxt/module', '@nuxt/ui'],
@@ -29,6 +29,8 @@ export default defineNuxtConfig({
       // Boîte aux lettres de développement (aucun fournisseur configuré en
       // local) : affichée sur /connexion/code. Jamais vraie en production.
       boiteOtpDev,
+      // Faux en v1 : seul le règlement « sur place » est proposé pour un service payant.
+      paiementEnLigne,
     },
   },
   site: {
