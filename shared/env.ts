@@ -1,6 +1,10 @@
 import { z } from 'zod'
 
-const schemaPaiementEnLigne = z.stringbool().default(false)
+// `PAIEMENT_EN_LIGNE=` (chaîne vide, ex. copié depuis .env.example) vaut « absent » : défaut faux.
+const schemaPaiementEnLigne = z.preprocess(
+  (valeur) => (typeof valeur === 'string' && valeur.trim() === '' ? undefined : valeur),
+  z.stringbool().default(false),
+)
 
 const schemaEnv = z
   .object({

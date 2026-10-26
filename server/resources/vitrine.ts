@@ -8,7 +8,7 @@ import { toMediaResource } from './media'
 
 // Les colonnes sont du texte libre côté TypeScript (les CHECK de la base garantissent les valeurs) :
 // on les rétrécit ici plutôt que de caster.
-function asTitre(value: string | null): Titre | null {
+export function asTitre(value: string | null): Titre | null {
   return TITRES.find((titre) => titre === value) ?? null
 }
 
