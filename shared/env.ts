@@ -42,4 +42,51 @@ export function loadEnv(source: Record<string, string | undefined>): Env {
   return result.data
 }
 
-export const env = loadEnv(process.env)
+// Commandes Nuxt qui chargent la configuration sans démarrer l'application :
+// elles doivent passer en CI sans .env réel (postinstall, typecheck).
+const COMMANDES_SANS_ENV = ['prepare', 'typecheck']
+
+export interface DrapeauxPublics {
+  googleActif: boolean
+  boiteOtpDev: boolean
+}
+
+/**
+ * Valide l'environnement pour nuxt.config.ts et en dérive les drapeaux publics.
+ * Strict (échec immédiat, message clair) pour dev/build ; tolérant pour
+ * `nuxt prepare` / `nuxt typecheck`, qui n'exécutent aucun code applicatif.
+ */
+export function loadDrapeauxPublics(
+  source: Record<string, string | undefined>,
+  argv: readonly string[],
+): DrapeauxPublics {
+  if (argv.some((arg) => COMMANDES_SANS_ENV.includes(arg))) {
+    return {
+      googleActif: Boolean(source.GOOGLE_CLIENT_ID),
+      boiteOtpDev: source.NODE_ENV !== 'production',
+    }
+  }
+  const valide = loadEnv(source)
+  return {
+    googleActif: Boolean(valide.GOOGLE_CLIENT_ID),
+    boiteOtpDev: valide.NODE_ENV !== 'production',
+  }
+}
+
+// Chargement paresseux : importer ce module (ex. depuis nuxt.config.ts) ne doit
+// pas valider l'environnement ; la validation a lieu au premier accès.
+let cache: Env | undefined
+function charger(): Env {
+  cache ??= loadEnv(process.env)
+  return cache
+}
+
+export const env: Env = new Proxy({} as Env, {
+  get: (_cible, cle) => charger()[cle as keyof Env],
+  has: (_cible, cle) => cle in charger(),
+  ownKeys: () => Reflect.ownKeys(charger()),
+  getOwnPropertyDescriptor: (_cible, cle) => {
+    const valeur = Reflect.getOwnPropertyDescriptor(charger(), cle)
+    return valeur ? { ...valeur, configurable: true } : undefined
+  },
+})

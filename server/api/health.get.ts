@@ -1,6 +1,8 @@
-import { verifierSante } from '../services/health'
+import { codeHttpSante, verifierSante } from '../services/health'
 
 export default defineEventHandler(async (event) => {
   const { version } = useRuntimeConfig(event).public
-  return verifierSante(version)
+  const etat = await verifierSante(version)
+  setResponseStatus(event, codeHttpSante(etat))
+  return etat
 })

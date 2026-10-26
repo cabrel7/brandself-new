@@ -1,5 +1,10 @@
 // https://nuxt.com/docs/api/configuration/nuxt-config
 import tailwindcss from '@tailwindcss/vite'
+import { loadDrapeauxPublics } from './shared/env'
+
+// Validation de l'environnement dès le chargement de la configuration :
+// `pnpm dev` / `pnpm build` échouent immédiatement si une variable manque.
+const { googleActif, boiteOtpDev } = loadDrapeauxPublics(process.env, process.argv)
 
 export default defineNuxtConfig({
   modules: ['@nuxt/eslint', '@nuxt/fonts', 'nuxt-phosphor-icons', '@nuxtjs/better-auth', '@nuxtjs/seo', '@nuxt/image', '@nuxt/icon/module', 'nuxt-qrcode', 'dayjs-nuxt', '@vueuse/nuxt/module', '@nuxt/ui'],
@@ -18,10 +23,10 @@ export default defineNuxtConfig({
   runtimeConfig: {
     public: {
       version: '0.1.0',
-      googleActif: Boolean(process.env.GOOGLE_CLIENT_ID),
+      googleActif,
       // Boîte aux lettres de développement (aucun fournisseur configuré en
       // local) : affichée sur /connexion/code. Jamais vraie en production.
-      boiteOtpDev: process.env.NODE_ENV !== 'production',
+      boiteOtpDev,
     },
   },
   site: {

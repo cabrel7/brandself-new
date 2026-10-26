@@ -51,8 +51,13 @@ console.info(`[worker] started — queues « ${FILE_SYSTEM} » and « ${FILE_EMA
 
 async function stop(signal: string): Promise<void> {
   console.info(`[worker] stopping (${signal})…`)
-  await Promise.all([workerSystem.close(), workerEmails.close()])
-  process.exit(0)
+  try {
+    await Promise.all([workerSystem.close(), workerEmails.close()])
+    process.exit(0)
+  } catch (error) {
+    console.error(`[worker] shutdown failed: ${error instanceof Error ? error.message : String(error)}`)
+    process.exit(1)
+  }
 }
 
 process.on('SIGINT', () => void stop('SIGINT'))

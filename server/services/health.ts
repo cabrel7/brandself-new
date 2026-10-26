@@ -27,6 +27,13 @@ async function verifierRedis(): Promise<boolean> {
   }
 }
 
+const HTTP_OK = 200
+const HTTP_INDISPONIBLE = 503
+
+export function codeHttpSante(etat: EtatSante): number {
+  return etat.statut === 'ok' ? HTTP_OK : HTTP_INDISPONIBLE
+}
+
 export async function verifierSante(version: string): Promise<EtatSante> {
   const [base, redisOk] = await Promise.all([verifierBase(), verifierRedis()])
   return {
