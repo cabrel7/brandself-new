@@ -88,7 +88,7 @@ const aidePrix = computed(() =>
       aria-labelledby="titre-accompagnement"
       class="flex flex-col gap-4 rounded-(--rayon) bg-surface p-4"
     >
-      <h2 id="titre-accompagnement" class="m-0 text-(length:--fs-14) font-semibold tracking-wider text-accent-texte uppercase">
+      <h2 id="titre-accompagnement" class="m-0 font-(family-name:--font-texte) text-(length:--fs-14) font-semibold tracking-wider text-accent-texte uppercase">
         Accompagnement
       </h2>
       <div class="grid grid-cols-2 gap-4">

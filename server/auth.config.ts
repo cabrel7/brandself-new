@@ -118,6 +118,9 @@ export const optionsAuth: OptionsAuth = {
       // par code restent bornés par `allowedAttempts` (3) côté Better Auth.
       '/sign-in/email-otp': { window: 60, max: 30 },
       '/email-otp/check-verification-otp': { window: 60, max: 30 },
+      // Lecture de la session, appelée à chaque navigation du studio : un 429
+      // ici affichait la page d'incident à tout un réseau partagé (CGNAT).
+      '/get-session': false,
     },
   },
 }

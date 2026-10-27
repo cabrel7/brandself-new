@@ -21,7 +21,7 @@ const action = computed(() => actionCarte(props.service, props.username))
       <h3 class="font-(family-name:--font-titre) text-(length:--fs-24) leading-tight font-bold">
         <NuxtLink
           :to="serviceDetailHref(username, service.slug)"
-          class="after:absolute after:inset-0 after:content-['']"
+          class="focus-visible:outline-none! after:absolute after:inset-0 after:content-['']"
         >
           {{ service.titre }}
         </NuxtLink>

@@ -154,6 +154,16 @@ export default defineAppConfig({
         label: 'text-base font-medium',
         description: 'text-sm',
       },
+      variants: {
+        size: {
+          // Maquettes : piste 52 x 28 px ; la zone tactile (44 px de haut) déborde de la piste.
+          md: {
+            base: 'relative w-13 after:absolute after:-inset-x-1 after:-inset-y-2 after:content-[\'\']',
+            container: 'h-7',
+            thumb: 'size-6 data-[state=checked]:translate-x-6 data-[state=checked]:rtl:-translate-x-6',
+          },
+        },
+      },
     },
 
     separator: {
