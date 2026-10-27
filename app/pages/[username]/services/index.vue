@@ -15,12 +15,11 @@ const description = computed(
 useSeoMeta({ title: titre, description, ogTitle: titre, ogDescription: description })
 
 const services = computed(() => reponse.value?.services ?? [])
-const total = computed(() => reponse.value?.total ?? 0)
 const fil = computed(() => [{ label: 'Accueil', to: `/${vitrine.value.username}` }, { label: 'Services' }])
 </script>
 
 <template>
-  <VitrineCadre :vitrine="vitrine" :services-total="total">
+  <VitrineCadre :vitrine="vitrine">
     <div class="mx-auto flex w-full max-w-6xl flex-col gap-8 px-6 py-8 md:py-12">
       <div class="flex flex-col gap-4">
         <UBreadcrumb :items="fil" />

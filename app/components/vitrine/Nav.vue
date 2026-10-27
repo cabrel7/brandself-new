@@ -1,5 +1,22 @@
 <script setup lang="ts">
-defineProps<{ nomAffiche: string, username: string, servicesTotal: number }>()
+import type { ContenusPublicsDTO } from '#shared/dto'
+import { realisationsHref } from '#shared/realisations'
+
+const props = defineProps<{ nomAffiche: string, username: string, contenus: ContenusPublicsDTO }>()
+
+const route = useRoute()
+
+const liens = computed(() => {
+  const servicesHref = `/${props.username}/services`
+  const realisationsLien = realisationsHref(props.username)
+  const items: { libelle: string, to: string }[] = []
+  if (props.contenus.services > 0) items.push({ libelle: 'Services', to: servicesHref })
+  if (props.contenus.realisations > 0) items.push({ libelle: 'Réalisations', to: realisationsLien })
+  return items.map(item => ({
+    ...item,
+    actif: route.path === item.to || route.path.startsWith(`${item.to}/`),
+  }))
+})
 </script>
 
 <template>
@@ -13,11 +30,14 @@ defineProps<{ nomAffiche: string, username: string, servicesTotal: number }>()
       </NuxtLink>
       <nav aria-label="Vitrine" class="flex items-center gap-6">
         <NuxtLink
-          v-if="servicesTotal > 0"
-          :to="`/${username}/services`"
-          class="hidden min-h-(--cible-tactile) items-center text-(length:--fs-14) font-medium text-texte-secondaire transition-colors hover:text-accent md:inline-flex"
+          v-for="lien in liens"
+          :key="lien.to"
+          :to="lien.to"
+          :aria-current="lien.actif ? 'page' : undefined"
+          class="hidden min-h-(--cible-tactile) items-center text-(length:--fs-14) font-medium transition-colors hover:text-accent md:inline-flex"
+          :class="lien.actif ? 'text-encre' : 'text-texte-secondaire'"
         >
-          Services
+          {{ lien.libelle }}
         </NuxtLink>
         <a
           href="#contact"

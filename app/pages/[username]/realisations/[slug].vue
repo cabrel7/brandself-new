@@ -1,108 +1,107 @@
 <script setup lang="ts">
-interface RealisationPublique {
-  id: string
-  slug: string
-  titre: string
-  description?: string
-  imageMediaId?: string
-  annee?: number
-  lieu?: string
-  role?: string
-  lien?: string
-}
+import { realisationsHref, surtitreRealisation } from '#shared/realisations'
 
 const route = useRoute()
-const username = route.params.username as string
-const slug = route.params.slug as string
+const username = String(route.params.username)
+const slug = String(route.params.slug)
 
-const { data: realisation, error } = await useAsyncData<RealisationPublique | null>(
-  'realisation-publique',
-  () => $fetch<RealisationPublique | null>(`/api/public/${username}/realisations/${slug}`)
-)
+const [vitrine, reponse] = await Promise.all([usePublicVitrine(username), usePublicRealisation(username, slug)])
 
-if (error.value) {
-  throw createError({
-    statusCode: error.value.statusCode ?? 500,
-    statusMessage: error.value.statusMessage ?? 'Chargement impossible.',
-  })
-}
+const realisation = computed(() => reponse.value.realisation)
 
-if (!realisation.value) {
-  throw createError({ statusCode: 404, statusMessage: 'Réalisation introuvable.' })
-}
+useSeoMeta({
+  title: () => realisation.value.seo.titre,
+  description: () => realisation.value.seo.description,
+  ogTitle: () => realisation.value.seo.titre,
+  ogDescription: () => realisation.value.seo.description,
+})
 
-const r = realisation.value
+// Pas de type CreativeWork dédié dans le module : nœud brut. L'image absolue viendra avec l'URL du site (S12).
+useSchemaOrg([
+  {
+    '@type': 'CreativeWork',
+    'name': () => realisation.value.titre,
+    'description': () => realisation.value.seo.description,
+    'creator': { '@type': 'Person', 'name': vitrine.value.nomAffiche },
+    ...(realisation.value.annee !== null ? { dateCreated: String(realisation.value.annee) } : {}),
+  },
+])
 </script>
 
 <template>
-  <div class="realisation-publique">
-    <nav class="realisation-publique__nav">
-      <NuxtLink to="/" class="realisation-publique__retour">← Retour à la vitrine</NuxtLink>
-    </nav>
+  <VitrineCadre :vitrine="vitrine">
+    <div class="mx-auto flex w-full max-w-6xl flex-col gap-6 py-4 lg:px-6 lg:py-8">
+      <NuxtLink
+        :to="realisationsHref(vitrine.username)"
+        class="inline-flex min-h-(--cible-tactile) items-center gap-2 self-start px-6 text-texte-secondaire hover:text-accent lg:px-0"
+      >
+        <UIcon name="i-ph-arrow-left" class="size-4" aria-hidden="true" />
+        Toutes les réalisations
+      </NuxtLink>
 
-    <article class="realisation-publique__carte">
-      <div class="realisation-publique__en-tete">
-        <BsBadge :label="r.annee ? String(r.annee) : 'Sans année'" />
-        <h1 class="realisation-publique__titre">{{ r.titre }}</h1>
+      <div class="grid gap-8 lg:grid-cols-[minmax(0,1fr)_22rem] lg:gap-12">
+        <article class="flex flex-col gap-6">
+          <RealisationVisuel :image="realisation.image" :titre="realisation.titre" format="detail" />
+
+          <div class="flex flex-col gap-4 px-6 lg:px-0">
+            <p class="text-(length:--fs-14) font-semibold tracking-widest text-accent-texte uppercase">
+              {{ surtitreRealisation(realisation.annee) }}
+            </p>
+            <h1 class="font-(family-name:--font-titre) text-(length:--fs-32) leading-[1.1] font-bold md:text-(length:--fs-48)">
+              {{ realisation.titre }}
+            </h1>
+
+            <div class="lg:hidden">
+              <RealisationFaits :annee="realisation.annee" :lieu="realisation.lieu" :role="realisation.role" />
+            </div>
+
+            <p v-if="realisation.description" class="max-w-prose text-(length:--fs-16) whitespace-pre-line text-texte-secondaire">
+              {{ realisation.description }}
+            </p>
+          </div>
+
+          <div class="flex flex-col gap-6 px-6 lg:px-0">
+            <RealisationGalerie :images="realisation.galerie" :titre="realisation.titre" />
+
+            <UButton
+              v-if="realisation.lien"
+              :to="realisation.lien"
+              target="_blank"
+              rel="noopener noreferrer"
+              variant="outline"
+              size="lg"
+              block
+              trailing-icon="i-ph-arrow-square-out"
+              class="lg:hidden"
+            >
+              Voir le projet<span class="sr-only"> (nouvel onglet)</span>
+            </UButton>
+          </div>
+        </article>
+
+        <aside aria-label="Informations sur la réalisation" class="hidden lg:block">
+          <div class="flex flex-col gap-5 rounded-(--rayon-carte) border border-bordure bg-surface p-6 lg:sticky lg:top-6">
+            <p class="text-(length:--fs-14) font-semibold tracking-widest text-accent-texte uppercase">En bref</p>
+            <RealisationFaits :annee="realisation.annee" :lieu="realisation.lieu" :role="realisation.role" />
+            <UButton
+              v-if="realisation.lien"
+              :to="realisation.lien"
+              target="_blank"
+              rel="noopener noreferrer"
+              variant="outline"
+              block
+              trailing-icon="i-ph-arrow-square-out"
+            >
+              Voir le projet<span class="sr-only"> (nouvel onglet)</span>
+            </UButton>
+          </div>
+        </aside>
       </div>
 
-      <p v-if="r.description" class="realisation-publique__description">{{ r.description }}</p>
-
-      <div class="realisation-publique__meta">
-        <span v-if="r.lieu">{{ r.lieu }}</span>
-        <span v-if="r.role">{{ r.role }}</span>
-        <span v-if="r.lien">{{ r.lien }}</span>
+      <div class="flex flex-col gap-8 px-6 lg:px-0">
+        <RealisationAutres :autres="reponse.autres" :total="reponse.total" :username="vitrine.username" />
+        <RealisationAppel :username="vitrine.username" />
       </div>
-    </article>
-  </div>
+    </div>
+  </VitrineCadre>
 </template>
-
-<style scoped>
-.realisation-publique {
-  max-width: 28rem;
-  margin: 0 auto;
-  padding: 1.5rem;
-}
-.realisation-publique__nav {
-  margin-bottom: 1.5rem;
-}
-.realisation-publique__retour {
-  color: var(--accent);
-  text-decoration: none;
-  font-size: 0.9rem;
-}
-.realisation-publique__retour:hover {
-  text-decoration: underline;
-}
-.realisation-publique__carte {
-  background-color: var(--surface);
-  border: 1px solid var(--bordure);
-  border-radius: 1rem;
-  padding: 1.5rem;
-}
-.realisation-publique__en-tete {
-  display: flex;
-  gap: 0.5rem;
-  flex-wrap: wrap;
-  margin-bottom: 1rem;
-}
-.realisation-publique__titre {
-  font-family: var(--font-titre);
-  font-size: 1.75rem;
-  font-weight: 600;
-  color: var(--encre);
-  margin: 0;
-}
-.realisation-publique__description {
-  font-size: 1rem;
-  color: var(--encre);
-  line-height: 1.6;
-  margin: 1rem 0;
-}
-.realisation-publique__meta {
-  display: flex;
-  gap: 0.75rem;
-  font-size: 0.85rem;
-  color: var(--texte-secondaire);
-}
-</style>

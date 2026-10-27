@@ -37,7 +37,7 @@ useSchemaOrg([
 </script>
 
 <template>
-  <VitrineCadre :vitrine="vitrine" :services-total="reponse.total" barre-basse>
+  <VitrineCadre :vitrine="vitrine" barre-basse>
     <div class="mx-auto flex w-full max-w-6xl flex-col gap-6 py-4 lg:px-6 lg:py-8">
       <NuxtLink
         :to="`/${vitrine.username}/services`"

@@ -2,7 +2,7 @@
 const route = useRoute()
 const username = String(route.params.username)
 
-const [vitrine, { reponse }] = await Promise.all([usePublicVitrine(username), usePublicServices(username)])
+const vitrine = await usePublicVitrine(username)
 
 const titre = computed(() => `Réserver avec ${vitrine.value.nomAffiche}`)
 // Page provisoire (remplacée par la réservation en ligne) : jamais indexée.
@@ -15,7 +15,7 @@ const aucunMoyen = computed(() => whatsapp.value === null && telephone.value ===
 </script>
 
 <template>
-  <VitrineCadre :vitrine="vitrine" :services-total="reponse?.total ?? 0">
+  <VitrineCadre :vitrine="vitrine">
     <div class="mx-auto flex w-full max-w-xl flex-col gap-6 px-6 py-12">
       <h1 class="font-(family-name:--font-titre) text-(length:--fs-32) leading-[1.1] font-bold md:text-(length:--fs-48)">
         {{ titre }}

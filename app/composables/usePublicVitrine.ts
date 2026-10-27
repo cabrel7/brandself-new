@@ -1,7 +1,9 @@
-import type { VitrinePubliqueDTO } from '#shared/dto'
+import type { ContenusPublicsDTO, VitrinePubliqueDTO, VitrinePubliqueReponse } from '#shared/dto'
 
 const HTTP_NOT_FOUND = 404
 const HTTP_SERVER_ERROR = 500
+
+const CONTENUS_VIDES: ContenusPublicsDTO = { services: 0, realisations: 0 }
 
 function statusCodeOf(err: unknown): number {
   if (typeof err === 'object' && err !== null && 'statusCode' in err) {
@@ -11,13 +13,17 @@ function statusCodeOf(err: unknown): number {
   return HTTP_SERVER_ERROR
 }
 
+function cleVitrine(username: string): string {
+  return `vitrine-publique-${username}`
+}
+
 /**
  * Lecture seule de la vitrine publique (rendu serveur). Toute erreur devient une
  * erreur de page : 404 si la vitrine n'existe pas ou n'est pas publiée, 500 sinon.
  */
 export async function usePublicVitrine(username: string): Promise<Ref<VitrinePubliqueDTO>> {
-  const { data, error } = await useAsyncData(`vitrine-publique-${username}`, () =>
-    $fetch<{ vitrine: VitrinePubliqueDTO }>(`/api/public/${encodeURIComponent(username)}`),
+  const { data, error } = await useAsyncData(cleVitrine(username), () =>
+    $fetch<VitrinePubliqueReponse>(`/api/public/${encodeURIComponent(username)}`),
   )
 
   if (error.value || !data.value) {
@@ -30,4 +36,13 @@ export async function usePublicVitrine(username: string): Promise<Ref<VitrinePub
   }
 
   return computed(() => data.value!.vitrine) as Ref<VitrinePubliqueDTO>
+}
+
+/**
+ * Nombre d'éléments visibles par liste (navigation). Lit la réponse déjà chargée par
+ * `usePublicVitrine` : aucune requête supplémentaire.
+ */
+export function usePublicContenus(username: string): ComputedRef<ContenusPublicsDTO> {
+  const donnees = useNuxtData<VitrinePubliqueReponse>(cleVitrine(username))
+  return computed(() => donnees.data.value?.contenus ?? CONTENUS_VIDES)
 }

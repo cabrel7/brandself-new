@@ -1,158 +1,40 @@
 <script setup lang="ts">
-interface RealisationPublique {
-  id: string
-  slug: string
-  titre: string
-  description?: string
-  imageMediaId?: string
-  annee?: number
-  lieu?: string
-  role?: string
-  lien?: string
-}
-
 const route = useRoute()
-const username = route.params.username as string
+const username = String(route.params.username)
 
-const { data: realisations, error } = await useAsyncData<RealisationPublique[] | null>(
-  'realisations-publique',
-  () => $fetch<RealisationPublique[] | null>(`/api/public/${username}/realisations`)
+const [vitrine, { reponse, erreur }] = await Promise.all([usePublicVitrine(username), usePublicRealisations(username)])
+
+if (erreur.value) throw erreurPagePublique(erreur.value)
+// Une page n'existe que si elle a du contenu : sans réalisation visible, 404.
+if (!reponse.value || reponse.value.total === 0) throw erreurPagePublique({ statusCode: 404 })
+
+const titre = computed(() => `Réalisations — ${vitrine.value.nomAffiche}`)
+const description = computed(
+  () => `Les réalisations de ${vitrine.value.nomAffiche}, ${vitrine.value.metier} à ${vitrine.value.ville}.`,
 )
+useSeoMeta({ title: titre, description, ogTitle: titre, ogDescription: description })
 
-if (error.value) {
-  throw createError({
-    statusCode: error.value.statusCode ?? 500,
-    statusMessage: error.value.statusMessage ?? 'Chargement impossible.',
-  })
-}
-
-if (!realisations.value) {
-  throw createError({ statusCode: 404, statusMessage: 'Aucune réalisation trouvée.' })
-}
-
-const realisationsPublique = realisations.value || []
-
-definePageMeta({
-  title: 'Réalisations',
-})
+const realisations = computed(() => reponse.value?.realisations ?? [])
+const fil = computed(() => [{ label: 'Accueil', to: `/${vitrine.value.username}` }, { label: 'Réalisations' }])
 </script>
 
 <template>
-  <div class="realisations-publique">
-    <nav class="realisations-publique__nav">
-      <NuxtLink to="/">Retour à la vitrine</NuxtLink>
-    </nav>
-
-    <h1 class="realisations-publique__titre">Nos réalisations</h1>
-
-    <div v-if="realisationsPublique.length === 0" class="realisations-publique__vide">
-      <p>Aucune réalisation pour le moment.</p>
-    </div>
-
-    <div v-else class="realisations-publique__grille">
-      <div
-        v-for="realisation in realisationsPublique"
-        :key="realisation.id"
-        class="realisations-publique__carte"
-      >
-        <div class="realisations-publique__carte__en-tete">
-          <BsBadge :label="realisation.annee ? String(realisation.annee) : 'Sans année'" />
-        </div>
-        <h3 class="realisations-publique__carte__titre">{{ realisation.titre }}</h3>
-        <p v-if="realisation.description" class="realisations-publique__carte__description">
-          {{ realisation.description }}
+  <VitrineCadre :vitrine="vitrine">
+    <div class="mx-auto flex w-full max-w-6xl flex-col gap-8 px-6 py-8 md:py-12">
+      <div class="flex flex-col gap-4">
+        <UBreadcrumb :items="fil" />
+        <h1 class="font-(family-name:--font-titre) text-(length:--fs-32) leading-[1.1] font-bold md:text-(length:--fs-48)">
+          Mes réalisations
+        </h1>
+        <p class="max-w-prose text-(length:--fs-16) text-texte-secondaire">
+          Quelques projets qui montrent ma façon de travailler.
         </p>
-        <div class="realisations-publique__carte__meta">
-          <span v-if="realisation.lieu">{{ realisation.lieu }}</span>
-          <span v-if="realisation.role">{{ realisation.role }}</span>
-        </div>
-        <NuxtLink
-          :to="`/${username}/realisations/${realisation.slug}`"
-          class="realisations-publique__carte__lien"
-        >
-          Voir le détail
-        </NuxtLink>
       </div>
+      <ul class="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+        <li v-for="realisation in realisations" :key="realisation.slug">
+          <RealisationCarte :realisation="realisation" :username="vitrine.username" />
+        </li>
+      </ul>
     </div>
-  </div>
+  </VitrineCadre>
 </template>
-
-<style scoped>
-.realisations-publique {
-  max-width: 28rem;
-  margin: 0 auto;
-  padding: 1.5rem;
-}
-.realisations-publique__nav {
-  margin-bottom: 1.5rem;
-}
-.realisations-publique__nav a {
-  color: var(--accent);
-  text-decoration: none;
-  font-size: 0.9rem;
-}
-.realisations-publique__titre {
-  font-family: var(--font-titre);
-  font-size: 2rem;
-  font-weight: 600;
-  color: var(--encre);
-  margin: 0 0 1.5rem 0;
-}
-.realisations-publique__vide {
-  text-align: center;
-  padding: 3rem 1rem;
-  color: var(--texte-secondaire);
-}
-.realisations-publique__grille {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 1rem;
-}
-@media (min-width: 64rem) {
-  .realisations-publique__grille {
-    grid-template-columns: repeat(2, 1fr);
-  }
-}
-.realisations-publique__carte {
-  background-color: var(--surface);
-  border: 1px solid var(--bordure);
-  border-radius: 1rem;
-  padding: 1.25rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-}
-.realisations-publique__carte__en-tete {
-  display: flex;
-  gap: 0.5rem;
-  flex-wrap: wrap;
-}
-.realisations-publique__carte__titre {
-  font-family: var(--font-titre);
-  font-size: 1.25rem;
-  font-weight: 600;
-  color: var(--encre);
-  margin: 0 0 0.5rem 0;
-}
-.realisations-publique__carte__description {
-  font-size: 0.9rem;
-  color: var(--texte-secondaire);
-  margin: 0;
-}
-.realisations-publique__carte__meta {
-  display: flex;
-  gap: 0.75rem;
-  font-size: 0.85rem;
-  color: var(--texte-secondaire);
-  margin-bottom: 0.75rem;
-}
-.realisations-publique__carte__lien {
-  color: var(--accent);
-  text-decoration: none;
-  font-weight: 500;
-  font-size: 0.9rem;
-}
-.realisations-publique__carte__lien:hover {
-  text-decoration: underline;
-}
-</style>

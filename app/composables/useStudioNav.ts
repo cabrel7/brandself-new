@@ -15,8 +15,8 @@ export const ENTREES_NAV: readonly EntreeNav[] = [
 /** Écrans enfants : ils ont leur propre retour, la barre du bas est masquée. */
 const ECRANS_ENFANTS: readonly string[] = ['/studio/profil', '/studio/compte']
 
-/** Écrans enfants par préfixe : formulaire de service (nouveau, modification). */
-const PREFIXES_ENFANTS: readonly string[] = ['/studio/services/']
+/** Écrans enfants par préfixe : formulaires de service et de réalisation (nouveau, modification). */
+const PREFIXES_ENFANTS: readonly string[] = ['/studio/services/', '/studio/realisations/']
 
 /** Écrans rattachés à l'entrée « Vitrine » (accueil, profil, témoignages). */
 const RATTACHES_VITRINE: readonly string[] = ['/studio/profil', '/studio/temoignages']

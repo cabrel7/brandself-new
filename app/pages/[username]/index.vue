@@ -2,8 +2,12 @@
 const route = useRoute()
 const username = String(route.params.username)
 
-// Lancés ensemble : les deux lectures partent avant le premier await.
-const [vitrine, { reponse: services }] = await Promise.all([usePublicVitrine(username), usePublicServices(username)])
+// Lancés ensemble : les trois lectures partent avant le premier await.
+const [vitrine, { reponse: services }, { reponse: realisations }] = await Promise.all([
+  usePublicVitrine(username),
+  usePublicServices(username),
+  usePublicRealisations(username),
+])
 
 useSeoMeta({
   title: () => vitrine.value.seo.titre,
@@ -14,11 +18,20 @@ useSeoMeta({
 
 const total = computed(() => services.value?.total ?? 0)
 const aLaUne = computed(() => services.value?.aLaUne ?? [])
+const realisationsTotal = computed(() => realisations.value?.total ?? 0)
+// L'accueil ne met en avant qu'une réalisation (la première à la une).
+const realisationALaUne = computed(() => realisations.value?.aLaUne[0] ?? null)
 </script>
 
 <template>
-  <VitrineCadre :vitrine="vitrine" :services-total="total">
+  <VitrineCadre :vitrine="vitrine">
     <VitrineHero :vitrine="vitrine" />
     <VitrineServicesALaUne v-if="total > 0 && aLaUne.length > 0" :username="vitrine.username" :services="aLaUne" :total="total" />
+    <VitrineALaUne
+      v-if="realisationsTotal > 0 && realisationALaUne"
+      :username="vitrine.username"
+      :realisation="realisationALaUne"
+      :realisations-total="realisationsTotal"
+    />
   </VitrineCadre>
 </template>
