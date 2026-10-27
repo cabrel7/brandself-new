@@ -1,6 +1,6 @@
 import { ERROR_STATUS } from '../../shared/erreurs'
 import type { ErrorCode } from '../../shared/erreurs'
-import { VEDETTE_MAX } from '../../shared/services'
+import { VEDETTE_MAX } from '../../shared/listes'
 
 /**
  * Messages affichables (français, vouvoiement). Les services lèvent des erreurs métier
@@ -25,8 +25,9 @@ export const ERROR_MESSAGES: Record<ErrorCode, string> = {
   PUBLICATION_INCOMPLETE: 'Complétez votre vitrine avant de la publier.',
   SESSION_ACTUELLE: 'Vous ne pouvez pas déconnecter l’appareil que vous utilisez.',
   SERVICE_INTROUVABLE: 'Ce service est introuvable.',
-  VEDETTE_COMPLETE: `Vous avez déjà ${VEDETTE_MAX} services en vedette. Retirez-en un pour mettre celui-ci en avant.`,
-  ORDRE_INVALIDE: 'L’ordre envoyé ne correspond plus à vos services. Rechargez la page et réessayez.',
+  REALISATION_INTROUVABLE: 'Cette réalisation est introuvable.',
+  VEDETTE_COMPLETE: `Vous avez déjà ${VEDETTE_MAX} éléments en vedette. Retirez-en un pour en mettre un autre en avant.`,
+  ORDRE_INVALIDE: 'L’ordre envoyé n’est plus à jour. Rechargez la page et réessayez.',
   PAIEMENT_EN_LIGNE_INDISPONIBLE: 'Le paiement en ligne n’est pas encore disponible. Choisissez le règlement sur place.',
   TROP_DE_REQUETES: 'Trop de tentatives. Réessayez dans quelques instants.',
   ERREUR_INTERNE: 'Une erreur est survenue de notre côté. Réessayez dans un instant.',

@@ -17,6 +17,7 @@ export const ERROR_CODES = [
   'PUBLICATION_INCOMPLETE',
   'SESSION_ACTUELLE',
   'SERVICE_INTROUVABLE',
+  'REALISATION_INTROUVABLE',
   'VEDETTE_COMPLETE',
   'ORDRE_INVALIDE',
   'PAIEMENT_EN_LIGNE_INDISPONIBLE',
@@ -45,6 +46,7 @@ export const ERROR_STATUS: Record<ErrorCode, number> = {
   PUBLICATION_INCOMPLETE: 422,
   SESSION_ACTUELLE: 422,
   SERVICE_INTROUVABLE: 404,
+  REALISATION_INTROUVABLE: 404,
   VEDETTE_COMPLETE: 409,
   ORDRE_INVALIDE: 422,
   PAIEMENT_EN_LIGNE_INDISPONIBLE: 422,
@@ -57,6 +59,6 @@ export interface ErrorData {
   champs?: Record<string, string[] | undefined>
   manquants?: string[]
   retryAfter?: number
-  /** VEDETTE_COMPLETE : services actuellement en vedette (ordre), à retirer pour en ajouter un autre. */
+  /** VEDETTE_COMPLETE : éléments actuellement en vedette (ordre), à retirer pour en ajouter un autre. */
   enVedette?: { id: string, titre: string }[]
 }

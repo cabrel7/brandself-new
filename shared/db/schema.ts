@@ -237,6 +237,12 @@ export const services = pgTable(
 
 // Une réalisation publiée sur une vitrine (projet, oeuvre, expérience...).
 // Les colonnes sont en français sans accents (PROJECT_CONTEXT.md §11).
+// Les règles structurelles et de sécurité (S4, docs/specs/S4-realisations.md §3) sont doublées par des
+// CHECK : la base refuse un état incohérent même si le code applicatif est contourné. Les bornes sont
+// recopiées en dur ; leur source côté application est shared/realisations.ts (ANNEE_MIN/MAX,
+// REALISATION_LIEN_MAX) et shared/listes.ts (LISTE_SLUG_MAX, LISTE_SLUG_REGEX). Garder les synchronisées.
+// L'image principale est facultative en base (FK SET NULL : la route médias peut supprimer l'image) ;
+// l'obligation à la création est une règle applicative.
 export const realisations = pgTable(
   'realisations',
   {
@@ -247,7 +253,7 @@ export const realisations = pgTable(
     slug: text('slug').notNull(),
     titre: text('titre').notNull(),
     description: text('description'),
-    imageMediaId: text('image_media_id'),
+    imageMediaId: text('image_media_id').references(() => medias.id, { onDelete: 'set null' }),
     annee: integer('annee'),
     lieu: text('lieu'),
     role: text('role'),
@@ -259,9 +265,46 @@ export const realisations = pgTable(
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
-    index('realisations_vitrine_id_idx').on(table.vitrineId),
-    index('realisations_slug_idx').on(table.slug),
-    index('realisations_actif_idx').on(table.actif),
+    // Unicité PAR vitrine ; sert aussi les recherches par vitrine_id (préfixe de l'index).
+    uniqueIndex('realisations_vitrine_id_slug_unique').on(table.vitrineId, table.slug),
+    index('realisations_image_media_id_idx').on(table.imageMediaId),
+    check(
+      'realisations_slug_format_check',
+      sql`char_length(${table.slug}) BETWEEN 1 AND 80 AND ${table.slug} ~ '^[a-z0-9]+(-[a-z0-9]+)*$'`,
+    ),
+    check('realisations_annee_check', sql`${table.annee} IS NULL OR ${table.annee} BETWEEN 1900 AND 2100`),
+    // http(s) seulement : un `javascript:` dans un href public serait un vecteur XSS.
+    check(
+      'realisations_lien_check',
+      sql`${table.lien} IS NULL OR (char_length(${table.lien}) <= 500 AND ${table.lien} ~* '^https?://')`,
+    ),
+    check('realisations_ordre_check', sql`${table.ordre} >= 0`),
+    check('realisations_vedette_actif_check', sql`NOT ${table.enVedette} OR ${table.actif}`),
+  ],
+)
+
+// Galerie d'une réalisation : 6 images au plus, garanti en base par ordre ∈ [0,5] + unicité
+// (realisation_id, ordre) — pas de trigger. Une image = une ligne medias (jamais un chemin).
+// media_id CASCADE : supprimer un média retire la vignette sans trou ; la protection contre une
+// suppression involontaire est assurée par deleteMediaIfUnreferenced (qui connaît cette table).
+export const realisationImages = pgTable(
+  'realisation_images',
+  {
+    id: text('id').primaryKey(),
+    realisationId: text('realisation_id')
+      .notNull()
+      .references(() => realisations.id, { onDelete: 'cascade' }),
+    mediaId: text('media_id')
+      .notNull()
+      .references(() => medias.id, { onDelete: 'cascade' }),
+    ordre: integer('ordre').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex('realisation_images_realisation_id_ordre_unique').on(table.realisationId, table.ordre),
+    uniqueIndex('realisation_images_realisation_id_media_id_unique').on(table.realisationId, table.mediaId),
+    index('realisation_images_media_id_idx').on(table.mediaId),
+    check('realisation_images_ordre_check', sql`${table.ordre} BETWEEN 0 AND 5`),
   ],
 )
 

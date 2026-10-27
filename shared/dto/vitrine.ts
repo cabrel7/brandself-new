@@ -59,3 +59,15 @@ export interface VitrinePubliqueDTO {
   fuseau: string
   seo: { titre: string, description: string }
 }
+
+/** Nombre d'éléments visibles (`actif`) par liste : alimente la navigation publique. */
+export interface ContenusPublicsDTO {
+  services: number
+  realisations: number
+}
+
+/** Enveloppe de GET /api/public/:username. `vitrine` reste la liste blanche S2. */
+export interface VitrinePubliqueReponse {
+  vitrine: VitrinePubliqueDTO
+  contenus: ContenusPublicsDTO
+}

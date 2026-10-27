@@ -1,8 +1,10 @@
-import { and, eq, notInArray } from 'drizzle-orm'
+import { randomUUID } from 'node:crypto'
+import { and, asc, eq, notInArray } from 'drizzle-orm'
 import sharp from 'sharp'
 import { db } from '../utils/db'
-import { uploadMedia } from '../services/medias'
-import { medias, realisations, services, users, vitrines } from '../../shared/db/schema'
+import { deleteMediaIfUnreferenced, uploadMedia } from '../services/medias'
+import { medias, realisationImages, realisations, services, users, vitrines } from '../../shared/db/schema'
+import { GALERIE_MAX } from '../../shared/realisations'
 
 // S5 — données de démonstration (PROJECT_CONTEXT.md §15).
 // Profil : Dr Cabrel Nguesso, cardiologue interventionnel, Douala, XAF,
@@ -167,49 +169,93 @@ const servicesDemo: readonly ServiceDemo[] = [
 // le service médias comme n'importe quelle image (variantes WebP, ligne `medias`).
 const PHOTO_DEMO = { largeur: 1600, hauteur: 1200, fond: '#ecd3c7' } as const
 
-async function creerPhotoDemo(): Promise<Buffer> {
+async function creerPhotoDemo(fond: string = PHOTO_DEMO.fond): Promise<Buffer> {
   return sharp({
-    create: { width: PHOTO_DEMO.largeur, height: PHOTO_DEMO.hauteur, channels: 3, background: PHOTO_DEMO.fond },
+    create: { width: PHOTO_DEMO.largeur, height: PHOTO_DEMO.hauteur, channels: 3, background: fond },
   })
     .png()
     .toBuffer()
 }
 
-const realisationsDemo = [
+// Les 3 réalisations de §15 (docs/specs/S4-realisations.md §3, décision #64). Ids = UUID fixes : le seed
+// reste idempotent et les routes du studio (`[id]` validé en uuid) peuvent modifier les réalisations de démo.
+// Vedettes : Unité et Campagne (« 2 en vedette sur 3 », comme la maquette). `role` et `lien` restent NULL :
+// §15 interdit d'inventer un rôle ou une URL. La description de la 1re vient de la maquette ; celles des 2
+// autres sont des phrases neutres PROVISOIRES (sans chiffre), à faire fournir par Cabrel avant toute mise en ligne.
+// `galerie` = nombre d'images de galerie générées (le plafond est GALERIE_MAX, garanti aussi par la base).
+interface RealisationDemo {
+  id: string
+  slug: string
+  titre: string
+  description: string
+  annee: number
+  lieu: string
+  ordre: number
+  enVedette: boolean
+  galerie: number
+}
+
+const realisationsDemo: readonly RealisationDemo[] = [
   {
-    id: 'seed-real-catheterisme',
-    slug: 'unite-de-catheterisme',
-    titre: 'Unité de cathétérisme',
-    description: "Mise en place de l'unité de cathétérisme du CHU de Douala.",
+    id: '8b3e5f20-4c6a-4e79-a852-1d0f7b4c9a01',
+    slug: 'unite-de-catheterisme-chu-de-douala',
+    titre: 'Unité de cathétérisme, CHU de Douala',
+    description: "Mise en place et coordination d'une unité dédiée aux actes de cardiologie interventionnelle.",
     annee: 2025,
     lieu: 'CHU de Douala',
-    role: 'Cardiologue interventionnel',
-    ordre: 1,
+    ordre: 0,
     enVedette: true,
+    galerie: 4,
   },
   {
-    id: 'seed-real-depistage',
+    id: '8b3e5f20-4c6a-4e79-a852-1d0f7b4c9a02',
     slug: 'campagne-de-depistage-de-l-hypertension',
     titre: "Campagne de dépistage de l'hypertension",
     description: 'Campagne de dépistage ouverte à la population de Douala.',
     annee: 2024,
     lieu: 'Douala',
-    role: 'Coordinateur',
-    ordre: 2,
-    enVedette: false,
+    ordre: 1,
+    enVedette: true,
+    galerie: 0,
   },
   {
-    id: 'seed-real-readaptation',
+    id: '8b3e5f20-4c6a-4e79-a852-1d0f7b4c9a03',
     slug: 'programme-de-readaptation-cardiaque',
     titre: 'Programme de réadaptation cardiaque',
     description: 'Programme de réadaptation pour les patients après un infarctus.',
     annee: 2022,
     lieu: 'Douala',
-    role: 'Cardiologue',
-    ordre: 3,
+    ordre: 2,
     enVedette: false,
+    galerie: 0,
   },
-] as const
+]
+
+// Teintes des images de galerie de démonstration (une par vignette, pour distinguer l'ordre).
+const FONDS_GALERIE: readonly string[] = ['#e3c4b4', '#d9b9a6', '#cfae9a', '#c5a38f', '#bb9884', '#b18d79']
+
+/**
+ * Galerie de démonstration : remplacée seulement si elle ne compte pas déjà `attendu` lignes
+ * (idempotent). Les anciennes images, une fois la galerie vidée, sont supprimées si plus rien ne les référence.
+ */
+async function assurerGalerieDemo(realisationId: string, attendu: number): Promise<void> {
+  if (attendu > GALERIE_MAX) throw new Error(`La galerie de démonstration dépasse ${GALERIE_MAX} images.`)
+  const lignes = await db
+    .select({ mediaId: realisationImages.mediaId })
+    .from(realisationImages)
+    .where(eq(realisationImages.realisationId, realisationId))
+    .orderBy(asc(realisationImages.ordre))
+  if (lignes.length === attendu) return
+
+  await db.delete(realisationImages).where(eq(realisationImages.realisationId, realisationId))
+  for (const { mediaId } of lignes) {
+    await deleteMediaIfUnreferenced(ID_UTILISATEUR, mediaId)
+  }
+  for (let ordre = 0; ordre < attendu; ordre++) {
+    const media = await uploadMedia(ID_UTILISATEUR, await creerPhotoDemo(FONDS_GALERIE[ordre]))
+    await db.insert(realisationImages).values({ id: randomUUID(), realisationId, mediaId: media.id, ordre })
+  }
+}
 
 async function main(): Promise<void> {
   const utilisateurExistant = await db.query.users.findFirst({
@@ -295,12 +341,28 @@ async function main(): Promise<void> {
   }
   console.info(`[seed] ${servicesDemo.length} services à jour`)
 
-  for (const realisation of realisationsDemo) {
-    const ligne = { ...realisation, vitrineId: ID_VITRINE, actif: true }
+  // Les anciennes réalisations de démonstration (ids `seed-real-*`, rôles inventés) sont supprimées avant
+  // l'upsert : la vitrine de démo ne garde que la liste ci-dessus.
+  const idsRealisationsDemo = realisationsDemo.map((realisation) => realisation.id)
+  const realisationsSupprimees = await db
+    .delete(realisations)
+    .where(and(eq(realisations.vitrineId, ID_VITRINE), notInArray(realisations.id, idsRealisationsDemo)))
+    .returning({ id: realisations.id })
+  console.info(`[seed] ${realisationsSupprimees.length} ancienne(s) réalisation(s) de démonstration supprimée(s)`)
+
+  for (const { galerie, ...realisation } of realisationsDemo) {
+    // Idempotent : l'image principale déjà liée (et toujours présente) est réutilisée.
+    const existante = await db.query.realisations.findFirst({ where: eq(realisations.id, realisation.id) })
+    const mediaExistant = existante?.imageMediaId
+      ? await db.query.medias.findFirst({ where: eq(medias.id, existante.imageMediaId) })
+      : undefined
+    const imageMediaId = mediaExistant?.id ?? (await uploadMedia(ID_UTILISATEUR, await creerPhotoDemo())).id
+    const ligne = { ...realisation, imageMediaId, role: null, lien: null, vitrineId: ID_VITRINE, actif: true }
     await db
       .insert(realisations)
       .values(ligne)
       .onConflictDoUpdate({ target: realisations.id, set: { ...ligne, updatedAt: new Date() } })
+    await assurerGalerieDemo(realisation.id, galerie)
   }
   console.info(`[seed] ${realisationsDemo.length} réalisations à jour`)
   console.info('[seed] connexion : /connexion → email ' + EMAIL_DEMO)

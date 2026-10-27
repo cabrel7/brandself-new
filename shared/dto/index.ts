@@ -1,5 +1,11 @@
 export type { MediaDTO } from './media'
-export type { VitrineStudioDTO, StudioResumeDTO, VitrinePubliqueDTO } from './vitrine'
+export type {
+  VitrineStudioDTO,
+  StudioResumeDTO,
+  VitrinePubliqueDTO,
+  ContenusPublicsDTO,
+  VitrinePubliqueReponse,
+} from './vitrine'
 export type { MoiDTO, AppareilDTO } from './utilisateur'
 export type {
   ServiceStudioDTO,
@@ -11,3 +17,13 @@ export type {
   ServicesPublicsReponse,
   ServicePublicReponse,
 } from './service'
+export type {
+  RealisationStudioDTO,
+  RealisationsCompteursDTO,
+  RealisationPublicCarteDTO,
+  RealisationPublicDetailDTO,
+  RealisationsStudioReponse,
+  RealisationStudioReponse,
+  RealisationsPublicsReponse,
+  RealisationPublicReponse,
+} from './realisation'

@@ -17,7 +17,7 @@ export const RYTHMES = ['hebdomadaire', 'bimensuel', 'mensuel', 'libre'] as cons
 export type Rythme = (typeof RYTHMES)[number]
 
 // Listes recopiées dans les CHECK de la migration 0010 : les garder synchronisées.
-export const VEDETTE_MAX = 3
+export { VEDETTE_MAX } from './listes'
 export const SERVICE_TITRE_MAX = 80
 export const SERVICE_DESCRIPTION_MAX = 1000
 export const PAIEMENT_INSTRUCTIONS_MAX = 500
