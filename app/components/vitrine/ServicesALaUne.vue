@@ -15,7 +15,7 @@ defineProps<{ username: string, services: ServicePublicCarteDTO[], total: number
       </div>
       <NuxtLink
         :to="`/${username}/services`"
-        class="hidden min-h-(--cible-tactile) items-center gap-1 font-semibold text-accent hover:underline md:inline-flex"
+        class="hidden min-h-(--cible-tactile) items-center gap-1 font-semibold text-accent-texte hover:underline md:inline-flex"
       >
         Voir tous les services ({{ total }})
         <UIcon name="i-ph-caret-right" class="size-4" aria-hidden="true" />

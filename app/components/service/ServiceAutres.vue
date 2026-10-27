@@ -29,7 +29,7 @@ function meta(s: ServicePublicCarteDTO): string {
     </ul>
     <NuxtLink
       :to="`/${username}/services`"
-      class="inline-flex min-h-(--cible-tactile) items-center gap-1 font-semibold text-accent hover:underline"
+      class="inline-flex min-h-(--cible-tactile) items-center gap-1 font-semibold text-accent-texte hover:underline"
     >
       Voir tous les services ({{ total }})
       <UIcon name="i-ph-caret-right" class="size-4" aria-hidden="true" />
