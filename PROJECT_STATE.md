@@ -1,6 +1,6 @@
 # PROJECT_STATE.md — Brandself
 
-Dernière mise à jour : **2026-10-26** · Phase : **reprise sprint par sprint** (audit + correction + alignement maquettes) · S0–S2 repris et validés · Prochaine action : **S3 (Services) à reprendre**.
+Dernière mise à jour : **2026-10-27** · Phase : **reprise sprint par sprint** · S0–S3 repris et validés · Prochaine action : **S4 (Réalisations) à reprendre**.
 
 À mettre à jour à la fin de chaque sprint (statut, décisions prises, décisions ouvertes, dette connue).
 
@@ -15,7 +15,7 @@ L'ancien projet (Laravel + Nuxt, système de blocs polymorphique, ~60 tables, do
 | S0 | Fondations | **repris, fait** | base (btree_gist actif), worker BullMQ (file `systeme`, job `ping`), `/api/health`, Zod au démarrage, Vitest + Playwright + CI, lint/typecheck/build verts |
 | S1 | Authentification (OTP, Google) | **repris, fait** | connexions email/téléphone + code 6 chiffres, garde OTP Redis, pages `/connexion`, `/connexion/code`, `/studio`, onboarding, vitrines statiques `@username`/`[username]`, e2e 8/8 verts |
 | S2 | Studio (coque), Profil, accueil public | **repris, fait** | Backend refait (services, resources, `defineApiHandler`, médias sharp+unstorage, suppression de compte, appareils, routes un-dossier-par-ressource), fuite PII fermée, studio/profil/compte/vitrine publique/onboarding sur `@nuxt/ui`, 5 palettes. 370 tests unit, 157 intégration, 97 e2e verts ; build OK (RESEND_API_KEY requis). Écarts maquette restants : voir docs/JOURNAL_DECISIONS.md |
-| S3 | Services | **à reprendre** (livré cassé : routes `*.[slug].*` 404, API publiques absentes, UI hors maquettes) | schéma `services`, API studio (POST/GET/PUT/DELETE), API publique (liste + détail), pages studio (grille, création, modification), pages publiques (liste, détail) |
+| S3 | Services | **repris, fait** | Schéma + migration 0010 (CHECK, slug par vitrine, FK image), service/ressources/8 routes, studio (liste, tri clavier+glisser, vedettes ≤3, formulaire), pages publiques (accueil à la une, liste, détail, /reserver provisoire). 802 unit, 318 intégration, 162 e2e verts ; build OK. Écarts maquette : docs/JOURNAL_DECISIONS.md |
 | S4 | Réalisations | **à reprendre** (livré cassé : routes `*.[slug].*` 404, API publiques absentes, UI hors maquettes) | schéma `realisations`, API studio (POST/GET/PUT/DELETE), API publique (liste + détail), pages studio (grille, création, modification), pages publiques (liste, détail) |
 | S5 | Témoignages | **à reprendre** (livré cassé : routes `*.[slug].*` 404, API publiques absentes, UI hors maquettes) | schéma `temoignages`, API studio (POST/GET/PUT/DELETE), API publique (liste + détail), pages studio (grille, création, modification), pages publiques (liste, détail) |
 | S6 | Liens et link-in-bio | à faire | |
