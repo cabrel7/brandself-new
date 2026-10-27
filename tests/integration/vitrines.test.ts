@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { eq, sql } from 'drizzle-orm'
-import { describe, expect, it } from 'vitest'
+import { Client } from 'pg'
+import { describe, expect, it, vi } from 'vitest'
 import { db } from '../../server/utils/db'
 import { medias, vitrines } from '../../shared/db/schema'
 import { mediaSrcset } from '../../shared/medias'
@@ -821,5 +822,84 @@ describe('vitrines — résumé du studio (CA17)', () => {
 
     expect(resume.manquantsPourPublier).toEqual(['ville', 'pays'])
     expect(resume.statistiques7j).toEqual({ visites: 0, clics: 0, reservations: 0 })
+  })
+})
+
+describe('vitrines — compteurs de navigation publique (S4-CA41)', () => {
+  const CLES_DTO_PUBLIC = [
+    'accroche', 'bio', 'contact', 'fuseau', 'metier', 'nom', 'nomAffiche', 'palette', 'pays',
+    'paysLibelle', 'photo', 'prenom', 'seo', 'titre', 'username', 'ville',
+  ].sort()
+
+  // Contrat attendu (L3) : getPublicVitrinePage(rawUsername) -> { vitrine: VitrineAvecPhoto, contenus: { services, realisations } }
+  //                        toContenusPublicsResource({ services, realisations }) -> ContenusPublicsDTO
+  async function vitrinePubliee(username = 'dr-test') {
+    const user = await createUser()
+    const vitrine = await insertVitrineRow(user.id, { username, publiee: true })
+    return { user, vitrine }
+  }
+
+  it('CA41 should count only the visible services and realisations of the vitrine (5 + 1 masked, 3 + 1 masked)', async () => {
+    const { getPublicVitrinePage } = await vitrinesService()
+    const { toContenusPublicsResource, toVitrinePublicResource } = await ressourceVitrine()
+    const { vitrine } = await vitrinePubliee()
+    const autre = await vitrinePubliee('autre-vitrine')
+    for (let i = 0; i < 5; i += 1) await insertService(vitrine.id)
+    await insertService(vitrine.id, { actif: false })
+    for (let i = 0; i < 3; i += 1) await insertRealisation(vitrine.id)
+    await insertRealisation(vitrine.id, { actif: false })
+    await insertService(autre.vitrine.id)
+    await insertRealisation(autre.vitrine.id)
+    await insertRealisation(autre.vitrine.id)
+
+    const page = await getPublicVitrinePage('dr-test')
+
+    expect(page.contenus).toEqual({ services: 5, realisations: 3 })
+    expect(toContenusPublicsResource(page.contenus)).toEqual({ services: 5, realisations: 3 })
+    expect(Object.keys(toVitrinePublicResource(page.vitrine)).sort()).toEqual(CLES_DTO_PUBLIC)
+    expect(page.vitrine.vitrine.username).toBe('dr-test')
+  })
+
+  it('CA41 should answer zeros for a vitrine without content, and count nothing but masked rows as zero', async () => {
+    const { getPublicVitrinePage } = await vitrinesService()
+    const { vitrine } = await vitrinePubliee()
+
+    expect((await getPublicVitrinePage('dr-test')).contenus).toEqual({ services: 0, realisations: 0 })
+    await insertService(vitrine.id, { actif: false })
+    await insertRealisation(vitrine.id, { actif: false })
+    expect((await getPublicVitrinePage('dr-test')).contenus).toEqual({ services: 0, realisations: 0 })
+  })
+
+  it('CA41 should normalise the username and answer VITRINE_INTROUVABLE for an unpublished, unknown or invalid one', async () => {
+    const { getPublicVitrinePage } = await vitrinesService()
+    await vitrinePubliee()
+    const brouillon = await createUser()
+    await insertVitrineRow(brouillon.id, { username: 'brouillon', publiee: false })
+
+    expect((await getPublicVitrinePage(' DR-TEST ')).vitrine.vitrine.username).toBe('dr-test')
+    for (const username of ['brouillon', 'inconnu', 'Bad_Name', '']) {
+      const erreur = await rejet(getPublicVitrinePage(username))
+      expect(erreur.code).toBe('VITRINE_INTROUVABLE')
+      expect(erreur.status).toBe(404)
+    }
+  })
+
+  it('CA41 should cost exactly one query more than getPublicVitrine (both counts in a single statement)', async () => {
+    const { getPublicVitrine, getPublicVitrinePage } = await vitrinesService()
+    await vitrinePubliee()
+    const compter = async (action: () => Promise<unknown>) => {
+      const espion = vi.spyOn(Client.prototype as { query: (...args: unknown[]) => unknown }, 'query')
+      try {
+        await action()
+        return espion.mock.calls.length
+      } finally {
+        espion.mockRestore()
+      }
+    }
+
+    const base = await compter(() => getPublicVitrine('dr-test'))
+    const page = await compter(() => getPublicVitrinePage('dr-test'))
+
+    expect(page - base).toBe(1)
   })
 })

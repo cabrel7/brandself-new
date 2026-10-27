@@ -11,3 +11,10 @@ export const ressourceUtilisateur = () => import('../../../server/resources/util
 export const servicesService = () => import('../../../server/services/services')
 export const servicesRegles = () => import('../../../server/services/services-regles')
 export const ressourceService = () => import('../../../server/resources/service')
+// S4 : modules à créer en GREEN (L3). Jamais d'import statique ici.
+export const realisationsService = () => import('../../../server/services/realisations')
+export const realisationsRegles = () => import('../../../server/services/realisations-regles')
+export const listesRegles = () => import('../../../server/services/listes-regles')
+export const vitrineAcces = () => import('../../../server/services/vitrine-acces')
+export const ressourceRealisation = () => import('../../../server/resources/realisation')
+export const ressourceSeo = () => import('../../../server/resources/seo')

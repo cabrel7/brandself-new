@@ -42,15 +42,27 @@ const ROUTES_S3: Route[] = [
   { methode: 'GET', chemin: '/api/studio/services/pas-un-uuid' },
 ]
 
-// Collections des sprints suivants (leurs routes `[slug]` seront ajoutées au fil de S4 à S6,
+// S4 (S4-CA43) : réalisations, même patron que les services (élément `:id` uuid, action `reordonner`).
+const ROUTES_S4: Route[] = [
+  { methode: 'GET', chemin: '/api/studio/realisations' },
+  { methode: 'POST', chemin: '/api/studio/realisations', corps: {} },
+  { methode: 'GET', chemin: `/api/studio/realisations/${ID}` },
+  { methode: 'PUT', chemin: `/api/studio/realisations/${ID}`, corps: {} },
+  { methode: 'DELETE', chemin: `/api/studio/realisations/${ID}` },
+  { methode: 'POST', chemin: '/api/studio/realisations/reordonner', corps: {} },
+  // Identifiant mal formé : l'authentification passe quand même avant la validation (401, pas 400).
+  { methode: 'GET', chemin: '/api/studio/realisations/pas-un-uuid' },
+]
+
+// Collections des sprints suivants (leurs routes `[slug]` seront ajoutées au fil de S5 et S6,
 // quand leurs fichiers `x.[slug].ts` seront renommés et deviendront atteignables).
-const ROUTES_COLLECTIONS: Route[] = ['realisations', 'temoignages', 'liens'].flatMap((ressource) => [
+const ROUTES_COLLECTIONS: Route[] = ['temoignages', 'liens'].flatMap((ressource) => [
   { methode: 'GET' as const, chemin: `/api/studio/${ressource}` },
   { methode: 'POST' as const, chemin: `/api/studio/${ressource}`, corps: {} },
 ])
 
 test.describe('CA32 /api/studio/** sans session', () => {
-  for (const route of [...ROUTES_S2, ...ROUTES_S3, ...ROUTES_COLLECTIONS]) {
+  for (const route of [...ROUTES_S2, ...ROUTES_S3, ...ROUTES_S4, ...ROUTES_COLLECTIONS]) {
     test(`CA32 ${route.methode} ${route.chemin} répond 401`, async ({ request }) => {
       const reponse = await request.fetch(route.chemin, { method: route.methode, data: route.corps })
 

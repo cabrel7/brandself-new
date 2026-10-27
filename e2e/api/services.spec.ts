@@ -23,7 +23,8 @@ const CLES_CARTE_PUBLIQUE = [
 
 const CLES_DETAIL_PUBLIC = [...CLES_CARTE_PUBLIQUE, 'inclus', 'paiementInstructions', 'paiementMode', 'seo'].sort()
 
-const MESSAGE_ORDRE_INVALIDE = 'L’ordre envoyé ne correspond plus à vos services. Rechargez la page et réessayez.'
+// Message générique, partagé par toutes les listes (S4, décision #57).
+const MESSAGE_ORDRE_INVALIDE = 'L’ordre envoyé n’est plus à jour. Rechargez la page et réessayez.'
 
 interface ServiceStudio {
   id: string
@@ -328,7 +329,8 @@ test.describe.serial('services — API studio et publique (S3-CA39 à CA42)', ()
       const corps = (await lireErreur(reponse)) as Awaited<ReturnType<typeof lireErreur>> & { data: { enVedette: { id: string, titre: string }[] } }
       expect(corps.data.code).toBe('VEDETTE_COMPLETE')
       expect(corps.data.enVedette).toEqual(crees.map((s) => ({ id: s.id, titre: s.titre })))
-      expect(corps.message).toContain('3 services en vedette')
+      expect(corps.message).toContain('3 éléments en vedette')
+      expect(corps.message).not.toMatch(/service/i)
       expect((await lister()).services).toHaveLength(3)
     })
 

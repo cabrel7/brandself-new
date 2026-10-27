@@ -3,6 +3,7 @@ import { db } from '../../../server/utils/db'
 import {
   liens,
   medias,
+  realisationImages,
   realisations,
   services,
   sessions,
@@ -150,14 +151,32 @@ export async function insertServiceComplet(vitrineId: string, surcharges: Partia
   })
 }
 
-export async function insertRealisation(vitrineId: string, surcharges: Partial<typeof realisations.$inferInsert> = {}): Promise<void> {
-  await db.insert(realisations).values({
-    id: randomUUID(),
-    vitrineId,
-    slug: `realisation-${randomUUID().slice(0, 8)}`,
-    titre: 'Une réalisation',
-    ...surcharges,
-  })
+export type RealisationRow = typeof realisations.$inferSelect
+export type RealisationImageRow = typeof realisationImages.$inferSelect
+
+/**
+ * Réalisation insérée directement et RENVOYÉE. Les défauts respectent les CHECK de la migration 0011 :
+ * slug conforme (`realisation-xxxxxxxx`), ordre 0, visible, hors vedette, sans image principale.
+ * Les surcharges peuvent volontairement violer une contrainte (tests des CHECK).
+ */
+export async function insertRealisation(vitrineId: string, surcharges: Partial<typeof realisations.$inferInsert> = {}): Promise<RealisationRow> {
+  const [ligne] = await db
+    .insert(realisations)
+    .values({
+      id: randomUUID(),
+      vitrineId,
+      slug: `realisation-${randomUUID().slice(0, 8)}`,
+      titre: 'Une réalisation',
+      ...surcharges,
+    })
+    .returning()
+  return ligne
+}
+
+/** Image de galerie insérée directement (identifiant UUID, `ordre` de 0 à 5 garanti par la base). */
+export async function insertRealisationImage(realisationId: string, mediaId: string, ordre: number): Promise<RealisationImageRow> {
+  const [ligne] = await db.insert(realisationImages).values({ id: randomUUID(), realisationId, mediaId, ordre }).returning()
+  return ligne
 }
 
 export async function insertTemoignage(vitrineId: string, surcharges: Partial<typeof temoignages.$inferInsert> = {}): Promise<void> {

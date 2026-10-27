@@ -5,7 +5,7 @@ import { eq } from 'drizzle-orm'
 import sharp from 'sharp'
 import { beforeAll, describe, expect, it } from 'vitest'
 import { db } from '../../server/utils/db'
-import { medias, vitrines } from '../../shared/db/schema'
+import { medias, realisationImages, realisations, vitrines } from '../../shared/db/schema'
 import { MEDIA_MAX_BYTES, MEDIA_WIDTHS } from '../../shared/medias'
 import { MEDIA_UPLOAD_LIMIT } from '../../shared/limites'
 import {
@@ -21,7 +21,7 @@ import {
 } from '../support/images'
 import { fichiersDuMedia, fichiersSous, lireOctets, mediasDir } from './support/disque'
 import { rejet } from './support/erreurs'
-import { createUser, insertRealisation, insertService, insertVitrineRow } from './support/fabriques'
+import { createUser, insertRealisation, insertRealisationImage, insertService, insertVitrineRow } from './support/fabriques'
 import { mediasService } from './support/modules'
 
 // Vrai PostgreSQL, vrai disque (dossier temporaire MEDIAS_DIR), vrai Redis. Images fabriquées
@@ -328,6 +328,10 @@ describe('medias — suppression et lecture (CA24, CA25)', () => {
     it.each([
       ['une image de service', async (vitrineId: string, mediaId: string) => insertService(vitrineId, { imageMediaId: mediaId })],
       ['une image de réalisation', async (vitrineId: string, mediaId: string) => insertRealisation(vitrineId, { imageMediaId: mediaId })],
+      ['une image de galerie de réalisation', async (vitrineId: string, mediaId: string) => {
+        const ligne = await insertRealisation(vitrineId)
+        await insertRealisationImage(ligne.id, mediaId, 0)
+      }],
     ])('CA7 should keep a media still referenced by %s', async (_libelle, referencer) => {
       const { uploadMedia, deleteMediaIfUnreferenced } = await mediasService()
       const a = await createUser()
@@ -339,6 +343,41 @@ describe('medias — suppression et lecture (CA24, CA25)', () => {
 
       expect(await db.select().from(medias).where(eq(medias.id, id))).toHaveLength(1)
       expect(await fichiersDuMedia(id)).toHaveLength(3)
+    })
+
+    it('CA42 should keep a gallery image of a realisation, then delete it once the realisation is gone', async () => {
+      const { uploadMedia, deleteMediaIfUnreferenced } = await mediasService()
+      const a = await createUser()
+      const vitrine = await insertVitrineRow(a.id)
+      const g1 = await uploadMedia(a.id, await makePng())
+      const ligne = await insertRealisation(vitrine.id)
+      await insertRealisationImage(ligne.id, g1.id, 0)
+
+      await deleteMediaIfUnreferenced(a.id, g1.id)
+
+      expect(await db.select().from(medias).where(eq(medias.id, g1.id))).toHaveLength(1)
+      expect(await fichiersDuMedia(g1.id)).toHaveLength(3)
+
+      await db.delete(realisations).where(eq(realisations.id, ligne.id))
+      await deleteMediaIfUnreferenced(a.id, g1.id)
+
+      expect(await db.select().from(medias).where(eq(medias.id, g1.id))).toHaveLength(0)
+      expect(await fichiersDuMedia(g1.id)).toHaveLength(0)
+    })
+
+    it('CA42 should keep an image that is in a gallery AND the main image of another realisation, with its gallery line', async () => {
+      const { uploadMedia, deleteMediaIfUnreferenced } = await mediasService()
+      const a = await createUser()
+      const vitrine = await insertVitrineRow(a.id)
+      const partagee = await uploadMedia(a.id, await makePng())
+      const r1 = await insertRealisation(vitrine.id)
+      await insertRealisationImage(r1.id, partagee.id, 0)
+      await insertRealisation(vitrine.id, { imageMediaId: partagee.id })
+
+      await deleteMediaIfUnreferenced(a.id, partagee.id)
+
+      expect(await db.select().from(medias).where(eq(medias.id, partagee.id))).toHaveLength(1)
+      expect(await db.select().from(realisationImages).where(eq(realisationImages.realisationId, r1.id))).toHaveLength(1)
     })
 
     it('CA7 should keep a media still used as the vitrine photo', async () => {
