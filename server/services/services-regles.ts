@@ -1,8 +1,13 @@
-import slugify from '@sindresorhus/slugify'
-import { SERVICE_SLUG_MAX, SERVICE_SLUG_REGEX } from '../../shared/services'
+import { SERVICE_SLUG_MAX } from '../../shared/services'
+import { pickAvailableSlug as pickAvailableListSlug, slugFromText } from './listes-regles'
 
 // Règles pures des services (aucune base, aucun réseau) : testées par tests/unit/services-regles.test.ts.
 // Les colonnes texte restent des `string` ici : les CHECK de la base garantissent les listes fermées.
+// Vedette, « à la une », compteurs et slugs sont communs à toutes les listes : ils vivent dans
+// listes-regles.ts (décision #58) et sont ré-exportés ici, mêmes références.
+
+export { computeALaUne, computeCompteurs, resolveEnVedette } from './listes-regles'
+export type { Compteurs, ResolveEnVedetteInput } from './listes-regles'
 
 /** Partie de l'état d'un service concernée par les règles de cohérence (R1 à R6). */
 export interface ServiceState {
@@ -25,9 +30,6 @@ const TARIF_PAYANT = 'payant'
 const TARIF_DEVIS = 'devis'
 const PAIEMENT_PAR_DEFAUT = 'sur_place'
 const SLUG_PAR_DEFAUT = 'service'
-const SLUG_SEPARATEUR = '-'
-const SLUG_SUFFIXE_MIN = 2
-const TRAILING_DASHES = /-+$/
 
 const MSG_DUREE = 'La durée est requise pour ce type de service.'
 const MSG_SEANCES = 'Le nombre de séances est requis pour un accompagnement.'
@@ -82,60 +84,12 @@ export function checkServiceCoherence(etat: ServiceState): Record<string, string
   return erreurs
 }
 
-export interface ResolveEnVedetteInput {
-  /** `undefined` = automatique. */
-  demande: boolean | undefined
-  actif: boolean
-  autresEnVedette: number
-  max: number
-}
-
-/** R7 : décide la vedette d'un service ; `'COMPLET'` si une vedette explicite dépasse le plafond. */
-export function resolveEnVedette({ demande, actif, autresEnVedette, max }: ResolveEnVedetteInput): boolean | 'COMPLET' {
-  const place = autresEnVedette < max
-  if (demande === false) return false
-  if (demande === true) return place ? true : 'COMPLET'
-  return actif && place
-}
-
-/** R11 : les vedettes visibles, sinon les `max` premiers visibles. Jamais plus de `max`. Mêmes objets. */
-export function computeALaUne<T extends { enVedette: boolean }>(visibles: readonly T[], max: number): T[] {
-  const vedettes = visibles.filter((ligne) => ligne.enVedette)
-  return (vedettes.length > 0 ? vedettes : visibles).slice(0, max)
-}
-
-export interface Compteurs {
-  total: number
-  visibles: number
-  enVedette: number
-  vedetteMax: number
-}
-
-export function computeCompteurs(lignes: readonly { actif: boolean, enVedette: boolean }[], max: number): Compteurs {
-  return {
-    total: lignes.length,
-    visibles: lignes.filter((ligne) => ligne.actif).length,
-    enVedette: lignes.filter((ligne) => ligne.enVedette).length,
-    vedetteMax: max,
-  }
-}
-
-function cutSlug(slug: string, max: number): string {
-  return slug.slice(0, max).replace(TRAILING_DASHES, '')
-}
-
-/** Slug d'un titre : accents et ligatures translittérés, « & » -> « et », 80 caractères au plus, repli `service`. */
+/** Slug d'un titre de service : 80 caractères au plus, repli `service`. */
 export function slugFromTitle(titre: string): string {
-  const slug = cutSlug(slugify(titre, { customReplacements: [['&', ' et ']], decamelize: false }), SERVICE_SLUG_MAX)
-  return SERVICE_SLUG_REGEX.test(slug) ? slug : SLUG_PAR_DEFAUT
+  return slugFromText(titre, { max: SERVICE_SLUG_MAX, repli: SLUG_PAR_DEFAUT })
 }
 
-/** `base`, sinon `base-2`, `base-3`… (premier numéro libre), toujours dans la limite de 80 caractères. */
+/** `base`, sinon `base-2`, `base-3`… dans la limite de 80 caractères. */
 export function pickAvailableSlug(base: string, existants: ReadonlySet<string>): string {
-  if (!existants.has(base)) return base
-  for (let numero = SLUG_SUFFIXE_MIN; ; numero += 1) {
-    const suffixe = `${SLUG_SEPARATEUR}${numero}`
-    const candidat = `${cutSlug(base, SERVICE_SLUG_MAX - suffixe.length)}${suffixe}`
-    if (!existants.has(candidat)) return candidat
-  }
+  return pickAvailableListSlug(base, existants, SERVICE_SLUG_MAX)
 }

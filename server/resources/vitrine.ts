@@ -1,9 +1,9 @@
-import type { StudioResumeDTO, VitrinePubliqueDTO, VitrineStudioDTO } from '../../shared/dto'
+import type { ContenusPublicsDTO, StudioResumeDTO, VitrinePubliqueDTO, VitrineStudioDTO } from '../../shared/dto'
 import { PALETTES, DEFAULT_PALETTE } from '../../shared/palettes'
 import type { Palette } from '../../shared/palettes'
 import { PAYS, TITRES, displayName } from '../../shared/vitrine'
 import type { Titre } from '../../shared/vitrine'
-import type { StudioSummary, VitrineAvecPhoto } from '../services/vitrines'
+import type { ContenusPublics, StudioSummary, VitrineAvecPhoto } from '../services/vitrines'
 import { toMediaResource } from './media'
 
 // Les colonnes sont du texte libre côté TypeScript (les CHECK de la base garantissent les valeurs) :
@@ -48,6 +48,11 @@ export function toStudioResumeResource(resume: StudioSummary): StudioResumeDTO {
     manquantsPourPublier: [...resume.manquants],
     statistiques7j: { visites: 0, clics: 0, reservations: 0 },
   }
+}
+
+/** Compteurs de navigation publique : deux entiers, rien d'autre. */
+export function toContenusPublicsResource(contenus: ContenusPublics): ContenusPublicsDTO {
+  return { services: contenus.services, realisations: contenus.realisations }
 }
 
 /**

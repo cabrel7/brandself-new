@@ -223,6 +223,29 @@ export async function getPublicVitrine(rawUsername: string): Promise<VitrineAvec
   return row
 }
 
+/** Nombre d'éléments visibles (`actif`) par liste : alimente la navigation publique (R10). */
+export type ContenusPublics = { services: number, realisations: number }
+
+export interface VitrinePage {
+  vitrine: VitrineAvecPhoto
+  contenus: ContenusPublics
+}
+
+/**
+ * Vitrine publiée plus les compteurs de contenus visibles. Exactement UNE requête de plus que
+ * `getPublicVitrine` (les deux sous-comptes sont dans un seul SELECT).
+ */
+export async function getPublicVitrinePage(rawUsername: string): Promise<VitrinePage> {
+  const vitrine = await getPublicVitrine(rawUsername)
+  const vitrineId = vitrine.vitrine.id
+  const { rows } = await db.execute<ContenusPublics>(sql`
+    SELECT
+      (SELECT count(*) FROM ${services} WHERE ${services.vitrineId} = ${vitrineId} AND ${services.actif})::int AS services,
+      (SELECT count(*) FROM ${realisations} WHERE ${realisations.vitrineId} = ${vitrineId} AND ${realisations.actif})::int AS realisations
+  `)
+  return { vitrine, contenus: rows[0] ?? { services: 0, realisations: 0 } }
+}
+
 export async function checkUsernameAvailability(userId: string, rawUsername: string): Promise<UsernameAvailability> {
   await enforceLimit(`username-check:${userId}`, USERNAME_CHECK_LIMIT.limit, USERNAME_CHECK_LIMIT.windowS)
   const username = normalizeUsername(rawUsername)

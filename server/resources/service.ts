@@ -9,15 +9,14 @@ import type {
 import { PAIEMENT_MODES, RYTHMES, SERVICE_TYPES, TARIFS } from '../../shared/services'
 import type { PaiementMode, Rythme, ServiceType, Tarif } from '../../shared/services'
 import { displayName } from '../../shared/vitrine'
-import type { Compteurs } from '../services/services-regles'
+import type { Compteurs } from '../services/listes-regles'
 import type { MediaRow } from '../services/medias'
 import type { ServiceRow } from '../services/services'
 import type { VitrineRow } from '../services/vitrines'
 import { toMediaResource } from './media'
+import { truncateForSeo } from './seo'
 import { asTitre } from './vitrine'
 
-const SEO_DESCRIPTION_MAX = 160
-const ELLIPSE = '…'
 const ESPACES = /\s+/g
 const MODE_HORS_LIGNE: PaiementMode = 'sur_place'
 const TYPE_PAR_DEFAUT: ServiceType = 'rdv'
@@ -54,18 +53,6 @@ function effectivePaiementMode(value: string | null, { paiementEnLigne }: Option
   const mode = asPaiementMode(value)
   if (mode === null) return null
   return paiementEnLigne ? mode : MODE_HORS_LIGNE
-}
-
-/** Texte sur une ligne, coupé sur une limite de mot à 160 caractères au plus (ellipse comprise). */
-function truncateForSeo(texte: string): string {
-  if (texte.length <= SEO_DESCRIPTION_MAX) return texte
-  const limite = SEO_DESCRIPTION_MAX - ELLIPSE.length
-  let coupe = texte.slice(0, limite)
-  if (!/\s/.test(texte.charAt(limite))) {
-    const dernierEspace = coupe.search(/\s\S*$/)
-    if (dernierEspace > 0) coupe = coupe.slice(0, dernierEspace)
-  }
-  return `${coupe.trimEnd()}${ELLIPSE}`
 }
 
 export function toServiceStudioResource(row: ServiceRow, image: MediaRow | null): ServiceStudioDTO {

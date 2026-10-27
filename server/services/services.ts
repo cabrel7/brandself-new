@@ -1,13 +1,12 @@
 import { randomUUID } from 'node:crypto'
 import { and, asc, eq, sql } from 'drizzle-orm'
 import { env } from '../../shared/env'
-import { medias, services, vitrines } from '../../shared/db/schema'
+import { medias, services } from '../../shared/db/schema'
 import type { ServiceCreateInput, ServiceUpdateInput } from '../../shared/schemas/service'
 import { AUTRES_SERVICES_MAX, SERVICE_SLUG_MAX, SERVICE_SLUG_REGEX, VEDETTE_MAX } from '../../shared/services'
 import { ConflictError, NotFoundError, UnprocessableError, ValidationError } from '../exceptions/http'
 import { db } from '../utils/db'
 import { PG_FOREIGN_KEY_VIOLATION, PG_UNIQUE_VIOLATION, readPgError } from '../utils/pg-error'
-import { deleteMediaIfUnreferenced } from './medias'
 import type { MediaRow } from './medias'
 import {
   checkServiceCoherence,
@@ -19,6 +18,8 @@ import {
   slugFromTitle,
 } from './services-regles'
 import type { Compteurs, ServiceState } from './services-regles'
+import { cleanupMedias, lockVitrineId, requireOwnedMedias, requireVitrineId } from './vitrine-acces'
+import type { Executor } from './vitrine-acces'
 import { getPublicVitrine } from './vitrines'
 import type { VitrineRow } from './vitrines'
 
@@ -63,9 +64,7 @@ const SLUG_UNIQUE = 'services_vitrine_id_slug_unique'
 const IMAGE_FK = 'services_image_media_id_medias_id_fk'
 const SLUG_ATTEMPTS = 2
 const PAIEMENTS_EN_LIGNE: readonly string[] = ['en_ligne', 'au_choix']
-
-type Executor = Pick<typeof db, 'select'>
-type Transaction = Parameters<Parameters<typeof db.transaction>[0]>[0]
+const LOG_CONTEXTE = 'services'
 
 /** Options par défaut : le drapeau vient de la configuration validée (`shared/env.ts`), jamais de `process.env`. */
 export function resolveServiceOptions(): OptionsService {
@@ -81,23 +80,6 @@ function selectWithImage(executor: Executor) {
 
 const ORDER = [asc(services.ordre), asc(services.createdAt), asc(services.id)] as const
 
-async function requireVitrineId(userId: string): Promise<string> {
-  const [vitrine] = await db.select({ id: vitrines.id }).from(vitrines).where(eq(vitrines.userId, userId)).limit(1)
-  if (!vitrine) throw new NotFoundError('VITRINE_INTROUVABLE')
-  return vitrine.id
-}
-
-/** Verrou sur la ligne vitrine : sérialise vedette, slug et ordre des écritures concurrentes. */
-async function lockVitrineId(tx: Transaction, userId: string): Promise<string> {
-  const [vitrine] = await tx
-    .select({ id: vitrines.id })
-    .from(vitrines)
-    .where(eq(vitrines.userId, userId))
-    .for('update')
-  if (!vitrine) throw new NotFoundError('VITRINE_INTROUVABLE')
-  return vitrine.id
-}
-
 async function listRows(executor: Executor, vitrineId: string): Promise<ServiceRow[]> {
   return executor
     .select()
@@ -110,15 +92,6 @@ async function listWithImages(executor: Executor, vitrineId: string): Promise<Se
   return selectWithImage(executor)
     .where(eq(services.vitrineId, vitrineId))
     .orderBy(...ORDER)
-}
-
-async function requireOwnedMedia(tx: Transaction, userId: string, mediaId: string): Promise<void> {
-  const [owned] = await tx
-    .select({ id: medias.id })
-    .from(medias)
-    .where(and(eq(medias.id, mediaId), eq(medias.userId, userId)))
-    .limit(1)
-  if (!owned) throw new UnprocessableError('MEDIA_INVALIDE')
 }
 
 function toState(row: ServiceRow): ServiceState {
@@ -191,10 +164,7 @@ function vedetteComplete(vedettes: readonly ServiceRow[]): ConflictError {
 
 /** Un orphelin de fichier sera nettoyé plus tard : l'échec ne doit pas faire échouer l'écriture déjà validée. */
 async function cleanupImage(userId: string, mediaId: string | null): Promise<void> {
-  if (mediaId === null) return
-  await deleteMediaIfUnreferenced(userId, mediaId).catch((error: unknown) => {
-    console.error({ services: 'image non supprimée', nom: error instanceof Error ? error.name : typeof error })
-  })
+  await cleanupMedias(userId, mediaId === null ? [] : [mediaId], LOG_CONTEXTE)
 }
 
 export async function listOwnServices(userId: string): Promise<ServicesAvecCompteurs> {
@@ -217,7 +187,7 @@ async function insertService(userId: string, input: ServiceCreateInput, options:
     const etat = normalizeServiceState(EMPTY_STATE, pickState(input))
     assertCoherent(etat)
     assertPaiementAllowed(etat.paiementMode, options)
-    if (input.imageMediaId !== null) await requireOwnedMedia(tx, userId, input.imageMediaId)
+    if (input.imageMediaId !== null) await requireOwnedMedias(tx, userId, [input.imageMediaId])
 
     const vedettes = rows.filter((ligne) => ligne.enVedette)
     const enVedette = resolveEnVedette({
@@ -301,7 +271,7 @@ export async function updateService(
       if (etat.paiementMode !== current.paiementMode) assertPaiementAllowed(etat.paiementMode, options)
 
       const imageMediaId = orKeep(patch.imageMediaId, current.imageMediaId)
-      if (imageMediaId !== null && imageMediaId !== current.imageMediaId) await requireOwnedMedia(tx, userId, imageMediaId)
+      if (imageMediaId !== null && imageMediaId !== current.imageMediaId) await requireOwnedMedias(tx, userId, [imageMediaId])
 
       if (etat.enVedette && !current.enVedette) {
         const autres = rows.filter((ligne) => ligne.id !== id && ligne.enVedette)
