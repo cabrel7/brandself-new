@@ -11,9 +11,9 @@ const TAILLES = {
 } as const
 
 const CADRES = {
-  'carte': 'aspect-[4/3]',
-  'a-la-une': 'aspect-[16/10]',
-  'detail': 'aspect-[16/10] lg:rounded-(--rayon-carte)',
+  'carte': 'w-full aspect-[4/3]',
+  'a-la-une': 'w-full aspect-[16/10]',
+  'detail': 'w-full aspect-[16/10] lg:rounded-(--rayon-carte)',
   'miniature': 'size-16 shrink-0 rounded-2xl',
 } as const
 
@@ -23,7 +23,7 @@ const alt = computed(() => (props.format === 'detail' ? `Image de la réalisatio
 </script>
 
 <template>
-  <div class="relative w-full overflow-hidden bg-accent-doux" :class="CADRES[format]">
+  <div class="relative overflow-hidden bg-accent-doux" :class="CADRES[format]">
     <img
       v-if="image"
       :src="image.url"

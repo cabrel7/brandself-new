@@ -124,7 +124,7 @@ const {
       <div class="py-4">
         <USwitch
           v-model="form.enVedette"
-          label="Mettre en vedette"
+          label="En vedette sur l’accueil"
           :description="aideVedette"
           :disabled="vedetteBloquee"
           :ui="SWITCH_UI"

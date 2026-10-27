@@ -29,7 +29,7 @@ function surTouche(event: KeyboardEvent): void {
   <li class="flex items-center gap-1 border-b border-bordure bg-fond py-3">
     <NuxtLink
       :to="`/studio/realisations/${realisation.id}`"
-      class="flex min-w-0 flex-1 items-center gap-3 rounded-(--rayon-interne) text-encre no-underline transition-colors hover:bg-surfacefocus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+      class="flex min-w-0 flex-1 items-center gap-3 rounded-(--rayon-interne) text-encre no-underline transition-colors hover:bg-surface focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
     >
       <span
         class="flex size-14 shrink-0 items-center justify-center overflow-hidden rounded-(--rayon-interne)"

@@ -52,7 +52,7 @@ const resumeTexte = computed(() => resumeListeRealisations(resume.value.visibles
             {{ resumeTexte }}
           </p>
         </div>
-        <UButton label="Ajouter" to="/studio/realisations/nouveau" icon="i-ph-plus" class="shrink-0" />
+        <UButton label="Ajouter" to="/studio/realisations/nouveau" class="shrink-0" />
       </header>
 
       <p v-if="message" role="alert" class="message-erreur mt-4">
