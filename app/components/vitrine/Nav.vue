@@ -24,24 +24,24 @@ const liens = computed(() => {
     <div class="mx-auto flex min-h-16 w-full max-w-6xl items-center justify-between gap-4 px-6">
       <NuxtLink
         :to="`/${username}`"
-        class="inline-flex min-h-(--cible-tactile) items-center font-(family-name:--font-titre) text-(length:--fs-20) font-bold"
+        class="inline-flex min-h-(--cible-tactile) min-w-0 items-center font-(family-name:--font-titre) text-(length:--fs-20) font-bold"
       >
-        {{ nomAffiche }}
+        <span class="truncate">{{ nomAffiche }}</span>
       </NuxtLink>
-      <nav aria-label="Vitrine" class="flex items-center gap-6">
+      <nav aria-label="Vitrine" class="flex shrink-0 items-center gap-6">
         <NuxtLink
           v-for="lien in liens"
           :key="lien.to"
           :to="lien.to"
           :aria-current="lien.actif ? 'page' : undefined"
-          class="hidden min-h-(--cible-tactile) items-center text-(length:--fs-14) font-medium transition-colors hover:text-accent md:inline-flex"
+          class="hidden min-h-(--cible-tactile) items-center text-(length:--fs-14) font-medium transition-colors hover:text-accent-texte md:inline-flex"
           :class="lien.actif ? 'text-encre' : 'text-texte-secondaire'"
         >
           {{ lien.libelle }}
         </NuxtLink>
         <a
           href="#contact"
-          class="hidden min-h-(--cible-tactile) items-center text-(length:--fs-14) font-medium text-texte-secondaire transition-colors hover:text-accent md:inline-flex"
+          class="hidden min-h-(--cible-tactile) items-center text-(length:--fs-14) font-medium text-texte-secondaire transition-colors hover:text-accent-texte md:inline-flex"
         >
           Contact
         </a>

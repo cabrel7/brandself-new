@@ -49,7 +49,7 @@ const { copy, copied } = useClipboard({ copiedDuring: 2000 })
       to="/studio"
       class="mt-4 flex w-full flex-col gap-1 rounded-3xl bg-accent-doux p-6 text-start transition-colors hover:bg-surface"
     >
-      <span class="text-(length:--fs-14) font-semibold tracking-widest text-accent uppercase">Prochaine étape</span>
+      <span class="text-(length:--fs-14) font-semibold tracking-widest text-accent-texte uppercase">Prochaine étape</span>
       <span class="font-(family-name:--font-titre) text-(length:--fs-20) font-bold">{{ etape.titre }}</span>
       <span class="text-texte-secondaire">{{ etape.texte }}</span>
     </NuxtLink>

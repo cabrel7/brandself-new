@@ -20,7 +20,7 @@ const seule = computed(() => !slots.temoignage)
     <div class="grid gap-6 md:grid-cols-2">
       <article class="flex flex-col gap-4" :class="seule ? 'md:col-span-2 md:flex-row md:items-center md:gap-8' : ''">
         <div class="overflow-hidden rounded-(--rayon-carte)" :class="seule ? 'md:w-1/2 md:shrink-0' : ''">
-          <RealisationVisuel :image="realisation.image" :titre="realisation.titre" format="carte" class="aspect-[16/10]!" />
+          <RealisationVisuel :image="realisation.image" :titre="realisation.titre" format="a-la-une" />
         </div>
         <div class="flex flex-col gap-3">
           <h3 class="font-(family-name:--font-titre) text-(length:--fs-24) leading-tight font-bold">

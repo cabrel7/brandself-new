@@ -14,7 +14,8 @@ function statusCodeOf(err: unknown): number {
 }
 
 function cleVitrine(username: string): string {
-  return `vitrine-publique-${username}`
+  // Le serveur normalise le username : la clé doit l'être aussi, des deux côtés (page et cadre).
+  return `vitrine-publique-${username.trim().toLowerCase()}`
 }
 
 /**

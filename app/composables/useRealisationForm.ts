@@ -7,6 +7,8 @@ const ERREUR_IMAGE_REQUISE = 'Ajoutez une image principale.'
 const ERREUR_IMAGE_INDISPONIBLE = 'Une de vos images n’est plus disponible. Remplacez-la, puis réessayez.'
 const ERREUR_ANNEE = 'Saisissez l’année en chiffres, par exemple 2025.'
 const REGEX_ENTIER = /^\d+$/
+/** Décision #51 : seule la première réalisation en vedette est mise à la une de l'accueil. */
+const AIDE_A_LA_UNE = 'La première réalisation en vedette est mise à la une de votre accueil.'
 
 export type ChampRealisation =
   | 'titre' | 'description' | 'imageMediaId' | 'galerie' | 'annee' | 'lieu' | 'role' | 'lien' | 'enVedette' | 'actif'
@@ -187,7 +189,8 @@ export function useRealisationForm(options: OptionsRealisationForm) {
   const aideVedette = computed(() => {
     if (!form.actif) return 'Une réalisation masquée ne peut pas être en vedette.'
     const etat = libelleVedetteRealisations(compteurs.enVedette, compteurs.vedetteMax)
-    return vedetteComplete.value ? `${etat} Retirez-en une pour en ajouter une autre.` : etat
+    const base = `${AIDE_A_LA_UNE} ${etat}`
+    return vedetteComplete.value ? `${base} Retirez-en une pour en ajouter une autre.` : base
   })
 
   // Image principale

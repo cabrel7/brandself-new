@@ -86,7 +86,7 @@ const {
         <UInput
           v-model="form.lieu"
           :maxlength="REALISATION_LIEU_MAX"
-          placeholder="Ville, établissement ou client"
+          placeholder="Ville ou client"
           @update:model-value="viderErreur('lieu')"
         />
       </UFormField>
@@ -124,7 +124,7 @@ const {
       <div class="py-4">
         <USwitch
           v-model="form.enVedette"
-          label="En vedette sur l’accueil"
+          label="Mettre en vedette"
           :description="aideVedette"
           :disabled="vedetteBloquee"
           :ui="SWITCH_UI"

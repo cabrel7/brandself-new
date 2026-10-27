@@ -60,9 +60,15 @@ const resumeTexte = computed(() => resumeListeRealisations(resume.value.visibles
         <span>{{ message }}</span>
       </p>
 
-      <div v-if="enChargement" role="status" class="mt-4 flex flex-col gap-4">
+      <div v-if="enChargement" role="status" class="mt-4 flex flex-col border-t border-bordure">
         <span class="sr-only">Chargement de vos réalisations</span>
-        <USkeleton v-for="n in 4" :key="n" class="h-20 w-full" aria-hidden="true" />
+        <div v-for="n in 3" :key="n" class="flex items-center gap-3 border-b border-bordure py-3" aria-hidden="true">
+          <USkeleton class="size-14 shrink-0 rounded-(--rayon-interne)" />
+          <div class="flex min-w-0 flex-1 flex-col gap-2">
+            <USkeleton class="h-5 w-2/3" />
+            <USkeleton class="h-4 w-1/3" />
+          </div>
+        </div>
       </div>
 
       <ul v-else ref="liste" class="m-0 mt-4 list-none border-t border-bordure p-0">
@@ -81,7 +87,7 @@ const resumeTexte = computed(() => resumeListeRealisations(resume.value.visibles
       </p>
 
       <p v-if="!enChargement" class="m-0 mt-6 text-base text-texte-secondaire">
-        Les réalisations en vedette s’affichent en premier sur l’accueil. Les autres restent sur la page Réalisations.
+        La première réalisation en vedette est mise à la une de votre accueil. Toutes les réalisations visibles restent sur la page Réalisations.
       </p>
     </template>
   </div>

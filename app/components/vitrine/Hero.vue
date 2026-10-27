@@ -21,7 +21,7 @@ const lienWhatsapp = computed(() => {
       class="md:order-2"
     />
     <div class="flex flex-col gap-4 px-6 md:order-1 md:px-0">
-      <p class="text-(length:--fs-14) font-semibold tracking-widest text-accent uppercase">{{ surtitre }}</p>
+      <p class="text-(length:--fs-14) font-semibold tracking-widest text-accent-texte uppercase">{{ surtitre }}</p>
       <h1 class="font-(family-name:--font-titre) text-(length:--fs-32) leading-[1.1] font-bold md:text-(length:--fs-48)">
         {{ vitrine.accroche ?? vitrine.nomAffiche }}
       </h1>

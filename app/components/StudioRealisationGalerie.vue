@@ -34,6 +34,7 @@ const annonce = ref('')
 const pleine = computed(() => items.value.length >= GALERIE_MAX)
 const messageErreur = computed(() => erreur.value || messageMax.value || props.erreurExterne || '')
 const idErreur = useId()
+const idAide = useId()
 
 function publier(): void {
   emit('update:images', [...items.value])
@@ -64,13 +65,20 @@ async function surChoix(event: Event): Promise<void> {
   }
 }
 
-function retirer(index: number): void {
+async function retirer(index: number): Promise<void> {
   const retiree = items.value[index]
   if (!retiree) return
   messageMax.value = ''
   items.value = items.value.filter((_, i) => i !== index)
   annonce.value = `Image ${index + 1} retirée de la galerie.`
   publier()
+  // Le bouton cliqué disparaît : le focus passe à la vignette voisine, sinon à la tuile « + ».
+  await nextTick()
+  const voisine = items.value[Math.min(index, items.value.length - 1)]
+  const cible = voisine
+    ? liste.value?.querySelector<HTMLElement>(`[data-vignette="${voisine.id}"]`)
+    : liste.value?.querySelector<HTMLElement>('[data-ajout]')
+  cible?.focus()
 }
 
 async function deplacer(id: string, sens: -1 | 1): Promise<void> {
@@ -133,7 +141,8 @@ useSortable(liste, items, {
           type="button"
           :data-vignette="media.id"
           class="size-full cursor-grab overflow-hidden rounded-(--rayon-interne) bg-accent-doux focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent active:cursor-grabbing"
-          :aria-label="`Image ${index + 1} sur ${items.length}. Flèches gauche et droite pour la déplacer.`"
+          :aria-label="`Image ${index + 1} sur ${items.length}`"
+          :aria-describedby="idAide"
           @keydown="(event) => surTouche(event, media.id)"
         >
           <img
@@ -162,6 +171,7 @@ useSortable(liste, items, {
       <li v-if="!pleine" class="size-24">
         <button
           type="button"
+          data-ajout
           class="flex size-full cursor-pointer items-center justify-center rounded-(--rayon-interne) border border-dashed border-accent text-accent-texte transition-colors hover:bg-accent-doux focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:cursor-wait"
           :disabled="enCours"
           aria-label="Ajouter des images à la galerie"
@@ -174,6 +184,9 @@ useSortable(liste, items, {
 
     <p class="m-0 text-(length:--fs-14) text-texte-secondaire">
       {{ items.length }} sur {{ GALERIE_MAX }}
+    </p>
+    <p :id="idAide" class="sr-only">
+      Utilisez les flèches gauche et droite pour changer l’ordre
     </p>
     <p class="sr-only" aria-live="polite">
       {{ annonce }}

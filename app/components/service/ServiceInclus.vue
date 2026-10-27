@@ -14,7 +14,7 @@ const numero = (index: number): string => String(index + 1).padStart(PAD_NUMERO,
     <h2 id="service-inclus" class="font-(family-name:--font-titre) text-(length:--fs-24) font-bold">{{ titre }}</h2>
     <ol v-if="programme" class="flex flex-col border-t border-bordure">
       <li v-for="(ligne, index) in inclus" :key="`${index}-${ligne}`" class="flex items-baseline gap-4 border-b border-bordure py-4">
-        <span class="w-8 shrink-0 font-(family-name:--font-titre) text-(length:--fs-20) text-accent">{{ numero(index) }}</span>
+        <span class="w-8 shrink-0 font-(family-name:--font-titre) text-(length:--fs-20) text-accent-texte">{{ numero(index) }}</span>
         <span>{{ ligne }}</span>
       </li>
     </ol>

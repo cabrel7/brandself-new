@@ -12,7 +12,8 @@ const total = computed(() => props.images.length)
       <li v-for="(image, index) in images" :key="image.id">
         <a
           :href="image.url"
-          :aria-label="`Agrandir l'image ${index + 1} sur ${total}`"
+          target="_blank"
+          rel="noopener noreferrer"
           class="block aspect-square overflow-hidden rounded-2xl bg-accent-doux focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
         >
           <img
@@ -25,6 +26,7 @@ const total = computed(() => props.images.length)
             loading="lazy"
             class="size-full object-cover transition-transform hover:scale-[1.02] motion-reduce:transition-none motion-reduce:hover:scale-100"
           >
+          <span class="sr-only">Voir l’image {{ index + 1 }} sur {{ total }} en grand (nouvel onglet)</span>
         </a>
       </li>
     </ul>
