@@ -163,7 +163,7 @@ export function requeteBrute(options: RequeteBrute): Promise<ReponseBrute> {
   const url = new URL(BASE_URL)
   return new Promise((resolve, reject) => {
     const requete = http.request(
-      { hostname: url.hostname, port: url.port, method: options.method, path: options.path, headers: options.headers },
+      { hostname: url.hostname, port: url.port, method: options.method, path: options.path, headers: options.headers, agent: false },
       (reponse) => {
         const morceaux: Buffer[] = []
         reponse.on('data', (m: Buffer) => morceaux.push(m))

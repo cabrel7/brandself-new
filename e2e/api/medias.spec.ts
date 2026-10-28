@@ -103,11 +103,15 @@ test.describe.serial('médias (HTTP)', () => {
   })
 
   test('CA21 a Content-Length of 12 MiB is refused with 413 BEFORE the body is read', async () => {
+    // Le serveur doit répondre sur la seule en-tête Content-Length, avant toute lecture du corps.
+    // `corps: null` (flushHeaders sans jamais finir) fait bloquer le serveur de dev, qui met en
+    // mémoire le corps avant d'appeler le handler. On envoie donc un seul octet : il n'est jamais
+    // lu car `readMediaUpload` rejette sur l'en-tête avant `readMultipartFormData`.
     const reponse = await requeteBrute({
       method: 'POST',
       path: '/api/studio/medias',
       headers: { cookie: session.cookie, origin: BASE_URL, 'content-type': 'multipart/form-data; boundary=limite', 'content-length': String(TAILLE_ANNONCEE_TROP_GRANDE) },
-      corps: null,
+      corps: Buffer.alloc(1),
     })
 
     expect(reponse.status).toBe(413)

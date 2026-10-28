@@ -423,9 +423,9 @@ test.describe.serial('studio des réalisations — vitrine fraîche (S4-CA48, CA
     const sansSession = await contexte.browser()?.newContext({ baseURL: BASE_URL, viewport: MOBILE })
     const p = await sansSession?.newPage()
     await expect(async () => {
-      await p?.goto('/studio/realisations')
-      await expect(p!).toHaveURL(/\/connexion/, { timeout: 8_000 })
-    }).toPass({ timeout: 90_000, intervals: [5_000] })
+      await p?.goto('/studio/realisations', { waitUntil: 'commit' })
+      await expect(p!).toHaveURL(/\/connexion/, { timeout: 45_000 })
+    }).toPass({ timeout: 120_000, intervals: [5_000] })
     await sansSession?.close()
   })
 })

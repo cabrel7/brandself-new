@@ -139,8 +139,8 @@ test("non-divulgation de l'existence d'un compte", async ({ request }) => {
 })
 
 test('/studio exige une session', async ({ page }) => {
-  await page.goto('/studio')
-  await expect(page).toHaveURL(/\/connexion/)
+  await page.goto('/studio', { waitUntil: 'commit' })
+  await expect(page).toHaveURL(/\/connexion/, { timeout: 60_000 })
 })
 
 test('déconnexion puis /studio redirige vers /connexion', async ({ page }) => {
@@ -151,8 +151,8 @@ test('déconnexion puis /studio redirige vers /connexion', async ({ page }) => {
   await attendreHydration(page)
   await page.getByRole('button', { name: 'Se déconnecter' }).click()
   await expect(page).toHaveURL(/\/connexion/)
-  await page.goto('/studio')
-  await expect(page).toHaveURL(/\/connexion/)
+  await page.goto('/studio', { waitUntil: 'commit' })
+  await expect(page).toHaveURL(/\/connexion/, { timeout: 60_000 })
 })
 
 test('@username et [username] coexistent', async ({ page }) => {

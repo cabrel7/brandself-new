@@ -29,12 +29,15 @@ function toH3Error(event: H3Event, error: unknown): H3Error {
       // En-tête posé en chaîne (h3 type `Retry-After` en nombre, Node le renverrait tel quel).
       event.node.res.setHeader('Retry-After', String(error.retryAfter))
     }
-    return createError({
+    const h3Error = createError({
       statusCode: error.status,
       statusMessage: error.code,
       message: error.message,
       data: { code: error.code, ...error.data },
     })
+    // Les erreurs métier ne divulguent jamais de stack (Nitro la sérialise en dev).
+    h3Error.stack = ''
+    return h3Error
   }
   console.error({ chemin: event.path, ...describeUnknown(error) })
   return createError({
