@@ -3,7 +3,7 @@ import { and, asc, eq, notInArray } from 'drizzle-orm'
 import sharp from 'sharp'
 import { db } from '../utils/db'
 import { deleteMediaIfUnreferenced, uploadMedia } from '../services/medias'
-import { medias, realisationImages, realisations, services, users, vitrines } from '../../shared/db/schema'
+import { medias, realisationImages, realisations, services, temoignages, users, vitrines } from '../../shared/db/schema'
 import { GALERIE_MAX } from '../../shared/realisations'
 
 // S5 — données de démonstration (PROJECT_CONTEXT.md §15).
@@ -231,9 +231,50 @@ const realisationsDemo: readonly RealisationDemo[] = [
   },
 ]
 
+interface TemoignageDemo {
+  id: string
+  slug: string
+  auteur: string
+  fonction: string | null
+  texte: string
+  ordre: number
+  enVedette: boolean
+}
+
+// §15 : témoignages laissés en espaces réservés tant que Cabrel ne les fournit pas. Aucun texte
+// plausible n'est inventé (évite de prêter des propos à un patient qui n'a pas donné son accord).
+const temoignagesDemo: readonly TemoignageDemo[] = [
+  {
+    id: 'f4a1b2c3-5678-90ab-cdef-123456789011',
+    slug: 'temoignage-espace-reserve-1',
+    auteur: 'Un patient',
+    fonction: null,
+    texte: '[Témoignage d\'un patient]',
+    ordre: 0,
+    enVedette: true,
+  },
+  {
+    id: 'f4a1b2c3-5678-90ab-cdef-123456789012',
+    slug: 'temoignage-espace-reserve-2',
+    auteur: 'Un patient',
+    fonction: null,
+    texte: '[Témoignage d\'un patient]',
+    ordre: 1,
+    enVedette: true,
+  },
+  {
+    id: 'f4a1b2c3-5678-90ab-cdef-123456789013',
+    slug: 'temoignage-espace-reserve-3',
+    auteur: 'Un patient',
+    fonction: null,
+    texte: '[Témoignage d\'un patient]',
+    ordre: 2,
+    enVedette: false,
+  },
+]
+
 // Teintes des images de galerie de démonstration (une par vignette, pour distinguer l'ordre).
 const FONDS_GALERIE: readonly string[] = ['#e3c4b4', '#d9b9a6', '#cfae9a', '#c5a38f', '#bb9884', '#b18d79']
-
 /**
  * Galerie de démonstration : remplacée seulement si elle ne compte pas déjà `attendu` lignes
  * (idempotent). Les anciennes images, une fois la galerie vidée, sont supprimées si plus rien ne les référence.
@@ -365,6 +406,24 @@ async function main(): Promise<void> {
     await assurerGalerieDemo(realisation.id, galerie)
   }
   console.info(`[seed] ${realisationsDemo.length} réalisations à jour`)
+
+  // Les anciens témoignages de démonstration sont supprimés avant l'upsert : la vitrine de démo ne
+  // garde que les espaces réservés ci-dessus.
+  const idsTemoignagesDemo = temoignagesDemo.map((temoignage) => temoignage.id)
+  const temoignagesSupprimes = await db
+    .delete(temoignages)
+    .where(and(eq(temoignages.vitrineId, ID_VITRINE), notInArray(temoignages.id, idsTemoignagesDemo)))
+    .returning({ id: temoignages.id })
+  console.info(`[seed] ${temoignagesSupprimes.length} ancien(s) témoignage(s) de démonstration supprimé(s)`)
+
+  for (const temoignage of temoignagesDemo) {
+    const ligne = { ...temoignage, vitrineId: ID_VITRINE, actif: true }
+    await db
+      .insert(temoignages)
+      .values(ligne)
+      .onConflictDoUpdate({ target: temoignages.id, set: { ...ligne, updatedAt: new Date() } })
+  }
+  console.info(`[seed] ${temoignagesDemo.length} témoignages à jour`)
   console.info('[seed] connexion : /connexion → email ' + EMAIL_DEMO)
 }
 

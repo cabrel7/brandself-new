@@ -3,10 +3,11 @@ const route = useRoute()
 const username = String(route.params.username)
 
 // Lancés ensemble : les trois lectures partent avant le premier await.
-const [vitrine, { reponse: services }, { reponse: realisations }] = await Promise.all([
+const [vitrine, { reponse: services }, { reponse: realisations }, { reponse: temoignages }] = await Promise.all([
   usePublicVitrine(username),
   usePublicServices(username),
   usePublicRealisations(username),
+  usePublicTemoignages(username),
 ])
 
 useSeoMeta({
@@ -21,6 +22,7 @@ const aLaUne = computed(() => services.value?.aLaUne ?? [])
 const realisationsTotal = computed(() => realisations.value?.total ?? 0)
 // L'accueil ne met en avant qu'une réalisation (la première à la une).
 const realisationALaUne = computed(() => realisations.value?.aLaUne[0] ?? null)
+const temoignagesTotal = computed(() => temoignages.value?.total ?? 0)
 </script>
 
 <template>
@@ -33,5 +35,6 @@ const realisationALaUne = computed(() => realisations.value?.aLaUne[0] ?? null)
       :realisation="realisationALaUne"
       :realisations-total="realisationsTotal"
     />
+    <VitrineTemoignageALaUne v-if="temoignagesTotal > 0" :username="vitrine.username" />
   </VitrineCadre>
 </template>
