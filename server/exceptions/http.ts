@@ -26,6 +26,7 @@ export const ERROR_MESSAGES: Record<ErrorCode, string> = {
   SESSION_ACTUELLE: 'Vous ne pouvez pas déconnecter l’appareil que vous utilisez.',
   SERVICE_INTROUVABLE: 'Ce service est introuvable.',
   REALISATION_INTROUVABLE: 'Cette réalisation est introuvable.',
+  TEMOINAGE_INTROUVABLE: 'Ce témoignage est introuvable.',
   VEDETTE_COMPLETE: `Vous avez déjà ${VEDETTE_MAX} éléments en vedette. Retirez-en un pour en mettre un autre en avant.`,
   ORDRE_INVALIDE: 'L’ordre envoyé n’est plus à jour. Rechargez la page et réessayez.',
   PAIEMENT_EN_LIGNE_INDISPONIBLE: 'Le paiement en ligne n’est pas encore disponible. Choisissez le règlement sur place.',

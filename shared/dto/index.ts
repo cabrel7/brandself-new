@@ -27,3 +27,11 @@ export type {
   RealisationsPublicsReponse,
   RealisationPublicReponse,
 } from './realisation'
+export type {
+  TemoignageStudioDTO,
+  TemoignagesCompteursDTO,
+  TemoignagePublicCarteDTO,
+  TemoignagesStudioReponse,
+  TemoignageStudioReponse,
+  TemoignagesPublicsReponse,
+} from './temoignage'

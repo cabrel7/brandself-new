@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import slugify from '@sindresorhus/slugify'
 import { useRouter } from '#app'
 
 const router = useRouter()
@@ -15,7 +16,9 @@ async function creerTemoignage() {
   erreur.value = ''
   chargement.value = true
   try {
+    const slug = slugify(auteur.value, { customReplacements: [['&', ' et ']], decamelize: false })
     const body: Record<string, unknown> = {
+      slug,
       auteur,
       fonction,
       texte,

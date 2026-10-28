@@ -27,3 +27,7 @@ Décisions prises sans l'utilisateur, à relire au retour. Format : date · déc
 - 2026-10-27 · S4 clôture : CA33 (404 uniforme, pas de fuite de stack) — `toH3Error` vide la stack des `DomainError` (`server/utils/api.ts`) ; plus de frames `node_modules`/`.ts:ligne` en dev. Message français conservé.
 - 2026-10-27 · S4 clôture : redirections `/studio` → `/connexion` fonctionnent mais à ~30 s (hydration lente) ; timeouts e2e portés : `connexion.spec.ts` (`waitUntil: 'commit'` + 60 s), `realisations.spec.ts` (interne 45 s, `toPass` 120 s).
 - 2026-10-27 · S4 clôture : build prod OK (15m43s) ; requiert `RESEND_API_KEY`, `NUXT_PUBLIC_SITE_URL`, `DATABASE_URL`, `REDIS_URL`, `NUXT_BETTER_AUTH_SECRET` en production.
+- 2026-10-27 · S5 Témoignages : aucune nouvelle migration (table `temoignages` existe déjà via 0005+0006).
+- 2026-10-27 · S5 : slug généré côté serveur depuis l'auteur (`slugFromAuteurTemoignage`) car le schéma l'exige mais le formulaire studio ne l'envoyait pas (bug du livré cassé corrigé) ; slug aussi généré côté client dans `nouveau.vue` via `slugify`.
+- 2026-10-27 · S5 : bloc témoignage sur l'accueil utilise `aria-label="Témoignages à la une"` (et non `aria-labelledby` sur un h2 "À la une") pour éviter le conflit de nom accessible strict-mode avec la section réalisations "À la une".
+- 2026-10-27 · S5 : test e2e parcours complet témoignage à ajouter (critère de réception S5 ; le fichier `e2e/parcours-temoignage.spec.ts` a été retiré car sa syntaxe de déstructuration n'était pas parseable par le runner Playwright).
