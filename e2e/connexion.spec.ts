@@ -69,7 +69,9 @@ async function seConnecterParEmail(page: import('@playwright/test').Page, email:
 test('parcours complet : email → code → onboarding', async ({ page }) => {
   const email = `e2e-${Date.now()}@exemple.com`
   await seConnecterParEmail(page, email)
-  await expect(page.getByRole('heading', { name: 'Bienvenue. Construisons votre vitrine ensemble.' })).toBeVisible()
+  // S8 : l'inscription guidée s'ouvre sur l'étape 1 ; « Bienvenue… » est son sous-titre, le titre est « Qui êtes-vous ? ».
+  await expect(page.getByRole('heading', { level: 1, name: 'Qui êtes-vous ?' })).toBeVisible()
+  await expect(page.getByText('Bienvenue. Construisons votre vitrine ensemble.')).toBeVisible()
 })
 
 test('parcours complet : téléphone → code → onboarding', async ({ page }) => {
@@ -87,7 +89,8 @@ test('parcours complet : téléphone → code → onboarding', async ({ page }) 
   }
   await page.getByRole('button', { name: 'Valider' }).click()
   await expect(page).toHaveURL(/\/onboarding/)
-  await expect(page.getByRole('heading', { name: 'Bienvenue. Construisons votre vitrine ensemble.' })).toBeVisible()
+  await expect(page.getByRole('heading', { level: 1, name: 'Qui êtes-vous ?' })).toBeVisible()
+  await expect(page.getByText('Bienvenue. Construisons votre vitrine ensemble.')).toBeVisible()
 })
 
 test('mauvais code : message avec essais restants', async ({ page }) => {

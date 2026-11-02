@@ -25,21 +25,24 @@ defineExpose({ focusErreur })
 <template>
   <form ref="racine" class="flex flex-col gap-8" novalidate @submit.prevent="emit('soumettre')">
     <UFormField label="Votre adresse" name="username" :error="erreur">
-      <UInput
-        v-model="username"
-        type="text"
-        autocapitalize="none"
-        autocomplete="off"
-        spellcheck="false"
-        :loading="etat === 'verification'"
-        :disabled="desactive"
-        class="w-full"
-        :ui="{ base: 'ps-32!' }"
-      >
-        <template #leading>
-          <span class="pointer-events-none text-texte-secondaire" aria-hidden="true">{{ HOTE_VITRINES }}/</span>
-        </template>
-      </UInput>
+      <div class="flex items-stretch">
+        <span
+          class="flex shrink-0 items-center rounded-s-(--rayon-interne) border border-e-0 border-bordure bg-surface px-3 text-texte-secondaire"
+        >
+          {{ HOTE_VITRINES }}/
+        </span>
+        <UInput
+          v-model="username"
+          type="text"
+          autocapitalize="none"
+          autocomplete="off"
+          spellcheck="false"
+          :loading="etat === 'verification'"
+          :disabled="desactive"
+          class="min-w-0 flex-1"
+          :ui="{ base: 'rounded-s-none font-semibold' }"
+        />
+      </div>
       <template #help>
         <span aria-live="polite">
           <span v-if="etat === 'libre'" class="flex items-center gap-2 font-semibold text-accent-texte">

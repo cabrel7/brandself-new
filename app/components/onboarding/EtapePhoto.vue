@@ -2,7 +2,7 @@
 import type { MediaDTO } from '#shared/dto'
 import { MEDIA_ACCEPTED_MIME } from '#shared/medias'
 
-defineProps<{
+const props = defineProps<{
   photo: MediaDTO | null
   televersement: boolean
   /** Message sous l'arche (photo manquante, refus du serveur, échec d'envoi). */
@@ -20,7 +20,15 @@ const CONSEILS = [
 const ACCEPT = MEDIA_ACCEPTED_MIME.join(',')
 const champ = useTemplateRef<HTMLInputElement>('champ')
 const arche = useTemplateRef<HTMLButtonElement>('arche')
+const changer = useTemplateRef<{ $el: HTMLElement }>('changer')
 const idErreur = useId()
+
+// L'envoi vient de finir : le bouton « Ajouter une photo » a disparu, le focus passe à « Changer la photo ».
+watch(() => props.televersement, async (enCours, avant) => {
+  if (!avant || enCours || !props.photo) return
+  await nextTick()
+  changer.value?.$el.focus()
+})
 
 function ouvrir(): void {
   champ.value?.click()
@@ -56,7 +64,7 @@ defineExpose({ focusErreur })
           sizes="200px"
           :width="photo.largeur"
           :height="photo.hauteur"
-          alt="Votre photo"
+          alt="Aperçu de votre photo"
           class="size-full object-cover object-top"
         >
       </div>
@@ -81,6 +89,7 @@ defineExpose({ focusErreur })
 
       <UButton
         v-if="photo"
+        ref="changer"
         label="Changer la photo"
         variant="outline"
         color="neutral"
@@ -88,6 +97,7 @@ defineExpose({ focusErreur })
         @click="ouvrir"
       />
 
+      <!-- Seule annonce de l'envoi : le texte du bouton « Ajouter une photo » n'est pas une zone vivante. -->
       <p class="sr-only" role="status">{{ televersement ? 'Envoi de votre photo…' : '' }}</p>
 
       <p v-if="erreur" :id="idErreur" role="alert" class="message-erreur">

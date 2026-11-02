@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ONBOARDING_ETAPES, ONBOARDING_ETAPES_TOTAL } from '#shared/onboarding'
+import type { EtatUsername } from '~/composables/useUsernameDisponible'
 
 const {
   etape, sousTitre, chargement, erreurChargement, enregistrement, erreurs, erreurGenerale, enLigne,
@@ -32,6 +33,7 @@ interface EtapeFocalisable {
 const etapeCourante = useTemplateRef<EtapeFocalisable>('etapeCourante')
 
 async function surContinuer(): Promise<void> {
+  if (actionDesactivee.value) return
   const avance = await continuer()
   if (avance) return
   await nextTick()
@@ -39,12 +41,43 @@ async function surContinuer(): Promise<void> {
 }
 
 const attendProposition = computed(() => etape.value === 3 && etatProposition.value !== 'pret')
+const proposition3EnErreur = computed(() => etape.value === 3 && etatProposition.value === 'erreur')
 const libelleAction = computed(() => {
   if (etape.value !== 4) return 'Continuer'
   return enregistrement.value ? 'Publication…' : 'Publier ma vitrine'
 })
 const actionDesactivee = computed(() => attendProposition.value || (etape.value === 4 && !peutPublier.value))
-const erreurPhoto = computed(() => erreurs.value.photo ?? erreurTeleversement.value)
+
+const AIDES_ADRESSE: Partial<Record<EtatUsername, string>> = {
+  vide: 'Choisissez une adresse pour continuer.',
+  verification: 'Votre adresse est en cours de vérification.',
+  pris: 'Cette adresse est déjà prise : choisissez-en une autre.',
+  reserve: 'Cette adresse est réservée : choisissez-en une autre.',
+  format: 'Corrigez votre adresse pour continuer.',
+}
+const aideAction = computed(() => {
+  if (attendProposition.value) return 'Votre proposition est en cours de rédaction.'
+  if (etape.value === 4) return AIDES_ADRESSE[etatUsername.value]
+  return undefined
+})
+
+// Un seul message à la fois : l'erreur de l'étape (photo, proposition) ou d'un champ prime sur l'erreur générale.
+const erreurEtape = computed(() => {
+  if (etape.value === 2) return erreurs.value.photo ?? erreurTeleversement.value ?? undefined
+  if (proposition3EnErreur.value) return messageErreurProposition.value
+  return undefined
+})
+const aErreurChamp = computed(() => {
+  const champs = etape.value === 4 ? { ...erreurs.value, username: erreurUsername.value } : erreurs.value
+  return Object.values(champs).some(Boolean)
+})
+const messageBarre = computed(() => {
+  if (erreurEtape.value || aErreurChamp.value) return ''
+  return erreurGenerale.value
+})
+
+// Le squelette n'apparaît qu'après un court délai : pas de clignotement sur un chargement rapide.
+const { ready: squeletteVisible } = useTimeout(200, { controls: true })
 </script>
 
 <template>
@@ -61,11 +94,13 @@ const erreurPhoto = computed(() => erreurs.value.photo ?? erreurTeleversement.va
       />
     </div>
 
-    <div v-else-if="chargement" class="flex flex-col gap-6 pt-12" aria-busy="true" aria-label="Chargement de votre inscription">
-      <USkeleton class="h-10 w-3/4" />
-      <USkeleton class="h-14 w-full" />
-      <USkeleton class="h-14 w-full" />
-      <USkeleton class="h-14 w-full" />
+    <div v-else-if="chargement" role="status" aria-busy="true" aria-label="Chargement de votre inscription">
+      <div v-if="squeletteVisible" class="flex flex-col gap-6 pt-12" aria-hidden="true">
+        <USkeleton class="h-10 w-3/4" />
+        <USkeleton class="h-14 w-full" />
+        <USkeleton class="h-14 w-full" />
+        <USkeleton class="h-14 w-full" />
+      </div>
     </div>
 
     <template v-else>
@@ -94,7 +129,7 @@ const erreurPhoto = computed(() => erreurs.value.photo ?? erreurTeleversement.va
           ref="etapeCourante"
           :photo="photo"
           :televersement="televersement"
-          :erreur="erreurPhoto"
+          :erreur="erreurEtape"
           @choisir="televerserPhoto"
         />
         <OnboardingEtapeProposition
@@ -106,7 +141,7 @@ const erreurPhoto = computed(() => erreurs.value.photo ?? erreurTeleversement.va
           :etat="etatProposition"
           :proposition="proposition"
           :attente-longue="attenteLongue"
-          :message-erreur="messageErreurProposition"
+          :message-erreur="erreurEtape ?? ''"
           :erreur-presentation="erreurs.presentation"
           :desactive="enregistrement"
           @reessayer="reessayerProposition"
@@ -124,15 +159,17 @@ const erreurPhoto = computed(() => erreurs.value.photo ?? erreurTeleversement.va
       </Transition>
 
       <OnboardingBarreAction
+        v-if="!proposition3EnErreur"
         :label="libelleAction"
         :loading="enregistrement"
         :disabled="actionDesactivee"
+        :aide="aideAction"
         @continuer="surContinuer"
       >
         <template #message>
-          <p v-if="erreurGenerale" role="alert" class="message-erreur">
+          <p v-if="messageBarre" role="alert" class="message-erreur">
             <UIcon name="i-ph-warning-circle" class="size-5 shrink-0" aria-hidden="true" />
-            <span>{{ erreurGenerale }}</span>
+            <span>{{ messageBarre }}</span>
           </p>
         </template>
       </OnboardingBarreAction>

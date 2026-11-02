@@ -98,22 +98,24 @@ defineExpose({ focusErreur })
           Services proposés
         </h2>
         <ul class="m-0 flex list-none flex-col border-t border-bordure p-0">
-          <li
-            v-for="(service, index) in proposition.services"
-            :key="service.titre"
-            class="flex min-h-(--cible-tactile) items-center justify-between gap-4 border-b border-bordure py-3"
-          >
-            <span class="flex min-w-0 flex-col gap-1">
-              <span class="font-semibold wrap-break-word text-encre">{{ service.titre }}</span>
-              <span class="text-(length:--fs-14) text-texte-secondaire">{{ metaServicePropose(service) }}</span>
-            </span>
-            <USwitch
-              :model-value="servicesActifs[index] ?? false"
-              :disabled="desactive"
-              :aria-label="`Proposer « ${service.titre} » sur votre vitrine`"
-              class="min-w-(--cible-tactile) shrink-0 justify-center"
-              @update:model-value="basculerService(index, $event)"
-            />
+          <li v-for="(service, index) in proposition.services" :key="service.titre" class="border-b border-bordure">
+            <label
+              :for="`${nomGroupe}-service-${index}`"
+              class="flex min-h-(--cible-tactile) cursor-pointer items-center justify-between gap-4 py-3 has-disabled:cursor-not-allowed"
+            >
+              <span class="flex min-w-0 flex-col gap-1">
+                <span class="font-semibold wrap-break-word text-encre">{{ service.titre }}</span>
+                <span class="text-(length:--fs-14) text-texte-secondaire">{{ metaServicePropose(service) }}</span>
+              </span>
+              <USwitch
+                :id="`${nomGroupe}-service-${index}`"
+                :model-value="servicesActifs[index] ?? false"
+                :disabled="desactive"
+                :aria-label="`Proposer « ${service.titre} » sur votre vitrine`"
+                class="min-w-(--cible-tactile) shrink-0 justify-center"
+                @update:model-value="basculerService(index, $event)"
+              />
+            </label>
           </li>
         </ul>
       </section>

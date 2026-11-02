@@ -20,7 +20,7 @@ const TITRE_ITEMS = [
 ]
 const PAYS_ITEMS = PAYS.map((pays) => ({ label: pays.label, value: pays.code }))
 
-const idSuggestions = useId()
+const METIER_ITEMS = [...METIERS_SUGGERES]
 const racine = useTemplateRef<HTMLFormElement>('racine')
 
 const nomAffiche = computed(() =>
@@ -36,7 +36,7 @@ defineExpose({ focusErreur })
 
 <template>
   <form ref="racine" class="flex flex-col gap-4" novalidate @submit.prevent="emit('soumettre')">
-    <div class="grid grid-cols-[minmax(0,1fr)_minmax(0,2fr)] gap-4">
+    <div class="grid grid-cols-1 gap-4 sm:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
       <UFormField label="Titre" name="titre" :error="props.erreurs.titre">
         <USelect v-model="identite.titre" :items="TITRE_ITEMS" value-key="value" :disabled="desactive" class="w-full" />
       </UFormField>
@@ -59,23 +59,21 @@ defineExpose({ focusErreur })
         :disabled="desactive"
         class="w-full"
       />
-      <template #help>
+      <template v-if="nomAffiche" #help>
         Affiché sur la vitrine : {{ nomAffiche }}
       </template>
     </UFormField>
 
     <UFormField label="Métier" name="metier" required :error="props.erreurs.metier">
-      <UInput
+      <UInputMenu
         v-model="identite.metier"
+        mode="autocomplete"
+        :items="METIER_ITEMS"
         autocomplete="organization-title"
-        :list="idSuggestions"
         :maxlength="METIER_MAX"
         :disabled="desactive"
         class="w-full"
       />
-      <datalist :id="idSuggestions">
-        <option v-for="metier in METIERS_SUGGERES" :key="metier" :value="metier" />
-      </datalist>
     </UFormField>
 
     <div class="grid grid-cols-2 gap-4">

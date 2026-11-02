@@ -134,20 +134,7 @@ async function depublier(): Promise<void> {
         </BsCard>
       </section>
 
-      <section v-if="etape" aria-labelledby="titre-etape">
-        <BsCard variant="doux">
-          <p class="m-0 text-(length:--fs-12) font-semibold tracking-widest text-encre uppercase">
-            Prochaine étape
-          </p>
-          <h2 id="titre-etape" class="m-0 text-(length:--fs-20) leading-snug font-semibold text-encre">
-            {{ etape.titre }}
-          </h2>
-          <p class="m-0 text-base text-texte-secondaire">
-            {{ etape.texte }}
-          </p>
-          <UButton :label="etape.action" :to="etape.to" block />
-        </BsCard>
-      </section>
+      <StudioProchaineEtape v-if="etape" :etape="etape" />
 
       <section aria-labelledby="titre-liste">
         <h2 id="titre-liste" class="m-0 mb-2 text-(length:--fs-20) font-semibold text-encre">

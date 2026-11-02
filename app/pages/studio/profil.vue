@@ -33,9 +33,14 @@ function surPhotoTelechargee(media: MediaDTO): void {
 }
 
 // « Utiliser ce texte » ne touche que le formulaire : rien n'est enregistré avant « Enregistrer ».
-function utiliserTexteIa(texte: string): void {
+const blocPresentation = useTemplateRef<HTMLElement>('blocPresentation')
+
+async function utiliserTexteIa(texte: string): Promise<void> {
   form.bio = texte
   viderErreur('bio')
+  // Le panneau de proposition se ferme : le focus revient au champ présentation.
+  await nextTick()
+  blocPresentation.value?.querySelector<HTMLTextAreaElement>('textarea')?.focus()
 }
 
 // Adresse
@@ -144,7 +149,7 @@ async function validerAdresse(): Promise<void> {
         </p>
       </UFormField>
 
-      <div class="flex flex-col gap-3">
+      <div ref="blocPresentation" class="flex flex-col gap-3">
         <UFormField label="Présentation" name="bio" :error="erreurs.bio">
           <UTextarea v-model="form.bio" :rows="6" :maxlength="BIO_MAX" class="w-full" @update:model-value="viderErreur('bio')" />
           <p class="m-0 mt-2 text-(length:--fs-14) text-texte-secondaire">

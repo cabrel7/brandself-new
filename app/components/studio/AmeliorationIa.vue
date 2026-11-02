@@ -15,6 +15,7 @@ const aide = computed(() => (assezLong.value ? AIDE_AMELIORATION : AIDE_AMELIORA
 const messageVisible = computed(() => (props.messageMasque ? null : message.value))
 
 const titre = useTemplateRef<HTMLElement>('titre')
+const bouton = useTemplateRef<{ $el: HTMLElement }>('bouton')
 
 // Le panneau apparaît sous le bouton : le focus va sur son titre pour qu'il soit annoncé et atteint au clavier.
 watch(proposition, async (courante) => {
@@ -23,9 +24,16 @@ watch(proposition, async (courante) => {
   titre.value?.focus()
 })
 
+// Le panneau disparaît : le focus revient au formulaire (champ présentation via la page, ou bouton « Améliorer »).
 function utiliser(apres: string): void {
   emit('utiliser', apres)
   fermer()
+}
+
+async function garder(): Promise<void> {
+  fermer()
+  await nextTick()
+  bouton.value?.$el.focus()
 }
 </script>
 
@@ -35,6 +43,7 @@ function utiliser(apres: string): void {
       {{ aide }}
     </p>
     <UButton
+      ref="bouton"
       type="button"
       variant="outline"
       size="xl"
@@ -50,7 +59,7 @@ function utiliser(apres: string): void {
     <p
       v-if="messageVisible"
       :role="messageVisible.type === 'erreur' ? 'alert' : 'status'"
-      :class="messageVisible.type === 'erreur' ? 'message-erreur' : 'flex items-start gap-2 m-0 text-base text-texte-secondaire'"
+      :class="messageVisible.type === 'erreur' ? 'message-erreur' : 'message-info'"
     >
       <UIcon
         :name="messageVisible.type === 'erreur' ? 'i-ph-warning-circle' : 'i-ph-info'"
@@ -60,11 +69,7 @@ function utiliser(apres: string): void {
       <span>{{ messageVisible.texte }}</span>
     </p>
 
-    <section
-      v-if="proposition"
-      aria-labelledby="titre-proposition-ia"
-      class="flex flex-col gap-4 rounded-(--rayon) border border-bordure bg-surface p-4"
-    >
+    <section v-if="proposition" aria-labelledby="titre-proposition-ia" class="flex flex-col gap-4 pt-2">
       <h2
         id="titre-proposition-ia"
         ref="titre"
@@ -74,28 +79,26 @@ function utiliser(apres: string): void {
         Proposition de l’IA
       </h2>
 
-      <div class="grid gap-4 xl:grid-cols-2">
-        <div class="flex min-w-0 flex-col gap-1">
-          <h3 class="m-0 text-(length:--fs-14) font-bold text-texte-secondaire">
-            Votre texte
-          </h3>
-          <p class="m-0 text-base break-words whitespace-pre-line text-texte-secondaire">
-            {{ proposition.avant }}
-          </p>
-        </div>
-        <div class="flex min-w-0 flex-col gap-1 rounded-(--rayon) bg-accent-doux p-3">
-          <h3 class="m-0 text-(length:--fs-14) font-bold text-accent-texte">
-            Proposition
-          </h3>
-          <p class="m-0 text-base break-words whitespace-pre-line text-encre">
-            {{ proposition.apres }}
-          </p>
-        </div>
+      <div class="flex min-w-0 flex-col gap-1">
+        <h3 class="m-0 text-(length:--fs-14) font-bold text-texte-secondaire">
+          Votre texte
+        </h3>
+        <p class="m-0 text-base break-words whitespace-pre-line text-texte-secondaire">
+          {{ proposition.avant }}
+        </p>
+      </div>
+      <div class="flex min-w-0 flex-col gap-1 rounded-(--rayon) bg-accent-doux p-4">
+        <h3 class="m-0 text-(length:--fs-14) font-bold text-accent-texte">
+          Proposition
+        </h3>
+        <p class="m-0 text-base break-words whitespace-pre-line text-encre">
+          {{ proposition.apres }}
+        </p>
       </div>
 
       <div class="flex flex-col gap-2 sm:flex-row">
         <UButton type="button" label="Utiliser ce texte" size="lg" @click="utiliser(proposition.apres)" />
-        <UButton type="button" label="Garder le mien" variant="outline" color="neutral" size="lg" @click="fermer" />
+        <UButton type="button" label="Garder le mien" variant="outline" color="neutral" size="lg" @click="garder" />
       </div>
     </section>
   </div>
