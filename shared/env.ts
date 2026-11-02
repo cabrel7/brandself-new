@@ -1,9 +1,22 @@
 import { z } from 'zod'
-import { IA_CLE_API_LONGUEUR_MIN, IA_FOURNISSEURS, IA_MODELE_DEFAUT } from './ia'
+import { IA_CLE_API_LONGUEUR_MIN, IA_FOURNISSEURS, IA_HOTES_HTTP_AUTORISES, IA_MODELE_DEFAUT } from './ia'
 import type { IaFournisseur } from './ia'
 
 function videVautAbsent(valeur: unknown): unknown {
   return typeof valeur === 'string' && valeur.trim() === '' ? undefined : valeur
+}
+
+/** HTTPS, ou HTTP vers un hôte local ; jamais un autre schéma (file:…) ni des identifiants dans l'URL. */
+function baseUrlIaValide(valeur: string): boolean {
+  let url: URL
+  try {
+    url = new URL(valeur)
+  } catch {
+    return false
+  }
+  if (url.username !== '' || url.password !== '') return false
+  if (url.protocol === 'https:') return true
+  return url.protocol === 'http:' && IA_HOTES_HTTP_AUTORISES.includes(url.hostname)
 }
 
 // `PAIEMENT_EN_LIGNE=` (chaîne vide, ex. copié depuis .env.example) vaut « absent » : défaut faux.
@@ -29,9 +42,27 @@ const schemaEnv = z
       (valeur) => videVautAbsent(typeof valeur === 'string' ? valeur.trim() : valeur),
       z.string().min(IA_CLE_API_LONGUEUR_MIN, `doit contenir au moins ${IA_CLE_API_LONGUEUR_MIN} caractères`).optional(),
     ),
-    IA_MODELE: z.preprocess(videVautAbsent, z.string().trim().min(1).default(IA_MODELE_DEFAUT)),
+    // Absent = défaut Anthropic (appliqué après la validation croisée). Obligatoire avec `openai`.
+    IA_MODELE: z.preprocess(videVautAbsent, z.string().trim().min(1).optional()),
+    // Endpoint d'un fournisseur compatible OpenAI (utilisé seulement avec IA_FOURNISSEUR=openai).
+    // Absent = endpoint public d'OpenAI. HTTPS obligatoire (HTTP seulement pour localhost/127.0.0.1),
+    // sans identifiants. Exemples :
+    //   Gemini : IA_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai/  IA_MODELE=gemini-2.5-flash
+    //   Ollama : IA_BASE_URL=http://localhost:11434/v1  IA_MODELE=<modèle local>
+    // Le message d'erreur ne répète jamais la valeur (elle peut contenir un jeton).
+    IA_BASE_URL: z.preprocess(
+      (valeur) => videVautAbsent(typeof valeur === 'string' ? valeur.trim() : valeur),
+      z.string().refine(baseUrlIaValide, 'doit être une URL https (http seulement pour localhost ou 127.0.0.1), sans identifiants').optional(),
+    ),
   })
   .superRefine((env, ctx) => {
+    if (env.IA_FOURNISSEUR === 'openai' && !env.IA_MODELE) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['IA_MODELE'],
+        message: 'requis avec IA_FOURNISSEUR=openai (le modèle par défaut est celui d’Anthropic)',
+      })
+    }
     if (env.NODE_ENV === 'production' && env.IA_FOURNISSEUR === 'faux') {
       ctx.addIssue({
         code: 'custom',
@@ -54,6 +85,7 @@ const schemaEnv = z
       })
     }
   })
+  .transform((env) => ({ ...env, IA_MODELE: env.IA_MODELE ?? IA_MODELE_DEFAUT }))
 
 export type Env = z.infer<typeof schemaEnv>
 
@@ -73,8 +105,10 @@ export function loadEnv(source: Record<string, string | undefined>): Env {
 /**
  * Fournisseur IA effectivement utilisé (S8 §0 #71). Ne lève jamais : une configuration
  * qui ne permet pas d'appeler un fournisseur donne `aucun` (repli déterministe).
- * - explicite `anthropic` sans clé -> `aucun` ; explicite `faux` en production -> `aucun` ;
- * - non défini : clé présente -> `anthropic` ; production sans clé -> `aucun` ; sinon `faux`.
+ * - explicite `anthropic` ou `openai` (tout fournisseur compatible OpenAI) sans clé -> `aucun` ;
+ *   explicite `faux` en production -> `aucun` ;
+ * - non défini : clé présente -> `anthropic` (jamais `openai` implicite) ; production sans clé -> `aucun` ;
+ *   sinon `faux`.
  */
 export function resolveIaFournisseur(
   env: Pick<Env, 'NODE_ENV' | 'IA_FOURNISSEUR' | 'IA_CLE_API'>,
@@ -84,6 +118,8 @@ export function resolveIaFournisseur(
   switch (env.IA_FOURNISSEUR) {
     case 'anthropic':
       return cle ? 'anthropic' : 'aucun'
+    case 'openai':
+      return cle ? 'openai' : 'aucun'
     case 'faux':
       return production ? 'aucun' : 'faux'
     case 'aucun':

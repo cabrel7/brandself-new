@@ -111,7 +111,7 @@ describe('constantes IA (shared/ia)', () => {
     expect([...IA_TYPES]).toEqual(['onboarding_vitrine', 'ameliorer_texte'])
     expect([...GENERATION_STATUTS]).toEqual(['en_attente', 'en_cours', 'terminee', 'repli', 'expiree'])
     expect([...GENERATION_STATUTS_TERMINAUX]).toEqual(['terminee', 'repli', 'expiree'])
-    expect([...IA_FOURNISSEURS]).toEqual(['anthropic', 'faux', 'aucun'])
+    expect([...IA_FOURNISSEURS]).toEqual(['anthropic', 'openai', 'faux', 'aucun'])
     expect(IA_MODELE_DEFAUT).toBe('claude-haiku-5-5')
   })
 

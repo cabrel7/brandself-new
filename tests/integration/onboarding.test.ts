@@ -1030,6 +1030,146 @@ describe('ameliorer (CA46 à CA50)', () => {
   })
 })
 
+describe('réouverture après suppression de la vitrine (décision produit S8)', () => {
+  const ENTREE = () => schemaOnboardingTerminer.parse({ username: 'dr-cabrel-test', palette: 'sauge' })
+
+  /** Parcours complet jusqu'à `terminer`, puis suppression de la vitrine (services en cascade). */
+  async function terminerPuisSupprimer(username = 'dr-cabrel-test') {
+    const { terminer } = await onboardingService()
+    const { user } = await preparer()
+    await terminer(user.id, schemaOnboardingTerminer.parse({ username, palette: 'sauge' }))
+    await db.delete(vitrines).where(eq(vitrines.userId, user.id))
+    return user
+  }
+
+  it('should answer « en cours » at step 1 with an empty identity and reset the progression (termine_le NULL)', async () => {
+    const { getOnboarding } = await onboardingService()
+    const user = await terminerPuisSupprimer()
+    expect((await lireProgression(user.id))?.termineLe).toBeInstanceOf(Date)
+
+    expect(await getOnboarding(user.id)).toEqual({
+      statut: 'en_cours', etapeReprise: 1,
+      identite: { titre: null, prenom: null, nom: null, metier: null, ville: null, pays: null },
+      photo: null, generationId: null, proposition: null, usernameSuggere: '',
+    })
+    expect(await lireProgression(user.id)).toMatchObject({
+      termineLe: null, titre: null, prenom: null, nom: null, metier: null, ville: null, pays: null,
+      photoMediaId: null, generationId: null, accroche: null, presentation: null, servicesProposes: null, propositionValideeLe: null,
+    })
+  })
+
+  it('should accept a step 1 save right away (no more 409 ONBOARDING_TERMINE)', async () => {
+    const user = await terminerPuisSupprimer()
+
+    const etat = await etape1(user.id)
+
+    expect(etat).toMatchObject({ statut: 'en_cours', etapeReprise: 2, identite: { prenom: 'Cabrel' } })
+    expect((await lireProgression(user.id))?.termineLe).toBeNull()
+  })
+
+  it('should let the user go through the whole path again and create a new vitrine', async () => {
+    const { terminer, getOnboarding } = await onboardingService()
+    const user = await terminerPuisSupprimer()
+    const media = await insertMediaRow(user.id)
+
+    await etape1(user.id, { metier: 'Pédiatre' })
+    await etape2(user.id, media.id)
+    await genererEtTerminer(user.id)
+    await etape3(user.id)
+    expect(await getOnboarding(user.id)).toMatchObject({ statut: 'en_cours', etapeReprise: 4 })
+    const resultat = await terminer(user.id, schemaOnboardingTerminer.parse({ username: 'dr-cabrel-bis', palette: 'sauge' }))
+
+    expect(resultat).toEqual({ creee: true })
+    expect(await lireVitrineDe(user.id)).toMatchObject({ username: 'dr-cabrel-bis', metier: 'Pédiatre', photoMediaId: media.id })
+    expect(await getOnboarding(user.id)).toEqual({ statut: 'termine', username: 'dr-cabrel-bis' })
+    expect((await lireProgression(user.id))?.termineLe).toBeInstanceOf(Date)
+  })
+
+  it('should answer 422 ONBOARDING_INCOMPLET (not a silent creee:false) to a stale terminer after the deletion', async () => {
+    const { terminer } = await onboardingService()
+    const user = await terminerPuisSupprimer()
+
+    const erreur = await rejet(terminer(user.id, ENTREE()))
+
+    expect(erreur).toMatchObject({ code: 'ONBOARDING_INCOMPLET', status: 422 })
+    expect(await lireVitrineDe(user.id)).toBeUndefined()
+  })
+
+  it('should answer 422 identite (not 409) to generer after the deletion, without consuming the quota', async () => {
+    const { generer } = await onboardingService()
+    const user = await terminerPuisSupprimer()
+    const cle = `limite:${IA_LIMITE_CLE_UTILISATEUR_PREFIXE}${user.id}`
+    const avant = await redis.get(cle)
+
+    expect(await rejet(generer(user.id))).toMatchObject({ code: 'ONBOARDING_INCOMPLET', status: 422, data: { manquants: ['identite'] } })
+    expect(await redis.get(cle)).toBe(avant)
+  })
+
+  it('should keep the replay of terminer unchanged while the vitrine exists (creee:false, nothing reset)', async () => {
+    const { terminer, getOnboarding } = await onboardingService()
+    const { user } = await preparer()
+    await terminer(user.id, ENTREE())
+    const avant = (await lireProgression(user.id))!
+
+    expect(await getOnboarding(user.id)).toMatchObject({ statut: 'termine' })
+    expect(await rejet(etape1(user.id))).toMatchObject({ code: 'ONBOARDING_TERMINE', status: 409 })
+    expect(await terminer(user.id, ENTREE())).toEqual({ creee: false })
+
+    expect(await lireProgression(user.id)).toEqual(avant)
+    expect(await db.$count(vitrines, eq(vitrines.userId, user.id))).toBe(1)
+  })
+
+  it('should not reopen a progression still in progress, nor touch one without any row', async () => {
+    const { rouvrirSiVitrineSupprimee } = await onboardingService()
+    const [enCours, sansLigne] = [await createUser(), await createUser()]
+    await etape1(enCours.id)
+    const avant = (await lireProgression(enCours.id))!
+
+    expect(await rouvrirSiVitrineSupprimee(enCours.id)).toBe(false)
+    expect(await rouvrirSiVitrineSupprimee(sansLigne.id)).toBe(false)
+
+    expect(await lireProgression(enCours.id)).toEqual(avant)
+    expect(await lireProgression(sansLigne.id)).toBeUndefined()
+  })
+
+  it('should reset only once when called in parallel, and be idempotent afterwards', async () => {
+    const { rouvrirSiVitrineSupprimee, getOnboarding } = await onboardingService()
+    const user = await terminerPuisSupprimer()
+
+    const resultats = await Promise.all([
+      rouvrirSiVitrineSupprimee(user.id), rouvrirSiVitrineSupprimee(user.id), rouvrirSiVitrineSupprimee(user.id),
+    ])
+
+    expect(resultats.filter(Boolean)).toHaveLength(1)
+    expect(await rouvrirSiVitrineSupprimee(user.id)).toBe(false)
+    expect(await getOnboarding(user.id)).toMatchObject({ statut: 'en_cours', etapeReprise: 1 })
+  })
+
+  it('should not erase the new identity when a save and a read race right after the deletion', async () => {
+    const { getOnboarding } = await onboardingService()
+    const user = await terminerPuisSupprimer()
+
+    await Promise.all([etape1(user.id), getOnboarding(user.id), getOnboarding(user.id)])
+
+    expect(await getOnboarding(user.id)).toMatchObject({ statut: 'en_cours', etapeReprise: 2, identite: { prenom: 'Cabrel' } })
+  })
+
+  it('should not affect another user: B keeps its vitrine and its finished progression', async () => {
+    const { terminer, getOnboarding } = await onboardingService()
+    const { user: b } = await preparer()
+    await terminer(b.id, ENTREE())
+    const avantB = (await lireProgression(b.id))!
+    const a = await terminerPuisSupprimer('adresse-de-a')
+
+    await getOnboarding(a.id)
+    await etape1(a.id)
+
+    expect(await lireProgression(b.id)).toEqual(avantB)
+    expect(await getOnboarding(b.id)).toEqual({ statut: 'termine', username: 'dr-cabrel-test' })
+    expect((await lireProgression(a.id))?.termineLe).toBeNull()
+  })
+})
+
 describe('suppression de compte (cascade)', () => {
   it('should remove the progression and the generations of the deleted user and leave the others and the prompts', async () => {
     const { deleteAccount } = await (await import('../../server/services/utilisateurs'))

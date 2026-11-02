@@ -90,12 +90,20 @@ Les textes entre crochets (`[Prix]`, `[numéro]`, `[Témoignage d'un patient]`) 
 - Plafond global IA (2000/j) compté par génération et non par tentative (une sortie invalide coûte jusqu'à 3 appels) ; surveiller `tokens_entree`/`tokens_sortie` par jour.
 - `IA_CLE_API` parsée par `shared/env.ts` dans tout processus : ne la fournir qu'à l'unité de déploiement du worker.
 - Pas de limiteur sur `GET /api/studio/generations/:id` (suivi toutes les 2 s, 60 s max côté client).
-- Après suppression d'une vitrine dont l'inscription était terminée : `getOnboarding` répond « en cours » avec identité vide et `saveEtape` renvoie 409 — décider de rouvrir ou non l'inscription.
 - Token de succès `--succes` absent de `main.css` (« adresse disponible » en `accent-texte`) ; Métier du Profil encore en `UInput` simple (suggestions seulement à l'inscription).
 - UX mineurs non traités : barre d'action fixe et clavier mobile à vérifier en 390×664, contraste des segments de progression, nom/étiquettes des maquettes (voir revue).
 - Lockfile : `@anthropic-ai/sdk` ajoute `@opentelemetry/api` (peers réécrits) : vérifier `pnpm install --frozen-lockfile` en CI.
-- `.env.example` : ajouter `IA_FOURNISSEUR=`, `IA_CLE_API=`, `IA_MODELE=claude-haiku-5-5` ; `CLAUDE.md` §8 : `@anthropic-ai/sdk`.
+- `.env.example` : ajouter `IA_FOURNISSEUR=` (anthropic | openai | faux | aucun ; `openai` = tout fournisseur compatible OpenAI), `IA_CLE_API=`, `IA_MODELE=` (obligatoire avec `openai`), `IA_BASE_URL=` (optionnelle, HTTPS) ; `CLAUDE.md` §8 : `@anthropic-ai/sdk`.
 - Page Confidentialité : mentionner les données envoyées au fournisseur d'IA (métier, ville, pays, textes de présentation).
+
+### À rendre configurable depuis le futur panel admin (règle de l'utilisateur : aucune valeur en dur)
+
+Aujourd'hui ce sont des constantes nommées dans `shared/` ou `server/config/` (jamais de littéral dans un composant ou une route), modifiables seulement par déploiement :
+- **IA** : fournisseur, modèle, adresse de l'API (`IA_*` en environnement) ; limites (10 demandes/h par utilisateur, plafond global 2000/j), quota gratuit (3/mois), délais (budget 25 s, expiration 45 s, 3 tentatives), rétentions (30 j textes IA, 90 j inscriptions abandonnées), longueurs imposées (accroche 10–15 mots, présentation 80–260).
+- **Prompts IA** : déjà en base (`prompts_ia`, versionnés, réglages de température et de longueur dans la ligne) : le panel n'aura qu'à les éditer et activer une version.
+- **Plans** (gratuit/payant, limites de contenu et d'IA) : `server/config/plans.ts` → table de configuration lue par `PlanService`.
+- Autres limites déjà nommées : limiteurs (OTP, messages, réservations, contact, adresse), plafonds de listes (200 messages…), horizons et préavis par défaut de l'agenda.
+- Fournisseur IA enregistré en colonne libre (`generations_ia.fournisseur`, CHECK de format seulement) : un nouveau fournisseur n'exige plus de migration.
 
 ### Autres
 

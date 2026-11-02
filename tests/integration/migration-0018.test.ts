@@ -364,7 +364,7 @@ describe('migration 0018 : CHECK des générations (CA02)', () => {
     ['une empreinte de 65 caractères', { entree_empreinte: 'a'.repeat(65) }],
     ['une empreinte en majuscules', { entree_empreinte: 'A'.repeat(64) }],
     ['une empreinte non hexadécimale', { entree_empreinte: 'g'.repeat(64) }],
-    ['un fournisseur inconnu', { fournisseur: 'openai' }],
+    ['le fournisseur « openai » (autorisé seulement depuis 0019)', { fournisseur: 'openai' }],
     ['le fournisseur « aucun » (aucun appel : rien à enregistrer)', { fournisseur: 'aucun' }],
     ['un modèle de 101 caractères', { modele: 'm'.repeat(101) }],
     ['11 tentatives', { tentatives: 11 }],
@@ -401,7 +401,9 @@ describe('migration 0018 : CHECK des générations (CA02)', () => {
     await expect(generation({ type })).resolves.toBeUndefined()
   })
 
-  it.each(IA_FOURNISSEURS_APPELES)('should accept the provider %s', async (fournisseur) => {
+  // Ce fichier décrit l'état APRÈS 0018 seule : la CHECK y est une énumération ('anthropic','faux') et `openai`
+  // n'y est pas autorisé. Depuis 0019 la CHECK est un simple format (voir migration-0019.test.ts).
+  it.each(IA_FOURNISSEURS_APPELES.filter((fournisseur) => fournisseur !== 'openai'))('should accept the provider %s', async (fournisseur) => {
     await apply(migration0018())
 
     await expect(generation({ fournisseur })).resolves.toBeUndefined()

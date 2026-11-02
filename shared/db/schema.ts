@@ -639,8 +639,10 @@ export const promptsIa = pgTable(
 // S8 : une génération IA = une trace (statut, coût, durée) + l'entrée minimisée et la sortie servie
 // (IA ou repli). `entree`/`sortie` passent à NULL après IA_RETENTION_JOURS (job ia-purger) ; les
 // métadonnées restent (quota, coût). `erreur_code` est un code court : jamais de message brut ni de
-// donnée personnelle. Les listes de statuts/motifs/fournisseurs sont recopiées depuis shared/ia.ts
-// (GENERATION_STATUTS, MOTIFS_REPLI, IA_FOURNISSEURS) : garder synchronisés.
+// donnée personnelle. Les listes de statuts et de motifs sont recopiées depuis shared/ia.ts
+// (GENERATION_STATUTS, MOTIFS_REPLI) : garder synchronisées. `fournisseur` n'est PAS une énumération en base
+// (seulement un format, depuis 0019) : ajouter un fournisseur (IA_FOURNISSEURS dans shared/ia.ts) ne demande
+// aucune migration.
 // `entree` et `sortie` sont du JSON non typé : ils sont toujours relus via un schéma Zod.
 export const generationsIa = pgTable(
   'generations_ia',
@@ -699,7 +701,7 @@ export const generationsIa = pgTable(
     ),
     check(
       'generations_ia_fournisseur_check',
-      sql`${table.fournisseur} IS NULL OR ${table.fournisseur} IN ('anthropic','faux')`,
+      sql`${table.fournisseur} IS NULL OR ${table.fournisseur} ~ '^[a-z0-9_-]{1,40}$'`,
     ),
     check('generations_ia_modele_check', sql`${table.modele} IS NULL OR char_length(${table.modele}) <= 100`),
     check('generations_ia_tentatives_check', sql`${table.tentatives} BETWEEN 0 AND 10`),

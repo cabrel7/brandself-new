@@ -1,7 +1,7 @@
 import { Queue, Worker } from 'bullmq'
 import Redis from 'ioredis'
 import { env, resolveIaFournisseur } from '../shared/env'
-import { IA_CONCURRENCE_WORKER } from '../shared/ia'
+import { IA_BASE_URL_DEFAUT, IA_CONCURRENCE_WORKER } from '../shared/ia'
 import type { OtpJobData } from '../shared/jobs'
 import {
   FILE_EMAILS,
@@ -74,6 +74,10 @@ const iaDeps: ExecutionDeps = {
 }
 if (fournisseurIa === 'aucun') {
   console.warn('[worker] aucun fournisseur IA configuré : les générations serviront le texte de repli (IA_SANS_FOURNISSEUR)')
+}
+if (fournisseurIa === 'openai') {
+  // Fournisseur compatible OpenAI : on journalise le modèle et l'hôte seulement (ni la clé, ni l'URL complète).
+  console.info(`[worker] IA compatible OpenAI : modèle ${env.IA_MODELE}, hôte ${new URL(env.IA_BASE_URL ?? IA_BASE_URL_DEFAUT).host}`)
 }
 
 const iaQueue = new Queue(FILE_IA, { connection: createConnection() })

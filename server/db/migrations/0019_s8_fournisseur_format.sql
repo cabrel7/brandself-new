@@ -1,0 +1,36 @@
+-- S8 : la CHECK de 0018 sur `generations_ia.fournisseur` était une énumération ('anthropic','faux') : tout
+-- nouveau fournisseur d'IA (adaptateur compatible OpenAI : OpenAI, Gemini, Groq, Mistral, DeepSeek,
+-- OpenRouter, Ollama…) aurait exigé une migration. Elle est remplacée par une CHECK de FORMAT seulement :
+-- `fournisseur IS NULL OR fournisseur ~ '^[a-z0-9_-]{1,40}$'` (minuscules, chiffres, « _ » et « - », 1 à 40
+-- caractères : un identifiant technique, jamais un message, une URL ni une donnée personnelle). La liste des
+-- fournisseurs reconnus par l'application est IA_FOURNISSEURS (shared/ia.ts), validée côté code (Zod) : la
+-- base ne la duplique plus et n'a plus à être migrée à chaque ajout.
+-- 0018 est déjà appliquée sur des bases existantes : elle n'est PAS modifiée, d'où cette migration.
+-- Aucune colonne, aucun index, aucune donnée touchés. Sûr sans verrou long : l'assouplissement ne peut rejeter
+-- aucune ligne existante (anthropic et faux respectent le format) ; le DROP et le ADD sont exécutés dans la
+-- même transaction (celle de drizzle), donc il n'existe aucun instant sans CHECK ; le ADD CONSTRAINT relit la
+-- table sous verrou exclusif, mais generations_ia est neuve (S8) et petite. Pas de NOT VALID + VALIDATE :
+-- dans une même transaction il n'allège pas le verrou.
+ALTER TABLE "generations_ia" DROP CONSTRAINT "generations_ia_fournisseur_check";--> statement-breakpoint
+ALTER TABLE "generations_ia" ADD CONSTRAINT "generations_ia_fournisseur_check" CHECK ("generations_ia"."fournisseur" IS NULL OR "generations_ia"."fournisseur" ~ '^[a-z0-9_-]{1,40}$');
+
+-- ROLLBACK (manuel : drizzle-kit n'a pas de « down »). À exécuter dans une transaction. Recrée l'ancienne CHECK
+-- d'énumération de 0018 ('anthropic','faux') puis retire 0019 du journal de migration : created_at = valeur
+-- « when » de meta/_journal.json (idx 19), soit 1793655878023.
+-- ATTENTION : le rollback ÉCHOUE (23514, check_violation, à l'ADD CONSTRAINT) s'il existe déjà des lignes dont
+-- `fournisseur` n'est ni NULL, ni 'anthropic', ni 'faux' (par exemple 'openai', 'gemini'…) ; la transaction est
+-- alors annulée en entier, rien n'est modifié. Il faut d'abord les traiter, dans la même transaction, avant le
+-- DROP CONSTRAINT. Au choix :
+--   a) conserver les traces en perdant le nom du fournisseur (recommandé : le quota et le coût ne lisent pas
+--      cette colonne, la trace et son modèle restent) : UPDATE "generations_ia" SET "fournisseur" = NULL WHERE "fournisseur" NOT IN ('anthropic','faux');
+--   b) ou supprimer ces traces : DELETE FROM "generations_ia" WHERE "fournisseur" NOT IN ('anthropic','faux');
+--      (les progressions qui les référencent passent à generation_id = NULL, ON DELETE SET NULL ; le quota
+--      mensuel des utilisateurs concernés est alors remis à zéro pour ces générations).
+-- (NOT IN ignore les NULL : les lignes sans fournisseur ne sont jamais touchées.)
+-- Ne PAS réécrire la valeur en 'faux' ou 'anthropic' : ce serait une fausse trace.
+-- Vérifier avant : SELECT "fournisseur", count(*) FROM "generations_ia" WHERE "fournisseur" NOT IN ('anthropic','faux') GROUP BY 1;
+-- BEGIN;
+-- ALTER TABLE "generations_ia" DROP CONSTRAINT "generations_ia_fournisseur_check";
+-- ALTER TABLE "generations_ia" ADD CONSTRAINT "generations_ia_fournisseur_check" CHECK ("generations_ia"."fournisseur" IS NULL OR "generations_ia"."fournisseur" IN ('anthropic','faux'));
+-- DELETE FROM drizzle.__drizzle_migrations WHERE created_at = 1793655878023; -- when de l'idx 19 de meta/_journal.json
+-- COMMIT;

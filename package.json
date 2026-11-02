@@ -43,6 +43,7 @@
     "nuxt": "^4.6.2",
     "nuxt-phosphor-icons": "2.3.3",
     "nuxt-qrcode": "0.4.10",
+    "openai": "^7.47.0",
     "pg": "^8.23.1",
     "resend": "^6.34.1",
     "sharp": "^0.35.5",

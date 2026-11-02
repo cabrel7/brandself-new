@@ -34,6 +34,10 @@ describe('resolveIaFournisseur (règle #71)', () => {
     ['production', 'anthropic', true, 'anthropic'],
     ['development', 'anthropic', false, 'aucun'],
     ['production', 'anthropic', false, 'aucun'],
+    ['development', 'openai', true, 'openai'],
+    ['production', 'openai', true, 'openai'],
+    ['development', 'openai', false, 'aucun'],
+    ['production', 'openai', false, 'aucun'],
   ] as const)('should resolve NODE_ENV=%s IA_FOURNISSEUR=%s key=%s to %s', (nodeEnv, fournisseur, avecCle, attendu) => {
     const resultat = resolveIaFournisseur({
       NODE_ENV: nodeEnv,
@@ -46,7 +50,7 @@ describe('resolveIaFournisseur (règle #71)', () => {
 
   it('should never throw, whatever the combination (a bad configuration means fallback, not an outage)', () => {
     for (const nodeEnv of ['development', 'test', 'production'] as const) {
-      for (const fournisseur of [undefined, 'anthropic', 'faux', 'aucun'] as const) {
+      for (const fournisseur of [undefined, 'anthropic', 'openai', 'faux', 'aucun'] as const) {
         for (const cle of [undefined, CLE]) {
           expect(() => resolveIaFournisseur({ NODE_ENV: nodeEnv, IA_FOURNISSEUR: fournisseur, IA_CLE_API: cle })).not.toThrow()
         }
@@ -115,6 +119,93 @@ describe('loadEnv : variables IA (CA33)', () => {
   })
 
   it('should refuse an unknown provider name', () => {
-    expect(() => loadEnv({ ...BASE, IA_FOURNISSEUR: 'openai' })).toThrow(/IA_FOURNISSEUR/)
+    expect(() => loadEnv({ ...BASE, IA_FOURNISSEUR: 'mistral' })).toThrow(/IA_FOURNISSEUR/)
+  })
+})
+
+describe('loadEnv : fournisseur compatible OpenAI', () => {
+  const OPENAI = { ...BASE, IA_FOURNISSEUR: 'openai', IA_CLE_API: CLE, IA_MODELE: 'gpt-4.1-mini' }
+
+  it('should accept openai with a key and an explicit model, defaulting to no base URL', () => {
+    const env = loadEnv(OPENAI)
+
+    expect(env.IA_FOURNISSEUR).toBe('openai')
+    expect(env.IA_MODELE).toBe('gpt-4.1-mini')
+    expect(env.IA_BASE_URL).toBeUndefined()
+    expect(resolveIaFournisseur(env)).toBe('openai')
+  })
+
+  it.each([undefined, '', '   '])('should refuse openai without an explicit model (%j), naming the variable and not echoing the key', (modele) => {
+    let message = ''
+    try {
+      loadEnv({ ...OPENAI, IA_MODELE: modele })
+    } catch (erreur) {
+      message = erreur instanceof Error ? erreur.message : String(erreur)
+    }
+
+    expect(message).toMatch(/IA_MODELE/)
+    expect(message).not.toContain(CLE)
+  })
+
+  it('should keep the Anthropic default model when the provider is not openai', () => {
+    expect(loadEnv({ ...BASE, IA_FOURNISSEUR: 'anthropic' }).IA_MODELE).toBe(IA_MODELE_DEFAUT)
+  })
+
+  it('should accept the Gemini example configuration', () => {
+    const env = loadEnv({
+      ...OPENAI,
+      IA_BASE_URL: 'https://generativelanguage.googleapis.com/v1beta/openai/',
+      IA_MODELE: 'gemini-2.5-flash',
+    })
+
+    expect(env.IA_BASE_URL).toBe('https://generativelanguage.googleapis.com/v1beta/openai/')
+  })
+
+  it.each(['http://localhost:11434/v1', 'http://127.0.0.1:11434/v1', 'https://api.groq.com/openai/v1'])(
+    'should accept the base URL %s',
+    (url) => {
+      expect(loadEnv({ ...OPENAI, IA_BASE_URL: url }).IA_BASE_URL).toBe(url)
+    },
+  )
+
+  it.each([
+    'http://api.exemple.com/v1',
+    'http://192.168.1.10:11434/v1',
+    'http://localhost.exemple.com/v1',
+    'file:///etc/passwd',
+    'ftp://exemple.com/v1',
+    'https://utilisateur:secret-tres-confidentiel@api.exemple.com/v1',
+    'https://jeton-seul@api.exemple.com/v1',
+    'pas une url',
+  ])('should refuse the base URL %s without echoing it', (url) => {
+    let message = ''
+    try {
+      loadEnv({ ...OPENAI, IA_BASE_URL: url })
+    } catch (erreur) {
+      message = erreur instanceof Error ? erreur.message : String(erreur)
+    }
+
+    expect(message).toMatch(/IA_BASE_URL/)
+    expect(message).not.toContain(url)
+    expect(message).not.toContain('secret-tres-confidentiel')
+  })
+
+  it('should treat an empty or blank base URL as absent', () => {
+    expect(loadEnv({ ...OPENAI, IA_BASE_URL: '' }).IA_BASE_URL).toBeUndefined()
+    expect(loadEnv({ ...OPENAI, IA_BASE_URL: '   ' }).IA_BASE_URL).toBeUndefined()
+  })
+
+  it('should resolve openai without a key to the deterministic fallback, in production too', () => {
+    const sansCle = loadEnv({ ...BASE_PRODUCTION, IA_FOURNISSEUR: 'openai', IA_MODELE: 'gpt-4.1-mini' })
+
+    expect(resolveIaFournisseur(sansCle)).toBe('aucun')
+  })
+
+  it('should still refuse the fake provider in production with the openai variables around', () => {
+    expect(() => loadEnv({ ...BASE_PRODUCTION, IA_FOURNISSEUR: 'faux', IA_BASE_URL: 'https://api.openai.com/v1' })).toThrow(/IA_FOURNISSEUR/)
+  })
+
+  it('should never pick openai implicitly from a key alone', () => {
+    expect(resolveIaFournisseur(loadEnv({ ...BASE, IA_CLE_API: CLE, IA_BASE_URL: 'https://api.openai.com/v1' }))).toBe('anthropic')
   })
 })

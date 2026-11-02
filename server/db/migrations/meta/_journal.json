@@ -134,6 +134,13 @@
       "when": 1793625645959,
       "tag": "0018_s8_onboarding_ia",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1793655878023,
+      "tag": "0019_s8_fournisseur_format",
+      "breakpoints": true
     }
   ]
 }

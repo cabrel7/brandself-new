@@ -161,7 +161,51 @@ async function generationAReprendre(ligne: ProgressionInscription | undefined, n
   return now.getTime() - generation.createdAt.getTime() <= GENERATION_EXPIRATION_MS ? generation.id : null
 }
 
-/** État de l'inscription. Lecture seule : ne crée jamais de ligne. Une vitrine existante = parcours terminé. */
+/** Progression remise à zéro : plus d'identité, de photo, de proposition ni de date de fin. */
+const REMISE_A_ZERO = {
+  titre: null,
+  prenom: null,
+  nom: null,
+  metier: null,
+  ville: null,
+  pays: null,
+  photoMediaId: null,
+  ...REMISE_PROPOSITION,
+  termineLe: null,
+} as const
+
+/**
+ * Décision produit : une inscription terminée dont la vitrine a été supprimée est ROUVERTE (sinon l'utilisateur
+ * est bloqué : 409 ONBOARDING_TERMINE sans vitrine). Remise à zéro sous verrou de la progression, contrôles
+ * refaits sous verrou : deux appels simultanés ne remettent à zéro qu'une fois, et une progression en cours
+ * (`termine_le` NULL) ou une vitrine existante ne sont jamais touchées. Idempotent ; renvoie vrai si elle a rouvert.
+ */
+export async function rouvrirSiVitrineSupprimee(userId: string): Promise<boolean> {
+  // Chemin courant sans verrou : une seule lecture, aucune écriture.
+  const [apercu] = await db
+    .select({ termineLe: progressionsInscription.termineLe })
+    .from(progressionsInscription)
+    .where(eq(progressionsInscription.userId, userId))
+    .limit(1)
+  if (!apercu || apercu.termineLe === null) return false
+
+  return db.transaction(async (tx) => {
+    const ligne = await verrouiller(tx, userId)
+    if (!ligne || ligne.termineLe === null) return false
+    const [vitrine] = await tx.select({ id: vitrines.id }).from(vitrines).where(eq(vitrines.userId, userId)).limit(1)
+    if (vitrine) return false
+    await tx
+      .update(progressionsInscription)
+      .set({ ...REMISE_A_ZERO, updatedAt: new Date() })
+      .where(eq(progressionsInscription.userId, userId))
+    return true
+  })
+}
+
+/**
+ * État de l'inscription. Ne crée jamais de ligne ; seule écriture possible : la réouverture d'une inscription
+ * dont la vitrine a été supprimée. Une vitrine existante = parcours terminé.
+ */
 export async function getOnboarding(userId: string, now: Date = new Date()): Promise<OnboardingView> {
   const [vitrine] = await db
     .select({ username: vitrines.username })
@@ -169,6 +213,7 @@ export async function getOnboarding(userId: string, now: Date = new Date()): Pro
     .where(eq(vitrines.userId, userId))
     .limit(1)
   if (vitrine) return { statut: 'termine', username: vitrine.username }
+  await rouvrirSiVitrineSupprimee(userId)
 
   const [courante] = await db
     .select({ progression: progressionsInscription, photo: medias })
@@ -321,6 +366,7 @@ function traduireErreurPhoto(error: unknown): never {
 /** Enregistre une étape (1, 2 ou 3) et renvoie le nouvel état. Une vitrine existante = 409 ONBOARDING_TERMINE. */
 export async function saveEtape(userId: string, input: OnboardingEtapeInput, now: Date = new Date()): Promise<OnboardingView> {
   let anciennePhoto: string | null = null
+  await rouvrirSiVitrineSupprimee(userId)
   try {
     anciennePhoto = await db.transaction(async (tx) => {
       await exigerSansVitrine(tx, userId)
@@ -369,6 +415,7 @@ async function relierGeneration(userId: string, generationId: string, entree: En
 export async function generer(userId: string, now: Date = new Date()): Promise<CreationResultat> {
   const [vitrine] = await db.select({ id: vitrines.id }).from(vitrines).where(eq(vitrines.userId, userId)).limit(1)
   if (vitrine) throw new ConflictError('ONBOARDING_TERMINE')
+  await rouvrirSiVitrineSupprimee(userId)
 
   const [progression] = await db
     .select()
@@ -533,6 +580,8 @@ export async function terminer(userId: string, input: OnboardingTerminerInput): 
     ONBOARDING_TERMINER_LIMIT.limit,
     ONBOARDING_TERMINER_LIMIT.windowS,
   )
+  // Sans cela, un `terminer` d'un client périmé après suppression de la vitrine répondrait `creee: false` sans vitrine.
+  await rouvrirSiVitrineSupprimee(userId)
   try {
     return await db.transaction(async (tx) => {
       const ligne = await verrouiller(tx, userId)

@@ -41,12 +41,19 @@ export const MOTIFS_REPLI_TRANSITOIRES: readonly MotifRepli[] = [
 ]
 
 /** Fournisseur résolu (`aucun` = repli déterministe, aucun appel). */
-export const IA_FOURNISSEURS = ['anthropic', 'faux', 'aucun'] as const
+// `openai` = TOUT fournisseur compatible OpenAI (OpenAI, Gemini, Groq, Mistral, DeepSeek, OpenRouter, Ollama…),
+// choisi par `IA_BASE_URL` + `IA_MODELE`.
+export const IA_FOURNISSEURS = ['anthropic', 'openai', 'faux', 'aucun'] as const
 export type IaFournisseur = (typeof IA_FOURNISSEURS)[number]
 
 /** Fournisseurs réellement enregistrés sur une génération (colonne `fournisseur`). */
-export const IA_FOURNISSEURS_APPELES = ['anthropic', 'faux'] as const
+export const IA_FOURNISSEURS_APPELES = ['anthropic', 'openai', 'faux'] as const
 export type IaFournisseurAppele = (typeof IA_FOURNISSEURS_APPELES)[number]
+
+/** Endpoint public d'OpenAI : utilisé quand `IA_BASE_URL` est absente (jamais la variable ambiante du SDK). */
+export const IA_BASE_URL_DEFAUT = 'https://api.openai.com/v1'
+/** Seuls hôtes autorisés en HTTP clair (modèles locaux, ex. Ollama). Tout le reste exige HTTPS. */
+export const IA_HOTES_HTTP_AUTORISES: readonly string[] = ['localhost', '127.0.0.1']
 
 /** Codes d'erreur courts conservés sur une génération (jamais un message brut). */
 export const IA_ERREUR_CODES = ['delai', 'fournisseur', 'reponse_vide', 'sortie_invalide', 'faits_inventes'] as const
