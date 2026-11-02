@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { and, eq, notExists, sql } from 'drizzle-orm'
 import sharp from 'sharp'
-import { medias, realisationImages, realisations, services, vitrines } from '../../shared/db/schema'
+import { medias, progressionsInscription, realisationImages, realisations, services, vitrines } from '../../shared/db/schema'
 import { MEDIA_UPLOAD_LIMIT } from '../../shared/limites'
 import { MEDIA_MAX_BYTES, MEDIA_MAX_PIXELS, MEDIA_WIDTHS } from '../../shared/medias'
 import type { MediaWidth } from '../../shared/medias'
@@ -154,7 +154,8 @@ export async function deleteMedia(userId: string, mediaId: string): Promise<void
 
 /**
  * Supprime un média seulement si plus rien ne le référence (photo de vitrine, image de service,
- * image principale ou image de galerie de réalisation). Un seul DELETE conditionnel : pas de fenêtre
+ * image principale ou image de galerie de réalisation, photo de la progression d'inscription S8). Un seul
+ * DELETE conditionnel : pas de fenêtre
  * entre vérification et suppression. La galerie (`realisation_images.media_id`) est en CASCADE : sans
  * ce contrôle, remplacer l'image d'une réalisation ferait disparaître une image encore affichée ailleurs.
  */
@@ -169,6 +170,9 @@ export async function deleteMediaIfUnreferenced(userId: string, mediaId: string)
         notExists(db.select({ one: sql`1` }).from(services).where(eq(services.imageMediaId, mediaId))),
         notExists(db.select({ one: sql`1` }).from(realisations).where(eq(realisations.imageMediaId, mediaId))),
         notExists(db.select({ one: sql`1` }).from(realisationImages).where(eq(realisationImages.mediaId, mediaId))),
+        notExists(
+          db.select({ one: sql`1` }).from(progressionsInscription).where(eq(progressionsInscription.photoMediaId, mediaId)),
+        ),
       ),
     )
     .returning({ id: medias.id })
