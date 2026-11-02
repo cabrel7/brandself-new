@@ -24,20 +24,31 @@ const sujetActif = computed<SujetMessage>({
     viderErreur('sujet')
   },
 })
+
+const regionStatut = useTemplateRef<HTMLElement>('regionStatut')
+
+watch(envoyee, async (valeur) => {
+  if (!valeur) return
+  await nextTick()
+  regionStatut.value?.focus()
+  regionStatut.value?.scrollIntoView({ block: 'center' })
+})
 </script>
 
 <template>
   <section aria-labelledby="message-titre" class="rounded-(--rayon-carte) border border-bordure bg-surface p-6 md:p-8">
-    <p v-if="envoyee" class="m-0 flex flex-col items-start gap-3" role="status" aria-live="polite">
-      <span class="flex size-12 items-center justify-center rounded-full bg-accent-doux text-accent">
-        <UIcon name="i-ph-check" class="size-6" aria-hidden="true" />
-      </span>
-      <span class="text-base font-semibold text-encre">
-        Votre message est envoyé. {{ professionnel }} vous répond dès que possible.
-      </span>
-    </p>
+    <div ref="regionStatut" role="status" aria-live="polite" tabindex="-1" class="outline-none">
+      <p v-if="envoyee" class="m-0 mb-6 flex flex-col items-start gap-3">
+        <span class="flex size-12 items-center justify-center rounded-full bg-accent-doux text-accent-texte">
+          <UIcon name="i-ph-check" class="size-6" aria-hidden="true" />
+        </span>
+        <span class="text-base font-semibold text-encre">
+          Votre message est envoyé. {{ professionnel }} vous répond dès que possible.
+        </span>
+      </p>
+    </div>
 
-    <form class="flex flex-col gap-5" novalidate @submit.prevent="soumettre">
+    <form class="flex flex-col gap-5" novalidate :aria-busy="envoi" @submit.prevent="soumettre">
       <h2 id="message-titre" class="m-0 text-(length:--fs-24) leading-tight font-bold">
         Écrivez-moi
       </h2>
@@ -48,7 +59,7 @@ const sujetActif = computed<SujetMessage>({
           required
           autocomplete="name"
           :maxlength="limites.nom"
-          :disabled="envoi"
+          :readonly="envoi"
           placeholder="Marie Ndzi"
           @update:model-value="viderErreur('nom')"
         />
@@ -62,7 +73,7 @@ const sujetActif = computed<SujetMessage>({
           inputmode="email"
           autocomplete="email"
           :maxlength="limites.email"
-          :disabled="envoi"
+          :readonly="envoi"
           placeholder="adresse@exemple.com"
           @update:model-value="viderErreur('email')"
         />
@@ -75,7 +86,7 @@ const sujetActif = computed<SujetMessage>({
           inputmode="tel"
           autocomplete="tel"
           :maxlength="limites.telephone"
-          :disabled="envoi"
+          :readonly="envoi"
           placeholder="+237 6 99 00 00 01"
           @update:model-value="viderErreur('telephone')"
         />
@@ -96,18 +107,18 @@ const sujetActif = computed<SujetMessage>({
           required
           :rows="5"
           :maxlength="limites.message"
-          :disabled="envoi"
+          :readonly="envoi"
           class="w-full"
           @update:model-value="viderErreur('message')"
         />
       </UFormField>
 
-      <div class="sr-only" aria-hidden="true">
+      <div class="sr-only" inert>
         <label :for="honeypotId">Site web</label>
         <input :id="honeypotId" v-model="form.siteWeb" name="siteWeb" type="text" autocomplete="off" tabindex="-1">
       </div>
 
-      <p v-if="erreurGenerale" class="message-erreur" role="alert" aria-live="assertive">
+      <p v-if="erreurGenerale" class="message-erreur" role="alert">
         <UIcon name="i-ph-warning-circle" class="size-5 shrink-0" aria-hidden="true" />
         <span>{{ erreurGenerale }}</span>
       </p>

@@ -177,7 +177,7 @@ export function serviceDetailHref(username: string, slug: string): string {
   return `/${username}/services/${slug}`
 }
 
-/** Cible du bouton d'action jusqu'à S7 : page provisoire de contact. */
+/** Cible du bouton d'action d'un service : l'agenda de la vitrine, service présélectionné. */
 export function serviceActionHref(username: string, slug: string): string {
-  return `/${username}/reserver?service=${slug}`
+  return `/${username}/agenda?service=${slug}`
 }

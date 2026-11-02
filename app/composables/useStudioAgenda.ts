@@ -58,6 +58,8 @@ export interface ActionActiviteEnCours {
 export interface ConfirmationActiviteAgenda extends ActionActiviteEnCours {
   texte: string
   libelleConfirmation: string
+  /** Bouton qui referme la confirmation sans agir : « Garder » (annulation) ou « Retour » (refus). */
+  libelleRetour: string
 }
 
 const ACTUALISATION_ACTIVITES_MS = 60_000
@@ -286,6 +288,7 @@ export function useStudioAgenda() {
         action,
         texte: 'Annuler cette réservation ? Le créneau redeviendra disponible.',
         libelleConfirmation: 'Annuler la réservation',
+        libelleRetour: 'Garder',
       }
       return
     }
@@ -296,12 +299,14 @@ export function useStudioAgenda() {
             action,
             texte: 'Refuser cette réservation ? Le créneau redeviendra disponible.',
             libelleConfirmation: 'Refuser la réservation',
+            libelleRetour: 'Retour',
           }
         : {
             cle,
             action,
             texte: 'Refuser cette demande ? Cette décision ne pourra pas être annulée.',
             libelleConfirmation: 'Refuser la demande',
+            libelleRetour: 'Retour',
           }
       return
     }

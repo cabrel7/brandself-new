@@ -176,7 +176,7 @@ async function transitionOwnReservation(
       .from(reservations)
       .innerJoin(vitrines, eq(vitrines.id, reservations.vitrineId))
       .where(and(eq(reservations.id, id), eq(vitrines.userId, userId)))
-      .for('update')
+      .for('update', { of: reservations })
     if (!current) throw new NotFoundError('RESERVATION_INTROUVABLE')
     const from = current.reservation.statut as ReservationStatut
     if (!canTransitionReservation(from, statut)) {

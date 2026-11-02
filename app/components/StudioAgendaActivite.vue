@@ -54,11 +54,8 @@ async function surToucheOnglet(event: KeyboardEvent): Promise<void> {
 const onglets = computed(() => ONGLETS.map((valeur) => ({
   valeur,
   libelle: LIBELLES_ONGLETS[valeur],
-  compte: valeur === 'a_venir'
-    ? props.compteurs.aVenir
-    : valeur === 'demandes'
-      ? props.compteurs.demandes
-      : props.compteurs.passees,
+  // Pas de compteur dans l'onglet (il figure déjà dans le sous-titre) : un point signale les demandes à traiter.
+  pastille: valeur === 'demandes' && props.compteurs.demandes > 0,
 })))
 
 const ICONES_VIDE: Record<OngletAgenda, string> = {
@@ -117,7 +114,15 @@ const groupes = computed<GroupeActivites[]>(() => {
         @click="emit('changerOnglet', item.valeur)"
         @keydown="surToucheOnglet"
       >
-        {{ item.libelle }} <span aria-hidden="true">·</span> {{ item.compte }}
+        {{ item.libelle }}
+        <template v-if="item.pastille">
+          <span
+            class="ms-1 inline-block size-2 rounded-full align-middle"
+            :class="onglet === item.valeur ? 'bg-sur-accent' : 'bg-accent'"
+            aria-hidden="true"
+          />
+          <span class="sr-only">, demandes à traiter</span>
+        </template>
       </button>
     </div>
 
@@ -165,10 +170,15 @@ const groupes = computed<GroupeActivites[]>(() => {
                       <h4 class="m-0 text-base leading-snug font-bold text-encre">
                         {{ activite.service }}
                       </h4>
-                      <UBadge :label="activite.statutLibelle" :color="activite.statutCouleur" variant="soft" />
+                      <UBadge
+                        :label="activite.statutLibelle"
+                        :color="activite.statutCouleur"
+                        variant="soft"
+                        :class="activite.statutCouleur === 'primary' ? 'bg-accent-doux text-accent-texte' : undefined"
+                      />
                     </div>
                     <p class="m-0 mt-1 text-(length:--fs-14) text-texte-secondaire">
-                      {{ activite.visiteur.nom }}<template v-if="activite.heureLibelle"> · {{ activite.heureLibelle }}</template>
+                      <span :class="onglet === 'passees' ? undefined : 'sr-only'">{{ activite.dateLibelle }} · </span>{{ activite.visiteur.nom }}<template v-if="activite.heureLibelle"> · {{ activite.heureLibelle }}</template>
                       <template v-if="activite.reglement"> · {{ activite.reglement }}</template>
                     </p>
                     <p class="m-0 mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-(length:--fs-14)">
@@ -177,6 +187,7 @@ const groupes = computed<GroupeActivites[]>(() => {
                         class="break-all text-texte-secondaire underline-offset-4 hover:underline"
                       >{{ activite.visiteur.email }}</a>
                       <a
+                        v-if="activite.visiteur.telephone.trim()"
                         :href="`tel:${activite.visiteur.telephone}`"
                         class="text-texte-secondaire underline-offset-4 hover:underline"
                       >{{ activite.visiteur.telephone }}</a>
@@ -209,7 +220,7 @@ const groupes = computed<GroupeActivites[]>(() => {
                       @click="emit('confirmerAction')"
                     />
                     <UButton
-                      label="Garder"
+                      :label="confirmation.libelleRetour"
                       color="neutral"
                       variant="outline"
                       size="lg"

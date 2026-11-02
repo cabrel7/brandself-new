@@ -18,7 +18,9 @@ const liens = computed(() => reponseLiens.value?.liens ?? [])
 const servicesDisponibles = computed(() => (contenus.value?.services ?? 0) > 0)
 
 const urlServices = computed(() => `/${username}/services`)
-const urlReserver = computed(() => `/${username}/reserver`)
+const urlReserver = computed(() => `/${username}/agenda`)
+// Anciens liens du studio créés avant S7-bis : ils remplacent aussi le bouton natif.
+const urlReserverHerite = computed(() => `/${username}/reserver`)
 
 const urlWhatsapp = computed(() => {
   const numero = vitrine.value.contact?.whatsapp ?? vitrine.value.contact?.telephone
@@ -35,7 +37,9 @@ function remplaceBoutonNatif(destination: string | null): boolean {
   return liens.value.some((lien) => lien.url === destination)
 }
 
-const reserverPersonnalise = computed(() => remplaceBoutonNatif(urlReserver.value))
+const reserverPersonnalise = computed(() =>
+  remplaceBoutonNatif(urlReserver.value) || remplaceBoutonNatif(urlReserverHerite.value),
+)
 const servicesPersonnalise = computed(() => remplaceBoutonNatif(urlServices.value))
 const whatsappPersonnalise = computed(() => remplaceBoutonNatif(urlWhatsapp.value))
 
@@ -56,7 +60,7 @@ function estLienInterne(url: string): boolean {
 }
 
 function estLienReservation(url: string): boolean {
-  return url === urlReserver.value
+  return url === urlReserver.value || url === urlReserverHerite.value
 }
 </script>
 

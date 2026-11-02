@@ -349,7 +349,7 @@ Chaque critère est testable. Les critères SQL s'exécutent contre le **Postgre
 | # | Given | When | Then |
 |---|---|---|---|
 | CA8 | vitrine publiée (PG réel) | POST `/api/public/{u}/messages` { nom, email, sujet, message } | 201 `{ message: { id, sujet, creeLe } }` ; ligne SQL `messages` complète (`createdAt` présent, `telephone` null), outbox 1 ligne `message_professionnel_nouvelle` **dans la même transaction** (le test rejoue la transaction échec cas pour preuve d'atomicité : l'outbox est annulée si l'insert échoue). |
-| CA9 | message envoyé par le visiteur | worker (job `emails`) | email reçu par le serveur de courriels de test, objet « Nouveau message… », destinataire = `emailContact` ou email compte (règle `professionalRecipient`), message contient le texte EXACT du visiteur ; statue `envoye` (envoyé) après help ; un re-POST outbox dupliqué est ignoré (index unique). |
+| CA9 | message envoyé par le visiteur | worker (job `emails`) | email reçu par le serveur de courriels de test, objet « Nouveau message… », destinataire = `emailContact` ou email compte (règle `professionalRecipient`), message contient le texte EXACT du visiteur ; statut `envoye` (envoyé) une fois l'email parti ; un doublon d'événement outbox est ignoré (index unique). |
 | CA10 | formulaire rempli une 4e fois dans 24 h avec le même email | POST | 429 `TROP_DE_REQUETES` + `Retry-After` ; aucune ligne SQL message créée. (limites : `MESSAGE_CONTACT_LIMIT` 3/24 h, contact hashé SHA-256 : **test SQL/Redis réel** pattern `reservation-limiteur.test.ts`). |
 | CA11 | navigateur headless (e2e) | POST avec `siteWeb` non vide | 400 `VALIDATION`, aucune ligne créée (honeypot et ce qui mérite un test e2e, pas unitaire seul). |
 | CA12 | formulaire valide (e2e) | saisie + « Envoyer mon message » | 201 ; état succès affiché ; aucune PII dans l'URL ni localStorage (`verifierAbsencePii` pattern) ; email vérifié côté serveur de courriels test. |
@@ -385,7 +385,7 @@ Chaque critère est testable. Les critères SQL s'exécutent contre le **Postgre
 
 Listes **disjointes** backend / frontend ; tests séparés. « (créé)/(modifié) » : tout fichier modifié est **lu intégralement avant modification** (CLAUDE.md §6.2) ; aucun remplacement massif.
 
-### 9.1 Backend (17 fichiers)
+### 9.1 Backend (21 fichiers)
 
 **Créés (8)**
 1. `server/db/migrations/0017_messages_refus.sql` — table `messages`, index, CHECK statut `refusee`, CHECK outbox élargie (§5).
@@ -397,24 +397,24 @@ Listes **disjointes** backend / frontend ; tests séparés. « (créé)/(modifi�
 7. `server/api/studio/messages/[id]/lu.post.ts` — marquage lu idempotent.
 8. `server/api/studio/reservations/[id]/refuser.patch.ts` — PATCH `refusee` (pattern `confirmer.patch.ts` / `annuler.patch.ts`).
 
-**Modifiés (9) — chaque écart est nommé**
+**Modifiés ou ajoutés dans `shared/` (13) — chaque écart est nommé**
 9. `shared/db/schema.ts` — table `messages` ; CHECK `reservations_statut_check` + `refusee` ; CHECK `emails_transactionnels` (`type` + `entite_type` + cohérence) alignées sur 0017.
 10. `shared/agenda.ts` — `RESERVATION_STATUTS` + `'refusee'`.
 11. `shared/message.ts` — (nouveau) constantes sujets et bornes ; s'agrège à `shared/dto/message.ts` pour types. **(classé backend/shared)**.
 12. `shared/schemas/message.ts` — (nouveau) Zod strict.
 13. `shared/dto/message.ts` — (nouveau) `MessageCreatedDTO`, `MessageStudioDTO`, `MessagesStudioReponse` ; `shared/dto/index.ts` (cité, +1 ligne export).
 14. `shared/erreurs.ts` — `MESSAGE_INTROUVABLE` (404).
-15. `shared/limites.ts` — `MESSAGE_PUBLIC_LIMIT {5, 600} », `MESSAGE_CONTACT_LIMIT {3, 86400}`.
+15. `shared/limites.ts` — `MESSAGE_PUBLIC_LIMIT {5, 600}`, `MESSAGE_CONTACT_LIMIT {3, 86400}`, `MESSAGE_VITRINE_LIMIT {30, 3600}` (plafond par vitrine, ajouté après la revue sécurité).
 16. `shared/jobs.ts` — `TRANSACTIONAL_EMAIL_TYPES` + 2 types (le restant inchangé).
-17. `server/services/messages-regles.ts` — `canTransitionReservation` + branche `en_attente → refusee` (refusée terminal) ; cité, modification chirurgicale (une fonction).
+17. `server/services/reservations-regles.ts` — `canTransitionReservation` + branche `en_attente → refusee` (refusée terminal) ; cité, modification chirurgicale (une fonction).
 18. `server/services/reservations.ts` — `transitionOwnReservation` accepte le cible `refusee` sans `motifAnnulation` (motif seulement pour `annulee`) et **choix du type d'émail** (`reservation_visiteur_refusee` vs `reservation_visiteur_annulee`) ; aucun autre service de réservation n'est retouché.
 19. `server/services/email-outbox.ts` — `EmailEntityType` + `'message'`, garde `message_`, loader `loadMessageContent` (JOIN messages → vitrines/users, réutilisation de `professionalRecipient`).
 20. `server/services/emails/contenus.ts` — 2 nouveaux modèles renvoyés par `buildTransactionalEmail` (vouvoiement, échappement du contenu identique à celui des `demandes.message`).
 21. `server/db/seed.ts` — messages de démo `dr-cabrel` (Marie Ndzi, Paul Essomba non lus / Aïcha Bello lu, dates cronées ré-close à now).
 
-*(± 21 postes ; le compts final pour la session est en §9.4)*
+*(21 postes : 8 créés + 13 modifiés ; le comptage final est en §9.4)*
 
-### 9.2 Frontend (18 fichiers)
+### 9.2 Frontend (19 fichiers)
 
 **Créés (9)**
 1. `app/pages/[username]/agenda.vue` — page publique (SSR) : fil d'Ariane, service, calendrier du mois, créneaux, CTA → `/reserver?service&debut`.
@@ -427,7 +427,7 @@ Listes **disjointes** backend / frontend ; tests séparés. « (créé)/(modifi�
 8. `app/pages/studio/messages.vue` — liste + dépliage + marque lu (POST `lu`).
 9. `app/composables/useStudioMessages.ts` — fetch liste, compteur nonLus, dépliage + POST lu idempotent, états.
 
-**Modifiés (9)**
+**Modifiés (10)**
 10. `app/composables/usePublicAgenda.ts` — ajout du mode **page** (bornes mensuelles + regroupement de jour du mois + cache de mois par service) sans toucher à l'API du mode accueil existant (les arguments actuels restent valides — le faux paramètre `jours` reste supporté pour l'accueil gelé).
 11. `app/pages/[username]/reserver.vue` — branche « pas de paramètres ou invalides » → redirection 308 vers `/agenda` (préserve la query) ; liens internes (`#agenda` → `/{username}/agenda?…`).
 12. `app/components/vitrine/Nav.vue` — liens Agenda → `/agenda`, Contact → `/contact`, bouton Réserver → `/agenda`, `actif` recalculé.
@@ -460,9 +460,9 @@ Listes **disjointes** backend / frontend ; tests séparés. « (créé)/(modifi�
 
 ### 9.4 Comptage final pour le pipeline
 
-- **Backend : 22 fichiers écrits** (10 créés sans tests, 12 modifiés dont schémas/dto/erreurs/jobs) — la liste exacte ci-dessus.
-- **Frontend : 18 fichiers écrits** (9 créés, 9 modifiés).
-- **Tests : 12 fichiers** (4 modifiés, 8 créés — dont `migration-0017.test.ts`).
+- **Backend : 21 fichiers écrits** (8 créés, 13 modifiés dont schémas/dto/erreurs/jobs, §9.1).
+- **Frontend : 19 fichiers listés en §9.2** (9 créés, 10 modifiés).
+- **Tests : 12 fichiers** (4 modifiés, 7 créés en liste + `migration-0017.test.ts`).
 - Listes backend et frontend **disjointes** (aucun fichier partagé sauf le seed côté backend et rien du côté frontend).
 - Idées hors périmètre notées pour le rapport : badge WhatsApp sur les notifications, réponses studio, partition mensuelle des messages. Aucune code n'attend d'être écrit pour elles.
 

@@ -69,7 +69,7 @@ function lienMail(email: string): string {
         <h1 class="m-0 text-(length:--fs-32) leading-tight font-bold text-encre">
           Messages
         </h1>
-        <p class="m-0 mt-1 text-base text-texte-secondaire" aria-live="polite">
+        <p v-if="messages.length > 0" class="m-0 mt-1 text-base text-texte-secondaire" aria-live="polite">
           {{ nonLus > 0 ? `${nonLus} ${plurielNonLus(nonLus)}` : 'Tout est lu' }}
         </p>
       </header>
@@ -102,14 +102,16 @@ function lienMail(email: string): string {
             @click="basculer(message.id)"
           >
             <span
-              class="flex size-12 shrink-0 items-center justify-center rounded-full bg-accent-doux font-(family-name:--font-titre) text-lg font-semibold text-accent-texte"
+              class="flex size-12 shrink-0 items-center justify-center rounded-full bg-accent-doux font-(family-name:--font-titre) text-(length:--fs-20) font-semibold text-accent-texte"
               aria-hidden="true"
             >
               {{ message.initiale }}
             </span>
             <span class="min-w-0 flex-1">
               <span class="flex items-center justify-between gap-3">
-                <span class="truncate font-bold text-encre">{{ message.nom }}</span>
+                <span class="truncate text-encre" :class="message.luLe === null ? 'font-bold' : 'font-medium'">
+                  <span v-if="message.luLe === null" class="sr-only">Non lu, </span>{{ message.nom }}
+                </span>
                 <span class="flex shrink-0 items-center gap-2 text-(length:--fs-14) text-texte-secondaire">
                   {{ message.dateRelative }}
                   <span
@@ -119,15 +121,17 @@ function lienMail(email: string): string {
                   />
                 </span>
               </span>
-              <span class="mt-1 line-clamp-2 block text-base text-texte-secondaire">{{ message.message }}</span>
+              <span v-if="idDeplie !== message.id" class="mt-1 line-clamp-2 block text-base text-texte-secondaire">{{ message.message }}</span>
             </span>
           </button>
 
           <div
             v-if="idDeplie === message.id"
             :id="`message-detail-${message.id}`"
-            class="pb-5 pl-16"
+            class="flex gap-4 pb-5"
           >
+            <span class="w-12 shrink-0" aria-hidden="true" />
+            <div class="min-w-0 flex-1">
             <p class="m-0 text-(length:--fs-14) text-texte-secondaire">
               Sujet : <span class="font-semibold text-encre">{{ libelleSujet(message.sujet) }}</span>
             </p>
@@ -143,6 +147,7 @@ function lienMail(email: string): string {
               >{{ message.telephone }}</a>
             </p>
             <p class="m-0 mt-3 text-base whitespace-pre-line text-encre">{{ message.message }}</p>
+            </div>
           </div>
         </li>
       </ul>

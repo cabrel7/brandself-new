@@ -135,7 +135,7 @@ async function envoyer(): Promise<void> {
       />
       <UButton
         v-if="etat === 'prise' || etat === 'expiree'"
-        :to="`/${username}#agenda`"
+        :to="`/${username}/agenda`"
         label="Choisir un autre créneau"
         variant="outline"
         block

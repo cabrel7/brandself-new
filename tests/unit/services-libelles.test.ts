@@ -180,6 +180,11 @@ describe('initialeDuTitre (U16)', () => {
 describe('liens (U16)', () => {
   it('should build the detail and action links', () => {
     expect(serviceDetailHref('dr-cabrel', 'consultation-de-cardiologie')).toBe('/dr-cabrel/services/consultation-de-cardiologie')
-    expect(serviceActionHref('dr-cabrel', 'consultation-de-cardiologie')).toBe('/dr-cabrel/reserver?service=consultation-de-cardiologie')
+    // S7-bis : le bouton d'action mène à l'agenda de la vitrine, service présélectionné.
+    expect(serviceActionHref('dr-cabrel', 'consultation-de-cardiologie')).toBe('/dr-cabrel/agenda?service=consultation-de-cardiologie')
+  })
+
+  it('should never point the action link to the legacy /reserver step', () => {
+    expect(serviceActionHref('dr-cabrel', 'consultation-de-cardiologie')).not.toContain('/reserver')
   })
 })

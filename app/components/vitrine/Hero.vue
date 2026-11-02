@@ -14,8 +14,8 @@ const lienWhatsapp = computed(() => {
 
 const lienReservation = computed(() => props.prochainCreneau
   ? {
-      path: `/${props.vitrine.username}/reserver`,
-      query: { service: props.prochainCreneau.serviceSlug, debut: props.prochainCreneau.debut },
+      path: `/${props.vitrine.username}/agenda`,
+      query: { service: props.prochainCreneau.serviceSlug },
     }
   : '#contact')
 const disponibleCetteSemaine = computed(() => {

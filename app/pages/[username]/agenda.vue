@@ -46,7 +46,7 @@ useSeoMeta({
 </script>
 
 <template>
-  <VitrineCadre :vitrine="vitrine">
+  <VitrineCadre :vitrine="vitrine" pied-compact>
     <div class="mx-auto w-full max-w-6xl px-6 py-8 md:py-12 xl:py-16">
       <nav class="mb-4 hidden text-(length:--fs-14) text-texte-secondaire xl:block" aria-label="Fil d’Ariane">
         <NuxtLink :to="`/${vitrine.username}`" class="hover:text-accent-texte">Accueil</NuxtLink>

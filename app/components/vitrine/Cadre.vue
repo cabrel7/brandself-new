@@ -9,6 +9,8 @@ const props = defineProps<{
   sansNav?: boolean
   /** Page de liens autonome : simple mention « Créé avec Brandself », sans bloc contact. */
   piedMinimal?: boolean
+  /** Pages Agenda et Contact : pied réduit à une ligne, sans doublon des coordonnées. */
+  piedCompact?: boolean
 }>()
 
 // Le fond (<body>) suit la palette : l'attribut doit être sur <html>, pas seulement sur la racine.
@@ -31,7 +33,7 @@ const contenus = usePublicContenus(props.vitrine.username)
     <main :class="{ 'flex-1': piedMinimal }">
       <slot />
     </main>
-    <VitrinePied v-if="!piedMinimal" :vitrine="vitrine" />
+    <VitrinePied v-if="!piedMinimal" :vitrine="vitrine" :compact="piedCompact" />
     <p v-else class="m-0 px-6 py-10 text-center text-(length:--fs-14) text-texte-secondaire">
       Créé avec Brandself
     </p>

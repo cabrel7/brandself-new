@@ -1,19 +1,23 @@
 import { randomUUID } from 'node:crypto'
 import { expect, test } from '@playwright/test'
-import type { APIRequestContext, BrowserContext, Page } from '@playwright/test'
+import type { APIRequestContext, APIResponse, BrowserContext, Page } from '@playwright/test'
+import { SUJET_LIBELLES } from '../shared/message'
+import type { SujetMessage } from '../shared/message'
 import { attendreHydration, ouvrirStudio } from './helpers/hydratation'
 import { BASE_URL, db, fermerConnexions, seConnecter } from './helpers/session'
 import type { Session } from './helpers/session'
 
-// S7-bis — parcours Contact/Messages (CA11, CA12, CA13, CA17, CA23).
-//
-// ATTENDU ROUGE : ces parcours exige des livrables S7-bis backend (POST
-// /api/public/{u}/messages, GET /api/studio/messages, POST .../lu, table messages)
-// et frontend (pages /contact et /studio/messages, composable usePublicMessage).
-// Ils ne passeront qu'après ces livraisons — aucun .skip ni todo n'est utilisé.
+// S7-bis — parcours Contact/Messages (CA11, CA12, CA13, CA17, CA23) et régressions des revues :
+// succès persistant (watch), libellé du sujet au dépliage, honeypot, injection d'en-tête par le nom.
+// Aucun .skip ni todo. Les tests sont sérialisés et partagent UNE vitrine : chacun crée ses
+// propres messages (emails uniques) et le test du compteur repart d'un état « tout est lu ».
 
 const MOBILE = { width: 390, height: 844 }
 const DESKTOP = { width: 1280, height: 800 }
+/** Durée pendant laquelle le message de succès doit rester affiché (régression du watch qui l'effaçait). */
+const PERSISTANCE_SUCCES_MS = 1_000
+const TEXTE_SUCCES = 'Votre message est envoyé.'
+const TEXTE_ERREUR_FORMULAIRE = 'Vérifiez les informations saisies.'
 
 interface MessageCreeApi {
   message: { id: string, sujet: string, creeLe: string }
@@ -39,6 +43,39 @@ test.describe.serial('Contact et Messages S7-bis', () => {
       email: `e2e-s7b-${identifiant}@example.com`,
       telephone: undefined,
     }
+  }
+
+  let compteurIp = 0
+
+  /**
+   * POST public direct. Le serveur de développement est derrière le loopback : comme en production
+   * derrière nginx, il lit l'IP du visiteur dans `X-Forwarded-For`. Une IP distincte par appel évite
+   * que la limite IP (5 / 10 min) ne fasse échouer ces parcours pour une raison étrangère à leur objet.
+   */
+  async function posterMessageApi(
+    contact: { nom: string, email: string },
+    sujet: SujetMessage,
+    extra: Record<string, unknown> = {},
+  ): Promise<APIResponse> {
+    compteurIp += 1
+    emailsMessages.add(contact.email)
+    return apiPublique.post(`/api/public/${username}/messages`, {
+      headers: { 'X-Forwarded-For': `10.88.${Math.floor(compteurIp / 250)}.${(compteurIp % 250) + 1}` },
+      data: {
+        nom: contact.nom,
+        email: contact.email,
+        sujet,
+        message: 'Deux lignes d’aperçu suffisent pour l’aperçu du studio.',
+        siteWeb: '',
+        ...extra,
+      },
+    })
+  }
+
+  async function remplirFormulaire(contact: { nom: string, email: string }, message: string): Promise<void> {
+    await page.getByLabel('Nom complet', { exact: true }).fill(contact.nom)
+    await page.getByLabel('Email', { exact: true }).fill(contact.email)
+    await page.getByLabel('Message').fill(message)
   }
 
   async function compterMessages(email: string): Promise<number> {
@@ -161,52 +198,96 @@ test.describe.serial('Contact et Messages S7-bis', () => {
     }
   })
 
-  test('le honeypot rempli répond 400 VALIDATION sans créer de ligne (CA11)', async () => {
+  test('le message de succès reste affiché au-delà d’une seconde puis disparaît à la nouvelle saisie (régression watch)', async () => {
     await page.setViewportSize(MOBILE)
     await page.goto(`/${username}/contact`)
     await attendreHydration(page)
 
-    const contact = contactUnique('Honeypot Message')
+    const contact = contactUnique('Succès Persistant')
     emailsMessages.add(contact.email)
-    await page.getByLabel('Nom complet', { exact: true }).fill(contact.nom)
-    await page.getByLabel('Email', { exact: true }).fill(contact.email)
-    await page.getByLabel('Message').fill('Message d’un robot simulé.')
+    await remplirFormulaire(contact, 'Un message qui doit laisser sa confirmation visible.')
 
-    const siteWeb = page.locator('input[name="siteWeb"]')
-    await expect(siteWeb).toBeHidden()
-    await siteWeb.evaluate((element, valeur) => {
-      (element as HTMLInputElement).value = valeur
-      element.dispatchEvent(new Event('input', { bubbles: true }))
-    }, 'https://robot.example')
-
-    const envoiPromise = page.waitForResponse(reponse =>
+    const creationPromise = page.waitForResponse(reponse =>
       reponse.request().method() === 'POST'
       && new URL(reponse.url()).pathname === `/api/public/${username}/messages`,
     )
     await page.getByRole('button', { name: 'Envoyer mon message' }).click()
-    const envoi = await envoiPromise
-    expect(envoi.status()).toBe(400)
-    expect(((await envoi.json()) as ErreurCorps).data?.code).toBe('VALIDATION')
+    expect((await creationPromise).status()).toBe(201)
+
+    const succes = page.getByRole('status').filter({ hasText: TEXTE_SUCCES })
+    await expect(succes).toBeVisible()
+    // Seule une attente réelle prouve la persistance : le watch fautif effaçait le message au flush suivant.
+    await page.waitForTimeout(PERSISTANCE_SUCCES_MS)
+    await expect(succes).toBeVisible()
+    // Formulaire réinitialisé pendant que la confirmation reste affichée.
+    await expect(page.getByLabel('Nom complet', { exact: true })).toHaveValue('')
+    await expect(page.getByLabel('Email', { exact: true })).toHaveValue('')
+    expect(await compterMessages(contact.email)).toBe(1)
+
+    // Une nouvelle saisie remplace la confirmation (un seul message à l'écran).
+    await page.getByLabel('Nom complet', { exact: true }).fill('N')
+    await expect(succes).toHaveCount(0)
+  })
+
+  test('un honeypot rempli dans le navigateur n’envoie rien : aucun succès, aucune ligne créée (CA11)', async () => {
+    await page.setViewportSize(MOBILE)
+    await page.goto(`/${username}/contact`)
+    await attendreHydration(page)
+
+    const contact = contactUnique('Honeypot Navigateur')
+    emailsMessages.add(contact.email)
+    await remplirFormulaire(contact, 'Message d’un robot simulé.')
+    // Champ-piège : hors écran, exclu de l'ordre de tabulation et invisible aux lecteurs d'écran.
+    const siteWeb = page.getByLabel('Site web', { exact: true })
+    await expect(siteWeb).toHaveAttribute('tabindex', '-1')
+    await siteWeb.fill('https://robot.example')
+
+    let envois = 0
+    page.on('request', (requete) => {
+      if (requete.method() === 'POST' && new URL(requete.url()).pathname === `/api/public/${username}/messages`) {
+        envois += 1
+      }
+    })
+    await page.getByRole('button', { name: 'Envoyer mon message' }).click()
+
+    // Point de synchronisation déterministe : l'unique erreur affichée, jamais le message de succès.
+    await expect(page.getByRole('alert').filter({ hasText: TEXTE_ERREUR_FORMULAIRE })).toBeVisible()
+    await expect(page.getByRole('status').filter({ hasText: TEXTE_SUCCES })).toHaveCount(0)
+    expect(envois).toBe(0)
+    expect(await compterMessages(contact.email)).toBe(0)
+  })
+
+  test('le serveur refuse un honeypot rempli en 400 VALIDATION sans créer de ligne, même hors navigateur (CA11)', async () => {
+    const contact = contactUnique('Honeypot Serveur')
+
+    const reponse = await posterMessageApi(contact, 'autre', { siteWeb: 'https://robot.example' })
+
+    expect(reponse.status()).toBe(400)
+    expect(((await reponse.json()) as ErreurCorps).data?.code).toBe('VALIDATION')
+    expect(await compterMessages(contact.email)).toBe(0)
+  })
+
+  test('le serveur refuse un nom contenant un saut de ligne (injection d’en-tête) sans créer de ligne', async () => {
+    const contact = contactUnique('Injection')
+
+    const reponse = await posterMessageApi({ ...contact, nom: 'A\r\nBcc: attaquant@example.com' }, 'autre')
+
+    expect(reponse.status()).toBe(400)
+    expect(((await reponse.json()) as ErreurCorps).data?.code).toBe('VALIDATION')
     expect(await compterMessages(contact.email)).toBe(0)
   })
 
   test('la liste Studio Messages déplie, marque lu et met à jour le badge au retour (CA17, CA15)', async () => {
     const premier = contactUnique('Marie Ndzi')
     const second = contactUnique('Paul Essomba')
-    emailsMessages.add(premier.email)
-    emailsMessages.add(second.email)
 
-    const sujet = 'demande_information' as const
+    // Les messages des tests précédents (même vitrine) sont marqués lus : le compteur repart de zéro.
+    await db().query(
+      'UPDATE messages SET lu_le = now() WHERE lu_le IS NULL AND vitrine_id = (SELECT id FROM vitrines WHERE username = $1)',
+      [username],
+    )
     for (const contact of [premier, second]) {
-      const reponse = await apiPublique.post(`/api/public/${username}/messages`, {
-        data: {
-          nom: contact.nom,
-          email: contact.email,
-          sujet,
-          message: 'Deux lignes d’aperçu suffisent pour l’aperçu du studio.',
-          siteWeb: '',
-        },
-      })
+      const reponse = await posterMessageApi(contact, 'demande_information')
       expect(reponse.status(), await reponse.text()).toBe(201)
     }
 
@@ -221,7 +302,7 @@ test.describe.serial('Contact et Messages S7-bis', () => {
     await expect(page.getByRole('heading', { level: 1, name: 'Messages' })).toBeVisible()
     await expect(page.getByText('2 non lus', { exact: true })).toBeVisible()
 
-    const rangée = page.getByRole('article').filter({ hasText: premier.nom }).first()
+    const rangée = page.getByRole('listitem').filter({ hasText: premier.nom }).first()
     const boutonRangée = rangée.getByRole('button')
     await expect(boutonRangée).toHaveAttribute('aria-expanded', 'false')
     await boutonRangée.click()
@@ -242,9 +323,24 @@ test.describe.serial('Contact et Messages S7-bis', () => {
       }
     })
     await ouvrirStudio(page, '/studio/messages')
-    const rangéeRelue = page.getByRole('article').filter({ hasText: premier.nom }).first()
+    const rangéeRelue = page.getByRole('listitem').filter({ hasText: premier.nom }).first()
     await rangéeRelue.getByRole('button').first().click()
     await expect(rangéeRelue.getByRole('button').first()).toHaveAttribute('aria-expanded', 'true')
     expect(publicationsLu).toBe(0)
+  })
+
+  test('le dépliage affiche le libellé du sujet et jamais sa valeur technique (SUJET_LIBELLES)', async () => {
+    const contact = contactUnique('Libellé Sujet')
+    const reponse = await posterMessageApi(contact, 'question_avant_reservation')
+    expect(reponse.status(), await reponse.text()).toBe(201)
+
+    await ouvrirStudio(page, '/studio/messages')
+    const rangee = page.getByRole('listitem').filter({ hasText: contact.nom }).first()
+    await rangee.getByRole('button').click()
+
+    await expect(rangee.getByRole('button')).toHaveAttribute('aria-expanded', 'true')
+    await expect(rangee).toContainText(SUJET_LIBELLES.question_avant_reservation)
+    await expect(rangee).toContainText('Une question avant de réserver')
+    await expect(page.getByText('question_avant_reservation')).toHaveCount(0)
   })
 })

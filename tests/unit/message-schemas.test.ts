@@ -61,6 +61,43 @@ describe('schemaMessageCreate (strict)', () => {
     expect(schemaMessageCreate.safeParse({ ...corpsValide, nom: '   ' }).success).toBe(false)
   })
 
+  // Le nom finit dans l'objet et le corps d'un email au professionnel : un saut de ligne
+  // ou un caractère de contrôle permettrait d'injecter un en-tête (Bcc:) ou de falsifier le corps.
+  it.each([
+    ['CRLF', 'A\r\nBcc: x@y.test'],
+    ['LF', 'A\nBcc: x@y.test'],
+    ['CR', 'A\rBcc: x@y.test'],
+    ['séparateur de ligne U+2028', 'Marie\u2028Ndzi'],
+    ['séparateur de paragraphe U+2029', 'Marie\u2029Ndzi'],
+    ['tabulation', 'Marie\tNdzi'],
+    ['NUL', 'Marie\u0000Ndzi'],
+    ['BEL', 'Marie\u0007Ndzi'],
+    ['ESC', 'Marie\u001bNdzi'],
+    ['DEL', 'Marie\u007fNdzi'],
+    ['NEL U+0085', 'Marie\u0085Ndzi'],
+  ])('refuse un nom contenant %s', (_libelle, nom) => {
+    const resultat = schemaMessageCreate.safeParse({ ...corpsValide, nom })
+
+    expect(resultat.success).toBe(false)
+    if (!resultat.success) {
+      expect(resultat.error.issues.some((issue) => issue.path[0] === 'nom')).toBe(true)
+    }
+  })
+
+  it('refuse un saut de ligne au milieu du nom même quand les bords sont propres (le trim ne suffit pas)', () => {
+    expect(schemaMessageCreate.safeParse({ ...corpsValide, nom: '  Marie\r\nNdzi  ' }).success).toBe(false)
+  })
+
+  it.each([
+    'Marie Ndzi',
+    'Éloïse N’Guéma-Ekobo',
+    'Jean-Pierre O’Brien',
+    'Zoë Müller',
+    '李 小龍',
+  ])('accepte le nom normal %j', (nom) => {
+    expect(schemaMessageCreate.parse({ ...corpsValide, nom }).nom).toBe(nom)
+  })
+
   it('applique la borne CONTACT_NOM_MAX inclusive', () => {
     expect(schemaMessageCreate.safeParse({ ...corpsValide, nom: 'a'.repeat(CONTACT_NOM_MAX) }).success)
       .toBe(true)

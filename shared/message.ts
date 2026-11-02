@@ -20,6 +20,8 @@ export const SUJET_LIBELLES: Record<SujetMessage, string> = {
 }
 
 export const MESSAGE_MAX = 1000
+/** Plafond dur de la liste du studio : les plus récents d'abord (le compteur de non lus reste global). */
+export const MESSAGES_LISTE_MAX = 200
 export const MESSAGE_NOM_MAX = CONTACT_NOM_MAX
 export const MESSAGE_EMAIL_MAX = CONTACT_EMAIL_MAX
 /** Garde-fou d'affichage : un E.164 valide tient en 16 caractères, la borne reste souple. */

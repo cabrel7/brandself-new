@@ -55,6 +55,11 @@ const aujourdhui = dateLocaleAgenda(new Date(), fuseauEffectif.value)
 const dateSelectionnee = ref('')
 const creneauSelectionne = ref<string | null>(null)
 
+const moisCharge = computed(() => props.statut === 'success' && props.reponse !== null)
+const moisAUnJourDisponible = computed(() => props.creneauxParJour.size > 0)
+// Une seule carte à la fois : celle du jour n'existe que lorsqu'il y a quelque chose à choisir.
+const afficherCarteJour = computed(() => moisCharge.value && moisAUnJourDisponible.value)
+
 const joursDuMois = computed(() => {
   const [annee = 0, moisNumero = 1] = props.mois.split('-').map(Number)
   const nombreJours = new Date(Date.UTC(annee, moisNumero, 0)).getUTCDate()
@@ -66,6 +71,9 @@ const joursDuMois = computed(() => {
       libelle: dateAccessible(date),
       disponible: props.creneauxParJour.has(date),
       passe: date < aujourdhui,
+      courant: date === aujourdhui,
+      // Mois chargé : un jour futur sans créneau n'a rien à proposer.
+      indisponible: date < aujourdhui || (moisCharge.value && !props.creneauxParJour.has(date)),
     }
   })
 })
@@ -110,6 +118,15 @@ watch(() => props.creneauxParJour, (groupes) => {
 const titreMois = computed(() => libelleMoisAgenda(props.mois))
 const creneauxDuJour = computed(() => props.creneauxParJour.get(dateSelectionnee.value) ?? [])
 const dateSelectionneeLisible = computed(() => dateAccessible(dateSelectionnee.value))
+const titreJour = computed(() => {
+  const texte = new Intl.DateTimeFormat(LOCALE_FR, {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    timeZone: 'UTC',
+  }).format(dateCivile(dateSelectionnee.value))
+  return texte.charAt(0).toLocaleUpperCase(LOCALE_FR) + texte.slice(1)
+})
 const villeFuseau = computed(() => {
   const segments = fuseauEffectif.value.split('/')
   return (segments[segments.length - 1] ?? fuseauEffectif.value).replaceAll('_', ' ')
@@ -166,7 +183,7 @@ const dureeMinutes = computed(() => props.reponse?.service.dureeMin ?? null)
           <USkeleton class="h-(--cible-tactile) w-24" />
         </div>
         <div class="grid grid-cols-7 gap-1 sm:gap-2">
-          <USkeleton v-for="cellule in 35" :key="cellule" class="h-16 rounded-(--rayon-interne)" />
+          <USkeleton v-for="cellule in 35" :key="cellule" class="h-(--cible-tactile) rounded-(--rayon-interne)" />
         </div>
         <span class="sr-only">Chargement des créneaux</span>
       </div>
@@ -192,6 +209,7 @@ const dureeMinutes = computed(() => props.reponse?.service.dureeMin ?? null)
               color="neutral"
               square
               size="lg"
+              class="min-h-(--cible-tactile) min-w-(--cible-tactile)"
               aria-label="Mois précédent"
               :disabled="!peutReculer"
               @click="emit('changerMois', -1)"
@@ -203,6 +221,7 @@ const dureeMinutes = computed(() => props.reponse?.service.dureeMin ?? null)
               color="neutral"
               square
               size="lg"
+              class="min-h-(--cible-tactile) min-w-(--cible-tactile)"
               aria-label="Mois suivant"
               :disabled="!peutAvancer"
               @click="emit('changerMois', 1)"
@@ -220,13 +239,17 @@ const dureeMinutes = computed(() => props.reponse?.service.dureeMin ?? null)
             v-for="jour in joursDuMois"
             :key="jour.date"
             type="button"
-            class="relative flex min-h-11 min-w-0 flex-col items-center justify-center rounded-(--rayon-interne) border py-1 text-(length:--fs-14) transition-colors disabled:cursor-not-allowed disabled:opacity-50"
-            :class="dateSelectionnee === jour.date
-              ? 'border-accent bg-accent font-semibold text-sur-accent'
-              : jour.disponible
-                ? 'border-bordure bg-champ text-accent-texte hover:border-accent'
-                : 'border-bordure bg-champ text-encre hover:border-accent'"
-            :disabled="jour.passe"
+            class="relative flex min-h-(--cible-tactile) min-w-0 flex-col items-center justify-center rounded-(--rayon-interne) border py-1 text-(length:--fs-14) transition-colors focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:cursor-not-allowed disabled:border-transparent disabled:bg-transparent disabled:text-texte-secondaire"
+            :class="[
+              dateSelectionnee === jour.date
+                ? 'border-accent bg-accent font-semibold text-sur-accent'
+                : jour.disponible
+                  ? 'border-bordure bg-champ text-accent-texte hover:border-accent'
+                  : 'border-bordure bg-champ text-encre hover:border-accent',
+              { 'ring-2 ring-accent ring-offset-2 ring-offset-surface': jour.courant },
+            ]"
+            :disabled="jour.indisponible"
+            :aria-current="jour.courant ? 'date' : undefined"
             :aria-pressed="dateSelectionnee === jour.date"
             :aria-label="`${jour.libelle}${jour.disponible ? ', créneaux disponibles' : ''}`"
             @click="selectionnerJour(jour.date)"
@@ -266,10 +289,18 @@ const dureeMinutes = computed(() => props.reponse?.service.dureeMin ?? null)
       </template>
     </div>
 
-    <div class="min-w-0 rounded-(--rayon-carte) border border-bordure bg-surface p-6 md:p-8" aria-labelledby="agenda-jour-titre">
+    <div
+      v-if="afficherCarteJour"
+      class="min-w-0 rounded-(--rayon-carte) border border-bordure bg-surface p-6 md:p-8"
+      aria-labelledby="agenda-jour-titre"
+    >
       <div>
-        <h2 id="agenda-jour-titre" class="m-0 text-(length:--fs-24) leading-tight font-bold md:text-(length:--fs-32)">
-          {{ dateSelectionneeLisible }}
+        <h2
+          id="agenda-jour-titre"
+          :aria-label="dateSelectionneeLisible"
+          class="m-0 text-(length:--fs-24) leading-tight font-bold md:text-(length:--fs-32)"
+        >
+          {{ titreJour }}
         </h2>
         <p class="m-0 mt-1 text-(length:--fs-14) text-texte-secondaire" aria-live="polite">{{ resumeCreneaux }}</p>
       </div>

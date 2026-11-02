@@ -16,18 +16,20 @@ const liens = computed(() => ({
 function lienTel(numero: string): string {
   return `tel:${numero.replace(/[\s().-]/g, '')}`
 }
+
+const cartes = computed(() => [
+  { icone: 'i-ph-envelope-simple', libelle: 'Email', valeur: liens.value.email, href: liens.value.email ? `mailto:${liens.value.email}` : null },
+  { icone: 'i-ph-phone', libelle: 'Téléphone', valeur: liens.value.telephone, href: liens.value.telephone ? lienTel(liens.value.telephone) : null },
+  { icone: 'i-ph-whatsapp-logo', libelle: 'WhatsApp', valeur: props.vitrine.contact.whatsapp, href: null },
+  { icone: 'i-ph-map-pin', libelle: 'Cabinet', valeur: liens.value.cabinet, href: null },
+].filter(carte => carte.valeur))
 </script>
 
 <template>
   <div class="flex flex-col gap-6">
     <ul class="m-0 list-none p-0">
       <li
-        v-for="carte in [
-          { icone: 'i-ph-envelope-simple', libelle: 'Email', valeur: liens.email, href: liens.email ? `mailto:${liens.email}` : null },
-          { icone: 'i-ph-phone', libelle: 'Téléphone', valeur: liens.telephone, href: liens.telephone ? lienTel(liens.telephone) : null },
-          { icone: 'i-ph-whatsapp-logo', libelle: 'WhatsApp', valeur: vitrine.contact.whatsapp, href: null },
-          { icone: 'i-ph-map-pin', libelle: 'Cabinet', valeur: liens.cabinet, href: null },
-        ].filter(carte => carte.valeur)"
+        v-for="carte in cartes"
         :key="carte.libelle"
         class="flex items-center gap-4 border-b border-bordure py-4 last:border-b-0"
       >
@@ -39,7 +41,7 @@ function lienTel(numero: string): string {
           <a
             v-if="carte.href"
             :href="carte.href"
-            class="break-all text-base font-bold text-encre no-underline underline-offset-4 hover:underline"
+            class="break-all text-base font-bold text-encre underline underline-offset-4 hover:text-accent-texte"
           >{{ carte.valeur }}</a>
           <p v-else class="m-0 break-all text-base font-bold text-encre">{{ carte.valeur }}</p>
         </div>
@@ -69,7 +71,7 @@ function lienTel(numero: string): string {
         :to="`/${vitrine.username}/agenda`"
         class="mt-3 inline-flex min-h-(--cible-tactile) items-center gap-1 font-semibold text-accent-texte hover:text-encre"
       >
-        Voir l’agenda <span aria-hidden="false" class="font-normal">›</span>
+        Voir l’agenda <UIcon name="i-ph-caret-right" class="size-4" aria-hidden="true" />
       </NuxtLink>
     </div>
   </div>

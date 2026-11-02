@@ -10,6 +10,7 @@ const servicesHref = computed(() => `/${props.username}/services`)
 const realisationsHrefComputed = computed(() => realisationsHref(props.username))
 // S7-bis : « Réserver » mène à la page Agenda, seul endroit où choisir un créneau.
 const reserverHref = computed(() => `/${props.username}/agenda`)
+const reserverActif = computed(() => route.path === reserverHref.value)
 
 const liens = computed(() => {
   const items: { libelle: string, to: string }[] = []
@@ -44,12 +45,15 @@ const liens = computed(() => {
         >
           {{ lien.libelle }}
         </NuxtLink>
-        <a
-          :href="reserverHref"
-          class="inline-flex min-h-(--cible-tactile) items-center rounded-(--rayon) bg-accent px-4 py-2 text-(length:--fs-14) font-medium text-sur-accent no-underline"
+        <NuxtLink
+          v-if="contenus.agenda"
+          :to="reserverHref"
+          :aria-current="reserverActif ? 'page' : undefined"
+          class="inline-flex min-h-(--cible-tactile) items-center rounded-(--rayon) bg-accent px-4 py-2 text-(length:--fs-14) font-medium text-sur-accent no-underline transition-colors hover:bg-[color-mix(in_srgb,var(--accent)_88%,var(--encre))] focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-accent"
+          :class="{ 'ring-2 ring-encre ring-offset-2 ring-offset-fond': reserverActif }"
         >
           Réserver
-        </a>
+        </NuxtLink>
       </nav>
     </div>
   </header>

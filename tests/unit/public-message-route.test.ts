@@ -3,13 +3,15 @@ import type { H3Event } from 'h3'
 import { fakeEvent } from '../support/h3'
 import {
   MESSAGE_PUBLIC_LIMIT,
+  MESSAGE_VITRINE_LIMIT,
 } from '../../shared/limites'
 import { NotFoundError, TooManyRequestsError } from '../../server/exceptions/http'
 
 // Contrat S7-bis §4.4 : la route publique des messages est fine et ORDONNÉE,
 // copie de `reservations/index.post.ts` :
-//   IP (fail-closed, MESSAGE_PUBLIC_LIMIT) → Zod strict → limite contact
-//   (fail-closed) → service transactionnel → resource → 201.
+//   IP (fail-closed, MESSAGE_PUBLIC_LIMIT) → plafond par vitrine (fail-closed,
+//   MESSAGE_VITRINE_LIMIT) → Zod strict → limite contact (fail-closed) → service
+//   transactionnel → resource → 201.
 // Toute garde qui échoue interrompt la chaîne : jamais d'écriture.
 
 const { createMessage, enforceContactLimit, enforceLimit } = vi.hoisted(() => ({
@@ -63,10 +65,10 @@ interface AppelRoute {
   promesse: Promise<unknown>
 }
 
-async function appelerRoute(corps: unknown): Promise<AppelRoute> {
+async function appelerRoute(corps: unknown, username = 'dr-cabrel'): Promise<AppelRoute> {
   const event = fakeEvent({
     method: 'POST',
-    params: { username: 'dr-cabrel' },
+    params: { username },
     body: JSON.stringify(corps),
   })
   Object.defineProperty(event.node.req.socket, 'remoteAddress', {
@@ -90,7 +92,7 @@ afterEach(() => {
 })
 
 describe('POST public messages : ordre des gardes', () => {
-  it('peut écrire : IP → Zod → limite contact → service → resource 201', async () => {
+  it('peut écrire : IP → vitrine → Zod → limite contact → service → resource 201', async () => {
     const { event, promesse } = await appelerRoute(CONTACT)
 
     const corps = await promesse
@@ -98,14 +100,25 @@ describe('POST public messages : ordre des gardes', () => {
     expect(corps).toEqual({ message: { id: 'message-1', sujet: 'question_avant_reservation' } })
     expect(event.node.res.statusCode).toBe(201)
     expect(createMessage).toHaveBeenCalledTimes(1)
-    expect(enforceLimit).toHaveBeenCalledTimes(1)
+    expect(enforceLimit).toHaveBeenCalledTimes(2)
     expect(enforceContactLimit).toHaveBeenCalledTimes(1)
+    const [ordreIp, ordreVitrine] = enforceLimit.mock.invocationCallOrder
+    expect(ordreVitrine).toBeGreaterThan(ordreIp ?? 0)
+    expect(enforceContactLimit.mock.invocationCallOrder[0]).toBeGreaterThan(ordreVitrine ?? 0)
     expect(createMessage.mock.invocationCallOrder[0]).toBeGreaterThan(
       enforceContactLimit.mock.invocationCallOrder[0] ?? 0,
     )
-    expect(enforceContactLimit.mock.invocationCallOrder[0]).toBeGreaterThan(
-      enforceLimit.mock.invocationCallOrder[0] ?? 0,
-    )
+  })
+
+  it('plafonne par vitrine avec MESSAGE_VITRINE_LIMIT, clé sur le username normalisé, en fail-closed', async () => {
+    const { promesse } = await appelerRoute(CONTACT, '  Dr-Cabrel ')
+    await promesse
+
+    const appelVitrine = enforceLimit.mock.calls[1] as unknown[] as [string, number, number, Record<string, unknown>]
+    expect(appelVitrine[0]).toBe('message-vitrine:dr-cabrel')
+    expect(appelVitrine[1]).toBe(MESSAGE_VITRINE_LIMIT.limit)
+    expect(appelVitrine[2]).toBe(MESSAGE_VITRINE_LIMIT.windowS)
+    expect(appelVitrine[3]).toEqual({ failClosed: true })
   })
 
   it('key la limite IP avec l’adresse résolue par l’aide anti-spoofing et passe les options fail-closed', async () => {
@@ -123,7 +136,8 @@ describe('POST public messages : ordre des gardes', () => {
     const { default: handler } = await routeMessage()
     await handler(event)
 
-    expect(enforceLimit).toHaveBeenCalledOnce()
+    // Deux appels : l'IP d'abord (vérifiée ici), le plafond de vitrine ensuite.
+    expect(enforceLimit).toHaveBeenCalledTimes(2)
     const [cle, limite, fenetre, options] = enforceLimit.mock.calls[0] as unknown[] as [
       string, number, number, Record<string, unknown>,
     ]
@@ -136,7 +150,7 @@ describe('POST public messages : ordre des gardes', () => {
 
   it('interroge la limite contact après Zod, avec l’espace et le téléphone absent normalisé à null', async () => {
     const { telephone: _omis, ...sansTelephone } = CONTACT
-    await appelerRoute(sansTelephone)
+    await (await appelerRoute(sansTelephone)).promesse
 
     expect(enforceContactLimit).toHaveBeenCalledOnce()
     expect(enforceContactLimit).toHaveBeenCalledWith(
@@ -148,7 +162,7 @@ describe('POST public messages : ordre des gardes', () => {
   })
 
   it('transmet le téléphone du visiteur à la limite contact quand il est fourni', async () => {
-    await appelerRoute(CONTACT)
+    await (await appelerRoute(CONTACT)).promesse
 
     expect(enforceContactLimit).toHaveBeenCalledWith(
       'message-contact',
@@ -184,6 +198,44 @@ describe('POST public messages : limites fail-closed', () => {
     expect(erreur.statusCode).toBe(429)
     expect(erreur.code).toBe('TROP_DE_REQUETES')
     expect(event.node.res.getHeader('retry-after')).toBe('120')
+    expect(enforceContactLimit).not.toHaveBeenCalled()
+    expect(createMessage).not.toHaveBeenCalled()
+  })
+
+  it('refuse en 429 + Retry-After au plafond de vitrine, sans lire le corps ni toucher la limite contact ni le service', async () => {
+    enforceLimit
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce(new TooManyRequestsError(3_000))
+
+    const { event, promesse } = await appelerRoute(CONTACT)
+    const erreur = await erreurH3(promesse)
+
+    expect(erreur.statusCode).toBe(429)
+    expect(erreur.code).toBe('TROP_DE_REQUETES')
+    expect(event.node.res.getHeader('retry-after')).toBe('3000')
+    expect(enforceContactLimit).not.toHaveBeenCalled()
+    expect(createMessage).not.toHaveBeenCalled()
+  })
+
+  it('n’incrémente pas le plafond de vitrine quand la limite IP refuse (la limite IP passe en premier)', async () => {
+    enforceLimit.mockRejectedValueOnce(new TooManyRequestsError(120))
+
+    await erreurH3((await appelerRoute(CONTACT)).promesse)
+
+    expect(enforceLimit).toHaveBeenCalledTimes(1)
+    expect(enforceLimit.mock.calls[0]?.[0]).toMatch(/^message-publique:/)
+  })
+
+  it('ne passe rien au service quand le plafond de vitrine est indisponible (503 LIMITEUR_INDISPONIBLE)', async () => {
+    const { ServiceUnavailableError } = await import('../../server/exceptions/http')
+    enforceLimit
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce(new ServiceUnavailableError('LIMITEUR_INDISPONIBLE'))
+
+    const erreur = await erreurH3((await appelerRoute(CONTACT)).promesse)
+
+    expect(erreur.statusCode).toBe(503)
+    expect(erreur.code).toBe('LIMITEUR_INDISPONIBLE')
     expect(enforceContactLimit).not.toHaveBeenCalled()
     expect(createMessage).not.toHaveBeenCalled()
   })

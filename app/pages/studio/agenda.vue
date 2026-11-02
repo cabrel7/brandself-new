@@ -61,7 +61,7 @@ function plurielDemandes(nombre: number): string {
           <h1 class="m-0 text-(length:--fs-32) leading-tight font-bold text-encre">
             Agenda
           </h1>
-          <p class="m-0 mt-1 text-base text-texte-secondaire" aria-live="polite">
+          <p class="m-0 mt-1 text-base text-texte-secondaire">
             {{ compteursOnglets.aVenir }} à venir<template v-if="compteursOnglets.demandes > 0"> · {{ compteursOnglets.demandes }} {{ plurielDemandes(compteursOnglets.demandes) }}</template>
           </p>
         </div>

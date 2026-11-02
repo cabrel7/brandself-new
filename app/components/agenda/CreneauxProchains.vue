@@ -64,7 +64,7 @@ function lienReservation(debut: string) {
     </p>
 
     <NuxtLink
-      :to="`/${username}#agenda`"
+      :to="{ path: `/${username}/agenda`, query: { service: serviceSlug } }"
       class="mt-4 inline-flex min-h-(--cible-tactile) items-center gap-2 font-semibold text-accent-texte hover:text-encre"
     >
       Voir tout l’agenda

@@ -125,10 +125,9 @@ const {
         @supprimer="supprimerIndisponibilite"
       />
 
-      <div class="sticky bottom-4">
+      <div class="sticky bottom-0 bg-fond py-3">
         <UButton
           label="Enregistrer"
-          icon="i-ph-floppy-disk"
           size="xl"
           block
           class="min-h-(--cible-tactile)"
