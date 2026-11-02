@@ -20,7 +20,8 @@ const TITRE_ITEMS = [
 ]
 const PAYS_ITEMS = PAYS.map((pays) => ({ label: pays.label, value: pays.code }))
 
-const METIER_ITEMS = [...METIERS_SUGGERES]
+// Saisie libre : les suggestions sont typées `string[]` pour que `v-model` accepte toute chaîne.
+const METIER_ITEMS: string[] = [...METIERS_SUGGERES]
 const racine = useTemplateRef<HTMLFormElement>('racine')
 
 const nomAffiche = computed(() =>
