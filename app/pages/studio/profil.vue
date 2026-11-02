@@ -32,6 +32,12 @@ function surPhotoTelechargee(media: MediaDTO): void {
   viderErreur('photoMediaId')
 }
 
+// « Utiliser ce texte » ne touche que le formulaire : rien n'est enregistré avant « Enregistrer ».
+function utiliserTexteIa(texte: string): void {
+  form.bio = texte
+  viderErreur('bio')
+}
+
 // Adresse
 const { affichee, hote, complete } = useAdressePublique(() => vitrine.value?.username)
 const { copy, copied, isSupported } = useClipboard({ source: complete, copiedDuring: 2000 })
@@ -138,12 +144,15 @@ async function validerAdresse(): Promise<void> {
         </p>
       </UFormField>
 
-      <UFormField label="Présentation" name="bio" :error="erreurs.bio">
-        <UTextarea v-model="form.bio" :rows="6" :maxlength="BIO_MAX" class="w-full" @update:model-value="viderErreur('bio')" />
-        <p class="m-0 mt-2 text-(length:--fs-14) text-texte-secondaire">
-          {{ form.bio.length }} sur {{ BIO_MAX }} caractères
-        </p>
-      </UFormField>
+      <div class="flex flex-col gap-3">
+        <UFormField label="Présentation" name="bio" :error="erreurs.bio">
+          <UTextarea v-model="form.bio" :rows="6" :maxlength="BIO_MAX" class="w-full" @update:model-value="viderErreur('bio')" />
+          <p class="m-0 mt-2 text-(length:--fs-14) text-texte-secondaire">
+            {{ form.bio.length }} sur {{ BIO_MAX }} caractères
+          </p>
+        </UFormField>
+        <StudioAmeliorationIa :texte="form.bio" :message-masque="erreurGenerale !== ''" @utiliser="utiliserTexteIa" />
+      </div>
 
       <USeparator />
 
