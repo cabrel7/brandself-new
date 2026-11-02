@@ -96,6 +96,15 @@ Les textes entre crochets (`[Prix]`, `[numéro]`, `[Témoignage d'un patient]`) 
 - `.env.example` : ajouter `IA_FOURNISSEUR=` (anthropic | openai | faux | aucun ; `openai` = tout fournisseur compatible OpenAI), `IA_CLE_API=`, `IA_MODELE=` (obligatoire avec `openai`), `IA_BASE_URL=` (optionnelle, HTTPS) ; `CLAUDE.md` §8 : `@anthropic-ai/sdk`.
 - Page Confidentialité : mentionner les données envoyées au fournisseur d'IA (métier, ville, pays, textes de présentation).
 
+### Essai réel du fournisseur d'IA (2026-11-02)
+
+- Gemini via l'adaptateur compatible OpenAI : **fonctionne de bout en bout** (`IA_FOURNISSEUR=openai`, `IA_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai/`, `IA_MODELE=gemini-3.5-flash-lite`) : génération `terminee`, ~9 s, 2218 tokens en entrée / 857 en sortie. Le schéma d'outil est accepté par Gemini.
+- Modèles : `gemini-2.5-flash` n'est plus ouvert aux nouveaux comptes (404) ; `gemini-3.8-flash` trop lent (>90 s, hors budget 25 s) ; `gemini-3.5-flash-lite` (2,3 s) et `gemini-3.1-flash-lite` (4,5 s) conviennent.
+- **À corriger — prompt v2** (en base, `prompts_ia`, nouvelle version via migration/seed) : le modèle écrit parfois sans accents (« reference », « sante », « exercant ») dans les services et la présentation ; ajouter une consigne explicite de français correct avec accents, puis retester ; comparer `gemini-3.1-flash-lite`.
+- Une première réponse a été rejetée par le garde-fou `faits_inventes` avant la bonne (second appel facturé) : normal, à surveiller via `tokens_*`.
+- **e2e S8 déterministes** (panne, lente, invalide, invente) : exigent `IA_FOURNISSEUR=faux` (faux fournisseur) ; avec Gemini configuré dans `.env` ils ne sont pas rejouables tels quels.
+- Migrations 0018 et 0019 appliquées à la base de dev (sur accord de l'utilisateur).
+
 ### À rendre configurable depuis le futur panel admin (règle de l'utilisateur : aucune valeur en dur)
 
 Aujourd'hui ce sont des constantes nommées dans `shared/` ou `server/config/` (jamais de littéral dans un composant ou une route), modifiables seulement par déploiement :
