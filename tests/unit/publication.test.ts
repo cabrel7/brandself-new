@@ -49,14 +49,16 @@ describe('computeMissingForPublication (U6)', () => {
 
 describe('computeNextStep (U6)', () => {
   it.each([
-    [{ hasPhoto: false, servicesActifs: 0, realisationsActives: 0 }, 'photo'],
-    [{ hasPhoto: false, servicesActifs: 3, realisationsActives: 3 }, 'photo'],
-    [{ hasPhoto: true, servicesActifs: 0, realisationsActives: 0 }, 'service'],
-    [{ hasPhoto: true, servicesActifs: 0, realisationsActives: 4 }, 'service'],
-    [{ hasPhoto: true, servicesActifs: 1, realisationsActives: 0 }, 'realisation'],
-    [{ hasPhoto: true, servicesActifs: 5, realisationsActives: 0 }, 'realisation'],
-    [{ hasPhoto: true, servicesActifs: 1, realisationsActives: 1 }, null],
-    [{ hasPhoto: true, servicesActifs: 9, realisationsActives: 9 }, null],
+    [{ hasPhoto: false, servicesActifs: 0, disponibilites: 0, realisationsActives: 0 }, 'photo'],
+    [{ hasPhoto: false, servicesActifs: 3, disponibilites: 3, realisationsActives: 3 }, 'photo'],
+    [{ hasPhoto: true, servicesActifs: 0, disponibilites: 0, realisationsActives: 0 }, 'service'],
+    [{ hasPhoto: true, servicesActifs: 0, disponibilites: 0, realisationsActives: 4 }, 'service'],
+    [{ hasPhoto: true, servicesActifs: 1, disponibilites: 0, realisationsActives: 0 }, 'disponibilites'],
+    [{ hasPhoto: true, servicesActifs: 1, disponibilites: 0, realisationsActives: 4 }, 'disponibilites'],
+    [{ hasPhoto: true, servicesActifs: 1, disponibilites: 2, realisationsActives: 0 }, 'realisation'],
+    [{ hasPhoto: true, servicesActifs: 5, disponibilites: 1, realisationsActives: 0 }, 'realisation'],
+    [{ hasPhoto: true, servicesActifs: 1, disponibilites: 2, realisationsActives: 1 }, null],
+    [{ hasPhoto: true, servicesActifs: 9, disponibilites: 9, realisationsActives: 9 }, null],
   ])('should answer for %j', async (etat, attendu) => {
     const { computeNextStep } = await vitrinesService()
 

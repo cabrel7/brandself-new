@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import Redis from 'ioredis'
 import { Worker } from 'bullmq'
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { FILE_IA, IA_JOB_ID_PREFIXE, IA_PURGE_CRON, IA_PURGE_SCHEDULER_ID, IA_PURGE_TZ, JOBS, iaJobDataSchema } from '../../shared/jobs'
 import { ENTREE_ONBOARDING_DEMO } from '../unit/support/ia-fixtures'
 import { createUser, insertGeneration } from './support/fabriques'
@@ -58,6 +58,14 @@ beforeAll(() => {
 
 beforeEach(async () => {
   await reinitialiserIa()
+})
+
+afterEach(async () => {
+  // Un worker laissé vivre d'un test à l'autre avale le job du test suivant
+  // avant son assertion de comptage : on ferme à chaque fois.
+  await worker?.close()
+  worker = undefined
+  providerFaux = undefined
 })
 
 afterAll(async () => {
