@@ -1,6 +1,6 @@
 # PROJECT_STATE.md — Brandself
 
-Dernière mise à jour : **2026-11-02** · Phase : **reprise sprint par sprint** · S0–S7 validés · **S7-bis implémenté** (agenda/contact/messages) sur la branche `sprint/s6-s7-s7bis` (commits `86afce1`, `0e9868f`) : lint/typecheck verts, unit 1647, intégration 612, e2e `messages` 8/8, `studio-agenda` 8/8, `reservation`/`studio-auth` verts. **Build prod OK 2026-11-02 (19m16s, pic 2,1 Go)**. **Reste** : run e2e complet (tué par manque de mémoire, à relancer machine libre), captures 390/768/1280 vs maquettes, puis merge. Éléments non bloquants reportés à la passe d'optimisation avant prod : voir §7 « Avant mise en prod ».
+Dernière mise à jour : **2026-11-02** · Phase : **reprise sprint par sprint** · S0–S7 validés · **S7-bis implémenté** (agenda/contact/messages) sur la branche `sprint/s6-s7-s7bis` (commits `86afce1`, `0e9868f`) : lint/typecheck verts, unit 1647, intégration 612, e2e `messages` 8/8, `studio-agenda` 8/8, `reservation`/`studio-auth` verts. **Build prod OK 2026-11-02 (19m16s, pic 2,1 Go)**. **e2e 2026-11-02 par groupes : `e2e/api` 199/199, pages/services/réalisations/liens/témoignages 69/69 (après correctif de `services.spec.ts`), messages 8/8, studio-agenda 8/8, reservation et captures verts.** **Reste** : comparer captures PC/tablette et Contact/Studio aux maquettes (agenda mobile fait : 3 écarts en §7), puis merge. Éléments non bloquants reportés à la passe d'optimisation avant prod : voir §7 « Avant mise en prod ».
 
 À traiter plus tard (décision 2026-10-31) : sur l'accueil, ne garder à terme que **l'agenda du jour courant** dans le bloc ; l'agenda complet vit sur la page publique `/agenda`. Ne pas modifier le bloc actuel pendant S7-bis.
 
@@ -80,6 +80,8 @@ Les textes entre crochets (`[Prix]`, `[numéro]`, `[Témoignage d'un patient]`) 
 - Plafond par vitrine appliqué avant Zod : un attaquant multi-IP peut bloquer 1 h les messages d'une vitrine. `listOwnMessages` sans pagination au-delà de 200.
 - Hook `.claude/hooks/subagent-test-gate.sh` : `vitest related` lance aussi le projet integration sans `DATABASE_URL` (« Startup Error ») ; correctif possible `--project unit`, non appliqué (garde de sécurité, accord requis).
 - Base `brandself_dev` désynchronisée : à recréer (non fait). `PAIEMENT_EN_LIGNE=false` à confirmer dans `.env.example`.
+- Écarts maquette « Page Agenda · Mobile » (capture 390 px, 2026-11-02) : titre du mois sur 2 lignes (1 ligne en maquette), créneaux sur 2 colonnes (3 en maquette), pied de page sur 2 lignes (1 rangée gauche/droite en maquette). Captures PC/tablette et pages Contact/Studio à comparer de la même façon.
+- e2e en dev : l'hydratation à froid du studio dépasse 25 s ; les tests qui attendent une redirection client ne doivent pas recharger la page avant ~70 s (corrigé dans `services.spec.ts`).
 - Dev : derrière `nuxt dev`, l'IP du socket est « inconnue » (proxy) ; les e2e remettent à zéro le compteur `limite:message-publique:*` (`reinitialiserLimites`). Hero ne transmet plus `debut` vers `/agenda`.
 - Décisions utilisateur en attente : valider les écarts maquette et décisions par défaut (#16–67 du journal), merger `sprint/s6-s7-s7bis`, relancer ou non le `vite preview` d'agent-office tué par erreur.
 
