@@ -88,6 +88,7 @@ Dans toute l'interface, les textes, les commentaires et les noms visibles : **vi
 | `unstorage` (driver `fs`) | stockage des médias derrière une interface unique (disque aujourd'hui, S3/R2 plus tard) ; `createStorage` direct pour rester testable hors Nitro |
 | `h3` (1.15.11, épinglé sur la version de Nitro) | dépendance directe : `server/utils/api.ts`, `validation.ts` et les routes l'importent explicitement (pnpm strict) ; doit suivre la version embarquée par Nuxt |
 | `@js-temporal/polyfill` | calcul des créneaux dans le fuseau de la vitrine, y compris les transitions DST et les heures locales ambiguës ou inexistantes (S7) |
+| `@anthropic-ai/sdk` | adaptateur Anthropic de l'interface `IaProvider` (S8) : SDK officiel, TypeScript, maintenu ; sortie forcée par outil. Il apporte `@opentelemetry/api` (peer optionnel résolu par pnpm, aucune version existante modifiée). Clé et modèle par `runtimeConfig`/`IA_*`, jamais en dur |
 
 ## 9. Documents
 
