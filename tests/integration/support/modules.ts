@@ -18,3 +18,12 @@ export const listesRegles = () => import('../../../server/services/listes-regles
 export const vitrineAcces = () => import('../../../server/services/vitrine-acces')
 export const ressourceRealisation = () => import('../../../server/resources/realisation')
 export const ressourceSeo = () => import('../../../server/resources/seo')
+// S6 : liens (même patron que les autres listes).
+export const liensService = () => import('../../../server/services/liens')
+export const ressourceLien = () => import('../../../server/resources/lien')
+// S7 : imports paresseux pour conserver une collecte RED lisible tant que les modules n'existent pas.
+export const agendaService = () => import('../../../server/services/agenda')
+export const creneauxService = () => import('../../../server/services/creneaux')
+export const reservationsService = () => import('../../../server/services/reservations')
+export const demandesService = () => import('../../../server/services/demandes')
+export const ressourceReservation = () => import('../../../server/resources/agenda')

@@ -6,7 +6,7 @@ import type { ServiceCreateInput, ServiceUpdateInput } from '../../shared/schema
 import { AUTRES_SERVICES_MAX, SERVICE_SLUG_MAX, SERVICE_SLUG_REGEX, VEDETTE_MAX } from '../../shared/services'
 import { ConflictError, NotFoundError, UnprocessableError, ValidationError } from '../exceptions/http'
 import { db } from '../utils/db'
-import { PG_FOREIGN_KEY_VIOLATION, PG_UNIQUE_VIOLATION, readPgError } from '../utils/pg-error'
+import { PG_FOREIGN_KEY_VIOLATION, PG_RESTRICT_VIOLATION, PG_UNIQUE_VIOLATION, readPgError } from '../utils/pg-error'
 import type { MediaRow } from './medias'
 import {
   checkServiceCoherence,
@@ -323,10 +323,21 @@ export async function updateService(
 
 export async function deleteService(userId: string, id: string): Promise<void> {
   const vitrineId = await requireVitrineId(userId)
-  const [deleted] = await db
-    .delete(services)
-    .where(and(eq(services.id, id), eq(services.vitrineId, vitrineId)))
-    .returning({ imageMediaId: services.imageMediaId })
+  let deleted: { imageMediaId: string | null } | undefined
+  try {
+    ;[deleted] = await db
+      .delete(services)
+      .where(and(eq(services.id, id), eq(services.vitrineId, vitrineId)))
+      .returning({ imageMediaId: services.imageMediaId })
+  } catch (error) {
+    const { code, constraint } = readPgError(error)
+    const usedByAgenda = constraint === 'reservations_service_id_services_id_fk'
+      || constraint === 'demandes_service_id_services_id_fk'
+    if (usedByAgenda && (code === PG_RESTRICT_VIOLATION || code === PG_FOREIGN_KEY_VIOLATION)) {
+      throw new ConflictError('SERVICE_UTILISE')
+    }
+    throw error
+  }
   if (!deleted) throw new NotFoundError('SERVICE_INTROUVABLE')
   await cleanupImage(userId, deleted.imageMediaId)
 }

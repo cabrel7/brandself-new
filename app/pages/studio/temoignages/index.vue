@@ -1,203 +1,96 @@
 <script setup lang="ts">
-interface Temoignage {
-  id: string
-  vitrineId: string
-  slug: string
-  auteur: string
-  fonction?: string
-  texte: string
-  enVedette: boolean
-  ordre: number
-  actif: boolean
-}
+import { resumeListeTemoignages } from '#shared/temoignages'
 
-const temoignages = ref<Temoignage[]>([])
-const chargement = ref(true)
-const erreur = ref('')
+definePageMeta({ layout: 'studio', ssr: false })
+useSeoMeta({ title: 'Vos témoignages — Brandself' })
 
-async function chargerTemoignages() {
-  chargement.value = true
-  try {
-    const reponse = await $fetch<{ temoignages: Temoignage[] }>('/api/studio/temoignages')
-    temoignages.value = reponse.temoignages
-  } catch {
-    erreur.value = 'Impossible de charger les témoignages.'
-  } finally {
-    chargement.value = false
-  }
-}
+const liste = useTemplateRef<HTMLElement>('liste')
+const {
+  temoignages, resume, enChargement, enErreur, absente, vide, refresh,
+  message, annonce, occupes, basculerVisibilite, deplacer,
+} = useStudioTemoignages(liste)
 
-async function supprimerTemoignage(slug: string) {
-  if (!confirm('Supprimer ce témoignage ?')) return
-  try {
-    const reponse = await fetch(`/api/studio/temoignages/${slug}`, { method: 'DELETE' })
-    if (!reponse.ok) throw new Error('Suppression refusée')
-    await chargerTemoignages()
-  } catch {
-    erreur.value = 'Impossible de supprimer le témoignage.'
-  }
-}
-
-onMounted(() => {
-  chargerTemoignages()
-})
+const resumeTexte = computed(() =>
+  resumeListeTemoignages(resume.value.visibles, resume.value.enVedette, resume.value.vedetteMax),
+)
 </script>
 
 <template>
-  <div class="studio">
-    <BsTopNav actif="temoignages" />
+  <div>
+    <UEmpty
+      v-if="absente"
+      icon="i-ph-storefront"
+      title="Créons d’abord votre vitrine"
+      description="Vos témoignages apparaissent ici dès que votre vitrine existe."
+      :as="{ title: 'h1' }"
+      :actions="[{ label: 'Créer ma vitrine', to: '/onboarding', size: 'xl' }]"
+    />
 
-    <main class="studio__contenu">
-      <section class="studio__en-tete">
-        <div class="studio__en-tete__groupe">
-          <h1>Témoignages</h1>
-          <BsButton variant="principal" to="/studio/temoignages/nouveau">Ajouter un témoignage</BsButton>
+    <UEmpty
+      v-else-if="enErreur"
+      icon="i-ph-warning-circle"
+      title="Vos témoignages ne s’affichent pas"
+      description="Nous n’avons pas pu les charger. Vos témoignages sont intacts."
+      :as="{ title: 'h1' }"
+      :actions="[{ label: 'Réessayer', size: 'xl', onClick: () => refresh() }]"
+    />
+
+    <StudioVide
+      v-else-if="vide"
+      icon="i-ph-chat-centered-text"
+      title="Donnez la parole à vos clients"
+      description="Ajoutez un premier témoignage : un client qui vous recommande rassure les visiteurs."
+      action-label="Ajouter un témoignage"
+      action-to="/studio/temoignages/nouveau"
+    />
+
+    <template v-else>
+      <header class="flex items-start justify-between gap-4">
+        <div class="min-w-0">
+          <h1 class="m-0 text-(length:--fs-32) leading-tight font-bold text-encre">
+            Témoignages
+          </h1>
+          <p v-if="!enChargement" class="m-0 mt-1 text-base text-texte-secondaire">
+            {{ resumeTexte }}
+          </p>
         </div>
-        <p class="studio__sous-titre">
-          {{ temoignages.length }} témoignage{{ temoignages.length > 1 ? 's' : '' }}
-          · {{ temoignages.filter((t) => t.enVedette).length }} en vedette
-        </p>
-      </section>
+        <UButton label="Ajouter" to="/studio/temoignages/nouveau" class="shrink-0" />
+      </header>
 
-      <p v-if="erreur" class="erreur" role="alert">{{ erreur }}</p>
+      <p v-if="message" role="alert" class="message-erreur mt-4">
+        <UIcon name="i-ph-warning-circle" class="size-5 shrink-0" aria-hidden="true" />
+        <span>{{ message }}</span>
+      </p>
 
-      <div v-if="temoignages.length > 0" class="temoignages__grille">
-        <div v-for="temoignage in temoignages" :key="temoignage.id" class="temoignages__carte">
-          <div class="temoignages__carte__en-tete">
-            <BsBadge :label="temoignage.fonction || 'Sans fonction'" />
-            <BsBadge v-if="temoignage.enVedette" variant="vedette">En vedette</BsBadge>
-          </div>
-          <h3 class="temoignages__carte__titre">{{ temoignage.auteur }}</h3>
-          <p class="temoignages__carte__texte">{{ temoignage.texte }}</p>
-          <div class="temoignages__carte__actions">
-            <BsButton variant="lien" :to="`/studio/temoignages/${temoignage.slug}`">Modifier</BsButton>
-            <BsButton variant="lien" @click="supprimerTemoignage(temoignage.slug)">Supprimer</BsButton>
-          </div>
-          <div class="temoignages__carte__interrupteurs">
-            <label class="interrupteur-label">
-              <BsSwitch v-model="temoignage.enVedette" label="En vedette" />
-            </label>
-            <label class="interrupteur-label">
-              <BsSwitch v-model="temoignage.actif" label="Visible sur la vitrine" />
-            </label>
+      <div v-if="enChargement" role="status" class="mt-4 flex flex-col border-t border-bordure">
+        <span class="sr-only">Chargement de vos témoignages</span>
+        <div v-for="n in 3" :key="n" class="flex items-center gap-3 border-b border-bordure py-3" aria-hidden="true">
+          <USkeleton class="size-14 shrink-0 rounded-(--rayon-interne)" />
+          <div class="flex min-w-0 flex-1 flex-col gap-2">
+            <USkeleton class="h-5 w-2/3" />
+            <USkeleton class="h-4 w-1/3" />
           </div>
         </div>
       </div>
 
-      <div v-else class="temoignages__vide">
-        <p>Aucun témoignage pour le moment.</p>
-        <BsButton variant="principal" to="/studio/temoignages/nouveau">Créer un premier témoignage</BsButton>
-      </div>
-    </main>
+      <ul v-else ref="liste" class="m-0 mt-4 list-none border-t border-bordure p-0">
+        <StudioTemoignageLigne
+          v-for="temoignage in temoignages"
+          :key="temoignage.id"
+          :temoignage="temoignage"
+          :occupe="occupes.includes(temoignage.id)"
+          :triable="temoignages.length > 1"
+          @basculer="(actif) => basculerVisibilite(temoignage.id, actif)"
+          @deplacer="(sens) => deplacer(temoignage.id, sens)"
+        />
+      </ul>
+      <p class="sr-only" aria-live="polite">
+        {{ annonce }}
+      </p>
 
-    <BsBottomNav actif="temoignages" />
+      <p v-if="!enChargement" class="m-0 mt-6 text-base text-texte-secondaire">
+        Glissez les témoignages pour changer leur ordre. L’interrupteur masque un témoignage sans le supprimer.
+      </p>
+    </template>
   </div>
 </template>
-
-<style scoped>
-.studio {
-  display: flex;
-  flex-direction: column;
-  min-height: 100vh;
-  background-color: var(--fond);
-}
-.studio__contenu {
-  flex: 1;
-  padding: 1.5rem;
-  max-width: 28rem;
-  margin: 0 auto;
-}
-.studio__en-tete {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 1rem;
-  margin-bottom: 1.5rem;
-  flex-wrap: wrap;
-}
-.studio__en-tete__groupe {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-.studio__en-tete h1 {
-  font-family: var(--font-titre);
-  font-size: 2rem;
-  font-weight: 600;
-  color: var(--encre);
-  margin: 0;
-}
-.studio__sous-titre {
-  color: var(--texte-secondaire);
-  font-size: 0.95rem;
-  margin: 0;
-}
-.erreur {
-  color: var(--erreur);
-  font-size: 0.9rem;
-  margin-bottom: 1rem;
-}
-.temoignages__grille {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 1rem;
-}
-@media (min-width: 64rem) {
-  .temoignages__grille {
-    grid-template-columns: repeat(2, 1fr);
-  }
-}
-.temoignages__carte {
-  background-color: var(--surface);
-  border: 1px solid var(--bordure);
-  border-radius: 1rem;
-  padding: 1.25rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-}
-.temoignages__carte__en-tete {
-  display: flex;
-  gap: 0.5rem;
-  flex-wrap: wrap;
-}
-.temoignages__carte__titre {
-  font-family: var(--font-titre);
-  font-size: 1.25rem;
-  font-weight: 600;
-  color: var(--encre);
-  margin: 0 0 0.5rem 0;
-}
-.temoignages__carte__texte {
-  font-size: 0.9rem;
-  color: var(--encre);
-  line-height: 1.5;
-  margin: 0;
-}
-.temoignages__carte__actions {
-  display: flex;
-  gap: 0.5rem;
-  margin-top: auto;
-}
-.temoignages__carte__interrupteurs {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  margin-top: 1rem;
-  padding-top: 1rem;
-  border-top: 1px solid var(--bordure);
-}
-.interrupteur-label {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  font-size: 0.85rem;
-  color: var(--encre);
-  cursor: pointer;
-}
-.temoignages__vide {
-  text-align: center;
-  padding: 3rem 1rem;
-  color: var(--texte-secondaire);
-}
-</style>

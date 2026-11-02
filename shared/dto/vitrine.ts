@@ -60,10 +60,11 @@ export interface VitrinePubliqueDTO {
   seo: { titre: string, description: string }
 }
 
-/** Nombre d'éléments visibles (`actif`) par liste : alimente la navigation publique. */
+/** Nombre d'éléments visibles (`actif`) par liste, et présence d'un agenda public : navigation. */
 export interface ContenusPublicsDTO {
   services: number
   realisations: number
+  agenda: boolean
 }
 
 /** Enveloppe de GET /api/public/:username. `vitrine` reste la liste blanche S2. */

@@ -82,7 +82,7 @@ interface ReponsePublicDetail {
 
 interface ReponseVitrinePublique {
   vitrine: Record<string, unknown>
-  contenus: { services: number, realisations: number }
+  contenus: { services: number, realisations: number, agenda: boolean }
 }
 
 test.describe.serial('réalisations — API studio et publique (S4-CA44 à CA46)', () => {
@@ -570,7 +570,8 @@ test.describe.serial('réalisations — API studio et publique (S4-CA44 à CA46)
         expect(Object.keys(corps.vitrine).sort()).toEqual(CLES_VITRINE_PUBLIQUE)
         expect(corps.contenus.realisations).toBe(1)
         expect(corps.contenus.services).toBeGreaterThanOrEqual(1)
-        expect(Object.keys(corps.contenus).sort()).toEqual(['realisations', 'services'])
+        expect(corps.contenus.agenda).toBe(false)
+        expect(Object.keys(corps.contenus).sort()).toEqual(['agenda', 'realisations', 'services'])
       } finally {
         await session.api.delete(`/api/studio/services/${serviceId}`)
       }

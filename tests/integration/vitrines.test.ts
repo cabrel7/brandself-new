@@ -3,7 +3,7 @@ import { eq, sql } from 'drizzle-orm'
 import { Client } from 'pg'
 import { describe, expect, it, vi } from 'vitest'
 import { db } from '../../server/utils/db'
-import { medias, vitrines } from '../../shared/db/schema'
+import { disponibilites, medias, vitrines } from '../../shared/db/schema'
 import { mediaSrcset } from '../../shared/medias'
 import { schemaVitrineUpdate } from '../../shared/schemas/vitrine'
 import { USERNAME_CHECK_LIMIT } from '../../shared/limites'
@@ -22,6 +22,7 @@ import {
   insertVitrineRow,
   type UserRow,
 } from './support/fabriques'
+import { insererDisponibilite } from './support/agenda'
 import {
   mediasService,
   ressourceVitrine,
@@ -831,8 +832,8 @@ describe('vitrines — compteurs de navigation publique (S4-CA41)', () => {
     'paysLibelle', 'photo', 'prenom', 'seo', 'titre', 'username', 'ville',
   ].sort()
 
-  // Contrat attendu (L3) : getPublicVitrinePage(rawUsername) -> { vitrine: VitrineAvecPhoto, contenus: { services, realisations } }
-  //                        toContenusPublicsResource({ services, realisations }) -> ContenusPublicsDTO
+  // Contrat attendu (L3) : getPublicVitrinePage(rawUsername) -> { vitrine: VitrineAvecPhoto, contenus: { services, realisations, agenda } }
+  //                        toContenusPublicsResource({ services, realisations, agenda }) -> ContenusPublicsDTO
   async function vitrinePubliee(username = 'dr-test') {
     const user = await createUser()
     const vitrine = await insertVitrineRow(user.id, { username, publiee: true })
@@ -854,8 +855,8 @@ describe('vitrines — compteurs de navigation publique (S4-CA41)', () => {
 
     const page = await getPublicVitrinePage('dr-test')
 
-    expect(page.contenus).toEqual({ services: 5, realisations: 3 })
-    expect(toContenusPublicsResource(page.contenus)).toEqual({ services: 5, realisations: 3 })
+    expect(page.contenus).toEqual({ services: 5, realisations: 3, agenda: false })
+    expect(toContenusPublicsResource(page.contenus)).toEqual({ services: 5, realisations: 3, agenda: false })
     expect(Object.keys(toVitrinePublicResource(page.vitrine)).sort()).toEqual(CLES_DTO_PUBLIC)
     expect(page.vitrine.vitrine.username).toBe('dr-test')
   })
@@ -864,10 +865,27 @@ describe('vitrines — compteurs de navigation publique (S4-CA41)', () => {
     const { getPublicVitrinePage } = await vitrinesService()
     const { vitrine } = await vitrinePubliee()
 
-    expect((await getPublicVitrinePage('dr-test')).contenus).toEqual({ services: 0, realisations: 0 })
+    expect((await getPublicVitrinePage('dr-test')).contenus).toEqual({ services: 0, realisations: 0, agenda: false })
     await insertService(vitrine.id, { actif: false })
     await insertRealisation(vitrine.id, { actif: false })
-    expect((await getPublicVitrinePage('dr-test')).contenus).toEqual({ services: 0, realisations: 0 })
+    expect((await getPublicVitrinePage('dr-test')).contenus).toEqual({ services: 0, realisations: 0, agenda: false })
+  })
+
+  it('CA41 S7 should flag the agenda only when a disponibilite and a reservable rdv/accompaniment service both exist', async () => {
+    const { getPublicVitrinePage } = await vitrinesService()
+    const { vitrine } = await vitrinePubliee()
+
+    await insertService(vitrine.id)
+    expect((await getPublicVitrinePage('dr-test')).contenus.agenda).toBe(false)
+
+    await insererDisponibilite(vitrine.id)
+    expect((await getPublicVitrinePage('dr-test')).contenus.agenda).toBe(true)
+
+    await insertService(vitrine.id, { type: 'atelier', reservable: false })
+    expect((await getPublicVitrinePage('dr-test')).contenus.agenda).toBe(true)
+
+    await db.delete(disponibilites).where(eq(disponibilites.vitrineId, vitrine.id))
+    expect((await getPublicVitrinePage('dr-test')).contenus.agenda).toBe(false)
   })
 
   it('CA41 should normalise the username and answer VITRINE_INTROUVABLE for an unpublished, unknown or invalid one', async () => {

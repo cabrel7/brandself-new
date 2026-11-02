@@ -1,9 +1,10 @@
 <script setup lang="ts">
-const { entrees, estActive } = useStudioNav()
+const { entrees, estActive, estEcranEnfant } = useStudioNav()
 </script>
 
 <template>
   <nav
+    v-if="!estEcranEnfant"
     aria-label="Navigation du studio"
     class="fixed inset-x-0 bottom-0 z-20 grid grid-cols-5 border-t border-bordure bg-fond pb-[env(safe-area-inset-bottom)] md:hidden"
   >

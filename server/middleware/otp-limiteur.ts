@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto'
 import { OTP_WINDOW_SECONDS, checkOtpLimit } from '../../shared/limiteur'
+import { getClientIp } from '../utils/client-ip'
 import { redis } from '../utils/redis'
 
 const OTP_PATHS = new Set([
@@ -57,7 +58,7 @@ export default defineEventHandler(async (event) => {
     }
   }
 
-  const ip = getRequestIP(event, { xForwardedFor: true }) ?? 'inconnue'
+  const ip = getClientIp(event)
 
   const [ipCount, identifierCount] = await Promise.all([
     increment(`otp:ip:${ip}`),

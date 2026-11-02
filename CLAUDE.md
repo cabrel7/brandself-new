@@ -87,6 +87,7 @@ Dans toute l'interface, les textes, les commentaires et les noms visibles : **vi
 | Vitest, Playwright (1.62) | tests ; version épinglée sur la révision Chromium déjà en cache |
 | `unstorage` (driver `fs`) | stockage des médias derrière une interface unique (disque aujourd'hui, S3/R2 plus tard) ; `createStorage` direct pour rester testable hors Nitro |
 | `h3` (1.15.11, épinglé sur la version de Nitro) | dépendance directe : `server/utils/api.ts`, `validation.ts` et les routes l'importent explicitement (pnpm strict) ; doit suivre la version embarquée par Nuxt |
+| `@js-temporal/polyfill` | calcul des créneaux dans le fuseau de la vitrine, y compris les transitions DST et les heures locales ambiguës ou inexistantes (S7) |
 
 ## 9. Documents
 

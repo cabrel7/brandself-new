@@ -36,3 +36,4 @@ ISSUES.log
 # Playwright
 test-results/
 playwright-report/
+capture-*.png

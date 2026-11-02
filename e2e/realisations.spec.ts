@@ -65,20 +65,20 @@ test.describe('vitrine publique dr-cabrel (S4-CA50 à CA53, CA55)', () => {
     await expect(vitrine.voirToutes).toHaveClass(/text-accent-texte/)
   })
 
-  test('CA52 navigation à 1280 : « Services », « Réalisations » et « Contact » visibles', async ({ page }) => {
+  test('CA52 navigation à 1280 : « Services », « Réalisations », « Agenda » et « Contact » visibles', async ({ page }) => {
     await page.setViewportSize(PC)
     const vitrine = new VitrineRealisations(page, 'dr-cabrel')
     await vitrine.gotoAccueil()
-    for (const nom of ['Services', 'Réalisations', 'Contact']) {
+    for (const nom of ['Services', 'Réalisations', 'Agenda', 'Contact']) {
       await expect(vitrine.lienNav(nom)).toBeVisible()
     }
   })
 
-  test('CA52 navigation à 768 : les 3 liens tiennent sans débordement horizontal', async ({ page }) => {
+  test('CA52 navigation à 768 : les 4 liens tiennent sans débordement horizontal', async ({ page }) => {
     await page.setViewportSize(TABLETTE)
     const vitrine = new VitrineRealisations(page, 'dr-cabrel')
     await vitrine.gotoAccueil()
-    for (const nom of ['Services', 'Réalisations', 'Contact']) {
+    for (const nom of ['Services', 'Réalisations', 'Agenda', 'Contact']) {
       await expect(vitrine.lienNav(nom)).toBeVisible()
     }
     await sansDebordementHorizontal(page)
@@ -140,7 +140,7 @@ test.describe('vitrine publique dr-cabrel (S4-CA50 à CA53, CA55)', () => {
     expect(a!.width).toBeGreaterThanOrEqual(CIBLE_TACTILE_PX)
     // Autres : lien « Voir toutes… » ; bandeau vers /reserver.
     await expect(page.getByRole('link', { name: /Voir toutes les réalisations \(3\)/ })).toBeVisible()
-    await expect(page.getByRole('link', { name: 'Prendre rendez-vous' })).toHaveAttribute('href', '/dr-cabrel/reserver')
+    await expect(page.getByRole('link', { name: 'Prendre rendez-vous' })).toHaveAttribute('href', '/dr-cabrel/agenda')
     await sansDebordementHorizontal(page)
     // CA55 : SEO.
     const seo = (await (await page.request.get(`/api/public/dr-cabrel/realisations/${SLUG_DEMO}`)).json()) as { realisation: { seo: { titre: string, description: string } } }

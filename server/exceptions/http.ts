@@ -27,10 +27,27 @@ export const ERROR_MESSAGES: Record<ErrorCode, string> = {
   SERVICE_INTROUVABLE: 'Ce service est introuvable.',
   REALISATION_INTROUVABLE: 'Cette réalisation est introuvable.',
   TEMOINAGE_INTROUVABLE: 'Ce témoignage est introuvable.',
+  LIEN_INTROUVABLE: 'Ce lien est introuvable.',
+  LIEN_COHERENCE: 'Ce type de lien n’accepte pas ces informations.',
+  DISPONIBILITES_INVALIDES: 'Ces disponibilités se chevauchent ou sont invalides.',
+  INDISPONIBILITE_INTROUVABLE: 'Cette indisponibilité est introuvable.',
+  INDISPONIBILITE_EXISTANTE: 'Cette date est déjà indisponible.',
+  RESERVATION_INTROUVABLE: 'Cette réservation est introuvable.',
+  MESSAGE_INTROUVABLE: 'Ce message est introuvable.',
+  CRENEAU_INDISPONIBLE: 'Ce créneau n’est pas disponible.',
+  CRENEAU_PRIS: 'Ce créneau vient d’être réservé. Choisissez-en un autre.',
+  TRANSITION_RESERVATION_INVALIDE: 'Cette réservation ne peut pas passer à ce statut.',
+  CONFIRMATION_RESERVATION_INVALIDE: 'Ce lien de confirmation est invalide.',
+  CONFIRMATION_EXPIREE: 'Ce lien de confirmation a expiré.',
+  DEMANDE_NON_AUTORISEE: 'Ce service doit être réservé avec un créneau.',
+  DEMANDE_INTROUVABLE: 'Cette demande est introuvable.',
+  TRANSITION_DEMANDE_INVALIDE: 'Cette demande ne peut pas passer à ce statut.',
+  SERVICE_UTILISE: 'Ce service est lié à une réservation ou une demande. Masquez-le plutôt que de le supprimer.',
   VEDETTE_COMPLETE: `Vous avez déjà ${VEDETTE_MAX} éléments en vedette. Retirez-en un pour en mettre un autre en avant.`,
   ORDRE_INVALIDE: 'L’ordre envoyé n’est plus à jour. Rechargez la page et réessayez.',
   PAIEMENT_EN_LIGNE_INDISPONIBLE: 'Le paiement en ligne n’est pas encore disponible. Choisissez le règlement sur place.',
   TROP_DE_REQUETES: 'Trop de tentatives. Réessayez dans quelques instants.',
+  LIMITEUR_INDISPONIBLE: 'Le formulaire est temporairement indisponible. Réessayez dans quelques instants.',
   ERREUR_INTERNE: 'Une erreur est survenue de notre côté. Réessayez dans un instant.',
 }
 
@@ -109,5 +126,17 @@ export class UnsupportedMediaTypeError extends DomainError {
 export class TooManyRequestsError extends DomainError {
   constructor(public readonly retryAfter: number) {
     super('TROP_DE_REQUETES', ERROR_MESSAGES.TROP_DE_REQUETES, 429, { retryAfter })
+  }
+}
+
+export class GoneError extends DomainError {
+  constructor(code: ErrorCode, data?: ErrorExtra) {
+    super(code, fromCode(code).message, 410, data)
+  }
+}
+
+export class ServiceUnavailableError extends DomainError {
+  constructor(code: ErrorCode, data?: ErrorExtra) {
+    super(code, fromCode(code).message, 503, data)
   }
 }

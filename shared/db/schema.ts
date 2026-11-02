@@ -1,5 +1,5 @@
-import { sql } from 'drizzle-orm'
-import { boolean, check, index, integer, pgTable, text, timestamp, uniqueIndex } from 'drizzle-orm/pg-core'
+import { desc, sql } from 'drizzle-orm'
+import { boolean, check, date, index, integer, pgTable, text, time, timestamp, uniqueIndex } from 'drizzle-orm/pg-core'
 
 // Tables gérées par Better Auth (source des champs : @better-auth/core dist/db/schema).
 // Propriétés = noms de modèles Better Auth ; colonnes = français sans accents (PROJECT_CONTEXT.md §11).
@@ -131,9 +131,9 @@ export const vitrines = pgTable(
     seoDescription: text('seo_description'),
     sectionsMasquees: text('sections_masquees').array().notNull().default([]),
     fuseau: text('fuseau').notNull().default('Africa/Douala'),
-    pasCreneauMin: integer('pas_creneau_min').notNull().default(15),
-    preavisHeures: integer('preavis_heures').notNull().default(24),
-    horizonJours: integer('horizon_jours').notNull().default(30),
+    pasCreneauMin: integer('pas_creneau_min').notNull().default(30),
+    preavisHeures: integer('preavis_heures').notNull().default(2),
+    horizonJours: integer('horizon_jours').notNull().default(60),
     publieeLe: timestamp('publiee_le', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
@@ -152,6 +152,9 @@ export const vitrines = pgTable(
       'vitrines_username_format_check',
       sql`char_length(${table.username}) BETWEEN 3 AND 30 AND ${table.username} ~ '^[a-z0-9]+(-[a-z0-9]+)*$'`,
     ),
+    check('vitrines_pas_creneau_min_check', sql`${table.pasCreneauMin} IN (15, 30, 60)`),
+    check('vitrines_preavis_heures_check', sql`${table.preavisHeures} BETWEEN 0 AND 720`),
+    check('vitrines_horizon_jours_check', sql`${table.horizonJours} BETWEEN 1 AND 365`),
   ],
 )
 
@@ -329,13 +332,15 @@ export const temoignages = pgTable(
   },
   (table) => [
     index('temoignages_vitrine_id_idx').on(table.vitrineId),
-    uniqueIndex('temoignages_slug_idx').on(table.slug),
+    uniqueIndex('temoignages_vitrine_id_slug_unique').on(table.vitrineId, table.slug),
     index('temoignages_actif_idx').on(table.actif),
   ],
 )
 
 // Un lien publié sur une vitrine (site externe, WhatsApp, email, téléphone, autre vitrine...).
 // Les colonnes sont en français sans accents (PROJECT_CONTEXT.md §11).
+// `clics` compte tous les clics ; `clics_semaine` est remis à zéro au premier clic d'une
+// nouvelle semaine (repère : `semaine_debut`, lundi ISO — migration 0012, S6).
 export const liens = pgTable(
   'liens',
   {
@@ -349,13 +354,237 @@ export const liens = pgTable(
     type: text('type').notNull(), // libre | whatsapp | reseau | email | telephone | vitrine
     ordre: integer('ordre').notNull().default(0),
     clics: integer('clics').notNull().default(0),
+    clicsSemaine: integer('clics_semaine').notNull().default(0),
+    semaineDebut: date('semaine_debut', { mode: 'string' }).notNull().default(sql`CURRENT_DATE`),
     actif: boolean('actif').notNull().default(true),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
     index('liens_vitrine_id_idx').on(table.vitrineId),
-    uniqueIndex('liens_slug_idx').on(table.slug),
+    // Slug unique PAR VITRINE (comme services/réalisations) : les slugs publics
+    // sont toujours scopés par username (`/[username]/liens/[slug]`), un slug
+    // identique sur deux vitrines est donc légitime.
+    uniqueIndex('liens_vitrine_id_slug_unique').on(table.vitrineId, table.slug),
     index('liens_actif_idx').on(table.actif),
+  ],
+)
+
+// S7 : plages hebdomadaires locales. Une plage ne traverse jamais minuit ; les chevauchements
+// sont refusés par le service lors du remplacement atomique du planning.
+export const disponibilites = pgTable(
+  'disponibilites',
+  {
+    id: text('id').primaryKey(),
+    vitrineId: text('vitrine_id')
+      .notNull()
+      .references(() => vitrines.id, { onDelete: 'cascade' }),
+    jourSemaine: integer('jour_semaine').notNull(),
+    debut: time('debut').notNull(),
+    fin: time('fin').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('disponibilites_vitrine_id_jour_idx').on(table.vitrineId, table.jourSemaine, table.debut),
+    check('disponibilites_jour_semaine_check', sql`${table.jourSemaine} BETWEEN 1 AND 7`),
+    check('disponibilites_plage_check', sql`${table.debut} < ${table.fin}`),
+  ],
+)
+
+// Une indisponibilité retire toute la date locale dans le fuseau de la vitrine.
+export const indisponibilites = pgTable(
+  'indisponibilites',
+  {
+    id: text('id').primaryKey(),
+    vitrineId: text('vitrine_id')
+      .notNull()
+      .references(() => vitrines.id, { onDelete: 'cascade' }),
+    date: date('date', { mode: 'string' }).notNull(),
+    raison: text('raison'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex('indisponibilites_vitrine_id_date_unique').on(table.vitrineId, table.date),
+    check('indisponibilites_raison_check', sql`${table.raison} IS NULL OR char_length(${table.raison}) <= 200`),
+  ],
+)
+
+// Le jeton de confirmation n'est jamais persisté en clair. L'exclusion GiST des plages actives
+// est ajoutée par le SQL de 0015, Drizzle ne sachant pas exprimer une contrainte EXCLUDE partielle.
+export const reservations = pgTable(
+  'reservations',
+  {
+    id: text('id').primaryKey(),
+    vitrineId: text('vitrine_id')
+      .notNull()
+      .references(() => vitrines.id, { onDelete: 'cascade' }),
+    serviceId: text('service_id')
+      .notNull()
+      .references(() => services.id, { onDelete: 'restrict' }),
+    nom: text('nom').notNull(),
+    email: text('email').notNull(),
+    telephone: text('telephone').notNull(),
+    note: text('note'),
+    motifAnnulation: text('motif_annulation'),
+    debut: timestamp('debut', { withTimezone: true }).notNull(),
+    fin: timestamp('fin', { withTimezone: true }).notNull(),
+    statut: text('statut').notNull().default('en_attente'),
+    paiementChoisi: text('paiement_choisi').notNull().default('sur_place'),
+    paiementStatut: text('paiement_statut').notNull().default('non_requis'),
+    rappelEmail: boolean('rappel_email').notNull().default(false),
+    confirmationTokenHash: text('confirmation_token_hash').notNull(),
+    confirmationExpireLe: timestamp('confirmation_expire_le', { withTimezone: true }).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('reservations_vitrine_id_debut_idx').on(table.vitrineId, table.debut),
+    index('reservations_service_id_idx').on(table.serviceId),
+    index('reservations_vitrine_id_statut_idx').on(table.vitrineId, table.statut),
+    uniqueIndex('reservations_confirmation_token_hash_unique').on(table.confirmationTokenHash),
+    check('reservations_plage_check', sql`${table.debut} < ${table.fin}`),
+    check('reservations_statut_check', sql`${table.statut} IN ('en_attente', 'confirmee', 'annulee', 'terminee', 'refusee')`),
+    check('reservations_paiement_choisi_check', sql`${table.paiementChoisi} = 'sur_place'`),
+    check('reservations_paiement_statut_check', sql`${table.paiementStatut} = 'non_requis'`),
+    check('reservations_note_check', sql`${table.note} IS NULL OR char_length(${table.note}) <= 1000`),
+    check(
+      'reservations_motif_annulation_check',
+      sql`${table.motifAnnulation} IS NULL OR char_length(${table.motifAnnulation}) <= 1000`,
+    ),
+    check('reservations_confirmation_hash_check', sql`${table.confirmationTokenHash} ~ '^[a-f0-9]{64}$'`),
+  ],
+)
+
+export const demandes = pgTable(
+  'demandes',
+  {
+    id: text('id').primaryKey(),
+    vitrineId: text('vitrine_id')
+      .notNull()
+      .references(() => vitrines.id, { onDelete: 'cascade' }),
+    serviceId: text('service_id')
+      .notNull()
+      .references(() => services.id, { onDelete: 'restrict' }),
+    nom: text('nom').notNull(),
+    email: text('email').notNull(),
+    telephone: text('telephone').notNull(),
+    message: text('message'),
+    statut: text('statut').notNull().default('nouvelle'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('demandes_vitrine_id_created_at_idx').on(table.vitrineId, table.createdAt),
+    index('demandes_service_id_idx').on(table.serviceId),
+    index('demandes_vitrine_id_statut_idx').on(table.vitrineId, table.statut),
+    check('demandes_statut_check', sql`${table.statut} IN ('nouvelle', 'en_cours', 'traitee', 'refusee')`),
+    check('demandes_message_check', sql`${table.message} IS NULL OR char_length(${table.message}) <= 1000`),
+  ],
+)
+
+// S7-bis : un message envoyé depuis la page Contact d'une vitrine publiée. Les coordonnées
+// du visiteur sont des colonnes typées (jamais du JSON) ; `lu_le` suit le pattern
+// `confirmation_expire_le` (date du dépliage au studio, idempotent). La source des sujets
+// côté application est shared/message.ts (SUJETS_MESSAGE) ; les bornes sont recopiées en
+// dur (CONTACT_NOM_MAX/CONTACT_EMAIL_MAX/MESSAGE_MAX) : garder synchronisées.
+export const messages = pgTable(
+  'messages',
+  {
+    id: text('id').primaryKey(),
+    vitrineId: text('vitrine_id')
+      .notNull()
+      .references(() => vitrines.id, { onDelete: 'cascade' }),
+    nom: text('nom').notNull(),
+    email: text('email').notNull(),
+    telephone: text('telephone'),
+    sujet: text('sujet').notNull(),
+    message: text('message').notNull(),
+    luLe: timestamp('lu_le', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    // Liste du professionnel, plus récents d'abord ; l'index partiel couvre le compteur de non lus.
+    index('messages_vitrine_id_cree_le_idx').on(table.vitrineId, desc(table.createdAt)),
+    index('messages_non_lus_idx').on(table.vitrineId, desc(table.createdAt)).where(sql`${table.luLe} IS NULL`),
+    check(
+      'messages_sujet_check',
+      sql`${table.sujet} IN ('question_avant_reservation','demande_information','suivi_reservation','autre')`,
+    ),
+    check('messages_nom_check', sql`char_length(${table.nom}) BETWEEN 1 AND 120`),
+    check('messages_email_check', sql`char_length(${table.email}) <= 254 AND ${table.email} ~ '^\\S+@\\S+'`),
+    check('messages_telephone_check', sql`${table.telephone} IS NULL OR ${table.telephone} ~ '^\\+\\d+$'`),
+    check('messages_message_check', sql`char_length(${table.message}) BETWEEN 1 AND 1000`),
+  ],
+)
+
+// Outbox des courriels transactionnels : l'événement est écrit dans la même transaction que
+// la réservation ou la demande. Les types sont recopiés depuis shared/jobs.ts.
+export const emailsTransactionnels = pgTable(
+  'emails_transactionnels',
+  {
+    id: text('id').primaryKey(),
+    type: text('type').notNull(),
+    entiteType: text('entite_type').notNull(),
+    entiteId: text('entite_id').notNull(),
+    statut: text('statut').notNull().default('en_attente'),
+    tentatives: integer('tentatives').notNull().default(0),
+    prochaineTentative: timestamp('prochaine_tentative', { withTimezone: true }).defaultNow(),
+    erreurCode: text('erreur_code'),
+    envoyeLe: timestamp('envoye_le', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex('emails_transactionnels_entite_evenement_unique').on(
+      table.entiteType,
+      table.entiteId,
+      table.type,
+    ),
+    index('emails_transactionnels_pending_idx')
+      .on(table.prochaineTentative, table.createdAt)
+      .where(sql`${table.statut} = 'en_attente'`),
+    check(
+      'emails_transactionnels_type_check',
+      sql`${table.type} IN (
+        'reservation_professionnel_nouvelle',
+        'reservation_visiteur_recue',
+        'reservation_visiteur_confirmee',
+        'reservation_visiteur_annulee',
+        'reservation_visiteur_refusee',
+        'demande_professionnel_nouvelle',
+        'demande_visiteur_recue',
+        'message_professionnel_nouvelle'
+      )`,
+    ),
+    check(
+      'emails_transactionnels_entite_type_check',
+      sql`${table.entiteType} IN ('reservation', 'demande', 'message')`,
+    ),
+    check(
+      'emails_transactionnels_entite_coherence_check',
+      sql`(${table.entiteType} = 'reservation' AND ${table.type} LIKE 'reservation_%')
+        OR (${table.entiteType} = 'demande' AND ${table.type} LIKE 'demande_%')
+        OR (${table.entiteType} = 'message' AND ${table.type} LIKE 'message_%')`,
+    ),
+    check(
+      'emails_transactionnels_statut_check',
+      sql`${table.statut} IN ('en_attente', 'en_cours', 'envoye', 'echec')`,
+    ),
+    check(
+      'emails_transactionnels_tentatives_check',
+      sql`${table.tentatives} BETWEEN 0 AND 5`,
+    ),
+    check(
+      'emails_transactionnels_erreur_code_check',
+      sql`${table.erreurCode} IS NULL OR (
+        char_length(${table.erreurCode}) BETWEEN 1 AND 64
+        AND ${table.erreurCode} ~ '^[A-Z0-9_]+$'
+      )`,
+    ),
+    check(
+      'emails_transactionnels_envoye_le_check',
+      sql`(${table.statut} = 'envoye') = (${table.envoyeLe} IS NOT NULL)`,
+    ),
   ],
 )

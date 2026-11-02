@@ -319,10 +319,13 @@ test.describe.serial('studio des services — vitrine fraîche (S3-CA45, CA46, C
     // Le limiteur de Better Auth (100 req/min/IP en mémoire, 429 sur get-session) peut être saturé par les
     // specs précédentes : l'application affiche alors « Un incident est survenu » au lieu de rediriger.
     // On recharge jusqu'à ce que la fenêtre se vide (60 s au plus).
+    // La redirection est faite côté client (studio en `ssr: false`) : à froid, l'hydratation du studio
+    // dépasse 25 s en développement. Chaque tentative la laisse donc aboutir avant de recharger.
+    test.setTimeout(240_000)
     await expect(async () => {
       await p?.goto('/studio/services')
-      await expect(p!).toHaveURL(/\/connexion/, { timeout: 8_000 })
-    }).toPass({ timeout: 90_000, intervals: [5_000] })
+      await expect(p!).toHaveURL(/\/connexion/, { timeout: 70_000 })
+    }).toPass({ timeout: 200_000, intervals: [5_000] })
     await sansSession?.close()
   })
 })

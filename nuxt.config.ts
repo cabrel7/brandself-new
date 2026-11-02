@@ -8,9 +8,8 @@ const { googleActif, boiteOtpDev, paiementEnLigne } =loadDrapeauxPublics(process
 
 export default defineNuxtConfig({
   // `nuxt-phosphor-icons` (doublon de @nuxt/icon, aucun usage, auto-import
-  // `getIconList` jamais résolu) et `nuxt-qrcode` (aucun usage avant S6) sont
-  // retirés : ils ralentissaient le démarrage de `pnpm dev`.
-  modules: ['@nuxt/eslint', '@nuxt/fonts', '@nuxtjs/better-auth', '@nuxtjs/seo', '@nuxt/image', '@nuxt/icon/module', 'dayjs-nuxt', '@vueuse/nuxt/module', '@nuxt/ui'],
+  // `getIconList` jamais résolu) est retiré : il ralentissait le démarrage de `pnpm dev`.
+  modules: ['@nuxt/eslint', '@nuxt/fonts', '@nuxtjs/better-auth', '@nuxtjs/seo', '@nuxt/image', '@nuxt/icon/module', 'dayjs-nuxt', '@vueuse/nuxt/module', '@nuxt/ui', 'nuxt-qrcode'],
   css: ['~/assets/css/main.css'],
   // Pas de mode sombre en v1 : évite la classe `dark` selon la préférence système.
   ui: { colorMode: false },

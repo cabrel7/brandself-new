@@ -39,6 +39,7 @@ jobs:
       DATABASE_URL: postgresql://brandself:brandself@localhost:5432/brandself_test
       REDIS_URL: redis://localhost:6379/15
       NUXT_BETTER_AUTH_SECRET: secret-de-test-au-moins-trente-deux-caracteres
+      RESEND_API_KEY: re_ci_test_non_secret
     steps:
       - uses: actions/checkout@v4
 

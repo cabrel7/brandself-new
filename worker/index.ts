@@ -1,9 +1,13 @@
-import { Worker } from 'bullmq'
+import { Queue, Worker } from 'bullmq'
 import Redis from 'ioredis'
 import { env } from '../shared/env'
 import type { OtpJobData } from '../shared/jobs'
-import { FILE_EMAILS, FILE_SYSTEM, JOBS } from '../shared/jobs'
+import { FILE_EMAILS, FILE_SYSTEM, JOBS, transactionalEmailJobDataSchema } from '../shared/jobs'
+import { dispatchPendingTransactionalEmails } from '../server/jobs/email-outbox'
+import { processTransactionalEmail } from '../server/services/email-outbox'
 import { senderOtpEmail, senderOtpSms } from '../server/services/otp/envoi'
+
+const OUTBOX_POLL_INTERVAL_MS = 5_000
 
 function createConnection(): Redis {
   return new Redis(env.REDIS_URL, { maxRetriesPerRequest: null })
@@ -21,9 +25,16 @@ const workerSystem = new Worker(
   { connection: createConnection() },
 )
 
+const emailDispatchQueue = new Queue(FILE_EMAILS, { connection: createConnection() })
+
 const workerEmails = new Worker(
   FILE_EMAILS,
   async (job) => {
+    if (job.name === JOBS.sendTransactionalEmail) {
+      const data = transactionalEmailJobDataSchema.parse(job.data)
+      await processTransactionalEmail(data.outboxId)
+      return
+    }
     const data = job.data as OtpJobData
     if (job.name === JOBS.sendOtpEmail) {
       await senderOtpEmail.send(data.identifier, data.code)
@@ -42,20 +53,40 @@ for (const worker of [workerSystem, workerEmails]) {
   worker.on('completed', (job) => {
     console.info(`[worker] job « ${job.name} » #${job.id} completed`)
   })
-  worker.on('failed', (job, error) => {
-    console.error(`[worker] job « ${job?.name} » failed: ${error.message}`)
+  worker.on('failed', (job) => {
+    console.error(`[worker] job « ${job?.name} » #${job?.id} failed (JOB_FAILED)`)
   })
 }
 
-console.info(`[worker] started — queues « ${FILE_SYSTEM} » and « ${FILE_EMAILS} » (${env.REDIS_URL})`)
+let dispatchRunning = false
+async function dispatchOutbox(): Promise<void> {
+  if (dispatchRunning) return
+  dispatchRunning = true
+  try {
+    await dispatchPendingTransactionalEmails(emailDispatchQueue)
+  }
+  catch {
+    console.error('[worker] transactional email dispatch failed (OUTBOX_DISPATCH_FAILED)')
+  }
+  finally {
+    dispatchRunning = false
+  }
+}
+
+const dispatchTimer = setInterval(() => void dispatchOutbox(), OUTBOX_POLL_INTERVAL_MS)
+dispatchTimer.unref()
+void dispatchOutbox()
+
+console.info(`[worker] started — queues « ${FILE_SYSTEM} » and « ${FILE_EMAILS} »`)
 
 async function stop(signal: string): Promise<void> {
   console.info(`[worker] stopping (${signal})…`)
+  clearInterval(dispatchTimer)
   try {
-    await Promise.all([workerSystem.close(), workerEmails.close()])
+    await Promise.all([workerSystem.close(), workerEmails.close(), emailDispatchQueue.close()])
     process.exit(0)
-  } catch (error) {
-    console.error(`[worker] shutdown failed: ${error instanceof Error ? error.message : String(error)}`)
+  } catch {
+    console.error('[worker] shutdown failed (WORKER_SHUTDOWN_FAILED)')
     process.exit(1)
   }
 }

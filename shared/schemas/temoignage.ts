@@ -1,17 +1,34 @@
 import { z } from 'zod'
-import { LISTE_REORDER_MAX } from '../../shared/listes'
+import { LISTE_REORDER_MAX, LISTE_SLUG_MAX, LISTE_SLUG_REGEX } from '../listes'
 
-export const schemaTemoignageCreate = z.object({
-  slug: z.string().trim().toLowerCase().min(1, 'Le slug est requis.').max(100),
+const champSlug = z
+  .string()
+  .trim()
+  .toLowerCase()
+  .min(1, 'Le slug est requis.')
+  .max(LISTE_SLUG_MAX)
+  .regex(LISTE_SLUG_REGEX, 'Slug invalide.')
+
+export const schemaTemoignageBase = z.strictObject({
   auteur: z.string().trim().min(1, 'L\'auteur est requis.').max(100),
   fonction: z.string().trim().max(100).optional(),
   texte: z.string().trim().min(1, 'Le texte est requis.').max(1000),
+  enVedette: z.boolean(),
+  actif: z.boolean(),
+})
+
+export const schemaTemoignageCreate = schemaTemoignageBase.extend({
+  slug: champSlug,
   enVedette: z.boolean().default(false),
   ordre: z.number().int().nonnegative().default(0),
   actif: z.boolean().default(true),
 })
 
-export const schemaTemoignageUpdate = schemaTemoignageCreate.partial()
+export const schemaTemoignageUpdate = schemaTemoignageBase.partial()
+
+export const schemaTemoignageParams = z.strictObject({
+  slug: champSlug,
+})
 
 export const schemaTemoignageVisibilite = z.object({
   actif: z.boolean(),

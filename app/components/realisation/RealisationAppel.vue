@@ -8,7 +8,7 @@ defineProps<{ username: string }>()
       Un projet en tête ? Parlons-en.
     </h2>
     <p class="text-texte-secondaire">Prenez rendez-vous pour en discuter.</p>
-    <UButton :to="`/${username}/reserver`" size="lg" block class="mt-2 md:w-auto md:self-start">
+    <UButton :to="`/${username}/agenda`" size="lg" block class="mt-2 md:w-auto md:self-start">
       Prendre rendez-vous
     </UButton>
   </section>

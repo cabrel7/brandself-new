@@ -31,6 +31,8 @@ const ETAPES: Record<NextStep, Etape> = {
 const {
   vitrine, resume, enChargement, enErreur, absente, refresh, publicationEnCours, changerPublication,
 } = useStudioVitrine()
+const { etat: etatAgenda } = useStudioAgendaApercu()
+const { nonLus: messagesNonLus } = useStudioMessages()
 const { affichee } = useAdressePublique(() => vitrine.value?.username)
 
 const etape = computed(() => (resume.value?.prochaineEtape ? ETAPES[resume.value.prochaineEtape] : null))
@@ -45,12 +47,18 @@ function pluriel(nombre: number, singulier: string, pluralise: string): string {
 }
 
 const lignes = computed(() => [
-  { label: 'Profil', to: '/studio/profil', valeur: manquants.value.length === 0 ? 'Complet' : 'À compléter' },
-  { label: 'Services', to: '/studio/services', valeur: compteur(resume.value?.compteurs.services ?? 0) },
-  { label: 'Réalisations', to: '/studio/realisations', valeur: compteur(resume.value?.compteurs.realisations ?? 0) },
-  { label: 'Témoignages', to: '/studio/temoignages', valeur: compteur(resume.value?.compteurs.temoignages ?? 0) },
-  { label: 'Agenda', to: '/studio/agenda', valeur: '' },
-  { label: 'Liens', to: '/studio/liens', valeur: compteur(resume.value?.compteurs.liens ?? 0) },
+  { label: 'Profil', to: '/studio/profil', valeur: manquants.value.length === 0 ? 'Complet' : 'À compléter', recent: false },
+  { label: 'Services', to: '/studio/services', valeur: compteur(resume.value?.compteurs.services ?? 0), recent: false },
+  { label: 'Réalisations', to: '/studio/realisations', valeur: compteur(resume.value?.compteurs.realisations ?? 0), recent: false },
+  { label: 'Témoignages', to: '/studio/temoignages', valeur: compteur(resume.value?.compteurs.temoignages ?? 0), recent: false },
+  { label: 'Agenda', to: '/studio/agenda', valeur: etatAgenda.value, recent: false },
+  {
+    label: 'Messages',
+    to: '/studio/messages',
+    valeur: messagesNonLus.value > 0 ? `${messagesNonLus.value} ${pluriel(messagesNonLus.value, 'non lu', 'non lus')}` : 'Tout est lu',
+    recent: messagesNonLus.value > 0,
+  },
+  { label: 'Liens', to: '/studio/liens', valeur: compteur(resume.value?.compteurs.liens ?? 0), recent: false },
 ])
 
 const statistiques = computed(() => {
@@ -179,6 +187,7 @@ async function depublier(): Promise<void> {
             >
               <span>{{ ligne.label }}</span>
               <span class="flex items-center gap-2 text-texte-secondaire">
+                <span v-if="ligne.recent" class="size-2 rounded-full bg-accent" aria-hidden="true" />
                 <span v-if="ligne.valeur">{{ ligne.valeur }}</span>
                 <UIcon name="i-ph-caret-right" class="size-5" aria-hidden="true" />
               </span>
