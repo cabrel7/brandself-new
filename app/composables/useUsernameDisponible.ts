@@ -1,3 +1,4 @@
+import { USERNAME_DEBOUNCE_MS } from '#shared/onboarding'
 import { isReserved } from '#shared/reserved'
 import { validateUsername } from '#shared/schemas/username'
 
@@ -11,8 +12,6 @@ interface ReponseDisponibilite {
   raison: RaisonDisponibilite
 }
 
-const DEBOUNCE_MS = 400
-
 const ETAT_PAR_RAISON: Record<RaisonDisponibilite, EtatUsername> = {
   libre: 'libre',
   actuel: 'libre',
@@ -21,7 +20,10 @@ const ETAT_PAR_RAISON: Record<RaisonDisponibilite, EtatUsername> = {
   format: 'format',
 }
 
-/** Vérifie en direct (après une courte pause de saisie) qu'une adresse est utilisable. */
+/**
+ * Vérifie en direct (après une courte pause de saisie) qu'une adresse est utilisable.
+ * Une valeur déjà présente à l'appel (adresse suggérée) est vérifiée aussi.
+ */
 export function useUsernameDisponible(username: Ref<string>) {
   const etat = ref<EtatUsername>('vide')
   let sequence = 0
@@ -29,7 +31,7 @@ export function useUsernameDisponible(username: Ref<string>) {
   watch(username, (valeur) => {
     sequence += 1
     etat.value = valeur.trim() === '' ? 'vide' : 'verification'
-  })
+  }, { immediate: true })
 
   watchDebounced(
     username,
@@ -56,7 +58,7 @@ export function useUsernameDisponible(username: Ref<string>) {
         if (courante === sequence) etat.value = 'erreur'
       }
     },
-    { debounce: DEBOUNCE_MS },
+    { debounce: USERNAME_DEBOUNCE_MS, immediate: true },
   )
 
   return { etat }
