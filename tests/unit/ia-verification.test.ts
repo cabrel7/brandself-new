@@ -240,6 +240,47 @@ describe('validerSortie : aucun fait inventé (CA24)', () => {
   })
 })
 
+describe('validerSortie : liens, e-mails et balises inventés (revue sécurité)', () => {
+  const LIENS_INVENTES = [
+    ['an http URL', 'Retrouvez-moi sur https://exemple.test pour réserver'],
+    ['a bare www address', 'Retrouvez-moi sur www.exemple.test pour réserver'],
+    ['an e-mail address', 'Écrivez-moi à contact@exemple.test pour réserver'],
+    ['an HTML tag', 'Retrouvez-moi ici <b>maintenant</b> pour réserver'],
+    ['a lone chevron', 'Mon tarif est > au marché pour réserver'],
+    ['a markdown link', 'Retrouvez-moi [ici](javascript:alert) pour réserver'],
+  ] as const
+
+  it.each(LIENS_INVENTES)('should reject %s in a proposition (sortie_invalide)', async (_nom, phrase) => {
+    expect(await valider(EMPLACEMENTS.presentation(phrase))).toEqual({ ok: false, code: 'sortie_invalide' })
+  })
+
+  it('should reject a link hidden in an accroche or in a service description', async () => {
+    expect(await valider(EMPLACEMENTS.accroche('Votre santé sur www.piege.test'))).toEqual({ ok: false, code: 'sortie_invalide' })
+    expect(await valider(EMPLACEMENTS.description('Un suivi complet via https://piege.test'))).toEqual({ ok: false, code: 'sortie_invalide' })
+  })
+
+  it('should reject a link in an improved text, unless the original text already carried it', async () => {
+    const { validerSortie } = await verification()
+    const entree = { ...ENTREE_AMELIORER, texte: 'Cardiologue à Douala, rendez-vous sur https://cabrel.test pour réserver.' }
+
+    expect(validerSortie('ameliorer_texte', { texte: 'Cardiologue à Douala, voir https://piege.test pour réserver.' }, entree))
+      .toEqual({ ok: false, code: 'sortie_invalide' })
+    expect(validerSortie('ameliorer_texte', { texte: 'Cardiologue à Douala, réservez sur https://cabrel.test.' }, entree))
+      .toMatchObject({ ok: true })
+    expect(validerSortie('ameliorer_texte', { texte: 'Cardiologue à Douala, voir https://cabrel.test/autre pour réserver.' }, ENTREE_AMELIORER))
+      .toEqual({ ok: false, code: 'sortie_invalide' })
+  })
+
+  it('should accept an e-mail that the user wrote in the source text', async () => {
+    const { validerSortie } = await verification()
+    const entree = { ...ENTREE_AMELIORER, texte: 'Cardiologue à Douala, écrivez à contact@cabrel.test pour réserver.' }
+
+    expect(validerSortie('ameliorer_texte', { texte: 'Cardiologue à Douala, contact@cabrel.test pour réserver.' }, entree)).toMatchObject({ ok: true })
+    expect(validerSortie('ameliorer_texte', { texte: 'Cardiologue à Douala, autre@cabrel.test pour réserver.' }, entree))
+      .toEqual({ ok: false, code: 'sortie_invalide' })
+  })
+})
+
 describe('validerSortie : amélioration d’un texte', () => {
   async function ameliorer(texte: unknown, entree: object = ENTREE_AMELIORER) {
     const { validerSortie } = await verification()

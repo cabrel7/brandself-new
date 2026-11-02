@@ -4,9 +4,11 @@ import { sql } from 'drizzle-orm'
 import { db } from '../../server/utils/db'
 import { redis } from '../../server/utils/redis'
 import { schemaPropositionRepli } from '../../shared/schemas/ia'
+import { empreinte } from '../../server/services/ia/nettoyage'
 import {
   GENERATION_EXPIRATION_MS,
   IA_RETENTION_JOURS,
+  MOTIFS_REPLI_TRANSITOIRES,
 } from '../../shared/ia'
 import { IA_GLOBAL_LIMIT, IA_LIMITE_CLE_GLOBALE, IA_LIMITE_CLE_UTILISATEUR_PREFIXE, IA_UTILISATEUR_LIMIT } from '../../shared/limites'
 import { IA_JOB_ID_PREFIXE } from '../../shared/jobs'
@@ -22,6 +24,7 @@ import {
   iaRepli,
   isoIlYA,
   lireGeneration,
+  lireGenerationsDe,
   plansService,
   queuesJobs,
   reinitialiserIa,
@@ -225,6 +228,137 @@ describe('createGeneration : abus (CA30)', () => {
   })
 })
 
+describe('createGeneration : dédoublonnage et replis transitoires (revue sécurité)', () => {
+  const ENTREE = ENTREE_ONBOARDING_DEMO
+
+  async function existante(userId: string, surcharges: Parameters<typeof insertGeneration>[1]) {
+    const prompt = await activePromptRow('onboarding_vitrine')
+    return insertGeneration(userId, { promptId: prompt.id, entree: ENTREE, entreeEmpreinte: empreinte(ENTREE, prompt.id), ...surcharges })
+  }
+
+  it('should list the transient fallbacks in the shared constant (provider failure and timeout included)', () => {
+    expect([...MOTIFS_REPLI_TRANSITOIRES].sort()).toEqual(
+      ['delai_depasse', 'echec_fournisseur', 'file_indisponible', 'limiteur_indisponible', 'plafond_global'],
+    )
+  })
+
+  it.each(MOTIFS_REPLI_TRANSITOIRES)('should NOT reuse a generation that fell back with the transient reason %s: a new one is created', async (motif) => {
+    const createGeneration = await creerGeneration()
+    const user = await createUser()
+    const ancienne = await existante(user.id, { statut: 'repli', motifRepli: motif, sortie: propositionValide(), termineeLe: new Date() })
+
+    const nouvelle = await createGeneration(user.id, 'onboarding_vitrine', ENTREE, { injection: false })
+
+    expect(nouvelle.id).not.toBe(ancienne.id)
+    expect(nouvelle.statut).toBe('en_attente')
+  })
+
+  it.each(['sortie_invalide', 'injection', 'sans_fournisseur', 'sans_prompt'] as const)('should still reuse a generation that fell back with the deterministic reason %s', async (motif) => {
+    const createGeneration = await creerGeneration()
+    const user = await createUser()
+    const ancienne = await existante(user.id, { statut: 'repli', motifRepli: motif, sortie: propositionValide(), termineeLe: new Date() })
+
+    const reprise = await createGeneration(user.id, 'onboarding_vitrine', ENTREE, { injection: false })
+
+    expect(reprise.id).toBe(ancienne.id)
+    expect(await lireGenerationsDe(user.id)).toHaveLength(1)
+  })
+
+  it('should reuse a finished generation and an active one younger than 45 s, but not a lost one older than 45 s', async () => {
+    const createGeneration = await creerGeneration()
+    const [a, b, c] = [await createUser(), await createUser(), await createUser()]
+    const terminee = await existante(a.id, { statut: 'terminee', sortie: propositionValide(), termineeLe: new Date() })
+    const active = await existante(b.id, { statut: 'en_cours', createdAt: isoIlYA(10_000) })
+    const perdue = await existante(c.id, { statut: 'en_attente', createdAt: isoIlYA(GENERATION_EXPIRATION_MS + 5_000) })
+
+    expect((await createGeneration(a.id, 'onboarding_vitrine', ENTREE, { injection: false })).id).toBe(terminee.id)
+    expect((await createGeneration(b.id, 'onboarding_vitrine', ENTREE, { injection: false })).id).toBe(active.id)
+    expect((await createGeneration(c.id, 'onboarding_vitrine', ENTREE, { injection: false })).id).not.toBe(perdue.id)
+  })
+
+  it('should let « Réessayer » start a fresh generation after a real provider outage (echec_fournisseur), then reuse the success', async () => {
+    const { executeGeneration } = await iaGenerations()
+    const createGeneration = await creerGeneration()
+    const user = await createUser()
+    const premiere = await createGeneration(user.id, 'onboarding_vitrine', ENTREE, { injection: false })
+    await executeGeneration(premiere.id, { provider: creerProviderScripte(['panne', 'panne', 'panne']), now: Date.now, sleep: async () => undefined })
+    expect(await lireGeneration(premiere.id)).toMatchObject({ statut: 'repli', motifRepli: 'echec_fournisseur' })
+
+    const seconde = await createGeneration(user.id, 'onboarding_vitrine', ENTREE, { injection: false })
+    await executeGeneration(seconde.id, { provider: creerProviderScripte(['valide']), now: Date.now, sleep: async () => undefined })
+    const troisieme = await createGeneration(user.id, 'onboarding_vitrine', ENTREE, { injection: false })
+
+    expect(seconde.id).not.toBe(premiere.id)
+    expect(await lireGeneration(seconde.id)).toMatchObject({ statut: 'terminee' })
+    expect(troisieme.id).toBe(seconde.id)
+  })
+
+  it('should not touch the counters when the request is deduplicated by the plain read (no limiter, no lock)', async () => {
+    const createGeneration = await creerGeneration()
+    const user = await createUser()
+    await createGeneration(user.id, 'onboarding_vitrine', ENTREE, { injection: false })
+    const global = await redis.get(cleGlobale)
+
+    await createGeneration(user.id, 'onboarding_vitrine', ENTREE, { injection: false })
+    await createGeneration(user.id, 'onboarding_vitrine', ENTREE, { injection: false })
+
+    expect(await redis.get(cleUtilisateur(user.id))).toBe('1')
+    expect(await redis.get(cleGlobale)).toBe(global)
+  })
+
+  it('should create one row and one job under 8 simultaneous identical requests, and give the losers\' counts back (CA17)', async () => {
+    const { createGeneration } = await iaGenerations()
+    const { getIaQueue } = await queuesJobs()
+    const user = await createUser()
+
+    const resultats = await Promise.all(
+      Array.from({ length: 8 }, () => createGeneration(user.id, 'onboarding_vitrine', ENTREE, { injection: false })),
+    )
+
+    expect(new Set(resultats.map((r) => r.generation.id)).size).toBe(1)
+    expect(resultats.filter((r) => !r.dedoublonnee)).toHaveLength(1)
+    expect(await lireGenerationsDe(user.id)).toHaveLength(1)
+    expect(await getIaQueue().getJobCounts('waiting', 'active', 'delayed')).toMatchObject({ waiting: 1 })
+    expect(await redis.get(cleUtilisateur(user.id))).toBe('1')
+  })
+
+  it('should give a count back without ever dropping a counter below 1 or creating a missing one', async () => {
+    const { releaseLimit } = await import('../../server/services/limiteur')
+    const cle = `test-rendre:${randomUUID()}`
+    await redis.set(`limite:${cle}`, '3', 'EX', 60)
+
+    await releaseLimit(cle)
+    await releaseLimit(cle)
+    await releaseLimit(cle)
+    await releaseLimit(`${cle}:absent`)
+
+    expect(await redis.get(`limite:${cle}`)).toBe('1')
+    expect(await redis.get(`limite:${cle}:absent`)).toBeNull()
+    await redis.del(`limite:${cle}`)
+  })
+
+  it('should not hold a pool connection in a transaction while the limiter talks to Redis', async () => {
+    const createGeneration = await creerGeneration()
+    const user = await createUser()
+    const observations: number[] = []
+    const vraiExpire = redis.expire.bind(redis)
+    // `expire` est appelé (et attendu) par le limiteur au premier appel d'une fenêtre : on regarde alors la base.
+    vi.spyOn(redis, 'expire').mockImplementation((async (...args: Parameters<typeof redis.expire>) => {
+      const lignes = await db.execute<{ n: number }>(sql`
+        SELECT COUNT(*)::int AS n FROM pg_stat_activity
+        WHERE datname = current_database() AND pid <> pg_backend_pid() AND state LIKE 'idle in transaction%'
+          AND (query ILIKE '%pg_advisory_xact_lock%' OR query ILIKE '%"generations_ia"%')`)
+      observations.push(lignes.rows[0]!.n)
+      return vraiExpire(...args)
+    }) as never)
+
+    await createGeneration(user.id, 'onboarding_vitrine', ENTREE, { injection: false })
+
+    expect(observations.length).toBeGreaterThan(0)
+    expect(observations.every((n) => n === 0)).toBe(true)
+  })
+})
+
 describe('getOwnGeneration : propriété et expiration (CA19, CA28)', () => {
   it('should return the own generation', async () => {
     const { getOwnGeneration } = await iaGenerations()
@@ -368,6 +502,23 @@ describe('purgeGenerations : rétention de 30 jours (CA35)', () => {
     expect(p).toMatchObject({ entree: null, sortie: null, statut: 'terminee', tokensEntree: 100, tokensSortie: 300, fournisseur: 'faux', tentatives: 1 })
     expect(p?.createdAt.getTime()).toBe(vieille.createdAt.getTime())
     expect(await lireGeneration(recente.id)).toMatchObject({ entree: expect.anything(), sortie: expect.anything() })
+  })
+
+  it('should replace the dictionary-guessable fingerprint by a random hash of the same shape on purge, and keep a recent one', async () => {
+    const { purgeGenerations } = await iaGenerations()
+    const user = await createUser()
+    const vieille = await terminee(user.id, IA_RETENTION_JOURS + 1)
+    const recente = await terminee(user.id, IA_RETENTION_JOURS - 1)
+    const empreinteAvant = (await lireGeneration(vieille.id))!.entreeEmpreinte
+
+    await purgeGenerations(MAINTENANT)
+
+    const apres = (await lireGeneration(vieille.id))!.entreeEmpreinte
+    expect(apres).toMatch(/^[0-9a-f]{64}$/)
+    expect(apres).not.toBe(empreinteAvant)
+    expect((await lireGeneration(recente.id))!.entreeEmpreinte).toBe(recente.entreeEmpreinte)
+    await purgeGenerations(MAINTENANT)
+    expect((await lireGeneration(vieille.id))!.entreeEmpreinte).toBe(apres)
   })
 
   it('should keep a generation of exactly 30 days (strictly older only)', async () => {

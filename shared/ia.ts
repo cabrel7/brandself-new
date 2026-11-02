@@ -26,6 +26,20 @@ export const MOTIFS_REPLI = [
 ] as const
 export type MotifRepli = (typeof MOTIFS_REPLI)[number]
 
+/**
+ * Replis dus à une panne passagère (notre infrastructure OU le fournisseur) : le contenu servi n'est pas
+ * définitif, donc une nouvelle demande identique doit créer une nouvelle génération (« Réessayer » utile).
+ * Les autres replis (`sortie_invalide`, `injection`, `sans_prompt`, `sans_fournisseur`) sont déterministes :
+ * même entrée, même issue, ils restent dédoublonnés.
+ */
+export const MOTIFS_REPLI_TRANSITOIRES: readonly MotifRepli[] = [
+  'echec_fournisseur',
+  'delai_depasse',
+  'file_indisponible',
+  'limiteur_indisponible',
+  'plafond_global',
+]
+
 /** Fournisseur résolu (`aucun` = repli déterministe, aucun appel). */
 export const IA_FOURNISSEURS = ['anthropic', 'faux', 'aucun'] as const
 export type IaFournisseur = (typeof IA_FOURNISSEURS)[number]

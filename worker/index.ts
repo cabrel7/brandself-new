@@ -19,6 +19,7 @@ import { processTransactionalEmail } from '../server/services/email-outbox'
 import { executeGeneration, purgeGenerations } from '../server/services/ia/generations'
 import { createIaProvider } from '../server/services/ia/fournisseurs'
 import type { ExecutionDeps } from '../server/services/ia/types'
+import { purgeProgressionsAbandonnees } from '../server/services/onboarding'
 import { senderOtpEmail, senderOtpSms } from '../server/services/otp/envoi'
 
 const OUTBOX_POLL_INTERVAL_MS = 5_000
@@ -88,6 +89,9 @@ const workerIa = new Worker(
     if (job.name === JOBS.purgerIa) {
       const purgees = await purgeGenerations()
       console.info(`[worker] purge IA : ${purgees} génération(s) purgée(s)`)
+      // Même job quotidien : les inscriptions abandonnées (rétention des données personnelles, 90 jours).
+      const abandonnees = await purgeProgressionsAbandonnees()
+      console.info(`[worker] purge inscriptions : ${abandonnees} progression(s) abandonnée(s) supprimée(s)`)
       return
     }
     throw new Error(`Unknown job: ${job.name}`)

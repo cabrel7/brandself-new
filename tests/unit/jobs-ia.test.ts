@@ -1,4 +1,6 @@
 import { randomUUID } from 'node:crypto'
+import { readFileSync } from 'node:fs'
+import path from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
 import { IA_JOB_ID_PREFIXE, IA_PURGE_CRON, IA_PURGE_SCHEDULER_ID, IA_PURGE_TZ, JOBS, iaJobDataSchema } from '../../shared/jobs'
 
@@ -78,6 +80,15 @@ describe('planifierPurge', () => {
     expect(idScheduler).toBe(IA_PURGE_SCHEDULER_ID)
     expect(repetition).toMatchObject({ pattern: IA_PURGE_CRON, tz: IA_PURGE_TZ })
     expect(modele?.name).toBe(JOBS.purgerIa)
+  })
+
+  it('should run both retention purges in the daily ia-purger job (generations, then abandoned sign-ups)', () => {
+    // worker/index.ts est un script de démarrage non importable : le câblage se lit dans la source.
+    const worker = readFileSync(path.resolve(import.meta.dirname, '../../worker/index.ts'), 'utf-8')
+    const bloc = worker.slice(worker.indexOf('JOBS.purgerIa'))
+
+    expect(bloc.indexOf('purgeGenerations()')).toBeGreaterThan(-1)
+    expect(bloc.indexOf('purgeProgressionsAbandonnees()')).toBeGreaterThan(bloc.indexOf('purgeGenerations()'))
   })
 
   it('should keep the documented schedule', () => {

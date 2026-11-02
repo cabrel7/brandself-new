@@ -138,6 +138,26 @@ function sourcesDe(valeur: unknown): string[] {
   return []
 }
 
+/** Adresses web et e-mails : jetons entiers (jusqu'à l'espace), comparés aux sources. */
+const JETON_LIEN = /(?:https?:|www\.)\S*|\S*@\S*/giu
+const PONCTUATION_FINALE = /[.,;:!?)»"'’\]]+$/u
+/** Chevrons HTML et lien markdown `](` : interdits sauf s'ils figurent déjà dans les sources. */
+const MARQUEURS_MARKUP: readonly RegExp[] = [/[<>]/u, /\]\(/u]
+
+/**
+ * Vrai si les textes contiennent une URL, un e-mail, un chevron HTML ou un lien markdown ABSENT des sources
+ * (ce que l'utilisateur a écrit lui-même reste autorisé). Un texte publié sur une vitrine ne doit jamais
+ * porter un lien ou une balise inventés par le modèle (hameçonnage, injection de markup).
+ */
+export function contientLienOuMarkupInvente(textes: readonly string[], sources: readonly string[]): boolean {
+  const sourcesBrutes = sources.join('\n').toLowerCase()
+  return textes.some((texte) => {
+    const jetons = texte.match(JETON_LIEN) ?? []
+    if (jetons.some((jeton) => !sourcesBrutes.includes(jeton.replace(PONCTUATION_FINALE, '').toLowerCase()))) return true
+    return MARQUEURS_MARKUP.some((marqueur) => marqueur.test(texte) && !sources.some((source) => marqueur.test(source)))
+  })
+}
+
 function champDe(entree: object): 'bio' | 'accroche' {
   return 'champ' in entree && entree.champ === 'accroche' ? 'accroche' : 'bio'
 }
@@ -151,7 +171,9 @@ function validerProposition(donnees: unknown, entree: object): ResultatValidatio
     proposition.presentation,
     ...proposition.services.flatMap((service) => [service.titre, service.description]),
   ]
-  if (!verifierFaits(textes, sourcesDe(entree))) return { ok: false, code: 'faits_inventes' }
+  const sources = sourcesDe(entree)
+  if (contientLienOuMarkupInvente(textes, sources)) return { ok: false, code: 'sortie_invalide' }
+  if (!verifierFaits(textes, sources)) return { ok: false, code: 'faits_inventes' }
   return { ok: true, valeur: proposition }
 }
 
@@ -164,7 +186,9 @@ function validerTexte(donnees: unknown, entree: object): ResultatValidation<Text
       ? texte.length <= ACCROCHE_MAX
       : texte.length <= BIO_MAX && countWords(texte) <= PRESENTATION_MOTS_MAX
   if (!dansLesBornes) return { ok: false, code: 'sortie_invalide' }
-  if (!verifierFaits([texte], sourcesDe(entree))) return { ok: false, code: 'faits_inventes' }
+  const sources = sourcesDe(entree)
+  if (contientLienOuMarkupInvente([texte], sources)) return { ok: false, code: 'sortie_invalide' }
+  if (!verifierFaits([texte], sources)) return { ok: false, code: 'faits_inventes' }
   return { ok: true, valeur: forme.data }
 }
 

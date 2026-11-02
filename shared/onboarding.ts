@@ -16,6 +16,12 @@ export const USERNAME_DEBOUNCE_MS = 450
 
 export const PAYS_DEFAUT = 'CM'
 
+/**
+ * Rétention des données personnelles d'une inscription abandonnée (jamais terminée) : au-delà de ce nombre de
+ * jours sans modification, la progression (identité, texte) et sa photo orpheline sont supprimées.
+ */
+export const ONBOARDING_ABANDON_RETENTION_JOURS = 90
+
 /** Suggestions de l'étape 1 : liste d'aide, la saisie libre reste acceptée. */
 export const METIERS_SUGGERES = [
   'Médecin généraliste',

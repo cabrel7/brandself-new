@@ -130,6 +130,24 @@ describe('routes S8 : routes fines (architecture)', () => {
     expect(source).toMatch(/[Cc]ache-[Cc]ontrol/)
   })
 
+  it.each(ROUTES_S8)('%s should forbid caching (personal data: Cache-Control no-store)', (fichier) => {
+    const source = lire(fichier)
+
+    expect(source).toMatch(/setResponseHeader\(\s*event\s*,\s*['"]Cache-Control['"]\s*,\s*['"]no-store['"]\s*\)/)
+  })
+
+  it.each(ROUTES_S8)('%s should set no-store right after the session check, before the body is read', (fichier) => {
+    const source = lire(fichier)
+    const session = source.indexOf('requireUserSession')
+    const entete = source.indexOf('no-store')
+
+    expect(entete).toBeGreaterThan(session)
+    for (const lecture of ['readBodyWith(', 'readParamsWith(', 'getRouterParams(']) {
+      const position = source.indexOf(lecture)
+      if (position !== -1) expect(entete, lecture).toBeLessThan(position)
+    }
+  })
+
   it('should treat a malformed generation id as « not found », never as a validation error', () => {
     const source = lire('server/api/studio/generations/[id].get.ts')
 

@@ -65,7 +65,9 @@ const MOTIFS_INJECTION: readonly RegExp[] = [
 ]
 
 function normaliserPourDetection(texte: string): string {
+  // NFKC d'abord : plie les formes de compatibilité (pleine chasse « ｉｇｎｏｒｅ », ligatures) vers l'ASCII.
   return retirerInvisibles(texte)
+    .normalize('NFKC')
     .normalize('NFD')
     .replace(MARQUES_DIACRITIQUES, '')
     .toLowerCase()

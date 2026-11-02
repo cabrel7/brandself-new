@@ -1,9 +1,11 @@
 import { randomUUID } from 'node:crypto'
-import { and, eq, inArray, isNotNull, sql } from 'drizzle-orm'
+import { and, eq, inArray, isNotNull, isNull, lt, sql } from 'drizzle-orm'
 import { generationsIa, medias, progressionsInscription, services, users, vitrines } from '../../shared/db/schema'
 import type { ProgressionInscription } from '../../shared/db/schema'
 import { GENERATION_EXPIRATION_MS, GENERATION_STATUTS_TERMINAUX } from '../../shared/ia'
+import { ONBOARDING_ABANDON_RETENTION_JOURS } from '../../shared/onboarding'
 import type { OnboardingEtape, OnboardingManquant } from '../../shared/onboarding'
+import { ONBOARDING_TERMINER_CLE_PREFIXE, ONBOARDING_TERMINER_LIMIT } from '../../shared/limites'
 import { schemaPropositionRepli } from '../../shared/schemas/ia'
 import type {
   OnboardingEtapeInput,
@@ -17,6 +19,7 @@ import { BIO_MAX, METIER_MAX, NOM_MAX, PRENOM_MAX, VILLE_MAX } from '../../share
 import { ConflictError, UnprocessableError, ValidationError } from '../exceptions/http'
 import { db } from '../utils/db'
 import { PG_FOREIGN_KEY_VIOLATION, PG_UNIQUE_VIOLATION, readPgError } from '../utils/pg-error'
+import { enforceLimit } from './limiteur'
 import { createGeneration } from './ia/generations'
 import type { CreationResultat } from './ia/generations'
 import { detecterInjection, entreeOnboarding, nettoyerTexte } from './ia/nettoyage'
@@ -378,7 +381,9 @@ export async function generer(userId: string, now: Date = new Date()): Promise<C
   // Une saisie réduite à du vide par le nettoyage (caractères invisibles) n'est pas une identité.
   if (entree.metier === '' || entree.ville === '') throw incomplet(['identite'])
 
-  const injection = [entree.metier, entree.ville].some(detecterInjection)
+  // Champs seuls ET joints : une consigne coupée entre le métier et la ville n'apparaît qu'une fois réunie
+  // (le gabarit les place l'un près de l'autre).
+  const injection = [entree.metier, entree.ville, `${entree.metier} ${entree.ville}`].some(detecterInjection)
   const resultat = await createGeneration(userId, TYPE_ONBOARDING, entree, { injection }, now)
   await relierGeneration(userId, resultat.generation.id, entree)
   return resultat
@@ -494,10 +499,19 @@ async function creerVitrineEtServices(
   // le brouillon et sa validation sont vidés ensemble une fois la vitrine créée. La photo appartient
   // désormais à la vitrine : la progression la lâche, sinon remplacer la photo du Profil laisserait un
   // orphelin (deleteMediaIfUnreferenced voit encore la référence de la progression).
+  // Minimisation : l'identité et les textes vivent désormais dans la vitrine, la progression n'en garde pas
+  // de copie. `termine_le` reste (le rejeu idempotent de `terminer` s'appuie dessus). Les CHECK de la
+  // migration 0018 tolèrent ces NULL (longueurs via coalesce, validation_check déjà levée ci-dessus).
   await tx
     .update(progressionsInscription)
     .set({
       termineLe: new Date(),
+      prenom: null,
+      nom: null,
+      metier: null,
+      ville: null,
+      accroche: null,
+      presentation: null,
       servicesProposes: null,
       propositionValideeLe: null,
       photoMediaId: null,
@@ -512,6 +526,13 @@ async function creerVitrineEtServices(
  * l'adresse : un conflit annule tout (409 USERNAME_PRIS), la progression reste intacte.
  */
 export async function terminer(userId: string, input: OnboardingTerminerInput): Promise<TerminerResultat> {
+  // Limite par utilisateur (compteur propre à `terminer`, sans lien avec le quota IA). Même politique que la
+  // vérification d'adresse : une panne de Redis laisse passer (fail-open), jamais « inscription impossible ».
+  await enforceLimit(
+    `${ONBOARDING_TERMINER_CLE_PREFIXE}${userId}`,
+    ONBOARDING_TERMINER_LIMIT.limit,
+    ONBOARDING_TERMINER_LIMIT.windowS,
+  )
   try {
     return await db.transaction(async (tx) => {
       const ligne = await verrouiller(tx, userId)
@@ -532,4 +553,29 @@ export async function terminer(userId: string, input: OnboardingTerminerInput): 
   } catch (error) {
     return traduireErreurTerminer(error)
   }
+}
+
+// ---------------------------------------------------------------------------------------------
+// Purge des inscriptions abandonnées
+// ---------------------------------------------------------------------------------------------
+
+const MS_PAR_JOUR = 86_400_000
+const LOG_PURGE = 'purge-onboarding'
+
+/**
+ * Rétention des données personnelles : une progression jamais terminée et sans modification depuis
+ * ONBOARDING_ABANDON_RETENTION_JOURS jours est supprimée (identité, textes, brouillon). Sa photo, devenue
+ * orpheline, passe par le nettoyage de médias habituel (supprimée seulement si plus rien ne la référence).
+ * Une progression terminée est déjà vidée de son identité par `terminer`. Idempotent. Renvoie le nombre supprimé.
+ */
+export async function purgeProgressionsAbandonnees(now: Date = new Date()): Promise<number> {
+  const limite = new Date(now.getTime() - ONBOARDING_ABANDON_RETENTION_JOURS * MS_PAR_JOUR)
+  const supprimees = await db
+    .delete(progressionsInscription)
+    .where(and(isNull(progressionsInscription.termineLe), lt(progressionsInscription.updatedAt, limite)))
+    .returning({ userId: progressionsInscription.userId, photoMediaId: progressionsInscription.photoMediaId })
+  for (const { userId, photoMediaId } of supprimees) {
+    if (photoMediaId !== null) await cleanupMedias(userId, [photoMediaId], LOG_PURGE)
+  }
+  return supprimees.length
 }

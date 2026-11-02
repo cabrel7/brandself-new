@@ -11,6 +11,7 @@ import {
   IA_RETENTION_JOURS,
   IA_TENTATIVES_MAX,
   IA_TYPES,
+  MOTIFS_REPLI_TRANSITOIRES,
 } from '../../../shared/ia'
 import type { GenerationStatut, IaErreurCode, IaFournisseurAppele, IaType, MotifRepli } from '../../../shared/ia'
 import {
@@ -23,7 +24,7 @@ import { ServiceUnavailableError, NotFoundError } from '../../exceptions/http'
 import { enqueueGeneration } from '../../jobs/ia'
 import { getIaQueue } from '../../jobs/queues'
 import { db } from '../../utils/db'
-import { enforceLimit, hitLimit } from '../limiteur'
+import { enforceLimit, hitLimit, releaseLimit } from '../limiteur'
 import { schemaEntreeAmelioration, schemaEntreeOnboarding } from './entrees'
 import type { EntreeAmelioration, EntreeIa, EntreeOnboarding } from './entrees'
 import { empreinte } from './nettoyage'
@@ -59,8 +60,6 @@ type Cible =
 const MS_PAR_JOUR = 86_400_000
 const PROMPT_ABSENT = 'sans_prompt'
 const STATUTS_ACTIFS = ['en_attente', 'en_cours'] as const
-/** Replis dus à une panne passagère de NOTRE infrastructure : une nouvelle demande doit pouvoir réessayer. */
-const MOTIFS_REPLI_TRANSITOIRES: readonly MotifRepli[] = ['file_indisponible', 'limiteur_indisponible', 'plafond_global']
 
 class GenerationIllisibleError extends Error {
   constructor() {
@@ -103,11 +102,16 @@ function journaliser(ligne: Pick<GenerationRow, 'id' | 'type'>, details: Record<
 // Création (côté web)
 // ---------------------------------------------------------------------------------------------
 
-type TransactionDb = Parameters<Parameters<typeof db.transaction>[0]>[0]
+/** Lecture seule : la base elle-même ou une transaction. */
+type LecteurDb = Pick<typeof db, 'select'>
 
-/** Une génération identique réutilisable (S8 §4.8 et décision d'arbitrage (a)). */
+/**
+ * Une génération identique réutilisable (S8 §4.8 et décision d'arbitrage (a)). Les replis transitoires
+ * (panne de notre infrastructure ou du fournisseur, délai dépassé) ne sont PAS réutilisés : « Réessayer » doit
+ * relancer une génération.
+ */
 async function chercherExistante(
-  tx: TransactionDb,
+  tx: LecteurDb,
   userId: string,
   type: IaType,
   empreinteEntree: string,
@@ -145,20 +149,25 @@ async function chercherExistante(
  * ou un plafond global qui ne peut pas répondre donne un repli (« fail-closed » = pas d'appel payant si on
  * ne peut pas compter, et non « inscription impossible »).
  */
-async function motifRepliAvantAppel(userId: string): Promise<MotifRepli | null> {
+interface Reservation {
+  motif: MotifRepli | null
+  /** Compteurs réellement incrémentés : rendus si la demande se révèle être un doublon (course). */
+  cles: string[]
+}
+
+async function reserverLimites(userId: string): Promise<Reservation> {
+  const cles: string[] = []
+  const cleUtilisateur = `${IA_LIMITE_CLE_UTILISATEUR_PREFIXE}${userId}`
   try {
-    await enforceLimit(
-      `${IA_LIMITE_CLE_UTILISATEUR_PREFIXE}${userId}`,
-      IA_UTILISATEUR_LIMIT.limit,
-      IA_UTILISATEUR_LIMIT.windowS,
-      { failClosed: true },
-    )
+    await enforceLimit(cleUtilisateur, IA_UTILISATEUR_LIMIT.limit, IA_UTILISATEUR_LIMIT.windowS, { failClosed: true })
+    cles.push(cleUtilisateur)
     const global = await hitLimit(IA_LIMITE_CLE_GLOBALE, IA_GLOBAL_LIMIT.limit, IA_GLOBAL_LIMIT.windowS, {
       failClosed: true,
     })
-    return global.allowed ? null : 'plafond_global'
+    cles.push(IA_LIMITE_CLE_GLOBALE)
+    return { motif: global.allowed ? null : 'plafond_global', cles }
   } catch (erreur) {
-    if (erreur instanceof ServiceUnavailableError) return 'limiteur_indisponible'
+    if (erreur instanceof ServiceUnavailableError) return { motif: 'limiteur_indisponible', cles }
     throw erreur
   }
 }
@@ -167,8 +176,12 @@ async function motifRepliAvantAppel(userId: string): Promise<MotifRepli | null> 
  * Crée une génération (ou renvoie l'identique, ou un repli immédiat). Le fournisseur n'est JAMAIS appelé
  * ici : la ligne est en `en_attente` et un job `ia-generer` est mis en file après le commit. Seul l'abus
  * (429) interrompt le parcours.
- * Concurrence : un verrou consultatif par (utilisateur, type, empreinte) rend « chercher puis insérer »
- * atomique : deux demandes simultanées ne créent qu'une génération et qu'un job.
+ * Ordre (la connexion du pool n'est jamais tenue pendant un aller-retour Redis) :
+ *  1. dédoublonnage en lecture simple (cas courant : aucun verrou, aucun compteur) ;
+ *  2. limiteurs (Redis), hors transaction ;
+ *  3. transaction courte : verrou consultatif par (utilisateur, type, empreinte), nouvelle vérification, insertion.
+ * Concurrence : le verrou rend « chercher puis insérer » atomique : deux demandes simultanées ne créent
+ * qu'une génération et qu'un job. La perdante a déjà compté sa demande à l'étape 2 : ses compteurs sont rendus.
  */
 export async function createGeneration(
   userId: string,
@@ -181,6 +194,11 @@ export async function createGeneration(
   const prompt = await getActivePrompt(type)
   const empreinteEntree = empreinte(entree, prompt?.id ?? PROMPT_ABSENT)
 
+  const deja = await chercherExistante(db, userId, type, empreinteEntree, now)
+  if (deja) return { generation: deja, dedoublonnee: true }
+
+  const reservation = await reserverLimites(userId)
+
   const { generation, aMettreEnFile, dedoublonnee } = await db.transaction(async (tx) => {
     await tx.execute(
       sql`select pg_advisory_xact_lock(hashtextextended(${`${userId}:${type}:${empreinteEntree}`}, 0))`,
@@ -188,7 +206,7 @@ export async function createGeneration(
     const existante = await chercherExistante(tx, userId, type, empreinteEntree, now)
     if (existante) return { generation: existante, aMettreEnFile: false, dedoublonnee: true }
 
-    const motif = (await motifRepliAvantAppel(userId)) ?? (prompt ? null : 'sans_prompt')
+    const motif = reservation.motif ?? (prompt ? null : 'sans_prompt')
     const base = {
       id: randomUUID(),
       userId,
@@ -211,8 +229,12 @@ export async function createGeneration(
     return { generation: ligne, aMettreEnFile: motif === null, dedoublonnee: false }
   })
 
+  if (dedoublonnee) {
+    await Promise.all(reservation.cles.map((cle) => releaseLimit(cle)))
+    return { generation, dedoublonnee }
+  }
   if (!aMettreEnFile) {
-    if (!dedoublonnee) journaliser(generation, { statut: generation.statut, motif: generation.motifRepli })
+    journaliser(generation, { statut: generation.statut, motif: generation.motifRepli })
     return { generation, dedoublonnee }
   }
   return { generation: await mettreEnFile(generation, cible), dedoublonnee: false }
@@ -426,12 +448,21 @@ export async function getOwnGeneration(userId: string, id: string, now: Date = n
   return (await lire()) ?? ligne
 }
 
-/** Rétention (§0 #75) : l'entrée et la sortie passent à NULL, les métadonnées (quota, coût) restent. */
+/**
+ * Rétention (§0 #75) : l'entrée et la sortie passent à NULL, les métadonnées (quota, coût) restent.
+ * `entree_empreinte` est NOT NULL (CHECK sha256 hex, migration 0018 figée) : on ne peut pas la mettre à NULL.
+ * Un sha256 de (titre, métier, ville, pays) se retrouve par dictionnaire : il est donc REMPLACÉ à la purge par
+ * un hachage aléatoire de même forme. Sans effet sur le dédoublonnage (il exige une sortie, purgée ici).
+ */
 export async function purgeGenerations(now: Date = new Date()): Promise<number> {
   const limite = new Date(now.getTime() - IA_RETENTION_JOURS * MS_PAR_JOUR)
   const purgees = await db
     .update(generationsIa)
-    .set({ entree: null, sortie: null })
+    .set({
+      entree: null,
+      sortie: null,
+      entreeEmpreinte: sql<string>`encode(sha256(convert_to(gen_random_uuid()::text, 'utf8')), 'hex')`,
+    })
     .where(
       and(
         lt(generationsIa.createdAt, limite),

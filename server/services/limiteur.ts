@@ -66,6 +66,24 @@ export async function hitLimit(
   }
 }
 
+/** Décrémente seulement un compteur > 1 : jamais de compteur à 0 ou négatif (que `hitLimit` lirait comme une panne). */
+const SCRIPT_RENDRE = `
+local v = tonumber(redis.call('GET', KEYS[1]))
+if v and v > 1 then return redis.call('DECR', KEYS[1]) end
+return 0`
+
+/**
+ * Rend un appel compté à tort (demande dédoublonnée après coup). Au mieux : une panne de Redis est journalisée
+ * et ignorée, le compteur reste simplement un peu plus haut (jamais une erreur pour l'utilisateur).
+ */
+export async function releaseLimit(key: string): Promise<void> {
+  try {
+    await redis.eval(SCRIPT_RENDRE, 1, `${KEY_PREFIX}${key}`)
+  } catch (error) {
+    console.error({ limiteur: 'compteur non rendu', nom: error instanceof Error ? error.name : typeof error })
+  }
+}
+
 export async function enforceLimit(key: string, limit: number, windowS: number, options: LimitOptions = {}): Promise<void> {
   const status = await hitLimit(key, limit, windowS, options)
   if (!status.allowed) {
