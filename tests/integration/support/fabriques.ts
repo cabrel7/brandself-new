@@ -1,8 +1,12 @@
-import { randomUUID } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
+import { and, eq } from 'drizzle-orm'
 import { db } from '../../../server/utils/db'
 import {
+  generationsIa,
   liens,
   medias,
+  progressionsInscription,
+  promptsIa,
   realisationImages,
   realisations,
   services,
@@ -200,6 +204,95 @@ export async function insertLien(vitrineId: string, surcharges: Partial<typeof l
       libelle: 'Mon site',
       url: 'https://exemple.com',
       type: 'libre',
+      ...surcharges,
+    })
+    .returning()
+  return ligne
+}
+
+// ---------------------------------------------------------------------------------------------
+// S8 : prompts IA, générations, progression de l'inscription (insertions directes).
+// ---------------------------------------------------------------------------------------------
+
+export type PromptIaRow = typeof promptsIa.$inferSelect
+export type GenerationIaRow = typeof generationsIa.$inferSelect
+export type ProgressionRow = typeof progressionsInscription.$inferSelect
+
+/** Empreinte hexadécimale valide (64 caractères) pour les générations insérées à la main. */
+export function empreinteDeTest(graine: string = randomUUID()): string {
+  return createHash('sha256').update(graine).digest('hex')
+}
+
+/**
+ * Prompt inséré directement. `prompts_ia` n'est PAS vidée entre les tests (elle ne dépend d'aucun utilisateur,
+ * et les versions 1 viennent de la migration) : tout prompt ajouté ici doit être supprimé par le test.
+ * Défauts : type `ameliorer_texte`, version 900 (loin des versions réelles), inactif.
+ */
+export async function insertPromptIa(surcharges: Partial<typeof promptsIa.$inferInsert> = {}): Promise<PromptIaRow> {
+  const [ligne] = await db
+    .insert(promptsIa)
+    .values({
+      id: randomUUID(),
+      type: 'ameliorer_texte',
+      version: 900,
+      systeme: 'Système de test.',
+      gabarit: 'Gabarit de test <donnees>{{donnees}}</donnees>',
+      variables: ['donnees'],
+      parametres: { temperature: 0.4, maxTokens: 900 },
+      schemaSortie: 'texte_ameliore_v1',
+      actif: false,
+      ...surcharges,
+    })
+    .returning()
+  return ligne
+}
+
+/** Version active d'un prompt, telle que la migration 0018 l'a insérée. */
+export async function activePromptRow(type: 'onboarding_vitrine' | 'ameliorer_texte'): Promise<PromptIaRow> {
+  const [ligne] = await db.select().from(promptsIa).where(and(eq(promptsIa.type, type), eq(promptsIa.actif, true)))
+  if (!ligne) throw new Error(`Aucun prompt actif pour ${type} : la migration 0018 doit les insérer.`)
+  return ligne
+}
+
+/**
+ * Génération insérée directement, par défaut : `onboarding_vitrine` en attente, prompt actif, entrée de
+ * démonstration, créée maintenant. Les surcharges peuvent volontairement violer une contrainte (tests des CHECK)
+ * et doivent fournir motif / terminee_le pour les statuts terminaux.
+ */
+export async function insertGeneration(userId: string, surcharges: Partial<typeof generationsIa.$inferInsert> = {}): Promise<GenerationIaRow> {
+  const type = surcharges.type ?? 'onboarding_vitrine'
+  const promptId = surcharges.promptId === undefined ? (await activePromptRow(type)).id : surcharges.promptId
+  const [ligne] = await db
+    .insert(generationsIa)
+    .values({
+      id: randomUUID(),
+      userId,
+      type,
+      statut: 'en_attente',
+      promptId,
+      entreeEmpreinte: empreinteDeTest(),
+      entree: { titre: 'Dr', metier: 'Cardiologue interventionnel', ville: 'Douala', pays: 'Cameroun' },
+      ...surcharges,
+    })
+    .returning()
+  return ligne
+}
+
+/**
+ * Progression d'inscription insérée directement. Par défaut : identité de démonstration complète
+ * (dr, Cabrel, Nguesso, Cardiologue interventionnel, Douala, CM), rien d'autre. Passer `null` vide une colonne.
+ */
+export async function insertProgression(userId: string, surcharges: Partial<typeof progressionsInscription.$inferInsert> = {}): Promise<ProgressionRow> {
+  const [ligne] = await db
+    .insert(progressionsInscription)
+    .values({
+      userId,
+      titre: 'dr',
+      prenom: 'Cabrel',
+      nom: 'Nguesso',
+      metier: 'Cardiologue interventionnel',
+      ville: 'Douala',
+      pays: 'CM',
       ...surcharges,
     })
     .returning()

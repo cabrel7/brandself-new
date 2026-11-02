@@ -91,10 +91,9 @@ function insertMessage(surcharges: Partial<Record<string, string>> = {}): string
 }
 
 describe('migration 0017 : table messages', () => {
-  it('est l’unique migration 0017 et n’a pas de successeur non prévu', () => {
+  it('est l’unique migration 0017', () => {
     expect(migrationFiles().filter((file) => file.startsWith('0017_'))).toHaveLength(1)
     expect(migration0017()).toMatch(/^0017_.*\.sql$/)
-    expect(migrationFiles().filter((file) => file.startsWith('0018_'))).toEqual([])
   })
 
   it('crée la table messages avec des colonnes typées, l’horodatage en created_at (écart assumé vs spec) et la FK en cascade', async () => {
