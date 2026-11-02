@@ -219,6 +219,22 @@ export function useStudioDisponibilites() {
     erreursDisponibilites.value = { ...erreursDisponibilites.value, plages: erreurs }
   }
 
+  /** Interrupteur d'un jour : ouvrir ajoute la plage par défaut, fermer retire toutes les plages du jour. */
+  function basculerJour(jourSemaine: number, ouvert: boolean): void {
+    const plagesDuJour = plages.value.filter((plage) => plage.jourSemaine === jourSemaine)
+    if (ouvert) {
+      if (plagesDuJour.length === 0) ajouterPlage(jourSemaine)
+      return
+    }
+    effacerMessage()
+    const clesRetirees = new Set(plagesDuJour.map((plage) => plage.cle))
+    plages.value = plages.value.filter((plage) => !clesRetirees.has(plage.cle))
+    const erreurs = Object.fromEntries(
+      Object.entries(erreursDisponibilites.value.plages).filter(([cleErreur]) => !clesRetirees.has(cleErreur)),
+    )
+    erreursDisponibilites.value = { ...erreursDisponibilites.value, plages: erreurs }
+  }
+
   function modifierPlage(cle: string, champ: ChampPlageAgenda, valeur: string): void {
     effacerMessage()
     const plage = plages.value.find((item) => item.cle === cle)
@@ -457,7 +473,7 @@ export function useStudioDisponibilites() {
     enChargement, enErreur, absente, rafraichir, message, effacerMessage,
     jours, reglages, fuseauItems, pasItems, erreursDisponibilites,
     disponibilitesModifiees, enregistrementDisponibilites,
-    ajouterPlage, supprimerPlage, modifierPlage, modifierReglage, enregistrerDisponibilites,
+    ajouterPlage, supprimerPlage, basculerJour, modifierPlage, modifierReglage, enregistrerDisponibilites,
     indisponibilites: indisponibilitesAffichees,
     dateIndisponibilite,
     raisonIndisponibilite,

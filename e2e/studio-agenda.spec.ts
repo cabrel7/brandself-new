@@ -243,8 +243,14 @@ test.describe.serial('Studio Agenda S7 - vitrine fraîche', () => {
     const boutonEnregistrer = page.getByRole('button', { name: /^Enregistrer/ })
     await expect(boutonEnregistrer).toBeDisabled()
 
+    // Un interrupteur par jour : fermé au départ, l'ouvrir propose la plage par défaut.
+    const interrupteurLundi = disponibilites().getByRole('switch', { name: 'Lundi : jour ouvert' })
     const ajouterLundi = disponibilites().getByRole('button', { name: 'Ajouter une plage le lundi' })
-    await ajouterLundi.click()
+    await expect(interrupteurLundi).not.toBeChecked()
+    await expect(ajouterLundi).toHaveCount(0)
+    await interrupteurLundi.click()
+    await expect(interrupteurLundi).toBeChecked()
+    await expect(disponibilites().getByLabel('Début')).toHaveCount(1)
     await ajouterLundi.click()
     await expect(disponibilites().getByLabel('Début')).toHaveCount(2)
     await expect(disponibilites().getByLabel('Fin')).toHaveCount(2)

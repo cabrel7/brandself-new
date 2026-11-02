@@ -16,6 +16,7 @@ const {
   disponibilitesModifiees,
   enregistrementDisponibilites,
   ajouterPlage,
+  basculerJour,
   supprimerPlage,
   modifierPlage,
   modifierReglage,
@@ -95,6 +96,7 @@ const {
         :pas-items="pasItems"
         :erreurs="erreursDisponibilites"
         @ajouter="ajouterPlage"
+        @basculer="basculerJour"
         @supprimer="supprimerPlage"
         @modifier-plage="modifierPlage"
         @modifier-reglage="modifierReglage"

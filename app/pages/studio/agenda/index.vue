@@ -67,7 +67,6 @@ function plurielDemandes(nombre: number): string {
         </div>
         <UButton
           to="/studio/agenda/disponibilites"
-          icon="i-ph-calendar-check"
           label="Disponibilités"
           size="lg"
           class="min-h-(--cible-tactile)"

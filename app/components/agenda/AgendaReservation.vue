@@ -167,7 +167,7 @@ const dureeMinutes = computed(() => props.reponse?.service.dureeMin ?? null)
 
 <template>
   <div class="grid items-start gap-6 xl:grid-cols-2 xl:gap-8">
-    <div class="min-w-0 rounded-(--rayon-carte) border border-bordure bg-surface p-6 md:p-8" aria-labelledby="agenda-calendrier-titre">
+    <div class="min-w-0 rounded-(--rayon-carte) border border-bordure bg-surface p-5 md:p-8" aria-labelledby="agenda-calendrier-titre">
       <h2 id="agenda-calendrier-titre" class="sr-only">Calendrier des créneaux</h2>
 
       <USelect
@@ -200,7 +200,7 @@ const dureeMinutes = computed(() => props.reponse?.service.dureeMin ?? null)
 
       <template v-else>
         <div class="mt-6 flex items-center justify-between gap-4">
-          <h3 class="m-0 text-(length:--fs-24) font-bold">{{ titreMois }}</h3>
+          <h3 class="m-0 text-(length:--fs-20) font-bold md:text-(length:--fs-24)">{{ titreMois }}</h3>
           <div class="flex gap-2">
             <UButton
               type="button"
@@ -291,7 +291,7 @@ const dureeMinutes = computed(() => props.reponse?.service.dureeMin ?? null)
 
     <div
       v-if="afficherCarteJour"
-      class="min-w-0 rounded-(--rayon-carte) border border-bordure bg-surface p-6 md:p-8"
+      class="min-w-0 rounded-(--rayon-carte) border border-bordure bg-surface p-5 md:p-8"
       aria-labelledby="agenda-jour-titre"
     >
       <div>
@@ -305,7 +305,7 @@ const dureeMinutes = computed(() => props.reponse?.service.dureeMin ?? null)
         <p class="m-0 mt-1 text-(length:--fs-14) text-texte-secondaire" aria-live="polite">{{ resumeCreneaux }}</p>
       </div>
 
-      <div v-if="creneauxDuJour.length > 0" class="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-3">
+      <div v-if="creneauxDuJour.length > 0" class="mt-5 grid grid-cols-3 gap-2">
         <button
           v-for="creneau in creneauxDuJour"
           :key="creneau.debut"

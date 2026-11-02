@@ -50,7 +50,6 @@ const liens = computed(() => {
           :to="reserverHref"
           :aria-current="reserverActif ? 'page' : undefined"
           class="inline-flex min-h-(--cible-tactile) items-center rounded-(--rayon) bg-accent px-4 py-2 text-(length:--fs-14) font-medium text-sur-accent no-underline transition-colors hover:bg-[color-mix(in_srgb,var(--accent)_88%,var(--encre))] focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-accent"
-          :class="{ 'ring-2 ring-encre ring-offset-2 ring-offset-fond': reserverActif }"
         >
           Réserver
         </NuxtLink>

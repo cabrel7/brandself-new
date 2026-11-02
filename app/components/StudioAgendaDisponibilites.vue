@@ -17,6 +17,7 @@ defineProps<{
 
 const emit = defineEmits<{
   ajouter: [jourSemaine: number]
+  basculer: [jourSemaine: number, ouvert: boolean]
   supprimer: [cle: string]
   modifierPlage: [cle: string, champ: ChampPlageAgenda, valeur: string]
   modifierReglage: [champ: ChampReglageAgenda, valeur: string | number]
@@ -31,6 +32,11 @@ const emit = defineEmits<{
           <h3 class="m-0 text-base font-semibold text-encre">
             {{ jour.libelle }}
           </h3>
+          <USwitch
+            :model-value="jour.plages.length > 0"
+            :aria-label="`${jour.libelle} : jour ouvert`"
+            @update:model-value="emit('basculer', jour.numero, Boolean($event))"
+          />
         </div>
 
         <p v-if="jour.plages.length === 0" class="m-0 mt-1 text-(length:--fs-14) text-texte-secondaire">
@@ -84,6 +90,7 @@ const emit = defineEmits<{
         </div>
 
         <UButton
+          v-if="jour.plages.length > 0"
           label="Ajouter une plage"
           icon="i-ph-plus"
           variant="ghost"

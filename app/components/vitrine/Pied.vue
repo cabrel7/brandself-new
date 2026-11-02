@@ -12,7 +12,7 @@ defineProps<{
   <footer id="contact" class="scroll-mt-24 border-t border-bordure">
     <div
       v-if="compact"
-      class="mx-auto flex w-full max-w-6xl flex-col gap-1 px-6 py-6 text-(length:--fs-14) text-texte-secondaire sm:flex-row sm:items-center sm:justify-between"
+      class="mx-auto flex w-full max-w-6xl flex-wrap items-center justify-between gap-x-4 gap-y-1 px-6 py-6 text-(length:--fs-14) text-texte-secondaire"
     >
       <p class="m-0">{{ vitrine.nomAffiche }} · {{ vitrine.ville }}</p>
       <p class="m-0">Créé avec Brandself</p>
