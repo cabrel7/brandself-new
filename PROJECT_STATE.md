@@ -1,6 +1,6 @@
 # PROJECT_STATE.md — Brandself
 
-Dernière mise à jour : **2026-11-02** · Phase : **reprise sprint par sprint** · S0–S7 validés · **S7-bis implémenté** (agenda/contact/messages) sur la branche `sprint/s6-s7-s7bis` (commits `86afce1`, `0e9868f`) : lint/typecheck verts, unit 1647, intégration 612, e2e `messages` 8/8, `studio-agenda` 8/8, `reservation`/`studio-auth` verts. **Reste** : run e2e complet (tué par manque de mémoire, à relancer machine libre), build prod, captures 390/768/1280 vs maquettes, puis merge. Éléments non bloquants reportés à la passe d'optimisation avant prod : voir §7 « Avant mise en prod ».
+Dernière mise à jour : **2026-11-02** · Phase : **reprise sprint par sprint** · S0–S7 validés · **S7-bis implémenté** (agenda/contact/messages) sur la branche `sprint/s6-s7-s7bis` (commits `86afce1`, `0e9868f`) : lint/typecheck verts, unit 1647, intégration 612, e2e `messages` 8/8, `studio-agenda` 8/8, `reservation`/`studio-auth` verts. **Build prod OK 2026-11-02 (19m16s, pic 2,1 Go)**. **Reste** : run e2e complet (tué par manque de mémoire, à relancer machine libre), captures 390/768/1280 vs maquettes, puis merge. Éléments non bloquants reportés à la passe d'optimisation avant prod : voir §7 « Avant mise en prod ».
 
 À traiter plus tard (décision 2026-10-31) : sur l'accueil, ne garder à terme que **l'agenda du jour courant** dans le bloc ; l'agenda complet vit sur la page publique `/agenda`. Ne pas modifier le bloc actuel pendant S7-bis.
 
