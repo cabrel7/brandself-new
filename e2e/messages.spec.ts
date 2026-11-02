@@ -4,7 +4,7 @@ import type { APIRequestContext, APIResponse, BrowserContext, Page } from '@play
 import { SUJET_LIBELLES } from '../shared/message'
 import type { SujetMessage } from '../shared/message'
 import { attendreHydration, ouvrirStudio } from './helpers/hydratation'
-import { BASE_URL, db, fermerConnexions, seConnecter } from './helpers/session'
+import { BASE_URL, db, fermerConnexions, reinitialiserLimites, seConnecter } from './helpers/session'
 import type { Session } from './helpers/session'
 
 // S7-bis — parcours Contact/Messages (CA11, CA12, CA13, CA17, CA23) et régressions des revues :
@@ -18,6 +18,11 @@ const DESKTOP = { width: 1280, height: 800 }
 const PERSISTANCE_SUCCES_MS = 1_000
 const TEXTE_SUCCES = 'Votre message est envoyé.'
 const TEXTE_ERREUR_FORMULAIRE = 'Vérifiez les informations saisies.'
+
+/** Région d'état du formulaire : Nuxt expose aussi un `role="status"` (annonceur de route), d'où le cadrage. */
+function statutFormulaire(page: Page) {
+  return page.getByRole('region', { name: 'Écrivez-moi' }).getByRole('status')
+}
 
 interface MessageCreeApi {
   message: { id: string, sujet: string, creeLe: string }
@@ -45,22 +50,19 @@ test.describe.serial('Contact et Messages S7-bis', () => {
     }
   }
 
-  let compteurIp = 0
-
   /**
-   * POST public direct. Le serveur de développement est derrière le loopback : comme en production
-   * derrière nginx, il lit l'IP du visiteur dans `X-Forwarded-For`. Une IP distincte par appel évite
-   * que la limite IP (5 / 10 min) ne fasse échouer ces parcours pour une raison étrangère à leur objet.
+   * POST public direct. Le compteur IP (5 / 10 min) est remis à zéro avant chaque appel : derrière
+   * le proxy de `nuxt dev` toutes les requêtes partagent l'IP « inconnue », et la limite ne doit pas
+   * faire échouer ces parcours pour une raison étrangère à leur objet.
    */
   async function posterMessageApi(
     contact: { nom: string, email: string },
     sujet: SujetMessage,
     extra: Record<string, unknown> = {},
   ): Promise<APIResponse> {
-    compteurIp += 1
     emailsMessages.add(contact.email)
+    await reinitialiserLimites('message-publique:')
     return apiPublique.post(`/api/public/${username}/messages`, {
-      headers: { 'X-Forwarded-For': `10.88.${Math.floor(compteurIp / 250)}.${(compteurIp % 250) + 1}` },
       data: {
         nom: contact.nom,
         email: contact.email,
@@ -139,7 +141,7 @@ test.describe.serial('Contact et Messages S7-bis', () => {
     await expect(page.getByRole('link', { name: 'Écrire sur WhatsApp' })).toHaveCount(0)
     await expect(page.getByText(/Douala, Cameroun|Douala/).first()).toBeVisible()
 
-    const carteAgenda = page.getByRole('link', { name: 'Voir l’agenda ›' })
+    const carteAgenda = page.getByRole('link', { name: 'Voir l’agenda' })
     await expect(carteAgenda).toBeVisible()
     await expect(carteAgenda).toHaveAttribute('href', `/${username}/agenda`)
     await carteAgenda.click()
@@ -180,7 +182,7 @@ test.describe.serial('Contact et Messages S7-bis', () => {
     expect(corps.message.creeLe).toEqual(expect.any(String))
 
     // Succès : un unique message d'état, jamais un second bandeau.
-    await expect(page.getByRole('status')).toContainText('Votre message est envoyé.')
+    await expect(statutFormulaire(page)).toContainText('Votre message est envoyé.')
 
     // Aucune PII dans l'URL ni dans localStorage (pattern `verifierAbsencePii`).
     const url = decodeURIComponent(page.url())
@@ -214,7 +216,7 @@ test.describe.serial('Contact et Messages S7-bis', () => {
     await page.getByRole('button', { name: 'Envoyer mon message' }).click()
     expect((await creationPromise).status()).toBe(201)
 
-    const succes = page.getByRole('status').filter({ hasText: TEXTE_SUCCES })
+    const succes = statutFormulaire(page).filter({ hasText: TEXTE_SUCCES })
     await expect(succes).toBeVisible()
     // Seule une attente réelle prouve la persistance : le watch fautif effaçait le message au flush suivant.
     await page.waitForTimeout(PERSISTANCE_SUCCES_MS)
@@ -240,7 +242,11 @@ test.describe.serial('Contact et Messages S7-bis', () => {
     // Champ-piège : hors écran, exclu de l'ordre de tabulation et invisible aux lecteurs d'écran.
     const siteWeb = page.getByLabel('Site web', { exact: true })
     await expect(siteWeb).toHaveAttribute('tabindex', '-1')
-    await siteWeb.fill('https://robot.example')
+    // Le champ est `inert` : ni un humain ni `fill()` ne peuvent y écrire. Un robot, lui, écrit dans le DOM.
+    await siteWeb.evaluate((el: HTMLInputElement) => {
+      el.value = 'https://robot.example'
+      el.dispatchEvent(new Event('input', { bubbles: true }))
+    })
 
     let envois = 0
     page.on('request', (requete) => {
@@ -252,7 +258,7 @@ test.describe.serial('Contact et Messages S7-bis', () => {
 
     // Point de synchronisation déterministe : l'unique erreur affichée, jamais le message de succès.
     await expect(page.getByRole('alert').filter({ hasText: TEXTE_ERREUR_FORMULAIRE })).toBeVisible()
-    await expect(page.getByRole('status').filter({ hasText: TEXTE_SUCCES })).toHaveCount(0)
+    await expect(statutFormulaire(page).filter({ hasText: TEXTE_SUCCES })).toHaveCount(0)
     expect(envois).toBe(0)
     expect(await compterMessages(contact.email)).toBe(0)
   })
@@ -312,7 +318,7 @@ test.describe.serial('Contact et Messages S7-bis', () => {
     // CA17 : le compte passe de 2 à 1 et le sous-titre suit ; le badge de l'écran
     // Vitrine est mis à jour au retour.
     await expect(page.getByText('1 non lu', { exact: true })).toBeVisible()
-    await page.getByRole('link', { name: '← Vitrine' }).click()
+    await page.getByRole('link', { name: 'Vitrine', exact: true }).click()
     await expect(ligneMessages).toContainText('1 non lu')
 
     // Idempotence visible : re-déplier le message déjà lu ne re-poste pas « lu ».

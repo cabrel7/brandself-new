@@ -45,6 +45,21 @@ function redisClient(): Redis {
   return redis
 }
 
+/**
+ * Supprime les compteurs de limite dont la clé commence par `limite:<prefixe>`.
+ * Derrière le proxy de `nuxt dev`, l'IP du socket est « inconnue » : tous les POST partagent un
+ * compteur unique. Un parcours qui enchaîne plus d'envois que la limite IP doit le remettre à zéro.
+ */
+export async function reinitialiserLimites(prefixe: string): Promise<void> {
+  const client = redisClient()
+  let curseur = '0'
+  do {
+    const [suivant, cles] = await client.scan(curseur, 'MATCH', `limite:${prefixe}*`, 'COUNT', '200')
+    curseur = suivant
+    if (cles.length > 0) await client.del(...cles)
+  } while (curseur !== '0')
+}
+
 /** À appeler dans `afterAll` : referme les connexions pour que Playwright se termine. */
 export async function fermerConnexions(): Promise<void> {
   await pool?.end()

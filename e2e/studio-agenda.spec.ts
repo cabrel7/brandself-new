@@ -114,13 +114,18 @@ test.describe.serial('Studio Agenda S7 - vitrine fraîche', () => {
   function activite(titreService: string, nomVisiteur: string): Locator {
     return page
       .getByRole('article')
-      .filter({ has: page.getByRole('heading', { level: 3, name: titreService }) })
+      .filter({ has: page.getByRole('heading', { level: 4, name: titreService }) })
       .filter({ hasText: nomVisiteur })
   }
 
   async function ouvrirAgenda(): Promise<void> {
     await ouvrirStudio(page, '/studio/agenda')
     await expect(page.getByRole('heading', { level: 1, name: 'Agenda' })).toBeVisible()
+  }
+
+  async function ouvrirDisponibilites(): Promise<void> {
+    await ouvrirStudio(page, '/studio/agenda/disponibilites')
+    await expect(page.getByRole('heading', { level: 1, name: 'Vos disponibilités' })).toBeVisible()
   }
 
   async function creerService(data: Record<string, unknown>): Promise<ServiceApi> {
@@ -209,10 +214,10 @@ test.describe.serial('Studio Agenda S7 - vitrine fraîche', () => {
     await ouvrirAgenda()
 
     // S7-bis : l'agenda du studio ne montre plus les asides disponibilités ;
-    // trois onglets segmentés à compteurs à neuf, le bouton Disponibilités mène à la page dédiée.
-    await expect(page.getByRole('tab', { name: 'À venir 0', exact: true })).toBeVisible()
-    await expect(page.getByRole('tab', { name: 'Demandes 0', exact: true })).toBeVisible()
-    await expect(page.getByRole('tab', { name: 'Passées 0', exact: true })).toBeVisible()
+    // trois onglets segmentés (compteur masqué à zéro), le bouton Disponibilités mène à la page dédiée.
+    await expect(page.getByRole('tab', { name: 'À venir', exact: true })).toBeVisible()
+    await expect(page.getByRole('tab', { name: 'Demandes', exact: true })).toBeVisible()
+    await expect(page.getByRole('tab', { name: 'Passées', exact: true })).toBeVisible()
     // Sous-titre compteurs de l'en-tête : sans demandes, la mention « demandes » est masquée.
     await expect(page.getByText('0 à venir', { exact: true })).toBeVisible()
     // S7-bis : les asides Disponibilités/Indisponibilités ne sont plus sur /studio/agenda.
@@ -221,18 +226,18 @@ test.describe.serial('Studio Agenda S7 - vitrine fraîche', () => {
 
     // États vides déclinés par onglet (S7-bis §7.4).
     await expect(page.getByText('Aucun rendez-vous à venir', { exact: true })).toBeVisible()
-    await page.getByRole('tab', { name: 'Demandes 0', exact: true }).click()
+    await page.getByRole('tab', { name: 'Demandes', exact: true }).click()
     await expect(page.getByText('Aucune demande', { exact: true })).toBeVisible()
-    await page.getByRole('tab', { name: 'Passées 0', exact: true }).click()
+    await page.getByRole('tab', { name: 'Passées', exact: true }).click()
     await expect(page.getByText('Rien de passé — tout est traité', { exact: true })).toBeVisible()
-    await page.getByRole('tab', { name: 'À venir 0', exact: true }).click()
+    await page.getByRole('tab', { name: 'À venir', exact: true }).click()
 
     await page.getByRole('link', { name: 'Disponibilités', exact: true }).click()
     await expect(page).toHaveURL(/\/studio\/agenda\/disponibilites$/)
 
     // Écran enfant : la barre du bas mobile est masquée ; seul un retour « ← Agenda » reste.
     await expect(page.getByRole('navigation', { name: 'Navigation du studio' })).toBeHidden()
-    const retourAgenda = page.getByRole('link', { name: '← Agenda' })
+    const retourAgenda = page.getByRole('main').getByRole('link', { name: 'Agenda', exact: true })
     await expect(retourAgenda).toBeVisible()
 
     const boutonEnregistrer = page.getByRole('button', { name: /^Enregistrer/ })
@@ -301,7 +306,7 @@ test.describe.serial('Studio Agenda S7 - vitrine fraîche', () => {
     await expect(disponibilites().getByLabel('Fin').nth(0)).toHaveValue('12:00')
     await expect(disponibilites().getByLabel('Début').nth(1)).toHaveValue('14:00')
     await expect(disponibilites().getByLabel('Fin').nth(1)).toHaveValue('17:00')
-    await expect(disponibilites().getByText('Indisponible', { exact: true })).toHaveCount(6)
+    await expect(disponibilites().getByText('Fermé', { exact: true })).toHaveCount(6)
 
     await disponibilites().getByText('Réglages avancés', { exact: true }).click()
     await expect(disponibilites().getByRole('combobox', { name: 'Fuseau horaire' })).toContainText('Europe/Paris')
@@ -327,7 +332,7 @@ test.describe.serial('Studio Agenda S7 - vitrine fraîche', () => {
     await ligneMessages.click()
     await expect(page).toHaveURL(/\/studio\/messages$/)
     await expect(page.getByRole('heading', { level: 1, name: 'Messages' })).toBeVisible()
-    await expect(page.getByRole('link', { name: '← Vitrine' })).toBeVisible()
+    await expect(page.getByRole('main').getByRole('link', { name: 'Vitrine', exact: true })).toBeVisible()
     // Écran enfant : la barre du bas est masquée ici aussi.
     await expect(page.getByRole('navigation', { name: 'Navigation du studio' })).toBeHidden()
   })
@@ -416,7 +421,7 @@ test.describe.serial('Studio Agenda S7 - vitrine fraîche', () => {
   })
 
   test('une plage invalide affiche les erreurs sans requête d’écriture ni modification persistée', async () => {
-    await ouvrirAgenda()
+    await ouvrirDisponibilites()
     const avant = await lireDisponibilites()
     await disponibilites().getByLabel('Fin').nth(0).fill('08:00')
 
@@ -429,7 +434,7 @@ test.describe.serial('Studio Agenda S7 - vitrine fraîche', () => {
     }
     page.on('request', compterEcriture)
     try {
-      await disponibilites().getByRole('button', { name: 'Enregistrer les disponibilités' }).click()
+      await page.getByRole('button', { name: /^Enregistrer/ }).click()
       await expect(disponibilites().getByText(
         'La fin doit être après le début, le même jour.',
         { exact: true },
@@ -451,7 +456,7 @@ test.describe.serial('Studio Agenda S7 - vitrine fraîche', () => {
   })
 
   test('une indisponibilité est ajoutée puis supprimée par une confirmation accessible, sans confirm natif', async () => {
-    await ouvrirAgenda()
+    await ouvrirDisponibilites()
     const date = dateIsoDans(35)
     await indisponibilites().getByLabel('Date').fill(date)
     await indisponibilites().getByLabel('Raison (facultative)').fill(RAISON_INDISPONIBILITE)
@@ -460,7 +465,7 @@ test.describe.serial('Studio Agenda S7 - vitrine fraîche', () => {
       reponse.request().method() === 'POST'
       && new URL(reponse.url()).pathname === '/api/studio/agenda/indisponibilites',
     )
-    await indisponibilites().getByRole('button', { name: 'Ajouter la date' }).click()
+    await indisponibilites().getByRole('button', { name: 'Ajouter une indisponibilité' }).click()
     const ajout = await lireJsonReponse<{ item: { id: string, date: string, raison: string | null } }>(
       await ajoutPromise,
       201,
@@ -540,10 +545,9 @@ test.describe.serial('Studio Agenda S7 - vitrine fraîche', () => {
     expect(creation.reservation).toMatchObject({ statut: 'en_attente', debut: creneau.debut, fin: creneau.fin })
 
     await ouvrirAgenda()
-    await expect(page.getByRole('tab', { name: 'À venir 1', exact: true })).toHaveAttribute('aria-selected', 'true')
+    await expect(page.getByRole('tab', { name: 'À venir', exact: true })).toHaveAttribute('aria-selected', 'true')
     const carte = activite(TITRE_RESERVATION, NOM_RESERVATION)
     await expect(carte).toHaveCount(1)
-    await expect(carte.getByText('Réservation', { exact: true })).toBeVisible()
     await expect(carte.getByText('En attente', { exact: true })).toBeVisible()
     // S7-bis §7.4 : En attente = Confirmer (accent) + Refuser (contour) ; « Annuler » disparaît.
     await expect(carte.getByRole('button', { name: 'Confirmer', exact: true })).toBeVisible()
@@ -568,8 +572,8 @@ test.describe.serial('Studio Agenda S7 - vitrine fraîche', () => {
     expect(refus.item).toEqual({ id: creation.reservation.id, statut: 'refusee' })
 
     // CA7 : l'étiquette devient « Refusée », la carte passe dans Passées, sans bouton.
-    await expect(page.getByRole('tab', { name: 'À venir 0', exact: true })).toBeVisible()
-    await page.getByRole('tab', { name: 'Passées 1', exact: true }).click()
+    await expect(page.getByRole('tab', { name: 'À venir', exact: true })).toBeVisible()
+    await page.getByRole('tab', { name: 'Passées', exact: true }).click()
     await expect(carte.getByText('Refusée', { exact: true })).toBeVisible()
     await expect(carte.getByRole('button')).toHaveCount(0)
 
@@ -602,7 +606,7 @@ test.describe.serial('Studio Agenda S7 - vitrine fraîche', () => {
 
     await page.reload()
     await attendreHydration(page)
-    await expect(page.getByRole('tab', { name: 'À venir 1', exact: true })).toHaveAttribute('aria-selected', 'true')
+    await expect(page.getByRole('tab', { name: 'À venir', exact: true })).toHaveAttribute('aria-selected', 'true')
     const carteConfirmable = activite(TITRE_RESERVATION, NOM_RESERVATION_ANNULEE)
     await expect(carteConfirmable).toHaveCount(1)
 
@@ -635,9 +639,9 @@ test.describe.serial('Studio Agenda S7 - vitrine fraîche', () => {
       'annulation de la réservation',
     )
     expect(annulation.item).toEqual({ id: seconde.reservation.id, statut: 'annulee' })
-    await expect(page.getByRole('tab', { name: 'À venir 0', exact: true })).toBeVisible()
+    await expect(page.getByRole('tab', { name: 'À venir', exact: true })).toBeVisible()
 
-    await page.getByRole('tab', { name: 'Passées 2', exact: true }).click()
+    await page.getByRole('tab', { name: 'Passées', exact: true }).click()
     await expect(carte.getByText('Refusée', { exact: true })).toBeVisible()
     await expect(carteConfirmable.getByText('Annulée', { exact: true })).toBeVisible()
     await expect(carte.getByRole('button')).toHaveCount(0)
@@ -662,10 +666,11 @@ test.describe.serial('Studio Agenda S7 - vitrine fraîche', () => {
     expect(creation.demande.statut).toBe('nouvelle')
 
     await ouvrirAgenda()
-    await expect(page.getByRole('tab', { name: 'À venir 1', exact: true })).toHaveAttribute('aria-selected', 'true')
+    // S7-bis : les demandes ont leur propre onglet (l'onglet par défaut reste « À venir »).
+    await expect(page.getByRole('tab', { name: 'À venir', exact: true })).toHaveAttribute('aria-selected', 'true')
+    await page.getByRole('tab', { name: /^Demandes/ }).click()
     const carte = activite(TITRE_DEMANDE, NOM_DEMANDE)
     await expect(carte).toHaveCount(1)
-    await expect(carte.getByText('Demande', { exact: true })).toBeVisible()
     await expect(carte.getByText('Nouvelle', { exact: true })).toBeVisible()
     await expect(carte.getByRole('button', { name: 'En cours', exact: true })).toBeVisible()
     await expect(carte.getByRole('button', { name: 'Traiter', exact: true })).toBeVisible()

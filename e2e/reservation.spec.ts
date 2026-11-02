@@ -330,14 +330,21 @@ test('un visiteur passe par /agenda, choisit service, jour et heure, confirme vi
   await telephone.fill(contact.telephone)
   await page.getByLabel('Motif de la consultation (facultatif)').fill('Contrôle E2E sans donnée réelle.')
 
-  const creationPromise = page.waitForResponse(reponseHttp =>
-    reponseHttp.request().method() === 'POST'
-    && new URL(reponseHttp.url()).pathname === `/api/public/${USERNAME_DEMO}/reservations`,
-  )
+  // Le corps est lu dans l'intercepteur : la page navigue vers la confirmation dès le 201, et
+  // Chromium n'expose plus le corps d'une réponse dont la page a été quittée.
+  let creation: { statut: number, texte: string } | undefined
+  await page.route(`**/api/public/${USERNAME_DEMO}/reservations`, async (route) => {
+    if (route.request().method() !== 'POST') {
+      await route.continue()
+      return
+    }
+    const reponseServeur = await route.fetch()
+    creation = { statut: reponseServeur.status(), texte: await reponseServeur.text() }
+    await route.fulfill({ response: reponseServeur })
+  })
   await envoyer.click()
-  const creation = await creationPromise
-  expect(creation.status(), await creation.text()).toBe(201)
-  const corpsCreation = (await creation.json()) as { reservation: { id: string, debut: string } }
+  await expect.poll(() => creation?.statut).toBe(201)
+  const corpsCreation = JSON.parse(creation?.texte ?? '{}') as { reservation: { id: string, debut: string } }
   expect(corpsCreation.reservation.debut).toBe(creneau.debut)
 
   await expect(page).toHaveURL(`/${USERNAME_DEMO}/reserver/confirmation`)
