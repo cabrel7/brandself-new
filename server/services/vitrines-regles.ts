@@ -16,13 +16,16 @@ export function computeMissingForPublication(vitrine: PublicationCandidate): Pub
 export interface NextStepInput {
   hasPhoto: boolean
   servicesActifs: number
+  /** Nombre de plages d'ouverture de l'agenda. */
+  disponibilites: number
   realisationsActives: number
 }
 
-/** Prochaine étape suggérée : photo, puis premier service, puis première réalisation. */
+/** Prochaine étape suggérée : photo, premier service, disponibilités, première réalisation (S8 #78). */
 export function computeNextStep(state: NextStepInput): NextStep | null {
   if (!state.hasPhoto) return 'photo'
   if (state.servicesActifs === 0) return 'service'
+  if (state.disponibilites === 0) return 'disponibilites'
   if (state.realisationsActives === 0) return 'realisation'
   return null
 }

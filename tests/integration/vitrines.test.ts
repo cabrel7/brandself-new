@@ -790,7 +790,7 @@ describe('vitrines — résumé du studio (CA17)', () => {
     expect(resume.compteurs).toEqual({ services: 2, realisations: 1, temoignages: 0, liens: 3 })
   })
 
-  it('CA17 should propose the next step "photo" first, then "service", then "realisation", then none', async () => {
+  it('CA17 should propose the next step "photo" first, then "service", then "disponibilites", then "realisation", then none', async () => {
     const { getStudioSummary, updateVitrine } = await vitrinesService()
     const { toStudioResumeResource } = await ressourceVitrine()
     const user = await createUser()
@@ -807,6 +807,9 @@ describe('vitrines — résumé du studio (CA17)', () => {
     await insertService(vitrine.id, { actif: false }) // un service inactif ne compte pas
     expect(await etape()).toBe('service')
     await insertService(vitrine.id)
+    expect(await etape()).toBe('disponibilites')
+
+    await insererDisponibilite(vitrine.id)
     expect(await etape()).toBe('realisation')
 
     await insertRealisation(vitrine.id)

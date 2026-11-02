@@ -1,5 +1,18 @@
 import { desc, sql } from 'drizzle-orm'
-import { boolean, check, date, index, integer, pgTable, text, time, timestamp, uniqueIndex } from 'drizzle-orm/pg-core'
+import {
+  boolean,
+  check,
+  date,
+  index,
+  integer,
+  jsonb,
+  pgTable,
+  smallint,
+  text,
+  time,
+  timestamp,
+  uniqueIndex,
+} from 'drizzle-orm/pg-core'
 
 // Tables gérées par Better Auth (source des champs : @better-auth/core dist/db/schema).
 // Propriétés = noms de modèles Better Auth ; colonnes = français sans accents (PROJECT_CONTEXT.md §11).
@@ -588,3 +601,181 @@ export const emailsTransactionnels = pgTable(
     ),
   ],
 )
+
+// S8 (docs/specs/S8-onboarding-ia.md §2, migration 0018) : prompts IA versionnés en base
+// (CLAUDE.md §4 règle 6). Une seule version `actif` par type (index unique partiel) ; une nouvelle
+// version se publie par une nouvelle migration. `parametres` est un réglage (JSON autorisé) validé par
+// Zod au chargement (schemaPromptParametres). `schema_sortie` = identifiant du schéma Zod attendu.
+// Les types sont recopiés depuis shared/ia.ts (IA_TYPES) : garder synchronisés.
+export const promptsIa = pgTable(
+  'prompts_ia',
+  {
+    id: text('id').primaryKey(),
+    type: text('type').notNull(),
+    version: integer('version').notNull(),
+    systeme: text('systeme').notNull(),
+    gabarit: text('gabarit').notNull(),
+    variables: text('variables').array().notNull().default([]),
+    parametres: jsonb('parametres').notNull().default({}),
+    schemaSortie: text('schema_sortie').notNull(),
+    actif: boolean('actif').notNull().default(false),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex('prompts_ia_type_version_unique').on(table.type, table.version),
+    // Au plus une version active par type : garanti par la base, pas seulement par le code.
+    uniqueIndex('prompts_ia_type_actif_unique')
+      .on(table.type)
+      .where(sql`${table.actif}`),
+    check('prompts_ia_type_check', sql`${table.type} IN ('onboarding_vitrine','ameliorer_texte')`),
+    check('prompts_ia_version_check', sql`${table.version} >= 1`),
+    check('prompts_ia_systeme_check', sql`char_length(${table.systeme}) BETWEEN 1 AND 20000`),
+    check('prompts_ia_gabarit_check', sql`char_length(${table.gabarit}) BETWEEN 1 AND 5000`),
+    check('prompts_ia_parametres_check', sql`jsonb_typeof(${table.parametres}) = 'object'`),
+    check('prompts_ia_schema_sortie_check', sql`${table.schemaSortie} ~ '^[a-z0-9_]{1,60}$'`),
+  ],
+)
+
+// S8 : une génération IA = une trace (statut, coût, durée) + l'entrée minimisée et la sortie servie
+// (IA ou repli). `entree`/`sortie` passent à NULL après IA_RETENTION_JOURS (job ia-purger) ; les
+// métadonnées restent (quota, coût). `erreur_code` est un code court : jamais de message brut ni de
+// donnée personnelle. Les listes de statuts et de motifs sont recopiées depuis shared/ia.ts
+// (GENERATION_STATUTS, MOTIFS_REPLI) : garder synchronisées. `fournisseur` n'est PAS une énumération en base
+// (seulement un format, depuis 0019) : ajouter un fournisseur (IA_FOURNISSEURS dans shared/ia.ts) ne demande
+// aucune migration.
+// `entree` et `sortie` sont du JSON non typé : ils sont toujours relus via un schéma Zod.
+export const generationsIa = pgTable(
+  'generations_ia',
+  {
+    id: text('id').primaryKey(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    type: text('type').notNull(),
+    statut: text('statut').notNull().default('en_attente'),
+    motifRepli: text('motif_repli'),
+    promptId: text('prompt_id').references(() => promptsIa.id, { onDelete: 'restrict' }),
+    fournisseur: text('fournisseur'),
+    modele: text('modele'),
+    tentatives: smallint('tentatives').notNull().default(0),
+    tokensEntree: integer('tokens_entree'),
+    tokensSortie: integer('tokens_sortie'),
+    dureeMs: integer('duree_ms'),
+    erreurCode: text('erreur_code'),
+    injectionSuspectee: boolean('injection_suspectee').notNull().default(false),
+    entreeEmpreinte: text('entree_empreinte').notNull(),
+    entree: jsonb('entree'),
+    sortie: jsonb('sortie'),
+    demarreeLe: timestamp('demarree_le', { withTimezone: true }),
+    termineeLe: timestamp('terminee_le', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    // Quota mensuel et liste d'un utilisateur.
+    index('generations_ia_user_created_idx').on(table.userId, desc(table.createdAt)),
+    // Dédoublonnage : même identité + même prompt = même génération.
+    index('generations_ia_dedoublonnage_idx').on(table.userId, table.type, table.entreeEmpreinte),
+    // Générations non terminées (suivi des tâches perdues).
+    index('generations_ia_actives_idx')
+      .on(table.createdAt)
+      .where(sql`${table.statut} IN ('en_attente','en_cours')`),
+    // Purge de rétention (job quotidien).
+    index('generations_ia_a_purger_idx')
+      .on(table.createdAt)
+      .where(sql`${table.entree} IS NOT NULL OR ${table.sortie} IS NOT NULL`),
+    check('generations_ia_type_check', sql`${table.type} IN ('onboarding_vitrine','ameliorer_texte')`),
+    check(
+      'generations_ia_statut_check',
+      sql`${table.statut} IN ('en_attente','en_cours','terminee','repli','expiree')`,
+    ),
+    check(
+      'generations_ia_motif_check',
+      sql`${table.motifRepli} IS NULL OR ${table.motifRepli} IN (
+        'echec_fournisseur','delai_depasse','sortie_invalide','injection','sans_fournisseur',
+        'sans_prompt','file_indisponible','limiteur_indisponible','plafond_global')`,
+    ),
+    check('generations_ia_motif_coherence_check', sql`(${table.statut} = 'repli') = (${table.motifRepli} IS NOT NULL)`),
+    check(
+      'generations_ia_terminee_check',
+      sql`${table.statut} IN ('en_attente','en_cours') OR ${table.termineeLe} IS NOT NULL`,
+    ),
+    check(
+      'generations_ia_fournisseur_check',
+      sql`${table.fournisseur} IS NULL OR ${table.fournisseur} ~ '^[a-z0-9_-]{1,40}$'`,
+    ),
+    check('generations_ia_modele_check', sql`${table.modele} IS NULL OR char_length(${table.modele}) <= 100`),
+    check('generations_ia_tentatives_check', sql`${table.tentatives} BETWEEN 0 AND 10`),
+    check(
+      'generations_ia_tokens_check',
+      sql`coalesce(${table.tokensEntree},0) >= 0 AND coalesce(${table.tokensSortie},0) >= 0`,
+    ),
+    check('generations_ia_duree_check', sql`${table.dureeMs} IS NULL OR ${table.dureeMs} >= 0`),
+    check(
+      'generations_ia_erreur_code_check',
+      sql`${table.erreurCode} IS NULL OR ${table.erreurCode} ~ '^[a-z_]{1,40}$'`,
+    ),
+    check('generations_ia_empreinte_check', sql`${table.entreeEmpreinte} ~ '^[0-9a-f]{64}$'`),
+  ],
+)
+
+// S8 : brouillon de l'inscription guidée, une ligne par utilisateur (PK = user_id). Une vitrine ne peut
+// pas exister avant l'étape 4 (username NOT NULL UNIQUE) : le brouillon vit ici, sans squatter d'adresse.
+// L'étape de reprise n'est PAS stockée, elle se déduit des données (computeEtapeReprise). Seule la liste
+// des 3 services proposés est en JSON (brouillon, jamais interrogé). Photo = ligne `medias` (règle 4).
+// Les bornes (60, 80, 160, 2000, titres, pays) sont recopiées depuis shared/vitrine.ts : garder synchronisées.
+export const progressionsInscription = pgTable(
+  'progressions_inscription',
+  {
+    userId: text('user_id')
+      .primaryKey()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    titre: text('titre'),
+    prenom: text('prenom'),
+    nom: text('nom'),
+    metier: text('metier'),
+    ville: text('ville'),
+    pays: text('pays'),
+    photoMediaId: text('photo_media_id').references(() => medias.id, { onDelete: 'set null' }),
+    generationId: text('generation_id').references(() => generationsIa.id, { onDelete: 'set null' }),
+    accroche: text('accroche'),
+    presentation: text('presentation'),
+    servicesProposes: jsonb('services_proposes'), // [{titre, description, type, dureeMin, nbSeances, actif}] (≤ 3)
+    propositionValideeLe: timestamp('proposition_validee_le', { withTimezone: true }),
+    termineLe: timestamp('termine_le', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    // FK parcourues à la suppression d'un média (deleteMediaIfUnreferenced) ou d'une génération.
+    index('progressions_inscription_photo_media_id_idx').on(table.photoMediaId),
+    index('progressions_inscription_generation_id_idx').on(table.generationId),
+    check(
+      'progressions_inscription_titre_check',
+      sql`${table.titre} IS NULL OR ${table.titre} IN ('dr','pr','me','m','mme')`,
+    ),
+    check('progressions_inscription_pays_check', sql`${table.pays} IS NULL OR ${table.pays} ~ '^[A-Z]{2}$'`),
+    check(
+      'progressions_inscription_longueurs_check',
+      sql`coalesce(char_length(${table.prenom}),0) <= 60 AND coalesce(char_length(${table.nom}),0) <= 60
+        AND coalesce(char_length(${table.metier}),0) <= 80 AND coalesce(char_length(${table.ville}),0) <= 80
+        AND coalesce(char_length(${table.accroche}),0) <= 160 AND coalesce(char_length(${table.presentation}),0) <= 2000`,
+    ),
+    check(
+      'progressions_inscription_services_check',
+      sql`${table.servicesProposes} IS NULL
+        OR (jsonb_typeof(${table.servicesProposes}) = 'array' AND jsonb_array_length(${table.servicesProposes}) <= 3)`,
+    ),
+    check(
+      'progressions_inscription_validation_check',
+      sql`${table.propositionValideeLe} IS NULL
+        OR (${table.accroche} IS NOT NULL AND ${table.presentation} IS NOT NULL AND ${table.servicesProposes} IS NOT NULL)`,
+    ),
+  ],
+)
+
+export type PromptIa = typeof promptsIa.$inferSelect
+export type NewPromptIa = typeof promptsIa.$inferInsert
+export type GenerationIa = typeof generationsIa.$inferSelect
+export type NewGenerationIa = typeof generationsIa.$inferInsert
+export type ProgressionInscription = typeof progressionsInscription.$inferSelect
+export type NewProgressionInscription = typeof progressionsInscription.$inferInsert

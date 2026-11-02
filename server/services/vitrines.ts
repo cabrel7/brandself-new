@@ -197,17 +197,19 @@ export async function unpublishVitrine(userId: string): Promise<VitrineAvecPhoto
 async function summarize({ vitrine, photo }: VitrineAvecPhoto): Promise<StudioSummary> {
   const actifs = (table: typeof services | typeof realisations | typeof temoignages | typeof liens) =>
     db.$count(table, and(eq(table.vitrineId, vitrine.id), eq(table.actif, true)))
-  const [nbServices, nbRealisations, nbTemoignages, nbLiens] = await Promise.all([
+  const [nbServices, nbRealisations, nbTemoignages, nbLiens, nbDisponibilites] = await Promise.all([
     actifs(services),
     actifs(realisations),
     actifs(temoignages),
     actifs(liens),
+    db.$count(disponibilites, eq(disponibilites.vitrineId, vitrine.id)),
   ])
   return {
     compteurs: { services: nbServices, realisations: nbRealisations, temoignages: nbTemoignages, liens: nbLiens },
     prochaineEtape: computeNextStep({
       hasPhoto: photo !== null,
       servicesActifs: nbServices,
+      disponibilites: nbDisponibilites,
       realisationsActives: nbRealisations,
     }),
     manquants: computeMissingForPublication(vitrine),

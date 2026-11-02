@@ -17,3 +17,13 @@ export const MESSAGE_PUBLIC_LIMIT: RateLimit = { limit: 5, windowS: 600 }
 export const MESSAGE_VITRINE_LIMIT: RateLimit = { limit: 30, windowS: 3600 }
 /** S7-bis — limite par contact (vitrine + email/téléphone hachés) : 3 messages en 24 h. */
 export const MESSAGE_CONTACT_LIMIT: RateLimit = { limit: 3, windowS: 86400 }
+/** S8 — demandes IA (generer + ameliorer confondus) : 10 par heure et par utilisateur, fail-closed (429). */
+export const IA_UTILISATEUR_LIMIT: RateLimit = { limit: 10, windowS: 3600 }
+/** S8 — plafond global de coût : au-delà, repli sans appel au fournisseur (jamais d'erreur bloquante). */
+export const IA_GLOBAL_LIMIT: RateLimit = { limit: 2000, windowS: 86400 }
+/** S8 — clés du limiteur (préfixe `limite:` ajouté par le limiteur). */
+export const IA_LIMITE_CLE_UTILISATEUR_PREFIXE = 'ia:'
+export const IA_LIMITE_CLE_GLOBALE = 'ia-global'
+/** S8 — `terminer` (création de la vitrine) : même débit que la vérification d'adresse, compteur distinct, sans quota IA. */
+export const ONBOARDING_TERMINER_LIMIT: RateLimit = USERNAME_CHECK_LIMIT
+export const ONBOARDING_TERMINER_CLE_PREFIXE = 'onboarding-terminer:'

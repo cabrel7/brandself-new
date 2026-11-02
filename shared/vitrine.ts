@@ -61,7 +61,7 @@ export const PUBLICATION_REQUIRED_FIELDS = ['prenom', 'nom', 'metier', 'ville', 
 
 export type PublicationField = (typeof PUBLICATION_REQUIRED_FIELDS)[number]
 
-export const NEXT_STEPS = ['photo', 'service', 'realisation'] as const
+export const NEXT_STEPS = ['photo', 'service', 'disponibilites', 'realisation'] as const
 
 export type NextStep = (typeof NEXT_STEPS)[number]
 

@@ -8,6 +8,7 @@ import {
   liens,
   medias,
   messages,
+  promptsIa,
   realisationImages,
   realisations,
   reservations,
@@ -16,6 +17,7 @@ import {
   users,
   vitrines,
 } from '../../shared/db/schema'
+import { IA_TYPES } from '../../shared/ia'
 import { GALERIE_MAX } from '../../shared/realisations'
 
 // S5 — données de démonstration (PROJECT_CONTEXT.md §15).
@@ -444,7 +446,26 @@ async function assurerGalerieDemo(realisationId: string, attendu: number): Promi
   }
 }
 
+/**
+ * S8 (spec §2.4) : les prompts IA v1 sont insérés par la migration 0018, seule source (elle arrive aussi en
+ * production, ce que le seed ne fait pas). Le seed ne réinsère AUCUN texte : il vérifie seulement que chaque
+ * type de IA_TYPES a une version active, et échoue sinon. Lecture seule, donc idempotent.
+ */
+async function assertActivePrompts(): Promise<void> {
+  const actifs = await db.select({ type: promptsIa.type }).from(promptsIa).where(eq(promptsIa.actif, true))
+  const presents = new Set(actifs.map((prompt) => prompt.type))
+  const manquants = IA_TYPES.filter((type) => !presents.has(type))
+  if (manquants.length > 0) {
+    throw new Error(
+      `Prompts IA actifs manquants : ${manquants.join(', ')}. Appliquez les migrations (pnpm db:migrate) : la 0018 les insère.`,
+    )
+  }
+  console.info(`[seed] prompts IA actifs présents (${IA_TYPES.join(', ')})`)
+}
+
 async function main(): Promise<void> {
+  await assertActivePrompts()
+
   const utilisateurExistant = await db.query.users.findFirst({
     where: eq(users.id, ID_UTILISATEUR),
   })

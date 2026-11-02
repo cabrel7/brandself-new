@@ -62,3 +62,24 @@ export type {
   MessageStudioDTO,
   MessagesStudioReponse,
 } from './message'
+export type {
+  ServiceProposeBaseDTO,
+  ServiceProposeDTO,
+  PropositionOnboardingDTO,
+  AmeliorationDTO,
+  GenerationOnboardingDTO,
+  GenerationAmelioreeDTO,
+  GenerationDTO,
+  QuotaIaDTO,
+  GenerationReponse,
+  GenerationLanceeReponse,
+} from './ia'
+export type {
+  OnboardingIdentiteDTO,
+  OnboardingPropositionDTO,
+  OnboardingTermineDTO,
+  OnboardingEnCoursDTO,
+  OnboardingDTO,
+  OnboardingReponse,
+  OnboardingTerminerReponse,
+} from './onboarding'

@@ -1,7 +1,10 @@
 import { z } from 'zod'
+import { schemaIaJobData } from './schemas/ia'
+import type { IaJobData } from './schemas/ia'
 
 export const FILE_SYSTEM = 'system'
 export const FILE_EMAILS = 'emails'
+export const FILE_IA = 'ia'
 
 export const TRANSACTIONAL_EMAIL_TYPES = [
   'reservation_professionnel_nouvelle',
@@ -24,6 +27,8 @@ export const JOBS = {
   sendOtpEmail: 'send-otp-email',
   sendOtpSms: 'send-otp-sms',
   sendTransactionalEmail: 'send-transactional-email',
+  genererIa: 'ia-generer',
+  purgerIa: 'ia-purger',
 } as const
 
 export type JobName = (typeof JOBS)[keyof typeof JOBS]
@@ -38,3 +43,14 @@ export const transactionalEmailJobDataSchema = z.strictObject({
 })
 
 export type TransactionalEmailJobData = z.infer<typeof transactionalEmailJobDataSchema>
+
+// S8 : file `ia`. Une génération = un job (jobId unique) ; la purge est un job répété quotidien.
+export const IA_JOB_ID_PREFIXE = 'ia-generation-'
+export const IA_JOB_LOCK_MS = 60_000
+export const IA_JOB_MAX_STALLED = 1
+export const IA_PURGE_SCHEDULER_ID = 'ia-purger'
+export const IA_PURGE_CRON = '0 3 * * *'
+export const IA_PURGE_TZ = 'UTC'
+
+export const iaJobDataSchema = schemaIaJobData
+export type { IaJobData }

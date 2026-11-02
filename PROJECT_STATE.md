@@ -22,7 +22,7 @@ L'ancien projet (Laravel + Nuxt, système de blocs polymorphique, ~60 tables, do
 | S5 | Témoignages | **fait, durci** | migration 0014 (slug unique par vitrine), schémas create/update sans défauts parasites, routes dossier fines + service/resource, studio aligné Réalisations (liste, tri, visibilité, formulaires), bloc public sur l'accueil avec dépliage, e2e parcours complet 6/6 + intégration 19 tests |
 | S6 | Liens et link-in-bio | **fait** | migration 0013 (slug par vitrine), CRUD + ordre + visibilité + clics hebdomadaires, studio (carte partage, copie, QR modal+téléchargement, formulaire 6 types), `/@username` conforme maquette, clic natif non bloquant, e2e liens 9/9, captures 390/1280 |
 | S7 | Agenda, réservations, demandes | **fait** | schéma 0015/0016 (exclusion GiST, token SHA-256 hashé), service de créneaux (Temporal, fuseaux), routes studio + publiques, `/reserver` + confirmation + e-mails, Studio agenda, nav +Agenda, captures 390/768/1280. **Durcissement post-review** : 23505 → 409, anti-spoof IP (helper client-ip + Nginx versionné + loopback PM2), HTML confirmation `private, no-store`, limite contact 3/24 h hachée, e2e répétables (purge Redis), timeout webServer 300 s. Gates 2026-10-31 : lint/typecheck verts, Vitest 2087/2087, intégration 563/563, e2e 268/268, build prod 11m22s. Écarts assumés + findings : voir §7. **Fin S7 : bêta fermée** (avec S8 pour l'inscription guidée) |
-| S8 | Inscription guidée + IA | à faire | |
+| S8 | Inscription guidée + IA | **implémenté, à merger** | branche `sprint/s8-onboarding-ia` : migration 0018 (`prompts_ia`, `generations_ia`, `progressions_inscription`), service IA (fournisseur interchangeable, repli, garde-fous, job BullMQ), routes onboarding/ia, parcours `/onboarding` en 4 étapes, « Améliorer avec l'IA » au Profil, prochaine étape « Ouvrez vos disponibilités ». Gates 2026-11-02 : lint/typecheck verts, unit 2338, intégration 1001, e2e API 113/115 puis connexion 7/7, e2e UI S8 17/17 (avant passage sur Gemini), **build prod OK (10m13s, pic 2,1 Go)**. Revues sécurité/UX/régression faites et corrigées. **Reste** : prompt v2 (accents), relancer l'e2e S8 avec `IA_FOURNISSEUR=faux`, captures vs maquettes, merge ; dette S8 en §7 |
 | S9 | Notifications et rétention | à faire | |
 | S10 | Abonnements, plans, K-PAY | à faire | **Fin S10 : lancement payant** |
 | S11 | Statistiques | à faire | |
@@ -38,12 +38,12 @@ L'ancien projet (Laravel + Nuxt, système de blocs polymorphique, ~60 tables, do
 | 3 | Fournisseur d'envoi SMS (et WhatsApp si retenu) | à choisir ; en développement, le code s'affiche dans la console | S1 |
 | 4 | Délai de grâce après expiration | 7 jours | S10 |
 | 5 | Contenu en trop après expiration | masqué (les plus récents), jamais supprimé | S10 |
-| 6 | Photo obligatoire à l'inscription | obligatoire | S8 |
+| 6 | Photo obligatoire à l'inscription | obligatoire (**appliquée en S8**) | S8 ✅ |
 | 7 | Essais de code OTP, durée, renvoi | 3 essais, 10 min, renvoi après 60 s | S1 |
 | 8 | Statistiques : gratuit vs payant | gratuit 7 jours ; payant 90 jours avec pages et sources | S11 |
 | 9 | Langue des identifiants de code | **appliqué en S0** : tables/champs d'API en français sans accents, code TypeScript en anglais | S0 ✅ |
 | 10 | `@nuxt/ui` comme base de composants ou composants maison | **`@nuxt/ui` comme base** (UButton, UInput, USwitch…), thémé sur les variables CSS des 5 palettes ; `Bs*` = surcouches métier uniquement. Révisé le 2026-10-26 (remplace « composants maison » de S2) ; migration des `Bs*` en cours | S2 ↻ |
-| 11 | Fournisseur et modèle d'IA | interchangeable ; à choisir | S8 |
+| 11 | Fournisseur et modèle d'IA | **tranché par défaut en S8** : interface interchangeable + adaptateur Anthropic (`claude-haiku-5-5`), faux fournisseur en dev/test ; à confirmer (modèle, coût, conservation) avant la production | S13 |
 | 12 | Hébergement, nom de domaine, serveur de courriels de production | VPS Ubuntu existant | S13 |
 | 13 | Accès sandbox K-PAY (clés, documentation des webhooks) | à fournir par Cabrel | S10 |
 | 14 | « Lire d'autres avis » sur l'accueil (pas de page témoignages) | dépliage sur place, sans nouvelle page | S5 |
@@ -84,6 +84,35 @@ Les textes entre crochets (`[Prix]`, `[numéro]`, `[Témoignage d'un patient]`) 
 - e2e en dev : l'hydratation à froid du studio dépasse 25 s ; les tests qui attendent une redirection client ne doivent pas recharger la page avant ~70 s (corrigé dans `services.spec.ts`).
 - Dev : derrière `nuxt dev`, l'IP du socket est « inconnue » (proxy) ; les e2e remettent à zéro le compteur `limite:message-publique:*` (`reinitialiserLimites`). Hero ne transmet plus `debut` vers `/agenda`.
 - Décisions utilisateur en attente : valider les écarts maquette et décisions par défaut (#16–67 du journal), merger `sprint/s6-s7-s7bis`, relancer ou non le `vite preview` d'agent-office tué par erreur.
+
+### Dette S8 (à traiter avant la production)
+
+- Plafond global IA (2000/j) compté par génération et non par tentative (une sortie invalide coûte jusqu'à 3 appels) ; surveiller `tokens_entree`/`tokens_sortie` par jour.
+- `IA_CLE_API` parsée par `shared/env.ts` dans tout processus : ne la fournir qu'à l'unité de déploiement du worker.
+- Pas de limiteur sur `GET /api/studio/generations/:id` (suivi toutes les 2 s, 60 s max côté client).
+- Token de succès `--succes` absent de `main.css` (« adresse disponible » en `accent-texte`) ; Métier du Profil encore en `UInput` simple (suggestions seulement à l'inscription).
+- UX mineurs non traités : barre d'action fixe et clavier mobile à vérifier en 390×664, contraste des segments de progression, nom/étiquettes des maquettes (voir revue).
+- Lockfile : `@anthropic-ai/sdk` ajoute `@opentelemetry/api` (peers réécrits) : vérifier `pnpm install --frozen-lockfile` en CI.
+- `.env.example` : ajouter `IA_FOURNISSEUR=` (anthropic | openai | faux | aucun ; `openai` = tout fournisseur compatible OpenAI), `IA_CLE_API=`, `IA_MODELE=` (obligatoire avec `openai`), `IA_BASE_URL=` (optionnelle, HTTPS) ; `CLAUDE.md` §8 : `@anthropic-ai/sdk`.
+- Page Confidentialité : mentionner les données envoyées au fournisseur d'IA (métier, ville, pays, textes de présentation).
+
+### Essai réel du fournisseur d'IA (2026-11-02)
+
+- Gemini via l'adaptateur compatible OpenAI : **fonctionne de bout en bout** (`IA_FOURNISSEUR=openai`, `IA_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai/`, `IA_MODELE=gemini-3.5-flash-lite`) : génération `terminee`, ~9 s, 2218 tokens en entrée / 857 en sortie. Le schéma d'outil est accepté par Gemini.
+- Modèles : `gemini-2.5-flash` n'est plus ouvert aux nouveaux comptes (404) ; `gemini-3.8-flash` trop lent (>90 s, hors budget 25 s) ; `gemini-3.5-flash-lite` (2,3 s) et `gemini-3.1-flash-lite` (4,5 s) conviennent.
+- **À corriger — prompt v2** (en base, `prompts_ia`, nouvelle version via migration/seed) : le modèle écrit parfois sans accents (« reference », « sante », « exercant ») dans les services et la présentation ; ajouter une consigne explicite de français correct avec accents, puis retester ; comparer `gemini-3.1-flash-lite`.
+- Une première réponse a été rejetée par le garde-fou `faits_inventes` avant la bonne (second appel facturé) : normal, à surveiller via `tokens_*`.
+- **e2e S8 déterministes** (panne, lente, invalide, invente) : exigent `IA_FOURNISSEUR=faux` (faux fournisseur) ; avec Gemini configuré dans `.env` ils ne sont pas rejouables tels quels.
+- Migrations 0018 et 0019 appliquées à la base de dev (sur accord de l'utilisateur).
+
+### À rendre configurable depuis le futur panel admin (règle de l'utilisateur : aucune valeur en dur)
+
+Aujourd'hui ce sont des constantes nommées dans `shared/` ou `server/config/` (jamais de littéral dans un composant ou une route), modifiables seulement par déploiement :
+- **IA** : fournisseur, modèle, adresse de l'API (`IA_*` en environnement) ; limites (10 demandes/h par utilisateur, plafond global 2000/j), quota gratuit (3/mois), délais (budget 25 s, expiration 45 s, 3 tentatives), rétentions (30 j textes IA, 90 j inscriptions abandonnées), longueurs imposées (accroche 10–15 mots, présentation 80–260).
+- **Prompts IA** : déjà en base (`prompts_ia`, versionnés, réglages de température et de longueur dans la ligne) : le panel n'aura qu'à les éditer et activer une version.
+- **Plans** (gratuit/payant, limites de contenu et d'IA) : `server/config/plans.ts` → table de configuration lue par `PlanService`.
+- Autres limites déjà nommées : limiteurs (OTP, messages, réservations, contact, adresse), plafonds de listes (200 messages…), horizons et préavis par défaut de l'agenda.
+- Fournisseur IA enregistré en colonne libre (`generations_ia.fournisseur`, CHECK de format seulement) : un nouveau fournisseur n'exige plus de migration.
 
 ### Autres
 

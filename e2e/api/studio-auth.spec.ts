@@ -95,12 +95,25 @@ const ROUTES_S7: Route[] = [
   { methode: 'POST', chemin: '/api/studio/messages/pas-un-uuid/lu', corps: {} },
 ]
 
+// S8 (CA52) : inscription guidée et IA. Corps invalides : l'authentification passe AVANT la validation.
+// L'identifiant de génération mal formé reste un 401 sans session (jamais un 400 ni un 404).
+const ROUTES_S8: Route[] = [
+  { methode: 'GET', chemin: '/api/studio/onboarding' },
+  { methode: 'PUT', chemin: '/api/studio/onboarding', corps: {} },
+  { methode: 'POST', chemin: '/api/studio/onboarding/generer', corps: {} },
+  { methode: 'POST', chemin: '/api/studio/onboarding/terminer', corps: {} },
+  { methode: 'GET', chemin: `/api/studio/generations/${ID}` },
+  { methode: 'GET', chemin: '/api/studio/generations/pas-un-uuid' },
+  { methode: 'POST', chemin: '/api/studio/ia/ameliorer', corps: {} },
+]
+
 const TOUTES_LES_ROUTES: Route[] = [
   ...ROUTES_S2,
   ...ROUTES_S3,
   ...ROUTES_S4,
   ...ROUTES_S5_S6,
   ...ROUTES_S7,
+  ...ROUTES_S8,
 ]
 
 test.describe('CA32 /api/studio/** sans session', () => {

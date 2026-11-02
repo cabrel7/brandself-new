@@ -1,32 +1,6 @@
 <script setup lang="ts">
-import type { NextStep } from '#shared/vitrine'
-
 definePageMeta({ layout: 'studio' })
 useSeoMeta({ title: 'Votre vitrine — Brandself' })
-
-interface Etape {
-  titre: string
-  texte: string
-  to: string
-}
-
-const ETAPES: Record<NextStep, Etape> = {
-  photo: {
-    titre: 'Ajoutez votre photo',
-    texte: 'Une photo de face, bien éclairée, rend votre vitrine plus chaleureuse.',
-    to: '/studio/profil',
-  },
-  service: {
-    titre: 'Ajoutez votre premier service',
-    texte: 'Vos visiteurs voient tout de suite ce que vous proposez.',
-    to: '/studio/services/nouveau',
-  },
-  realisation: {
-    titre: 'Ajoutez une première réalisation',
-    texte: 'Montrer votre travail rassure vos visiteurs.',
-    to: '/studio/realisations/nouveau',
-  },
-}
 
 const {
   vitrine, resume, enChargement, enErreur, absente, refresh, publicationEnCours, changerPublication,
@@ -35,7 +9,7 @@ const { etat: etatAgenda } = useStudioAgendaApercu()
 const { nonLus: messagesNonLus } = useStudioMessages()
 const { affichee } = useAdressePublique(() => vitrine.value?.username)
 
-const etape = computed(() => (resume.value?.prochaineEtape ? ETAPES[resume.value.prochaineEtape] : null))
+const etape = computed(() => prochaineEtape(resume.value?.prochaineEtape ?? null))
 const manquants = computed(() => resume.value?.manquantsPourPublier ?? [])
 
 function compteur(nombre: number): string {
@@ -160,20 +134,7 @@ async function depublier(): Promise<void> {
         </BsCard>
       </section>
 
-      <section v-if="etape" aria-labelledby="titre-etape">
-        <BsCard variant="doux">
-          <p class="m-0 text-(length:--fs-12) font-semibold tracking-widest text-encre uppercase">
-            Prochaine étape
-          </p>
-          <h2 id="titre-etape" class="m-0 text-(length:--fs-20) leading-snug font-semibold text-encre">
-            {{ etape.titre }}
-          </h2>
-          <p class="m-0 text-base text-texte-secondaire">
-            {{ etape.texte }}
-          </p>
-          <UButton label="Ajouter" :to="etape.to" block />
-        </BsCard>
-      </section>
+      <StudioProchaineEtape v-if="etape" :etape="etape" />
 
       <section aria-labelledby="titre-liste">
         <h2 id="titre-liste" class="m-0 mb-2 text-(length:--fs-20) font-semibold text-encre">
