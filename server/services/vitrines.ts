@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { and, eq, isNotNull, sql } from 'drizzle-orm'
-import { liens, medias, realisations, services, temoignages, users, vitrines } from '../../shared/db/schema'
+import { disponibilites, liens, medias, realisations, services, temoignages, users, vitrines } from '../../shared/db/schema'
 import { USERNAME_CHECK_LIMIT } from '../../shared/limites'
 import { isReserved } from '../../shared/reserved'
 import type { UsernameChangeInput, VitrineCreateInput, VitrineUpdateInput } from '../../shared/schemas/vitrine'
@@ -145,12 +145,24 @@ export async function updateVitrine(userId: string, patch: VitrineUpdateInput): 
 
 export async function changeUsername(userId: string, username: UsernameChangeInput['username']): Promise<VitrineAvecPhoto> {
   try {
-    const updated = await db
-      .update(vitrines)
-      .set({ username, updatedAt: new Date() })
-      .where(eq(vitrines.userId, userId))
-      .returning({ id: vitrines.id })
-    if (updated.length === 0) throw new NotFoundError('VITRINE_INTROUVABLE')
+    await db.transaction(async (tx) => {
+      const [current] = await tx
+        .select({ id: vitrines.id, username: vitrines.username })
+        .from(vitrines)
+        .where(eq(vitrines.userId, userId))
+        .for('update')
+      if (!current) throw new NotFoundError('VITRINE_INTROUVABLE')
+      await tx.update(vitrines).set({ username, updatedAt: new Date() }).where(eq(vitrines.id, current.id))
+      // S6 : les liens internes (type vitrine) pointent `/<username>` ; réécrits dans la même
+      // transaction, sinon ils mènent à l'ancienne adresse.
+      if (current.username !== username) {
+        await tx.execute(sql`
+          UPDATE liens SET url = ${'/' + username} || substring(url from ${current.username.length + 2}), updated_at = now()
+          WHERE vitrine_id = ${current.id} AND type = 'vitrine'
+            AND (url = ${'/' + current.username} OR url LIKE ${'/' + current.username + '/%'})
+        `)
+      }
+    })
   } catch (error) {
     rethrowUniqueViolation(error)
   }
@@ -223,8 +235,8 @@ export async function getPublicVitrine(rawUsername: string): Promise<VitrineAvec
   return row
 }
 
-/** Nombre d'éléments visibles (`actif`) par liste : alimente la navigation publique (R10). */
-export type ContenusPublics = { services: number, realisations: number }
+/** Éléments visibles (`actif`) par liste et présence d'un agenda public : navigation (R10). */
+export type ContenusPublics = { services: number, realisations: number, agenda: boolean }
 
 export interface VitrinePage {
   vitrine: VitrineAvecPhoto
@@ -233,7 +245,9 @@ export interface VitrinePage {
 
 /**
  * Vitrine publiée plus les compteurs de contenus visibles. Exactement UNE requête de plus que
- * `getPublicVitrine` (les deux sous-comptes sont dans un seul SELECT).
+ * `getPublicVitrine` (les deux sous-comptes et le drapeau agenda sont dans un seul SELECT).
+ * L'agenda est proposé dès qu'une disponibilité existe ET qu'au moins un service reservable
+ * actif de type rdv/accompagnement : c'est la condition d'affichage de la section agenda.
  */
 export async function getPublicVitrinePage(rawUsername: string): Promise<VitrinePage> {
   const vitrine = await getPublicVitrine(rawUsername)
@@ -241,9 +255,19 @@ export async function getPublicVitrinePage(rawUsername: string): Promise<Vitrine
   const { rows } = await db.execute<ContenusPublics>(sql`
     SELECT
       (SELECT count(*) FROM ${services} WHERE ${services.vitrineId} = ${vitrineId} AND ${services.actif})::int AS services,
-      (SELECT count(*) FROM ${realisations} WHERE ${realisations.vitrineId} = ${vitrineId} AND ${realisations.actif})::int AS realisations
+      (SELECT count(*) FROM ${realisations} WHERE ${realisations.vitrineId} = ${vitrineId} AND ${realisations.actif})::int AS realisations,
+      (
+        EXISTS (SELECT 1 FROM ${disponibilites} WHERE ${disponibilites.vitrineId} = ${vitrineId})
+        AND EXISTS (
+          SELECT 1 FROM ${services}
+          WHERE ${services.vitrineId} = ${vitrineId}
+            AND ${services.actif}
+            AND ${services.reservable}
+            AND ${services.type} IN ('rdv', 'accompagnement')
+        )
+      ) AS agenda
   `)
-  return { vitrine, contenus: rows[0] ?? { services: 0, realisations: 0 } }
+  return { vitrine, contenus: rows[0] ?? { services: 0, realisations: 0, agenda: false } }
 }
 
 export async function checkUsernameAvailability(userId: string, rawUsername: string): Promise<UsernameAvailability> {

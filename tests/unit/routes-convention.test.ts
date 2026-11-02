@@ -10,27 +10,10 @@ const RACINE = path.resolve(import.meta.dirname, '../..')
 const DOSSIERS_DE_ROUTES = ['server/api', 'server/routes']
 const POINT_AVANT_CROCHET = /\.\[/
 
-/**
- * Exceptions TEMPORAIRES, une liste par sprint. Cette liste ne peut que rétrécir :
- * à la fin de chaque sprint, le sprint concerné retire ses fichiers (et ce test échoue
- * si un fichier listé n'existe plus — on ne garde pas d'exception périmée).
- */
-const EXCEPTIONS_PAR_SPRINT: Record<string, string[]> = {
-  // S3 (services) et S4 (réalisations) ont retiré leurs fichiers `x.[slug].*` : plus aucune exception.
-  S5: [
-    'server/api/studio/temoignages.[slug].delete.ts',
-    'server/api/studio/temoignages.[slug].get.ts',
-    'server/api/studio/temoignages.[slug].put.ts',
-  ],
-  S6: [
-    'server/api/studio/liens.[slug].delete.ts',
-    'server/api/studio/liens.[slug].get.ts',
-    'server/api/studio/liens.[slug].put.ts',
-  ],
-}
+/** Toute exception a été supprimée : une nouvelle route fautive doit toujours échouer. */
+const EXCEPTIONS_PAR_SPRINT: Record<string, string[]> = {}
 const EXCEPTIONS = Object.values(EXCEPTIONS_PAR_SPRINT).flat()
-/** Plafond fixé à la fin de S2 (12), réduit à 9 à la fin de S3 puis à 6 à la fin de S4 : ne jamais l'augmenter. */
-const PLAFOND_EXCEPTIONS = 6
+const PLAFOND_EXCEPTIONS = 0
 
 function listerFichiers(dossier: string): string[] {
   const absolu = path.join(RACINE, dossier)
@@ -44,7 +27,7 @@ function listerFichiers(dossier: string): string[] {
 const TOUS_LES_FICHIERS = DOSSIERS_DE_ROUTES.flatMap(listerFichiers)
 
 describe('convention de routes (U8, CA37)', () => {
-  it('CA37 should have no route file with a dot before a bracket, apart from the explicit S5-S6 exceptions', () => {
+  it('CA37 should have no route file with a dot before a bracket', () => {
     const fautifs = TOUS_LES_FICHIERS.filter((f) => POINT_AVANT_CROCHET.test(f) && !EXCEPTIONS.includes(f))
 
     expect(fautifs).toEqual([])
@@ -56,14 +39,14 @@ describe('convention de routes (U8, CA37)', () => {
     expect(perimees).toEqual([])
   })
 
-  it('CA37 should never grow the exception list beyond the S4 ceiling (6)', () => {
+  it('CA37 should never grow the exception list again', () => {
     expect(EXCEPTIONS.length).toBeLessThanOrEqual(PLAFOND_EXCEPTIONS)
     expect(new Set(EXCEPTIONS).size).toBe(EXCEPTIONS.length)
   })
 
-  it('CA47 should hold exactly 6 exceptions after S4 (S5 and S6 files, three each) and none for S3 nor S4', () => {
-    expect(Object.keys(EXCEPTIONS_PAR_SPRINT).sort()).toEqual(['S5', 'S6'])
-    expect(EXCEPTIONS).toHaveLength(6)
+  it('should keep zero exception after the S5 route migration', () => {
+    expect(Object.keys(EXCEPTIONS_PAR_SPRINT)).toEqual([])
+    expect(EXCEPTIONS).toHaveLength(0)
   })
 
   it('CA43 should leave no route file named services.[...] (S3 renamed them to services/[id].<methode>.ts)', () => {
@@ -74,14 +57,6 @@ describe('convention de routes (U8, CA37)', () => {
     expect(TOUS_LES_FICHIERS.filter((f) => /\/realisations\.\[/.test(f))).toEqual([])
   })
 
-  it('CA37 should only tolerate exceptions of the sprints that own them (S5 temoignages, S6 liens)', () => {
-    const proprietaires: Record<string, string> = { S5: 'temoignages', S6: 'liens' }
-    for (const [sprint, fichiers] of Object.entries(EXCEPTIONS_PAR_SPRINT)) {
-      for (const fichier of fichiers) {
-        expect(fichier.startsWith(`server/api/studio/${proprietaires[sprint]}.[`)).toBe(true)
-      }
-    }
-  })
 })
 
 describe('routes S2 : emplacement cible (spec §2)', () => {
@@ -390,5 +365,301 @@ describe('routes S4 : routes fines (architecture)', () => {
     expect(source).toContain('getPublicVitrinePage')
     expect(source).toContain('toContenusPublicsResource')
     expect(source).toContain('toVitrinePublicResource')
+  })
+})
+
+const CIBLES_S5 = [
+  'server/api/studio/temoignages/index.get.ts',
+  'server/api/studio/temoignages/index.post.ts',
+  'server/api/studio/temoignages/[slug].get.ts',
+  'server/api/studio/temoignages/[slug].put.ts',
+  'server/api/studio/temoignages/[slug].delete.ts',
+  'server/api/studio/temoignages/reordonner.post.ts',
+  'server/api/public/[username]/temoignages/index.get.ts',
+]
+
+describe('routes S5 : emplacement cible et fin des routes legacy', () => {
+  const ANCIENS = [
+    'server/api/studio/temoignages.get.ts',
+    'server/api/studio/temoignages.post.ts',
+    'server/api/studio/temoignages.[slug].get.ts',
+    'server/api/studio/temoignages.[slug].put.ts',
+    'server/api/studio/temoignages.[slug].delete.ts',
+  ]
+
+  it.each(CIBLES_S5)('should provide %s', (fichier) => {
+    expect(TOUS_LES_FICHIERS).toContain(fichier)
+  })
+
+  it.each(ANCIENS)('should no longer keep legacy route %s', (fichier) => {
+    expect(TOUS_LES_FICHIERS).not.toContain(fichier)
+  })
+
+  it('should expose exactly the expected studio and public testimony routes', () => {
+    const trouvees = TOUS_LES_FICHIERS.filter(
+      (f) => f.startsWith('server/api/studio/temoignages/') || f.startsWith('server/api/public/[username]/temoignages/'),
+    )
+
+    expect(trouvees.sort()).toEqual([...CIBLES_S5].sort())
+  })
+})
+
+describe('routes S5 : routes fines, validées et sérialisées', () => {
+  it.each(CIBLES_S5)('%s should be wrapped in defineApiHandler without direct database access', (fichier) => {
+    const source = readFileSync(path.join(RACINE, fichier), 'utf-8')
+
+    expect(source).toContain('defineApiHandler')
+    expect(source).not.toMatch(/from\s+['"]drizzle-orm/)
+    expect(source).not.toMatch(/utils\/db['"]/)
+    expect(source).not.toMatch(/shared\/db\/schema|#shared\/db\/schema/)
+  })
+
+  it.each(CIBLES_S5)('%s should delegate to the testimony service and map non-empty responses through resources', (fichier) => {
+    const source = readFileSync(path.join(RACINE, fichier), 'utf-8')
+
+    expect(source).toMatch(/#server\/services\/temoignages|\.\.\/services\/temoignages/)
+    if (!fichier.endsWith('.delete.ts')) expect(source).toMatch(/#server\/resources\/temoignage|resources\/temoignage/)
+  })
+
+  it.each(CIBLES_S5.filter((f) => f.startsWith('server/api/studio/')))('%s should authenticate before validation', (fichier) => {
+    const source = readFileSync(path.join(RACINE, fichier), 'utf-8')
+    const positionSession = source.indexOf('requireUserSession')
+
+    expect(positionSession).toBeGreaterThan(-1)
+    for (const lecture of ['readBodyWith', 'readParamsWith']) {
+      const position = source.indexOf(`${lecture}(`)
+      if (position !== -1) expect(positionSession).toBeLessThan(position)
+    }
+  })
+
+  it.each(CIBLES_S5.filter((f) => f.includes('[slug]') && f.startsWith('server/api/studio/')))('%s should validate its slug with the shared schema', (fichier) => {
+    const source = readFileSync(path.join(RACINE, fichier), 'utf-8')
+
+    expect(source).toContain('readParamsWith')
+    expect(source).toContain('schemaTemoignageParams')
+  })
+
+  it('should return DTO and counters from list, detail and update routes', () => {
+    const liste = readFileSync(path.join(RACINE, 'server/api/studio/temoignages/index.get.ts'), 'utf-8')
+    const detail = readFileSync(path.join(RACINE, 'server/api/studio/temoignages/[slug].get.ts'), 'utf-8')
+    const modification = readFileSync(path.join(RACINE, 'server/api/studio/temoignages/[slug].put.ts'), 'utf-8')
+
+    expect(liste).toContain('items.map(toTemoignageStudioResource)')
+    for (const source of [liste, detail, modification]) {
+      expect(source).toContain('toTemoignagesCompteursResource')
+      expect(source).toContain('compteurs')
+    }
+    for (const source of [detail, modification]) expect(source).toContain('toTemoignageStudioResource(item)')
+  })
+
+  it('should validate PUT bodies and answer 204 on deletion', () => {
+    const modification = readFileSync(path.join(RACINE, 'server/api/studio/temoignages/[slug].put.ts'), 'utf-8')
+    const suppression = readFileSync(path.join(RACINE, 'server/api/studio/temoignages/[slug].delete.ts'), 'utf-8')
+
+    expect(modification).toContain('readBodyWith')
+    expect(modification).toContain('schemaTemoignageUpdate')
+    expect(suppression).toContain('sendNoContent')
+  })
+})
+
+// S6 (S6-CA48) : liens, même patron que S3/S4. Liste statique (et non les fichiers trouvés) :
+// une route manquante fait échouer SON test, jamais un it.each vide.
+const CIBLES_S6 = [
+  'server/api/studio/liens/index.get.ts',
+  'server/api/studio/liens/index.post.ts',
+  'server/api/studio/liens/[id].get.ts',
+  'server/api/studio/liens/[id].put.ts',
+  'server/api/studio/liens/[id].delete.ts',
+  'server/api/studio/liens/reordonner.post.ts',
+  'server/api/public/[username]/liens/index.get.ts',
+  'server/api/public/[username]/liens/[slug]/clic.post.ts',
+]
+
+describe('routes S6 : emplacement cible (spec S6, CA48)', () => {
+  const ANCIENS = [
+    'server/api/studio/liens.get.ts',
+    'server/api/studio/liens.post.ts',
+    'server/api/studio/liens.[slug].get.ts',
+    'server/api/studio/liens.[slug].put.ts',
+    'server/api/studio/liens.[slug].delete.ts',
+  ]
+
+  it.each(CIBLES_S6)('should provide %s', (fichier) => {
+    expect(TOUS_LES_FICHIERS).toContain(fichier)
+  })
+
+  it.each(ANCIENS)('should no longer keep the pre-S6 file %s (unreachable, or shadowing the studio folder)', (fichier) => {
+    expect(TOUS_LES_FICHIERS).not.toContain(fichier)
+  })
+
+  it('should keep nothing under server/api/public/liens (the folder would shadow /api/public/:username for the username "liens")', () => {
+    expect(TOUS_LES_FICHIERS.filter((f) => f.startsWith('server/api/public/liens'))).toEqual([])
+  })
+
+  it('should not provide the PATCH routes dropped by the specification (a single partial PUT carries every rule)', () => {
+    expect(TOUS_LES_FICHIERS.filter((f) => /^server\/api\/studio\/liens\/.*\.patch\.ts$/.test(f))).toEqual([])
+  })
+})
+
+describe('routes S6 : routes fines (architecture)', () => {
+  const ROUTES_S6 = CIBLES_S6
+
+  it('should find no S6 route besides the eight expected ones', () => {
+    const trouvees = TOUS_LES_FICHIERS.filter(
+      (f) => f.startsWith('server/api/studio/liens/') || f.startsWith('server/api/public/[username]/liens/'),
+    )
+
+    expect(trouvees.sort()).toEqual([...CIBLES_S6].sort())
+  })
+
+  it.each(ROUTES_S6)('%s should be wrapped in defineApiHandler', (fichier) => {
+    expect(readFileSync(path.join(RACINE, fichier), 'utf-8')).toContain('defineApiHandler')
+  })
+
+  it.each(ROUTES_S6)('%s should contain no SQL, no direct database access and no ORM import', (fichier) => {
+    const source = readFileSync(path.join(RACINE, fichier), 'utf-8')
+
+    expect(source).not.toMatch(/from\s+['"]drizzle-orm/)
+    expect(source).not.toMatch(/utils\/db['"]/)
+    expect(source).not.toMatch(/shared\/db\/schema|#shared\/db\/schema/)
+  })
+
+  it.each(ROUTES_S6)('%s should delegate to the service layer and never return a raw object (resource mapping)', (fichier) => {
+    const source = readFileSync(path.join(RACINE, fichier), 'utf-8')
+
+    expect(source).toMatch(/#server\/services\/liens|\.\.\/services\/liens/)
+    if (!fichier.endsWith('.delete.ts') && !fichier.endsWith('clic.post.ts')) {
+      expect(source).toMatch(/#server\/resources\/lien|resources\/lien/)
+    }
+  })
+
+  it.each(ROUTES_S6.filter((f) => f.startsWith('server/api/studio/')))('%s should require a user session before anything else', (fichier) => {
+    const source = readFileSync(path.join(RACINE, fichier), 'utf-8')
+    const positionSession = source.indexOf('requireUserSession')
+
+    expect(positionSession).toBeGreaterThan(-1)
+    for (const lecture of ['readBodyWith', 'readParamsWith', 'readQueryWith']) {
+      const position = source.indexOf(`${lecture}(`)
+      if (position !== -1) expect(positionSession).toBeLessThan(position)
+    }
+  })
+
+  it.each(ROUTES_S6.filter((f) => f.startsWith('server/api/public/')))('%s should be public: no session required (a published vitrine is readable by anyone)', (fichier) => {
+    expect(readFileSync(path.join(RACINE, fichier), 'utf-8')).not.toContain('requireUserSession')
+  })
+
+  it.each(ROUTES_S6.filter((f) => /\.(post|put)\.ts$/.test(f) && !f.endsWith('clic.post.ts')))('%s should validate its body with a shared Zod schema (readBodyWith)', (fichier) => {
+    const source = readFileSync(path.join(RACINE, fichier), 'utf-8')
+
+    expect(source).toContain('readBodyWith')
+    expect(source).toMatch(/#shared\/schemas\/lien/)
+  })
+
+  it.each(ROUTES_S6.filter((f) => f.includes('[id]')))('%s should validate :id as a uuid', (fichier) => {
+    const source = readFileSync(path.join(RACINE, fichier), 'utf-8')
+
+    expect(source).toContain('readParamsWith')
+    expect(source).toMatch(/z\.uuid\(\)/)
+  })
+
+  it('should answer 201 on creation and 204 on deletion', () => {
+    const creation = readFileSync(path.join(RACINE, 'server/api/studio/liens/index.post.ts'), 'utf-8')
+    const suppression = readFileSync(path.join(RACINE, 'server/api/studio/liens/[id].delete.ts'), 'utf-8')
+
+    expect(creation).toMatch(/setResponseStatus\(\s*event\s*,\s*201\s*\)/)
+    expect(suppression).toContain('sendNoContent')
+  })
+
+  it('should read process.env nowhere in the S6 routes (CLAUDE.md rule 7)', () => {
+    for (const fichier of ROUTES_S6) {
+      expect(readFileSync(path.join(RACINE, fichier), 'utf-8')).not.toContain('process.env')
+    }
+  })
+
+  it('should pass the resolved IP to the public click rate limit', () => {
+    const source = readFileSync(path.join(RACINE, 'server/api/public/[username]/liens/[slug]/clic.post.ts'), 'utf-8')
+
+    expect(source).toContain('recordLienClic(username, slug, ip)')
+  })
+})
+
+const CIBLES_S7 = [
+  'server/api/public/[username]/creneaux/index.get.ts',
+  'server/api/public/[username]/reservations/index.post.ts',
+  'server/api/public/[username]/demandes/index.post.ts',
+  'server/api/public/[username]/confirmation/index.get.ts',
+  'server/api/public/[username]/confirmation/agenda.ics.get.ts',
+  'server/api/studio/agenda/disponibilites/index.get.ts',
+  'server/api/studio/agenda/disponibilites/index.put.ts',
+  'server/api/studio/agenda/indisponibilites/index.get.ts',
+  'server/api/studio/agenda/indisponibilites/index.post.ts',
+  'server/api/studio/agenda/indisponibilites/[id].delete.ts',
+  'server/api/studio/reservations/index.get.ts',
+  'server/api/studio/reservations/[id]/confirmer.patch.ts',
+  'server/api/studio/reservations/[id]/annuler.patch.ts',
+  'server/api/studio/demandes/index.get.ts',
+  'server/api/studio/demandes/[id].patch.ts',
+]
+
+describe('routes S7 : contrats, isolation et réponses', () => {
+  it.each(CIBLES_S7)('should provide %s as a thin API handler without direct database access', (fichier) => {
+    const source = readFileSync(path.join(RACINE, fichier), 'utf-8')
+    expect(TOUS_LES_FICHIERS).toContain(fichier)
+    expect(source).toContain('defineApiHandler')
+    expect(source).not.toMatch(/from\s+['"]drizzle-orm/)
+    expect(source).not.toMatch(/utils\/db['"]/)
+    expect(source).not.toMatch(/shared\/db\/schema|#shared\/db\/schema/)
+  })
+
+  it.each(CIBLES_S7.filter((f) => f.startsWith('server/api/studio/')))('%s should authenticate before validation', (fichier) => {
+    const source = readFileSync(path.join(RACINE, fichier), 'utf-8')
+    const session = source.indexOf('requireUserSession')
+    expect(session).toBeGreaterThan(-1)
+    for (const lecture of ['readBodyWith', 'readParamsWith', 'readQueryWith']) {
+      const position = source.indexOf(`${lecture}(`)
+      if (position !== -1) expect(session).toBeLessThan(position)
+    }
+  })
+
+  it('should validate and fail closed on both public writes', () => {
+    for (const fichier of CIBLES_S7.filter((f) => /\/(reservations|demandes)\/index\.post\.ts$/.test(f))) {
+      const source = readFileSync(path.join(RACINE, fichier), 'utf-8')
+      expect(source).toContain('readBodyWith')
+      expect(source).toContain("failClosed: true")
+      expect(source).toMatch(/#shared\/schemas\/agenda/)
+      expect(source).toMatch(/#server\/resources\/agenda/)
+    }
+  })
+
+  it('should keep confirmation JSON and ICS private-cache free', () => {
+    for (const fichier of CIBLES_S7.filter((f) => f.includes('/confirmation/'))) {
+      expect(readFileSync(path.join(RACINE, fichier), 'utf-8')).toContain('no-store')
+    }
+  })
+})
+
+const CONSOMMATEURS_IP_CLIENT = [
+  'server/api/public/[username]/reservations/index.post.ts',
+  'server/api/public/[username]/demandes/index.post.ts',
+  'server/middleware/otp-limiteur.ts',
+  'server/api/public/[username]/liens/[slug]/clic.post.ts',
+]
+
+describe('IP client : convention anti-spoofing', () => {
+  it.each(CONSOMMATEURS_IP_CLIENT)('%s should use client-ip without trusting getRequestIP xForwardedFor', (fichier) => {
+    const source = readFileSync(path.join(RACINE, fichier), 'utf-8')
+
+    expect(
+      /from\s+['"][^'"]*utils\/client-ip['"]/.test(source),
+      `${fichier} doit importer server/utils/client-ip`,
+    ).toBe(true)
+    expect(
+      /\b(?:resolveClientIp|getClientIp)\s*\(/.test(source),
+      `${fichier} doit appeler le helper client-ip`,
+    ).toBe(true)
+    expect(
+      /getRequestIP\s*\([\s\S]*?xForwardedFor\s*:\s*true/.test(source),
+      `${fichier} ne doit plus faire confiance directement a X-Forwarded-For`,
+    ).toBe(false)
   })
 })

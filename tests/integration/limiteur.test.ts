@@ -1,13 +1,19 @@
 import { describe, expect, it } from 'vitest'
 import { redis } from '../../server/utils/redis'
 import { limiteurService } from './support/modules'
-import { rejet } from './support/erreurs'
+import { exigerModulesPresents, rejet } from './support/erreurs'
 
 // Vrai Redis (base /15). Contrat : server/services/limiteur.ts, préfixe de clés `limite:`.
 // Le contrat exact de hitLimit (valeur de retour) n'est pas fixé par la spec : on prouve donc
 // son effet sur Redis, et le comportement observable d'enforceLimit (qui lève TooManyRequestsError).
 
 const FENETRE_S = 60
+const LIMITE_CONTACT_ATTENDUE = 3
+const USERNAME_CONTACT = 'dr-cabrel'
+const EMAIL_CONTACT = 'patient@example.com'
+const TELEPHONE_CONTACT = '+237699000001'
+
+const reservationLimiteurService = () => import('../../server/services/reservation-limiteur')
 
 describe('limiteur (hitLimit / enforceLimit)', () => {
   describe('hitLimit', () => {
@@ -124,5 +130,55 @@ describe('limiteur (hitLimit / enforceLimit)', () => {
         expect((refus.reason as { code?: string }).code).toBe('TROP_DE_REQUETES')
       }
     })
+  })
+})
+
+describe('reservation contact limiter (real Redis)', () => {
+  it('should allow exactly three attempts and reject the fourth with 429', async () => {
+    const { enforceReservationContactLimit } = await reservationLimiteurService()
+
+    for (let attempt = 0; attempt < LIMITE_CONTACT_ATTENDUE; attempt += 1) {
+      await expect(
+        enforceReservationContactLimit(USERNAME_CONTACT, EMAIL_CONTACT, TELEPHONE_CONTACT),
+      ).resolves.not.toThrow()
+    }
+
+    const error = await rejet(
+      enforceReservationContactLimit(USERNAME_CONTACT, EMAIL_CONTACT, TELEPHONE_CONTACT),
+    )
+
+    expect(error.estDomainError).toBe(true)
+    expect(error.code).toBe('TROP_DE_REQUETES')
+    expect(error.status).toBe(429)
+    expect(error.retryAfter).toBeGreaterThan(0)
+    expect(error.retryAfter).toBeLessThanOrEqual(86_400)
+
+    const keys = await redis.keys('limite:*')
+    expect(keys).toHaveLength(2)
+    await expect(Promise.all(keys.map(key => redis.get(key)))).resolves.toEqual(['4', '4'])
+  })
+
+  it('should let exactly three of four concurrent attempts through', async () => {
+    const { enforceReservationContactLimit } = await reservationLimiteurService()
+
+    const results = await Promise.allSettled(
+      Array.from({ length: 4 }, () => (
+        enforceReservationContactLimit(USERNAME_CONTACT, EMAIL_CONTACT, TELEPHONE_CONTACT)
+      )),
+    )
+    exigerModulesPresents(results)
+
+    const accepted = results.filter(result => result.status === 'fulfilled')
+    const rejected = results.filter((result): result is PromiseRejectedResult => result.status === 'rejected')
+    expect(accepted).toHaveLength(LIMITE_CONTACT_ATTENDUE)
+    expect(rejected).toHaveLength(1)
+    expect(rejected[0]?.reason).toMatchObject({
+      code: 'TROP_DE_REQUETES',
+      status: 429,
+    })
+
+    const keys = await redis.keys('limite:*')
+    expect(keys).toHaveLength(2)
+    await expect(Promise.all(keys.map(key => redis.get(key)))).resolves.toEqual(['4', '4'])
   })
 })

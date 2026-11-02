@@ -23,6 +23,7 @@
     "jobs:ping": "node --env-file=.env node_modules/tsx/dist/cli.mjs scripts/enfiler-ping.ts"
   },
   "dependencies": {
+    "@js-temporal/polyfill": "^0.5.1",
     "@nuxt/fonts": "1.1.0",
     "@nuxt/icon": "2.6.0",
     "@nuxt/image": "2.2.0",

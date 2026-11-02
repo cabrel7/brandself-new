@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { NavigationMenuItem } from '@nuxt/ui'
 
-const { entrees, estActive } = useStudioNav()
+const { entrees, estActive, estEcranEnfant } = useStudioNav()
 const { vitrine } = useStudioVitrine()
 
 const items = computed<NavigationMenuItem[]>(() =>
@@ -19,8 +19,27 @@ const initiales = computed(() => {
 </script>
 
 <template>
-  <header class="sticky top-0 z-10 hidden border-b border-bordure bg-fond md:block">
-    <div class="mx-auto flex h-16 max-w-5xl items-center justify-between gap-6 px-6">
+  <header
+    class="sticky top-0 z-10 border-b border-bordure bg-fond"
+    :class="{ 'max-md:hidden': estEcranEnfant }"
+  >
+    <div class="mx-auto flex h-14 items-center justify-between px-4 md:hidden">
+      <NuxtLink
+        to="/studio"
+        class="font-(family-name:--font-titre) text-(length:--fs-20) font-semibold text-encre no-underline"
+      >
+        Brandself
+      </NuxtLink>
+      <NuxtLink
+        to="/studio/compte"
+        aria-label="Votre compte"
+        class="inline-flex size-11 items-center justify-center rounded-full"
+      >
+        <UAvatar :text="initiales || undefined" icon="i-ph-user" size="lg" aria-hidden="true" />
+      </NuxtLink>
+    </div>
+
+    <div class="mx-auto hidden h-16 max-w-5xl items-center justify-between gap-6 px-6 md:flex">
       <NuxtLink
         to="/studio"
         class="font-(family-name:--font-titre) text-(length:--fs-24) font-semibold text-encre no-underline"

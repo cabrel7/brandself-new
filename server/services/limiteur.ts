@@ -1,4 +1,4 @@
-import { TooManyRequestsError } from '../exceptions/http'
+import { ServiceUnavailableError, TooManyRequestsError } from '../exceptions/http'
 import { redis } from '../utils/redis'
 
 const KEY_PREFIX = 'limite:'
@@ -18,7 +18,16 @@ export interface LimitStatus {
  * Choix : en cas de panne de Redis on laisse passer (fail-open) et on journalise, pour ne pas
  * rendre le studio inutilisable ; les limites protègent contre l'abus, pas contre la fraude.
  */
-export async function hitLimit(key: string, limit: number, windowS: number): Promise<LimitStatus> {
+export interface LimitOptions {
+  failClosed?: boolean
+}
+
+export async function hitLimit(
+  key: string,
+  limit: number,
+  windowS: number,
+  options: LimitOptions = {},
+): Promise<LimitStatus> {
   const redisKey = `${KEY_PREFIX}${key}`
   try {
     const results = await redis.multi().incr(redisKey).ttl(redisKey).exec()
@@ -31,12 +40,13 @@ export async function hitLimit(key: string, limit: number, windowS: number): Pro
     return { count, limit, allowed: count <= limit, retryAfter: ttl > 0 ? ttl : windowS }
   } catch (error) {
     console.error({ limiteur: 'redis indisponible', nom: error instanceof Error ? error.name : typeof error })
+    if (options.failClosed) throw new ServiceUnavailableError('LIMITEUR_INDISPONIBLE')
     return { count: 0, limit, allowed: true, retryAfter: windowS }
   }
 }
 
-export async function enforceLimit(key: string, limit: number, windowS: number): Promise<void> {
-  const status = await hitLimit(key, limit, windowS)
+export async function enforceLimit(key: string, limit: number, windowS: number, options: LimitOptions = {}): Promise<void> {
+  const status = await hitLimit(key, limit, windowS, options)
   if (!status.allowed) {
     throw new TooManyRequestsError(status.retryAfter)
   }

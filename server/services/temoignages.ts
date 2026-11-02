@@ -3,20 +3,20 @@ import { and, asc, eq, sql } from 'drizzle-orm'
 import { temoignages } from '../../shared/db/schema'
 import { LISTE_SLUG_MAX, VEDETTE_MAX } from '../../shared/listes'
 import type { TemoignageCreateInput, TemoignageUpdateInput } from '../../shared/schemas/temoignage'
-import { ConflictError, NotFoundError, UnprocessableError } from '../exceptions/http'
+import { ConflictError, NotFoundError, UnprocessableError, ValidationError } from '../exceptions/http'
 import { db } from '../utils/db'
 import { PG_UNIQUE_VIOLATION, readPgError } from '../utils/pg-error'
 import { computeCompteurs, resolveEnVedette, pickAvailableSlug } from './listes-regles'
 import type { Compteurs } from './listes-regles'
 import { lockVitrineId, requireVitrineId } from './vitrine-acces'
 import type { Executor } from './vitrine-acces'
-import { normalizeTemoignageState, slugFromAuteurTemoignage } from './temoignages-regles'
+import { checkTemoignageCoherence, normalizeTemoignageState, slugFromAuteurTemoignage } from './temoignages-regles'
 import { getPublicVitrine } from './vitrines'
 import type { VitrineRow } from './vitrines'
 
 export type TemoignageRow = typeof temoignages.$inferSelect
 
-const SLUG_UNIQUE = 'temoignages_slug_idx'
+const SLUG_UNIQUE = 'temoignages_vitrine_id_slug_unique'
 const ORDER = [asc(temoignages.ordre), asc(temoignages.createdAt), asc(temoignages.id)] as const
 const EMPTY_STATE: TemoignageState = { actif: true, enVedette: false }
 
@@ -33,9 +33,32 @@ async function listRows(executor: Executor, vitrineId: string): Promise<Temoigna
   return executor.select().from(temoignages).where(eq(temoignages.vitrineId, vitrineId)).orderBy(...ORDER)
 }
 
-async function loadItem(executor: Executor, id: string): Promise<TemoignageRow | undefined> {
-  const [ligne] = await selectTemoignages(executor).where(eq(temoignages.id, id))
+async function loadItem(executor: Executor, vitrineId: string, id: string): Promise<TemoignageRow | undefined> {
+  const [ligne] = await selectTemoignages(executor).where(
+    and(eq(temoignages.vitrineId, vitrineId), eq(temoignages.id, id)),
+  )
   return ligne
+}
+
+async function loadItemBySlug(executor: Executor, vitrineId: string, slug: string): Promise<TemoignageRow | undefined> {
+  const [ligne] = await selectTemoignages(executor).where(
+    and(eq(temoignages.vitrineId, vitrineId), eq(temoignages.slug, slug)),
+  )
+  return ligne
+}
+
+type TemoignageLocator =
+  | { kind: 'id'; value: string }
+  | { kind: 'slug'; value: string }
+
+function matchesLocator(row: TemoignageRow, locator: TemoignageLocator): boolean {
+  return locator.kind === 'id' ? row.id === locator.value : row.slug === locator.value
+}
+
+function scopedLocator(vitrineId: string, locator: TemoignageLocator) {
+  return locator.kind === 'id'
+    ? and(eq(temoignages.vitrineId, vitrineId), eq(temoignages.id, locator.value))
+    : and(eq(temoignages.vitrineId, vitrineId), eq(temoignages.slug, locator.value))
 }
 
 function pickState(patch: TemoignageUpdateInput | TemoignageCreateInput): Partial<TemoignageState> {
@@ -47,6 +70,11 @@ function pickState(patch: TemoignageUpdateInput | TemoignageCreateInput): Partia
 
 function orKeep<T>(value: T | undefined, current: T): T {
   return value === undefined ? current : value
+}
+
+function assertCoherent(etat: TemoignageState): void {
+  const erreurs = checkTemoignageCoherence(etat)
+  if (Object.keys(erreurs).length > 0) throw new ValidationError(erreurs)
 }
 
 function vedetteComplete(vedettes: readonly TemoignageRow[]): ConflictError {
@@ -76,12 +104,29 @@ export async function getOwnTemoignage(userId: string, id: string): Promise<{ it
   }
 }
 
+export async function getOwnTemoignageBySlug(userId: string, slug: string): Promise<{ item: TemoignageRow; compteurs: Compteurs }> {
+  const vitrineId = await requireVitrineId(userId)
+  const [entries, ligne] = await Promise.all([
+    listRows(db, vitrineId),
+    loadItemBySlug(db, vitrineId, slug),
+  ])
+  if (!ligne) throw new NotFoundError('TEMOINAGE_INTROUVABLE')
+  return {
+    item: ligne,
+    compteurs: computeCompteurs(
+      entries.map((candidate) => ({ actif: candidate.actif, enVedette: candidate.enVedette })),
+      VEDETTE_MAX,
+    ),
+  }
+}
+
 async function insertTemoignage(userId: string, input: TemoignageCreateInput): Promise<{ item: TemoignageRow; compteurs: Compteurs }> {
   return db.transaction(async (tx) => {
     const vitrineId = await lockVitrineId(tx, userId)
     const rows = await listRows(tx, vitrineId)
 
     const etat = normalizeTemoignageState(EMPTY_STATE, pickState(input))
+    assertCoherent(etat)
 
     const vedettes = rows.filter((ligne) => ligne.enVedette)
     const enVedette = resolveEnVedette({
@@ -110,7 +155,7 @@ async function insertTemoignage(userId: string, input: TemoignageCreateInput): P
       .returning({ id: temoignages.id })
     if (!cree) throw new Error('Insertion du témoignage sans résultat.')
 
-    const item = await loadItem(tx, cree.id)
+    const item = await loadItem(tx, vitrineId, cree.id)
     if (!item) throw new NotFoundError('TEMOINAGE_INTROUVABLE')
     return { item, compteurs: computeCompteurs([...rows, item].map((ligne) => ({ actif: ligne.actif, enVedette: ligne.enVedette })), VEDETTE_MAX) }
   })
@@ -128,22 +173,23 @@ export async function createTemoignage(userId: string, input: TemoignageCreateIn
   }
 }
 
-export async function updateTemoignage(
+async function updateOwnTemoignage(
   userId: string,
-  id: string,
+  locator: TemoignageLocator,
   patch: TemoignageUpdateInput,
 ): Promise<{ item: TemoignageRow; compteurs: Compteurs }> {
   const result = await db.transaction(async (tx) => {
     const vitrineId = await lockVitrineId(tx, userId)
     const rows = await listRows(tx, vitrineId)
-    const current = rows.find((ligne) => ligne.id === id)
+    const current = rows.find((ligne) => matchesLocator(ligne, locator))
     if (!current) throw new NotFoundError('TEMOINAGE_INTROUVABLE')
 
     const avant: TemoignageState = { actif: current.actif, enVedette: current.enVedette }
     const etat = normalizeTemoignageState(avant, pickState(patch))
+    assertCoherent(etat)
 
     if (etat.enVedette && !current.enVedette) {
-      const autres = rows.filter((ligne) => ligne.id !== id && ligne.enVedette)
+      const autres = rows.filter((ligne) => ligne.id !== current.id && ligne.enVedette)
       const decision = resolveEnVedette({ demande: true, actif: etat.actif, autresEnVedette: autres.length, max: VEDETTE_MAX })
       if (decision === 'COMPLET') throw vedetteComplete(autres)
     }
@@ -158,32 +204,52 @@ export async function updateTemoignage(
         actif: etat.actif,
         updatedAt: new Date(),
       })
-      .where(and(eq(temoignages.id, id), eq(temoignages.vitrineId, vitrineId)))
+      .where(scopedLocator(vitrineId, locator))
 
-    const item = await loadItem(tx, id)
+    const item = await loadItem(tx, vitrineId, current.id)
     if (!item) throw new NotFoundError('TEMOINAGE_INTROUVABLE')
     const compteurs = computeCompteurs(
-      rows.map((ligne) => (ligne.id === id ? item : ligne)).map((ligne) => ({ actif: ligne.actif, enVedette: ligne.enVedette })),
+      rows.map((ligne) => (ligne.id === current.id ? item : ligne)).map((ligne) => ({ actif: ligne.actif, enVedette: ligne.enVedette })),
       VEDETTE_MAX,
     )
     return { item, compteurs }
   })
   return result
 }
-export async function deleteTemoignage(userId: string, id: string): Promise<void> {
+
+export function updateTemoignage(
+  userId: string,
+  id: string,
+  patch: TemoignageUpdateInput,
+): Promise<{ item: TemoignageRow; compteurs: Compteurs }> {
+  return updateOwnTemoignage(userId, { kind: 'id', value: id }, patch)
+}
+
+export function updateTemoignageBySlug(
+  userId: string,
+  slug: string,
+  patch: TemoignageUpdateInput,
+): Promise<{ item: TemoignageRow; compteurs: Compteurs }> {
+  return updateOwnTemoignage(userId, { kind: 'slug', value: slug }, patch)
+}
+
+async function deleteOwnTemoignage(userId: string, locator: TemoignageLocator): Promise<void> {
   await db.transaction(async (tx) => {
     const vitrineId = await lockVitrineId(tx, userId)
-    const [existante] = await tx
-      .select({ id: temoignages.id })
-      .from(temoignages)
-      .where(and(eq(temoignages.id, id), eq(temoignages.vitrineId, vitrineId)))
-    if (!existante) throw new NotFoundError('TEMOINAGE_INTROUVABLE')
     const [deleted] = await tx
       .delete(temoignages)
-      .where(and(eq(temoignages.id, id), eq(temoignages.vitrineId, vitrineId)))
+      .where(scopedLocator(vitrineId, locator))
       .returning({ id: temoignages.id })
     if (!deleted) throw new NotFoundError('TEMOINAGE_INTROUVABLE')
   })
+}
+
+export function deleteTemoignage(userId: string, id: string): Promise<void> {
+  return deleteOwnTemoignage(userId, { kind: 'id', value: id })
+}
+
+export function deleteTemoignageBySlug(userId: string, slug: string): Promise<void> {
+  return deleteOwnTemoignage(userId, { kind: 'slug', value: slug })
 }
 
 /** `ids` doit être une permutation exacte de TOUS les témoignages de la vitrine. */

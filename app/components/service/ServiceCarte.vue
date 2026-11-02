@@ -1,12 +1,21 @@
 <script setup lang="ts">
 import type { ServicePublicCarteDTO } from '#shared/dto'
-import { libellePrix, SERVICE_TYPE_PASTILLES, serviceDetailHref } from '#shared/services'
+import { libellePrix, SERVICE_ACTIONS, SERVICE_TYPE_PASTILLES, serviceDetailHref } from '#shared/services'
 
 const props = defineProps<{ service: ServicePublicCarteDTO, username: string }>()
 
 const duree = computed(() => resumeDuree(props.service, 'court'))
 const prix = computed(() => libellePrix(props.service))
-const action = computed(() => actionCarte(props.service, props.username))
+const action = computed(() => {
+  if (!props.service.reservable) return actionCarte(props.service, props.username)
+  const ancre = props.service.type === 'rdv' || props.service.type === 'accompagnement'
+    ? 'prochains-creneaux'
+    : 'demande'
+  return {
+    libelle: SERVICE_ACTIONS[props.service.type].court,
+    to: `${serviceDetailHref(props.username, props.service.slug)}#${ancre}`,
+  }
+})
 </script>
 
 <template>

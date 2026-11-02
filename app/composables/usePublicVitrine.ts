@@ -3,7 +3,7 @@ import type { ContenusPublicsDTO, VitrinePubliqueDTO, VitrinePubliqueReponse } f
 const HTTP_NOT_FOUND = 404
 const HTTP_SERVER_ERROR = 500
 
-const CONTENUS_VIDES: ContenusPublicsDTO = { services: 0, realisations: 0 }
+const CONTENUS_VIDES: ContenusPublicsDTO = { services: 0, realisations: 0, agenda: false }
 
 function statusCodeOf(err: unknown): number {
   if (typeof err === 'object' && err !== null && 'statusCode' in err) {

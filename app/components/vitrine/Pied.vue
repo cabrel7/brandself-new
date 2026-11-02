@@ -5,7 +5,7 @@ defineProps<{ vitrine: VitrinePubliqueDTO }>()
 </script>
 
 <template>
-  <footer id="contact" class="scroll-mt-4 border-t border-bordure">
+  <footer id="contact" class="scroll-mt-24 border-t border-bordure">
     <div class="mx-auto flex w-full max-w-6xl flex-col gap-6 px-6 py-8 md:flex-row md:items-end md:justify-between">
       <div class="flex flex-col gap-1">
         <h2 class="font-(family-name:--font-titre) text-(length:--fs-16) font-bold">Contact</h2>

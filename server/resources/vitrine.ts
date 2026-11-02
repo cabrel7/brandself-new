@@ -50,9 +50,9 @@ export function toStudioResumeResource(resume: StudioSummary): StudioResumeDTO {
   }
 }
 
-/** Compteurs de navigation publique : deux entiers, rien d'autre. */
+/** Compteurs de navigation publique : deux entiers, un drapeau agenda, rien d'autre. */
 export function toContenusPublicsResource(contenus: ContenusPublics): ContenusPublicsDTO {
-  return { services: contenus.services, realisations: contenus.realisations }
+  return { services: contenus.services, realisations: contenus.realisations, agenda: contenus.agenda }
 }
 
 /**

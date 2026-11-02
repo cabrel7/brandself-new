@@ -190,14 +190,18 @@ export async function insertTemoignage(vitrineId: string, surcharges: Partial<ty
   })
 }
 
-export async function insertLien(vitrineId: string, surcharges: Partial<typeof liens.$inferInsert> = {}): Promise<void> {
-  await db.insert(liens).values({
-    id: randomUUID(),
-    vitrineId,
-    slug: `lien-${randomUUID()}`,
-    libelle: 'Mon site',
-    url: 'https://exemple.com',
-    type: 'libre',
-    ...surcharges,
-  })
+export async function insertLien(vitrineId: string, surcharges: Partial<typeof liens.$inferInsert> = {}): Promise<typeof liens.$inferSelect> {
+  const [ligne] = await db
+    .insert(liens)
+    .values({
+      id: randomUUID(),
+      vitrineId,
+      slug: `lien-${randomUUID()}`,
+      libelle: 'Mon site',
+      url: 'https://exemple.com',
+      type: 'libre',
+      ...surcharges,
+    })
+    .returning()
+  return ligne
 }

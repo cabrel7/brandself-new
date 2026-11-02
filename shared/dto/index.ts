@@ -35,3 +35,30 @@ export type {
   TemoignageStudioReponse,
   TemoignagesPublicsReponse,
 } from './temoignage'
+export type {
+  LienStudioDTO,
+  LiensCompteursDTO,
+  LienPublicCarteDTO,
+  LiensStudioReponse,
+  LienStudioReponse,
+  LiensPublicsReponse,
+} from './lien'
+export type {
+  CreneauDTO,
+  CreneauxPublicsReponse,
+  DisponibiliteDTO,
+  IndisponibiliteDTO,
+  AgendaStudioReponse,
+  ReservationCreatedDTO,
+  ReservationConfirmationDTO,
+  ReservationStudioDTO,
+  ReservationsStudioReponse,
+  DemandeStudioDTO,
+  DemandeCreatedDTO,
+  DemandesStudioReponse,
+} from './agenda'
+export type {
+  MessageCreatedDTO,
+  MessageStudioDTO,
+  MessagesStudioReponse,
+} from './message'

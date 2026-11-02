@@ -157,7 +157,7 @@ test('déconnexion puis /studio redirige vers /connexion', async ({ page }) => {
 
 test('@username et [username] coexistent', async ({ page }) => {
   await page.goto('/@dr-cabrel')
-  await expect(page.getByRole('heading', { name: 'Page de liens' })).toBeVisible()
+  await expect(page.getByRole('heading', { level: 1, name: 'Dr Cabrel Nguesso' })).toBeVisible()
   await page.goto('/dr-cabrel')
   await expect(page.getByRole('heading', { level: 1, name: /Cardiologue interventionnel/ })).toBeVisible()
 })

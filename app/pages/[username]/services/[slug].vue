@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { toMajorUnits } from '#shared/devises'
-import { SERVICE_TYPE_PASTILLES } from '#shared/services'
+import type { ServiceLien } from '~/composables/usePublicService'
+import { SERVICE_ACTIONS, SERVICE_TYPE_PASTILLES } from '#shared/services'
 
 const route = useRoute()
 const username = String(route.params.username)
@@ -13,8 +14,38 @@ const lieu = computed(() => `${vitrine.value.ville}, ${vitrine.value.paysLibelle
 const whatsapp = computed(() =>
   lienWhatsapp(vitrine.value.contact.whatsapp, `Bonjour, j'ai une question sur « ${service.value.titre} ».`),
 )
-const actionLongue = computed(() => actionDetail(service.value, vitrine.value.username, whatsapp.value, 'long'))
-const actionCourte = computed(() => actionDetail(service.value, vitrine.value.username, whatsapp.value, 'court'))
+const parcoursReservation = computed(() =>
+  service.value.reservable && (service.value.type === 'rdv' || service.value.type === 'accompagnement'),
+)
+const parcoursDemande = computed(() =>
+  service.value.reservable && (service.value.type === 'atelier' || service.value.type === 'devis'),
+)
+
+function actionPourService(forme: 'court' | 'long'): ServiceLien {
+  if (parcoursReservation.value) {
+    return { libelle: SERVICE_ACTIONS[service.value.type][forme], to: '#prochains-creneaux', externe: false }
+  }
+  if (parcoursDemande.value) {
+    return { libelle: SERVICE_ACTIONS[service.value.type][forme], to: '#demande', externe: false }
+  }
+  return actionDetail(service.value, vitrine.value.username, whatsapp.value, forme)
+}
+
+const actionLongue = computed(() => actionPourService('long'))
+const actionCourte = computed(() => actionPourService('court'))
+
+const {
+  reponse: agendaReponse,
+  statut: agendaStatut,
+  erreur: agendaErreur,
+  rafraichir: rafraichirAgenda,
+} = await usePublicAgenda({
+  username,
+  fuseau: vitrine.value.fuseau,
+  serviceSlug: parcoursReservation.value ? service.value.slug : null,
+  cle: `service-${slug}`,
+})
+const agendaEnErreur = computed(() => Boolean(agendaErreur.value))
 
 useSeoMeta({
   title: () => service.value.seo.titre,
@@ -91,6 +122,26 @@ useSchemaOrg([
                 {{ texteReglement(service) }}
               </p>
             </div>
+
+            <AgendaCreneauxProchains
+              v-if="parcoursReservation"
+              :username="vitrine.username"
+              :service-slug="service.slug"
+              :fuseau="vitrine.fuseau"
+              :reponse="agendaReponse"
+              :statut="agendaStatut"
+              :erreur="agendaEnErreur"
+              @reessayer="rafraichirAgenda"
+            />
+
+            <ReservationDemandeForm
+              v-if="parcoursDemande"
+              :username="vitrine.username"
+              :service-slug="service.slug"
+              :service-titre="service.titre"
+              :service-type="service.type"
+              :professionnel="vitrine.nomAffiche"
+            />
 
             <ServiceAutres :autres="reponse.autres" :total="reponse.total" :username="vitrine.username" />
           </div>

@@ -6,6 +6,8 @@ export interface ErreurApi {
   code: ErrorCode | null
   champs: Record<string, string[] | undefined>
   manquants: string[]
+  /** TROP_DE_REQUETES : secondes avant la fin de la fenêtre. */
+  retryAfter: number | null
 }
 
 function estObjet(valeur: unknown): valeur is Record<string, unknown> {
@@ -21,7 +23,7 @@ function listeTexte(valeur: unknown): string[] {
  * Le corps de l'erreur est `{ statusCode, message, data: { code, champs?, manquants? } }`.
  */
 export function lireErreurApi(erreur: unknown): ErreurApi {
-  const resultat: ErreurApi = { statut: null, code: null, champs: {}, manquants: [] }
+  const resultat: ErreurApi = { statut: null, code: null, champs: {}, manquants: [], retryAfter: null }
   if (!estObjet(erreur)) return resultat
 
   if (typeof erreur.statusCode === 'number') resultat.statut = erreur.statusCode
@@ -32,6 +34,7 @@ export function lireErreurApi(erreur: unknown): ErreurApi {
   if (!details) return resultat
 
   if (typeof details.code === 'string') resultat.code = details.code as ErrorCode
+  if (typeof details.retryAfter === 'number') resultat.retryAfter = details.retryAfter
   if (estObjet(details.champs)) {
     for (const [nom, messages] of Object.entries(details.champs)) {
       resultat.champs[nom] = listeTexte(messages)

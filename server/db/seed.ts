@@ -1,9 +1,21 @@
-import { randomUUID } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import { and, asc, eq, notInArray } from 'drizzle-orm'
 import sharp from 'sharp'
 import { db } from '../utils/db'
 import { deleteMediaIfUnreferenced, uploadMedia } from '../services/medias'
-import { medias, realisationImages, realisations, services, temoignages, users, vitrines } from '../../shared/db/schema'
+import {
+  disponibilites,
+  liens,
+  medias,
+  messages,
+  realisationImages,
+  realisations,
+  reservations,
+  services,
+  temoignages,
+  users,
+  vitrines,
+} from '../../shared/db/schema'
 import { GALERIE_MAX } from '../../shared/realisations'
 
 // S5 — données de démonstration (PROJECT_CONTEXT.md §15).
@@ -12,7 +24,6 @@ import { GALERIE_MAX } from '../../shared/realisations'
 // Témoignages et téléphone : laissés vides (espaces réservés, §15).
 // Les durées et montants non précisés par §15 sont des VALEURS DE TRAVAIL,
 // utilisées uniquement pour les tests — à confirmer avant toute mise en ligne.
-
 const ID_UTILISATEUR = 'seed-dr-cabrel'
 const ID_VITRINE = 'seed-vitrine-dr-cabrel'
 const EMAIL_DEMO = 'cabrel@brandself.test'
@@ -273,6 +284,141 @@ const temoignagesDemo: readonly TemoignageDemo[] = [
   },
 ]
 
+// S6 : 4 liens de démonstration (SPRINTS.md S6), dont un masqué — « 4 liens · 3 visibles ».
+// Les numéros et adresses sont des VALEURS DE TRAVAIL : à remplacer avant toute mise en ligne.
+// L'URL de chaque type est celle que construit le serveur (shared/liens.ts) : jamais de
+// discordance entre le seed et la règle de construction.
+interface LienDemo {
+  id: string
+  slug: string
+  libelle: string
+  url: string
+  type: 'libre' | 'whatsapp' | 'reseau' | 'email'
+  ordre: number
+  actif: boolean
+}
+
+const liensDemo: readonly LienDemo[] = [
+  {
+    id: 'f4a1b2c3-5678-90ab-cdef-123456789021',
+    slug: 'ecrire-sur-whatsapp',
+    libelle: 'Écrire sur WhatsApp',
+    url: 'https://wa.me/237699000001',
+    type: 'whatsapp',
+    ordre: 0,
+    actif: true,
+  },
+  {
+    id: 'f4a1b2c3-5678-90ab-cdef-123456789022',
+    slug: 'mon-parcours-sur-linkedin',
+    libelle: 'Mon parcours sur LinkedIn',
+    url: 'https://www.linkedin.com/in/dr-cabrel-nguesso',
+    type: 'reseau',
+    ordre: 1,
+    actif: true,
+  },
+  {
+    id: 'f4a1b2c3-5678-90ab-cdef-123456789023',
+    slug: 'me-contacter-par-courriel',
+    libelle: 'Me contacter par courriel',
+    url: 'mailto:contact@dr-cabrel.test',
+    type: 'email',
+    ordre: 2,
+    actif: true,
+  },
+  {
+    id: 'f4a1b2c3-5678-90ab-cdef-123456789024',
+    slug: 'site-de-l-hopital',
+    libelle: 'Site de l’hôpital',
+    url: 'https://hopital-central-douala.test',
+    type: 'libre',
+    ordre: 3,
+    actif: false,
+  },
+]
+
+const disponibilitesDemo = [
+  { id: 'a7e1c210-1111-4111-8111-111111111111', jourSemaine: 1, debut: '09:00', fin: '12:00' },
+  { id: 'a7e1c210-2222-4222-8222-222222222222', jourSemaine: 2, debut: '09:00', fin: '12:00' },
+  { id: 'a7e1c210-3333-4333-8333-333333333333', jourSemaine: 3, debut: '09:00', fin: '12:00' },
+  { id: 'a7e1c210-4444-4444-8444-444444444444', jourSemaine: 4, debut: '09:00', fin: '12:00' },
+  { id: 'a7e1c210-5555-4555-8555-555555555555', jourSemaine: 5, debut: '09:00', fin: '12:00' },
+] as const
+
+const reservationsDemo = [
+  {
+    id: 'b8f2d320-1111-4111-8111-111111111111',
+    serviceId: servicesDemo[0]!.id,
+    nom: 'Visiteur de démonstration',
+    email: 'visiteur-1@brandself.test',
+    telephone: '+237699000001',
+    note: 'Première consultation',
+    debut: new Date('2026-11-03T08:00:00.000Z'),
+    fin: new Date('2026-11-03T08:45:00.000Z'),
+    statut: 'en_attente',
+  },
+  {
+    id: 'b8f2d320-2222-4222-8222-222222222222',
+    serviceId: servicesDemo[1]!.id,
+    nom: 'Visiteur de démonstration',
+    email: 'visiteur-2@brandself.test',
+    telephone: '+237699000002',
+    note: null,
+    debut: new Date('2026-11-05T08:00:00.000Z'),
+    fin: new Date('2026-11-05T09:00:00.000Z'),
+    statut: 'confirmee',
+  },
+] as const
+
+// S7-bis (CA27) : 3 messages de démonstration — 2 non lus (Marie Ndzi, Paul Essomba),
+// 1 lu (Aïcha Bello). Les dates sont relatives au moment du seed (jours/heures avant
+// maintenant) pour que « Aujourd'hui / Hier » reste vrai à chaque exécution.
+// Le sujet et les bornes suivent shared/message.ts ; l'insertion est directe (comme les
+// réservations) : aucun email outbox n'est déclenché par les données de démonstration.
+interface MessageDemo {
+  id: string
+  nom: string
+  email: string
+  telephone: string | null
+  sujet: 'question_avant_reservation' | 'demande_information' | 'suivi_reservation' | 'autre'
+  message: string
+  lu: boolean
+  ilYaHeures: number
+}
+
+const messagesDemo: readonly MessageDemo[] = [
+  {
+    id: 'c9d3e430-1111-4111-8111-111111111111',
+    nom: 'Marie Ndzi',
+    email: 'marie.ndzi@brandself.test',
+    telephone: '+237699000003',
+    sujet: 'question_avant_reservation',
+    message: 'Bonjour, le rendez-vous peut-il être décalé en fin de journée ? Je termine le travail à 17 h.',
+    lu: false,
+    ilYaHeures: 2,
+  },
+  {
+    id: 'c9d3e430-2222-4222-8222-222222222222',
+    nom: 'Paul Essomba',
+    email: 'paul.essomba@brandself.test',
+    telephone: null,
+    sujet: 'suivi_reservation',
+    message: 'Bonjour, je souhaiterais avancer mon suivi de la semaine prochaine à la semaine présente, si un créneau est libre.',
+    lu: false,
+    ilYaHeures: 26,
+  },
+  {
+    id: 'c9d3e430-3333-4333-8333-333333333333',
+    nom: 'Aïcha Bello',
+    email: 'aicha.bello@brandself.test',
+    telephone: '+237699000005',
+    sujet: 'demande_information',
+    message: 'Bonjour, vos consultations sont-elles accessibles sans ordonnance au préalable ?',
+    lu: true,
+    ilYaHeures: 52,
+  },
+] as const
+
 // Teintes des images de galerie de démonstration (une par vignette, pour distinguer l'ordre).
 const FONDS_GALERIE: readonly string[] = ['#e3c4b4', '#d9b9a6', '#cfae9a', '#c5a38f', '#bb9884', '#b18d79']
 /**
@@ -382,6 +528,61 @@ async function main(): Promise<void> {
   }
   console.info(`[seed] ${servicesDemo.length} services à jour`)
 
+  for (const disponibilite of disponibilitesDemo) {
+    const ligne = { ...disponibilite, vitrineId: ID_VITRINE }
+    await db
+      .insert(disponibilites)
+      .values(ligne)
+      .onConflictDoUpdate({ target: disponibilites.id, set: ligne })
+  }
+  console.info(`[seed] ${disponibilitesDemo.length} disponibilités à jour`)
+
+  for (const reservation of reservationsDemo) {
+    const ligne = {
+      ...reservation,
+      vitrineId: ID_VITRINE,
+      paiementChoisi: 'sur_place',
+      paiementStatut: 'non_requis',
+      rappelEmail: false,
+      confirmationTokenHash: createHash('sha256').update(`seed-${reservation.id}`).digest('hex'),
+      confirmationExpireLe: new Date('2026-11-30T00:00:00.000Z'),
+    }
+    await db
+      .insert(reservations)
+      .values(ligne)
+      .onConflictDoUpdate({ target: reservations.id, set: { ...ligne, updatedAt: new Date() } })
+  }
+  console.info(`[seed] ${reservationsDemo.length} réservations à jour`)
+
+  // Les anciens messages de démonstration sont supprimés avant l'upsert : la vitrine de démo
+  // ne garde que les messages ci-dessus (2 non lus, 1 lu).
+  const idsMessagesDemo = messagesDemo.map((message) => message.id)
+  const messagesSupprimes = await db
+    .delete(messages)
+    .where(and(eq(messages.vitrineId, ID_VITRINE), notInArray(messages.id, idsMessagesDemo)))
+    .returning({ id: messages.id })
+  console.info(`[seed] ${messagesSupprimes.length} ancien(s) message(s) de démonstration supprimé(s)`)
+
+  for (const message of messagesDemo) {
+    const creeLe = new Date(Date.now() - message.ilYaHeures * 3_600_000)
+    const ligne = {
+      id: message.id,
+      vitrineId: ID_VITRINE,
+      nom: message.nom,
+      email: message.email,
+      telephone: message.telephone,
+      sujet: message.sujet,
+      message: message.message,
+      luLe: message.lu ? new Date(creeLe.getTime() + 3_600_000) : null,
+      createdAt: creeLe,
+    }
+    await db
+      .insert(messages)
+      .values(ligne)
+      .onConflictDoUpdate({ target: messages.id, set: { ...ligne, updatedAt: new Date() } })
+  }
+  console.info(`[seed] ${messagesDemo.length} messages à jour`)
+
   // Les anciennes réalisations de démonstration (ids `seed-real-*`, rôles inventés) sont supprimées avant
   // l'upsert : la vitrine de démo ne garde que la liste ci-dessus.
   const idsRealisationsDemo = realisationsDemo.map((realisation) => realisation.id)
@@ -424,6 +625,24 @@ async function main(): Promise<void> {
       .onConflictDoUpdate({ target: temoignages.id, set: { ...ligne, updatedAt: new Date() } })
   }
   console.info(`[seed] ${temoignagesDemo.length} témoignages à jour`)
+
+  // Les anciens liens de démonstration sont supprimés avant l'upsert : la vitrine de démo
+  // ne garde que les liens ci-dessus.
+  const idsLiensDemo = liensDemo.map((lien) => lien.id)
+  const liensSupprimes = await db
+    .delete(liens)
+    .where(and(eq(liens.vitrineId, ID_VITRINE), notInArray(liens.id, idsLiensDemo)))
+    .returning({ id: liens.id })
+  console.info(`[seed] ${liensSupprimes.length} ancien(s) lien(s) de démonstration supprimé(s)`)
+
+  for (const lien of liensDemo) {
+    const ligne = { ...lien, vitrineId: ID_VITRINE }
+    await db
+      .insert(liens)
+      .values(ligne)
+      .onConflictDoUpdate({ target: liens.id, set: { ...ligne, updatedAt: new Date() } })
+  }
+  console.info(`[seed] ${liensDemo.length} liens à jour`)
   console.info('[seed] connexion : /connexion → email ' + EMAIL_DEMO)
 }
 
