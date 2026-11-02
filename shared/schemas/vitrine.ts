@@ -26,10 +26,11 @@ function nullable<T extends z.ZodType>(schema: T) {
   return z.preprocess(blankToNull, schema.nullable())
 }
 
-const champTitre = nullable(z.enum(TITRES, 'Titre inconnu.'))
-const champPrenom = z.string().trim().min(1, 'Le prénom est requis.').max(PRENOM_MAX, 'Le prénom est trop long.')
-const champNom = z.string().trim().min(1, 'Le nom est requis.').max(NOM_MAX, 'Le nom est trop long.')
-const champMetier = z.string().trim().min(1, 'Le métier est requis.').max(METIER_MAX, 'Le métier est trop long.')
+// Exportés pour l'inscription guidée (S8 §3.3) : mêmes règles que le Profil.
+export const champTitre = nullable(z.enum(TITRES, 'Titre inconnu.'))
+export const champPrenom = z.string().trim().min(1, 'Le prénom est requis.').max(PRENOM_MAX, 'Le prénom est trop long.')
+export const champNom = z.string().trim().min(1, 'Le nom est requis.').max(NOM_MAX, 'Le nom est trop long.')
+export const champMetier = z.string().trim().min(1, 'Le métier est requis.').max(METIER_MAX, 'Le métier est trop long.')
 
 const champTelephone = nullable(z.string().regex(E164_REGEX, 'Numéro invalide : utilisez le format international, par exemple +237600000000.'))
 

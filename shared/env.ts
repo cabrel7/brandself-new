@@ -1,10 +1,13 @@
 import { z } from 'zod'
+import { IA_CLE_API_LONGUEUR_MIN, IA_FOURNISSEURS, IA_MODELE_DEFAUT } from './ia'
+import type { IaFournisseur } from './ia'
+
+function videVautAbsent(valeur: unknown): unknown {
+  return typeof valeur === 'string' && valeur.trim() === '' ? undefined : valeur
+}
 
 // `PAIEMENT_EN_LIGNE=` (chaîne vide, ex. copié depuis .env.example) vaut « absent » : défaut faux.
-const schemaPaiementEnLigne = z.preprocess(
-  (valeur) => (typeof valeur === 'string' && valeur.trim() === '' ? undefined : valeur),
-  z.stringbool().default(false),
-)
+const schemaPaiementEnLigne = z.preprocess(videVautAbsent, z.stringbool().default(false))
 
 const schemaEnv = z
   .object({
@@ -19,8 +22,23 @@ const schemaEnv = z
     RESEND_API_KEY: z.string().optional(),
     // Paiement en ligne (K-PAY) : faux en v1, seul le règlement sur place est proposé (PROJECT_CONTEXT §4.1).
     PAIEMENT_EN_LIGNE: schemaPaiementEnLigne,
+    // IA (S8). Lues par le worker seul : jamais dans runtimeConfig ni dans les drapeaux publics.
+    // Variable vide = absente. Voir `resolveIaFournisseur` pour la règle de choix.
+    IA_FOURNISSEUR: z.preprocess(videVautAbsent, z.enum(IA_FOURNISSEURS).optional()),
+    IA_CLE_API: z.preprocess(
+      (valeur) => videVautAbsent(typeof valeur === 'string' ? valeur.trim() : valeur),
+      z.string().min(IA_CLE_API_LONGUEUR_MIN, `doit contenir au moins ${IA_CLE_API_LONGUEUR_MIN} caractères`).optional(),
+    ),
+    IA_MODELE: z.preprocess(videVautAbsent, z.string().trim().min(1).default(IA_MODELE_DEFAUT)),
   })
   .superRefine((env, ctx) => {
+    if (env.NODE_ENV === 'production' && env.IA_FOURNISSEUR === 'faux') {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['IA_FOURNISSEUR'],
+        message: 'interdit en production (le faux fournisseur ne sert qu’aux tests)',
+      })
+    }
     if (env.NODE_ENV === 'production' && !env.RESEND_API_KEY) {
       ctx.addIssue({
         code: 'custom',
@@ -50,6 +68,30 @@ export function loadEnv(source: Record<string, string | undefined>): Env {
     )
   }
   return result.data
+}
+
+/**
+ * Fournisseur IA effectivement utilisé (S8 §0 #71). Ne lève jamais : une configuration
+ * qui ne permet pas d'appeler un fournisseur donne `aucun` (repli déterministe).
+ * - explicite `anthropic` sans clé -> `aucun` ; explicite `faux` en production -> `aucun` ;
+ * - non défini : clé présente -> `anthropic` ; production sans clé -> `aucun` ; sinon `faux`.
+ */
+export function resolveIaFournisseur(
+  env: Pick<Env, 'NODE_ENV' | 'IA_FOURNISSEUR' | 'IA_CLE_API'>,
+): IaFournisseur {
+  const production = env.NODE_ENV === 'production'
+  const cle = Boolean(env.IA_CLE_API)
+  switch (env.IA_FOURNISSEUR) {
+    case 'anthropic':
+      return cle ? 'anthropic' : 'aucun'
+    case 'faux':
+      return production ? 'aucun' : 'faux'
+    case 'aucun':
+      return 'aucun'
+    case undefined:
+      if (cle) return 'anthropic'
+      return production ? 'aucun' : 'faux'
+  }
 }
 
 // Commandes Nuxt qui chargent la configuration sans démarrer l'application :
