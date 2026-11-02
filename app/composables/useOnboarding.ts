@@ -260,10 +260,11 @@ export function useOnboarding() {
   }
 
   async function televerserPhoto(fichier: File): Promise<void> {
+    // Un nouvel essai remplace l'ancien message (« photo requise ») : sinon il masquerait l'erreur d'envoi.
+    erreurs.value = { ...erreurs.value, photo: undefined }
     const media = await televerser(fichier)
     if (!media) return
     photo.value = media
-    erreurs.value = { ...erreurs.value, photo: undefined }
   }
 
   async function enregistrerPhoto(): Promise<boolean> {

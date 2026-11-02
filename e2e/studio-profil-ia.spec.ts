@@ -184,7 +184,7 @@ test.describe.serial('Profil : améliorer avec l’IA (fournisseur d’IA faux)'
     await expect(presentation()).toHaveValue(TEXTE_INJECTION)
   })
 
-  test('le panneau est empilé à 390 et 768 px, côte à côte à 1280 px, sans débordement horizontal', async () => {
+  test('le panneau est empilé à 390, 768 et 1280 px, sans débordement horizontal', async () => {
     await ouvrirProfil()
     await demander(TEXTE_ORIGINAL)
     await expect(page.getByRole('heading', { level: 2, name: TITRE_PANNEAU })).toBeVisible({ timeout: DELAI_PROPOSITION_MS })
@@ -198,12 +198,8 @@ test.describe.serial('Profil : améliorer avec l’IA (fournisseur d’IA faux)'
       const apresBoite = await panneau().getByRole('heading', { level: 3, name: 'Proposition', exact: true }).boundingBox()
       expect(avantBoite).not.toBeNull()
       expect(apresBoite).not.toBeNull()
-      if (viewport.width === DESKTOP.width) {
-        expect(Math.abs((avantBoite?.y ?? 0) - (apresBoite?.y ?? 0)), 'côte à côte à 1280 px').toBeLessThanOrEqual(TOLERANCE_ALIGNEMENT_PX)
-        expect(apresBoite?.x ?? 0).toBeGreaterThan(avantBoite?.x ?? 0)
-      } else {
-        expect(apresBoite?.y ?? 0, `empilé à ${viewport.width} px`).toBeGreaterThan((avantBoite?.y ?? 0) + TOLERANCE_ALIGNEMENT_PX)
-      }
+      // Revue UX S8 : les deux blocs restent empilés à toute largeur (la colonne du Profil est étroite).
+      expect(apresBoite?.y ?? 0, `empilé à ${viewport.width} px`).toBeGreaterThan((avantBoite?.y ?? 0) + TOLERANCE_ALIGNEMENT_PX)
     }
     await page.setViewportSize(MOBILE)
   })

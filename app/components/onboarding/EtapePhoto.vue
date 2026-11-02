@@ -23,9 +23,10 @@ const arche = useTemplateRef<HTMLButtonElement>('arche')
 const changer = useTemplateRef<{ $el: HTMLElement }>('changer')
 const idErreur = useId()
 
-// L'envoi vient de finir : le bouton « Ajouter une photo » a disparu, le focus passe à « Changer la photo ».
-watch(() => props.televersement, async (enCours, avant) => {
-  if (!avant || enCours || !props.photo) return
+// Une photo vient d'arriver (ou d'être remplacée) : l'arche cliquable a disparu, le focus passe à
+// « Changer la photo ». On suit la photo et non `televersement`, qui repasse à faux avant qu'elle soit posée.
+watch(() => props.photo?.id, async (nouvelle, ancienne) => {
+  if (!nouvelle || nouvelle === ancienne) return
   await nextTick()
   changer.value?.$el.focus()
 })

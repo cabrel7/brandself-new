@@ -70,7 +70,8 @@ async function attendreActif(bouton: Locator): Promise<void> {
 }
 
 function titreDocument(etape: OnboardingEtape): string {
-  return `${ONBOARDING_ETAPES[etape]} — Étape ${etape} sur ${ONBOARDING_ETAPES_TOTAL} — Brandself`
+  // Le gabarit de titre de l'application ajoute « | Brandself ».
+  return `${ONBOARDING_ETAPES[etape]} — Étape ${etape} sur ${ONBOARDING_ETAPES_TOTAL} | Brandself`
 }
 
 /** Écran d'inscription guidée (/onboarding) : un seul objet pour les quatre étapes. */
