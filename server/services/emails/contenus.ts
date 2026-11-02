@@ -82,6 +82,12 @@ export type TransactionalEmailContent = BaseEmailContent & (
     }
 )
 
+// Défense en profondeur : une valeur saisie par un visiteur et placée dans l'objet ou sur
+// une ligne d'un email ne peut jamais contenir de saut de ligne ni de caractère de contrôle.
+function singleLine(value: string): string {
+  return value.replaceAll(/[\p{Cc}\p{Zl}\p{Zp}]+/gu, ' ').trim()
+}
+
 function asTitre(value: string | null): Titre | null {
   return TITRES.find((titre) => titre === value) ?? null
 }
@@ -200,7 +206,7 @@ export function buildTransactionalEmail(content: TransactionalEmailContent): Ema
           'Vous avez reçu une nouvelle demande de réservation.',
           '',
           ...reservationRecap(content),
-          `Visiteur : ${content.visiteur.nom}`,
+          `Visiteur : ${singleLine(content.visiteur.nom)}`,
           `Email : ${content.visiteur.email}`,
           ...(content.visiteur.telephone ? [`Téléphone : ${content.visiteur.telephone}`] : []),
           ...(content.visiteur.motif ? [`Motif : ${content.visiteur.motif}`] : []),
@@ -246,7 +252,7 @@ export function buildTransactionalEmail(content: TransactionalEmailContent): Ema
           'Vous avez reçu une nouvelle demande.',
           '',
           ...demandeRecap(content),
-          `Visiteur : ${content.visiteur.nom}`,
+          `Visiteur : ${singleLine(content.visiteur.nom)}`,
           `Email : ${content.visiteur.email}`,
           ...(content.visiteur.telephone ? [`Téléphone : ${content.visiteur.telephone}`] : []),
           ...(content.visiteur.motif ? [`Motif : ${content.visiteur.motif}`] : []),
@@ -287,13 +293,13 @@ function messageProfessionnelEmail(
   const sujetLibelle = SUJET_LIBELLES[content.message.sujet]
   return {
     to: content.professionnelEmail,
-    subject: `Nouveau message de ${content.message.nom} — ${sujetLibelle}`,
+    subject: `Nouveau message de ${singleLine(content.message.nom)} — ${sujetLibelle}`,
     text: [
       'Bonjour,',
       '',
       'Vous avez reçu un nouveau message depuis votre vitrine.',
       '',
-      `De : ${content.message.nom}`,
+      `De : ${singleLine(content.message.nom)}`,
       `Email : ${content.message.email}`,
       ...(content.message.telephone ? [`Téléphone : ${content.message.telephone}`] : []),
       `Sujet : ${sujetLibelle}`,

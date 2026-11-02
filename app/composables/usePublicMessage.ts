@@ -126,6 +126,9 @@ export function usePublicMessage(options: { username: string }) {
       form.sujet = SUJET_PAR_DEFAUT
       form.message = ''
       form.siteWeb = ''
+      // Le watcher du formulaire (flush « pre ») s'exécute après ces remises à zéro :
+      // on attend qu'il soit passé, sinon il masquerait aussitôt le message de succès.
+      await nextTick()
       envoyee.value = true
     }
     catch (error) {

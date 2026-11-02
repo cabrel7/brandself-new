@@ -8,7 +8,13 @@ import { E164_REGEX } from '../telephone'
 
 export const schemaMessageCreate = z
   .object({
-    nom: z.string().trim().min(1, 'Votre nom est requis.').max(MESSAGE_NOM_MAX),
+    // Le nom finit dans l'objet et le corps d'un email : aucun caractère de contrôle (CRLF compris).
+    nom: z
+      .string()
+      .trim()
+      .min(1, 'Votre nom est requis.')
+      .max(MESSAGE_NOM_MAX)
+      .regex(/^[^\p{Cc}\p{Zl}\p{Zp}]+$/u, 'Votre nom contient un caractère non autorisé.'),
     email: z.email('Adresse email invalide.').max(MESSAGE_EMAIL_MAX),
     telephone: z.string().regex(E164_REGEX, 'Numéro de téléphone invalide.').max(MESSAGE_TELEPHONE_MAX).optional(),
     sujet: z.enum(SUJETS_MESSAGE),

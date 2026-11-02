@@ -1,4 +1,7 @@
 <script setup lang="ts">
+import type { SujetMessage } from '#shared/message'
+import { SUJET_LIBELLES } from '#shared/message'
+
 definePageMeta({ layout: 'studio', ssr: false })
 useSeoMeta({ title: 'Messages — Brandself' })
 
@@ -16,6 +19,16 @@ const {
 
 function plurielNonLus(nombre: number): string {
   return nombre > 1 ? 'non lus' : 'non lu'
+}
+
+function libelleSujet(sujet: string): string {
+  return Object.hasOwn(SUJET_LIBELLES, sujet) ? SUJET_LIBELLES[sujet as SujetMessage] : sujet
+}
+
+// L'email du visiteur est encodé : un « ? » ou un « & » valide dans une adresse ne doit pas
+// ajouter de paramètres (cc, bcc, body) au lien mailto.
+function lienMail(email: string): string {
+  return `mailto:${encodeURIComponent(email)}`
 }
 </script>
 
@@ -116,11 +129,11 @@ function plurielNonLus(nombre: number): string {
             class="pb-5 pl-16"
           >
             <p class="m-0 text-(length:--fs-14) text-texte-secondaire">
-              Sujet : <span class="font-semibold text-encre">{{ message.sujet }}</span>
+              Sujet : <span class="font-semibold text-encre">{{ libelleSujet(message.sujet) }}</span>
             </p>
             <p class="m-0 mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-(length:--fs-14)">
               <a
-                :href="`mailto:${message.email}`"
+                :href="lienMail(message.email)"
                 class="break-all text-texte-secondaire underline-offset-4 hover:underline"
               >{{ message.email }}</a>
               <a
