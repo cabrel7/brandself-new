@@ -1,10 +1,24 @@
 import { Queue, Worker } from 'bullmq'
 import Redis from 'ioredis'
-import { env } from '../shared/env'
+import { env, resolveIaFournisseur } from '../shared/env'
+import { IA_CONCURRENCE_WORKER } from '../shared/ia'
 import type { OtpJobData } from '../shared/jobs'
-import { FILE_EMAILS, FILE_SYSTEM, JOBS, transactionalEmailJobDataSchema } from '../shared/jobs'
+import {
+  FILE_EMAILS,
+  FILE_IA,
+  FILE_SYSTEM,
+  IA_JOB_LOCK_MS,
+  IA_JOB_MAX_STALLED,
+  JOBS,
+  iaJobDataSchema,
+  transactionalEmailJobDataSchema,
+} from '../shared/jobs'
+import { planifierPurge } from '../server/jobs/ia'
 import { dispatchPendingTransactionalEmails } from '../server/jobs/email-outbox'
 import { processTransactionalEmail } from '../server/services/email-outbox'
+import { executeGeneration, purgeGenerations } from '../server/services/ia/generations'
+import { createIaProvider } from '../server/services/ia/fournisseurs'
+import type { ExecutionDeps } from '../server/services/ia/types'
 import { senderOtpEmail, senderOtpSms } from '../server/services/otp/envoi'
 
 const OUTBOX_POLL_INTERVAL_MS = 5_000
@@ -49,7 +63,44 @@ const workerEmails = new Worker(
   { connection: createConnection() },
 )
 
-for (const worker of [workerSystem, workerEmails]) {
+// S8 : file `ia`. Le worker est le SEUL processus qui lit la clé du fournisseur (createIaProvider).
+// Le journal de démarrage donne le fournisseur résolu, jamais la clé.
+const fournisseurIa = resolveIaFournisseur(env)
+const iaDeps: ExecutionDeps = {
+  provider: createIaProvider(env),
+  now: Date.now,
+  sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+}
+if (fournisseurIa === 'aucun') {
+  console.warn('[worker] aucun fournisseur IA configuré : les générations serviront le texte de repli (IA_SANS_FOURNISSEUR)')
+}
+
+const iaQueue = new Queue(FILE_IA, { connection: createConnection() })
+
+const workerIa = new Worker(
+  FILE_IA,
+  async (job) => {
+    if (job.name === JOBS.genererIa) {
+      const data = iaJobDataSchema.parse(job.data)
+      await executeGeneration(data.generationId, iaDeps)
+      return
+    }
+    if (job.name === JOBS.purgerIa) {
+      const purgees = await purgeGenerations()
+      console.info(`[worker] purge IA : ${purgees} génération(s) purgée(s)`)
+      return
+    }
+    throw new Error(`Unknown job: ${job.name}`)
+  },
+  {
+    connection: createConnection(),
+    concurrency: IA_CONCURRENCE_WORKER,
+    lockDuration: IA_JOB_LOCK_MS,
+    maxStalledCount: IA_JOB_MAX_STALLED,
+  },
+)
+
+for (const worker of [workerSystem, workerEmails, workerIa]) {
   worker.on('completed', (job) => {
     console.info(`[worker] job « ${job.name} » #${job.id} completed`)
   })
@@ -57,6 +108,10 @@ for (const worker of [workerSystem, workerEmails]) {
     console.error(`[worker] job « ${job?.name} » #${job?.id} failed (JOB_FAILED)`)
   })
 }
+
+planifierPurge(iaQueue).catch(() => {
+  console.error('[worker] IA purge scheduling failed (IA_PURGE_SCHEDULE_FAILED)')
+})
 
 let dispatchRunning = false
 async function dispatchOutbox(): Promise<void> {
@@ -77,13 +132,21 @@ const dispatchTimer = setInterval(() => void dispatchOutbox(), OUTBOX_POLL_INTER
 dispatchTimer.unref()
 void dispatchOutbox()
 
-console.info(`[worker] started — queues « ${FILE_SYSTEM} » and « ${FILE_EMAILS} »`)
+console.info(
+  `[worker] started — queues « ${FILE_SYSTEM} », « ${FILE_EMAILS} » and « ${FILE_IA} » (IA provider: ${fournisseurIa})`,
+)
 
 async function stop(signal: string): Promise<void> {
   console.info(`[worker] stopping (${signal})…`)
   clearInterval(dispatchTimer)
   try {
-    await Promise.all([workerSystem.close(), workerEmails.close(), emailDispatchQueue.close()])
+    await Promise.all([
+      workerSystem.close(),
+      workerEmails.close(),
+      workerIa.close(),
+      emailDispatchQueue.close(),
+      iaQueue.close(),
+    ])
     process.exit(0)
   } catch {
     console.error('[worker] shutdown failed (WORKER_SHUTDOWN_FAILED)')

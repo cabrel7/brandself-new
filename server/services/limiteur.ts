@@ -22,6 +22,25 @@ export interface LimitOptions {
   failClosed?: boolean
 }
 
+/**
+ * ioredis ne rejette PAS quand une commande échoue dans un MULTI : `exec()` renvoie alors
+ * `[[erreur, null], ...]` (ou `null` si la transaction est abandonnée). Une telle réponse est
+ * traitée comme une panne (jamais lue comme un compteur à 0).
+ */
+class LimiteurCommandeError extends Error {
+  constructor() {
+    super('LIMITEUR_COMMANDE')
+    this.name = 'LimiteurCommandeError'
+  }
+}
+
+type ResultatCommande = [error: Error | null, result: unknown]
+
+function lireResultatCommande(resultat: ResultatCommande | undefined): unknown {
+  if (!resultat || resultat[0]) throw new LimiteurCommandeError()
+  return resultat[1]
+}
+
 export async function hitLimit(
   key: string,
   limit: number,
@@ -31,8 +50,10 @@ export async function hitLimit(
   const redisKey = `${KEY_PREFIX}${key}`
   try {
     const results = await redis.multi().incr(redisKey).ttl(redisKey).exec()
-    const count = Number(results?.[0]?.[1] ?? 0)
-    let ttl = Number(results?.[1]?.[1] ?? -1)
+    if (!results) throw new LimiteurCommandeError()
+    const count = Number(lireResultatCommande(results[0]))
+    let ttl = Number(lireResultatCommande(results[1]))
+    if (!Number.isInteger(count) || count < 1 || !Number.isFinite(ttl)) throw new LimiteurCommandeError()
     if (count === 1 || ttl < 0) {
       await redis.expire(redisKey, windowS)
       ttl = windowS
