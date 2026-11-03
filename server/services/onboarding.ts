@@ -517,6 +517,7 @@ async function creerVitrineEtServices(
   userId: string,
   ligne: ProgressionInscription,
   input: OnboardingTerminerInput,
+  now: Date,
 ): Promise<void> {
   const identite = identiteCompleteDe(ligne)
   const brouillon = schemaServicesBrouillon.safeParse(ligne.servicesProposes)
@@ -542,7 +543,7 @@ async function creerVitrineEtServices(
 
   // S10 #126 : au plus le quota du plan ; les services en trop sont ignorés (jamais d'échec de publication).
   // La vitrine vient d'être créée : aucun service n'existe encore, le quota restant est la limite entière.
-  const limite = limiteDe((await getPlanEffectif(userId, new Date(), tx)).plan, 'services')
+  const limite = limiteDe((await getPlanEffectif(userId, now, tx)).plan, 'services')
   const proposes = lignesServices(vitrineId, brouillon.data)
   const lignes = limite === null ? proposes : proposes.slice(0, limite)
   if (lignes.length > 0) await tx.insert(services).values(lignes)
@@ -557,7 +558,7 @@ async function creerVitrineEtServices(
   await tx
     .update(progressionsInscription)
     .set({
-      termineLe: new Date(),
+      termineLe: now,
       prenom: null,
       nom: null,
       metier: null,
@@ -567,7 +568,7 @@ async function creerVitrineEtServices(
       servicesProposes: null,
       propositionValideeLe: null,
       photoMediaId: null,
-      updatedAt: new Date(),
+      updatedAt: now,
     })
     .where(eq(progressionsInscription.userId, userId))
 }
@@ -577,7 +578,7 @@ async function creerVitrineEtServices(
  * (double clic) renvoie `creee: false` sans rien refaire. La contrainte UNIQUE de la base fait foi pour
  * l'adresse : un conflit annule tout (409 USERNAME_PRIS), la progression reste intacte.
  */
-export async function terminer(userId: string, input: OnboardingTerminerInput): Promise<TerminerResultat> {
+export async function terminer(userId: string, input: OnboardingTerminerInput, now: Date = new Date()): Promise<TerminerResultat> {
   // Limite par utilisateur (compteur propre à `terminer`, sans lien avec le quota IA). Même politique que la
   // vérification d'adresse : une panne de Redis laisse passer (fail-open), jamais « inscription impossible ».
   await enforceLimit(
@@ -601,7 +602,7 @@ export async function terminer(userId: string, input: OnboardingTerminerInput): 
       const manquants = computeManquants({ ...ligne, photoMediaId: photoValide ? ligne.photoMediaId : null })
       if (manquants.length > 0) throw incomplet(manquants)
 
-      await creerVitrineEtServices(tx, userId, ligne, input)
+      await creerVitrineEtServices(tx, userId, ligne, input, now)
       return { creee: true }
     })
   } catch (error) {

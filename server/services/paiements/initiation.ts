@@ -19,7 +19,8 @@ import {
 import type { FournisseurPaiement } from '../../../shared/paiements'
 import type { PaiementInitierInput } from '../../../shared/schemas/abonnement'
 import { PAIEMENT_EXPIRATION_MINUTES, PAIEMENTS_VERIFICATION_CALENDRIER_S } from '../../../shared/jobs'
-import { MOYENS_PAIEMENT, FRAIS_PAIEMENT } from '../../config/paiements'
+import { env } from '../../../shared/env'
+import { MOYENS_PAIEMENT, FRAIS_PAIEMENT, paiementVerrouille } from '../../config/paiements'
 import type { MoyenPaiementConfig, TableFrais } from '../../config/paiements'
 import { PLAN_PAYANT_ID, PRIX_PLANS } from '../../config/plans'
 import type { GrillePrix } from '../../config/plans'
@@ -154,7 +155,8 @@ export async function initierPaiement(
   const fraisTable = deps.config?.frais ?? FRAIS_PAIEMENT
   const grille = deps.config?.prix ?? PRIX_PLANS[PLAN_PAYANT_ID]
 
-  // (0) Validation métier, avant tout effet.
+  // (0) Grille de prix provisoire en production : le paiement est verrouillé. Puis validation métier, avant tout effet.
+  if (paiementVerrouille(env)) throw new ServiceUnavailableError('PAIEMENT_INDISPONIBLE')
   const moyen = moyens.find((candidat) => candidat.id === input.moyen && candidat.actif)
   if (!moyen) throw new UnprocessableError('MOYEN_PAIEMENT_INVALIDE')
   if (input.devise !== moyen.devise) throw new UnprocessableError('DEVISE_NON_PAYABLE')

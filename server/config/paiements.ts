@@ -1,4 +1,5 @@
 import { PRIX_MAX_MINOR } from '../../shared/devises'
+import { resolveKpayEnvironnement } from '../../shared/env'
 import type { Env } from '../../shared/env'
 import {
   DEVISE_FORMAT,
@@ -173,6 +174,14 @@ export function getFraisPaiement(fournisseur: FournisseurPaiement, methode: Meth
   return FRAIS_PAIEMENT[fournisseur]?.[methode]
 }
 
+/**
+ * Vrai en production tant que la grille de prix est provisoire (#106) : le paiement n'est alors ni proposé
+ * (`paiementDisponible = false`) ni accepté (503 `PAIEMENT_INDISPONIBLE`).
+ */
+export function paiementVerrouille(env: Pick<Env, 'NODE_ENV'>, prixStatut: PrixStatut = PRIX_STATUT): boolean {
+  return env.NODE_ENV === 'production' && prixStatut === 'a_valider'
+}
+
 /** Éléments contrôlés au démarrage ; injectables pour les tests. */
 export interface ConfigPaiementsVerifiable {
   moyens: readonly MoyenPaiementConfig[]
@@ -228,7 +237,7 @@ function verifierPrixDevise(devise: string, prix: GrillePrix, montantMin: number
  * fait échouer le démarrage (#106).
  */
 export function assertConfigPaiements(
-  env: Pick<Env, 'NODE_ENV'>,
+  env: Pick<Env, 'NODE_ENV'> & Partial<Pick<Env, 'KPAY_API_KEY'>>,
   config: ConfigPaiementsVerifiable = { moyens: MOYENS_PAIEMENT, frais: FRAIS_PAIEMENT, prix: PRIX_PLANS.payant, prixStatut: PRIX_STATUT },
 ): void {
   const problemes: string[] = []
@@ -263,8 +272,15 @@ export function assertConfigPaiements(
     if (!dejaVerifiee) verifierPrixDevise(devise, config.prix, null, problemes)
   }
 
-  if (env.NODE_ENV === 'production' && config.prixStatut === 'a_valider') {
-    problemes.push('PRIX_STATUT vaut a_valider : la grille de prix est provisoire et interdite en production')
+  if (paiementVerrouille(env, config.prixStatut)) {
+    // Grille provisoire en production : le serveur DÉMARRE (le reste du produit n'a pas à tomber), mais le paiement
+    // est verrouillé (offre vide, initiation 503). Il ne démarre PAS si des clés de production seraient déjà
+    // branchées sur une grille non validée : de l'argent réel serait encaissé à des prix provisoires.
+    if (env.KPAY_API_KEY && resolveKpayEnvironnement(env.KPAY_API_KEY) === 'live') {
+      problemes.push('PRIX_STATUT vaut a_valider avec des clés K-PAY de production : validez la grille de prix avant d’encaisser')
+    } else {
+      console.warn('[paiements] PRIX_STATUT vaut a_valider en production : le paiement en ligne est désactivé jusqu’à validation des prix')
+    }
   }
 
   if (problemes.length > 0) throw new ConfigPaiementsError(problemes)

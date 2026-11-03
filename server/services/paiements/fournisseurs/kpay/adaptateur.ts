@@ -134,6 +134,14 @@ export function creerKpayProvider(options: OptionsKpayProvider): PaiementProvide
       if (reponse.statut < 200 || reponse.statut >= 300) return { issue: 'indisponible', code: 'SERVEUR' }
       const lue = schemaKpayInit.safeParse(reponse.corps)
       if (!lue.success) return { issue: 'incertain', code: 'RESEAU' }
+      // Réponse incohérente avec ce que nous avons envoyé : on n'associe PAS cet identifiant à notre paiement.
+      // Journal sans identifiant ni montant : le code seul.
+      const incoherente = (lue.data.externalId != null && lue.data.externalId !== req.externalId)
+        || (lue.data.amount != null && lue.data.amount !== req.montant)
+      if (incoherente) {
+        console.error({ paiement: 'kpay_initiation_reponse_incoherente', code: 'REPONSE_INCOHERENTE' })
+        return { issue: 'incertain', code: 'RESEAU' }
+      }
       return {
         issue: 'accepte',
         idFournisseur: lue.data.id,
@@ -168,6 +176,7 @@ export function creerKpayProvider(options: OptionsKpayProvider): PaiementProvide
         codeEchec: assainirCodeEchec(lue.data.failureReason),
         referenceFournisseur: lue.data.reference ?? null,
         externalId: lue.data.externalId ?? null,
+        statutBrut: lue.data.status.toUpperCase(),
       }
     },
 
@@ -200,6 +209,7 @@ export function creerKpayProvider(options: OptionsKpayProvider): PaiementProvide
         referenceFournisseur: data.reference ?? null,
         horodatage: horodatage && !Number.isNaN(horodatage.getTime()) ? horodatage : null,
         codeEchec: assainirCodeEchec(data.failureReason),
+        statutBrut: data.status.toUpperCase(),
       }
     },
   }

@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { WEBHOOK_CORPS_MAX_OCTETS } from '../../shared/limites'
 import { corpsWebhook, signerWebhook } from '../support/faux-kpay'
 import {
@@ -144,22 +144,25 @@ describe('route webhook : taille et forme du corps (CA48, CA49)', () => {
     expect(reponse.status).toBe(413)
   })
 
-  it('should accept a body of exactly the maximum size when it is correctly signed (then a 400 for not being JSON)', async () => {
+  it('should accept a body of exactly the maximum size when it is correctly signed (then a retryable 503 for not being JSON)', async () => {
     const exact = Buffer.alloc(WEBHOOK_CORPS_MAX_OCTETS, 'a')
 
     const reponse = await appelerRouteWebhook({ corps: exact })
 
-    expect(reponse.status).toBe(400)
-    expect(reponse.code).toBe('CORPS_ILLISIBLE')
+    expect(reponse.status).toBe(503)
+    expect(reponse.code).toBe('PAIEMENT_INDISPONIBLE')
   })
 
-  it('should answer 400 CORPS_ILLISIBLE for a validly signed unreadable JSON, writing nothing (CA49)', async () => {
+  it('should answer a RETRYABLE 503 (K-PAY never retries a 4xx) for a validly signed unreadable JSON, writing nothing (CA49)', async () => {
     const avant = await ecritures()
+    const alerte = vi.spyOn(console, 'error').mockImplementation(() => undefined)
 
     const reponse = await appelerRouteWebhook({ corps: '{"event": "payment.completed", ' })
 
-    expect(reponse.status).toBe(400)
-    expect(reponse.code).toBe('CORPS_ILLISIBLE')
+    expect(reponse.status).toBe(503)
+    expect(reponse.code).toBe('PAIEMENT_INDISPONIBLE')
+    expect(alerte).toHaveBeenCalledWith(expect.objectContaining({ webhook: 'signe_non_interpretable', fournisseur: 'kpay' }))
+    alerte.mockRestore()
     expect(await ecritures()).toEqual(avant)
   })
 
@@ -168,12 +171,14 @@ describe('route webhook : taille et forme du corps (CA48, CA49)', () => {
     ['a JSON array', '[1,2,3]'],
     ['a JSON null', 'null'],
     ['an empty object', '{}'],
-  ])('should answer 400 for a signed body with %s, writing nothing', async (_libelle, corps) => {
+  ])('should answer a retryable 503 for a signed body with %s, writing nothing', async (_libelle, corps) => {
     const avant = await ecritures()
+    const alerte = vi.spyOn(console, 'error').mockImplementation(() => undefined)
 
     const reponse = await appelerRouteWebhook({ corps })
 
-    expect(reponse.status).toBe(400)
+    alerte.mockRestore()
+    expect(reponse.status).toBe(503)
     expect(await ecritures()).toEqual(avant)
   })
 
@@ -197,7 +202,8 @@ describe('route webhook : configuration et fournisseur (CA50, CA51)', () => {
     const reponse = { status: erreur?.status, code: erreur?.code }
 
     expect(reponse.status).toBe(503)
-    expect(reponse.code).toBe('WEBHOOK_NON_CONFIGURE')
+    // Code neutre pour un appelant non authentifié : le détail (secret absent) reste dans les journaux.
+    expect(reponse.code).toBe('PAIEMENT_INDISPONIBLE')
     expect((await lirePaiement(paiement.id)).statut).toBe('en_attente')
   })
 

@@ -4,7 +4,8 @@ import { prixPeriodes } from '../../../shared/paiements-montants'
 import type { DeviseOffreDTO, MoyenPaiementDTO, OffreDTO } from '../../../shared/dto/abonnement'
 import { PRIX_PLANS } from '../../config/plans'
 import type { GrillePrix } from '../../config/plans'
-import { MOYENS_PAIEMENT } from '../../config/paiements'
+import { env } from '../../../shared/env'
+import { MOYENS_PAIEMENT, paiementVerrouille } from '../../config/paiements'
 import type { MoyenPaiementConfig } from '../../config/paiements'
 import { fournisseursConfigures } from './fournisseurs'
 
@@ -17,6 +18,8 @@ export interface ConfigOffre {
   moyens: readonly MoyenPaiementConfig[]
   prix: GrillePrix
   fournisseurs: readonly FournisseurPaiement[]
+  /** Grille de prix provisoire en production : aucune offre (défaut : calculé depuis l'environnement). */
+  verrouille: boolean
 }
 
 function versDto(moyen: MoyenPaiementConfig): MoyenPaiementDTO {
@@ -45,7 +48,7 @@ export function construireOffre(
 ): OffreDTO {
   const moyensConfig = config.moyens ?? MOYENS_PAIEMENT
   const prix = config.prix ?? PRIX_PLANS.payant
-  const fournisseurs = config.fournisseurs ?? fournisseursConfigures()
+  const fournisseurs = (config.verrouille ?? paiementVerrouille(env)) ? [] : (config.fournisseurs ?? fournisseursConfigures())
 
   const moyens = moyensConfig.filter((moyen) => moyen.actif && fournisseurs.includes(moyen.fournisseur))
   const devises: DeviseOffreDTO[] = []

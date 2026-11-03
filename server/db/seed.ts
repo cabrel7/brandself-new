@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto'
 import { and, asc, eq, notInArray } from 'drizzle-orm'
 import sharp from 'sharp'
+import { env } from '../../shared/env'
 import { db } from '../utils/db'
 import { deleteMediaIfUnreferenced, uploadMedia } from '../services/medias'
 import {
@@ -582,6 +583,8 @@ async function assurerVarianteDemo(variante: VarianteDemo, maintenant: Date): Pr
 }
 
 async function main(): Promise<void> {
+  // Données de démonstration (comptes, abonnements fictifs) : jamais en production.
+  if (env.NODE_ENV === 'production') throw new Error('Le seed est interdit en production (NODE_ENV=production).')
   await assertActivePrompts()
 
   const utilisateurExistant = await db.query.users.findFirst({

@@ -19,6 +19,11 @@ import type { PaiementProvider } from './paiements/types'
 
 /** Millisecondes : délai maximal pour recevoir le corps complet (le fournisseur attend une réponse en moins de 3 s). */
 const WEBHOOK_LECTURE_DELAI_MS = 5_000
+/**
+ * Code NEUTRE des 503 renvoyés à un appelant non authentifié : il ne distingue ni « secret absent », ni « clés
+ * absentes », ni « corps non interprétable ». Le détail va dans les journaux, sans donnée personnelle.
+ */
+const CODE_NON_DISPONIBLE = 'PAIEMENT_INDISPONIBLE'
 
 export interface WebhookDeps {
   provider?: PaiementProvider | null
@@ -69,13 +74,15 @@ export function lireCorpsBorne(flux: Readable, max: number = WEBHOOK_CORPS_MAX_O
       nettoyer()
       resolve(Buffer.concat(morceaux, total))
     }
+    // Erreur de flux ou délai dépassé : 503, RÉESSAYABLE. K-PAY ne réessaie jamais un 4xx, et rien n'a été signé
+    // ni lu à ce stade : un 400 ferait perdre définitivement l'événement.
     const surErreur = (): void => {
       nettoyer()
-      reject(new BadRequestError('CORPS_ILLISIBLE'))
+      reject(new ServiceUnavailableError(CODE_NON_DISPONIBLE))
     }
     const minuteur = setTimeout(() => {
       nettoyer()
-      reject(new BadRequestError('CORPS_ILLISIBLE'))
+      reject(new ServiceUnavailableError(CODE_NON_DISPONIBLE))
     }, delaiMs)
     flux.on('data', surDonnees)
     flux.once('end', surFin)
@@ -93,20 +100,33 @@ export async function recevoirWebhook(
 ): Promise<{ recu: true }> {
   if (!estFournisseurConnu(fournisseur)) throw new NotFoundError('FOURNISSEUR_INCONNU')
   const provider = deps.provider !== undefined ? deps.provider : getPaiementProvider(fournisseur)
-  if (!provider || provider.webhookConfigure === false) throw new ServiceUnavailableError('WEBHOOK_NON_CONFIGURE')
+  if (!provider || provider.webhookConfigure === false) {
+    console.error({ webhook: 'non_configure', fournisseur, cles: Boolean(provider) })
+    throw new ServiceUnavailableError(CODE_NON_DISPONIBLE)
+  }
   if (corpsBrut.length > (deps.maxOctets ?? WEBHOOK_CORPS_MAX_OCTETS)) throw new ContentTooLargeError('CORPS_TROP_GROS')
 
   // Signature AVANT tout parsing, sur les octets reçus. Aucun détail sur la cause du refus.
   if (!provider.verifierSignature(corpsBrut, entetes)) throw new UnauthorizedError('SIGNATURE_INVALIDE')
 
+  // Corps SIGNÉ (donc authentique) mais illisible : c'est un défaut d'intégration de notre côté ou du fournisseur,
+  // jamais une erreur de l'appelant. Un 4xx ne serait pas réessayé et l'événement serait perdu : 503 réessayable,
+  // avec une alerte (fournisseur seulement, jamais le corps). Le rapprochement par interrogation rattrape
+  // l'activation si le corps ne devient jamais lisible.
+  // Corps vide : aucun événement n'a été envoyé, ce n'est pas un événement perdu (400, rien à réessayer).
+  if (corpsBrut.length === 0) throw new BadRequestError('CORPS_ILLISIBLE')
   let json: unknown
   try {
     json = JSON.parse(corpsBrut.toString('utf8')) as unknown
   } catch {
-    throw new BadRequestError('CORPS_ILLISIBLE')
+    console.error({ webhook: 'signe_non_interpretable', fournisseur, cause: 'json' })
+    throw new ServiceUnavailableError(CODE_NON_DISPONIBLE)
   }
   const evenement = provider.interpreterWebhook(json)
-  if (evenement === null) throw new BadRequestError('CORPS_ILLISIBLE')
+  if (evenement === null) {
+    console.error({ webhook: 'signe_non_interpretable', fournisseur, cause: 'schema' })
+    throw new ServiceUnavailableError(CODE_NON_DISPONIBLE)
+  }
 
   await appliquerEvenement(fournisseur, evenement, 'webhook', now, { environnement: provider.environnement })
   return { recu: true }

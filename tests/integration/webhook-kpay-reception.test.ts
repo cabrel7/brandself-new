@@ -395,3 +395,62 @@ describe('activation puis prolongation, utilisateurs particuliers (CA60, CA63)',
     expect(lignes[0]!.premiereActivationLe.getTime()).toBeLessThan(lignes[0]!.expireLe.getTime())
   })
 })
+
+describe('déduplication : un événement ignoré ne bloque pas un événement applicable (revue MAJOR-1)', () => {
+  it('should activate the subscription when a completed event follows an ignored one with the same key (unknown status, then COMPLETED)', async () => {
+    const { user, paiement } = await paiementEnAttente()
+    const idTransaction = paiement.idFournisseur ?? ''
+
+    // 1. Même clé (kpay, transaction, payment.completed) mais statut illisible : journalisé `ignore`, rien d'appliqué.
+    const premier = await recevoir(corpsPour(paiement, { paymentId: idTransaction, status: 'MYSTERE' }))
+    expect(premier.status).toBe(200)
+    expect((await lirePaiement(paiement.id)).statut).toBe('en_attente')
+    expect((await lireEvenements()).map((e) => e.traitement)).toEqual(['ignore'])
+
+    // 2. Le vrai résultat arrive : il n'est PAS un doublon, il active l'abonnement et met la ligne du journal à jour.
+    const second = await recevoir(corpsPour(paiement, { paymentId: idTransaction }))
+
+    expect(second.status).toBe(200)
+    expect((await lirePaiement(paiement.id)).statut).toBe('reussi')
+    expect((await lireAbonnement(user.id))?.expireLe.toISOString()).toBe(ECHEANCE_1_MOIS_DEPUIS_NOW.toISOString())
+    const evenements = await lireEvenements()
+    expect(evenements).toHaveLength(1)
+    expect(evenements[0]).toMatchObject({ traitement: 'applique', motif: null, paiementId: paiement.id })
+    expect(await lireOutbox({ entiteId: paiement.id, type: 'paiement_confirme' })).toHaveLength(1)
+  })
+
+  it('should still treat a replay of an APPLIED event as a duplicate', async () => {
+    const { user, paiement } = await paiementEnAttente()
+    await recevoir(corpsPour(paiement))
+    const apres = (await lireAbonnement(user.id))?.expireLe.toISOString()
+
+    await recevoir(corpsPour(paiement))
+
+    expect((await lireAbonnement(user.id))?.expireLe.toISOString()).toBe(apres)
+    expect(await lireEvenements()).toHaveLength(1)
+  })
+})
+
+describe('contrôles anti-fraude : seul un succès incohérent est une anomalie finale (revue MINEUR 2)', () => {
+  it('should journal a FAILED event with a wrong amount as ignored, keeping the payment open for a genuine completed', async () => {
+    const { paiement } = await paiementEnAttente()
+
+    await recevoir(corpsPour(paiement, { event: 'payment.failed', status: 'FAILED', amount: 4000 }))
+
+    expect((await lirePaiement(paiement.id)).statut).toBe('en_attente')
+    expect((await lireEvenements()).map((e) => `${e.traitement}:${e.motif}`)).toEqual(['ignore:MONTANT_INCOHERENT'])
+
+    await recevoir(corpsPour(paiement))
+    expect((await lirePaiement(paiement.id)).statut).toBe('reussi')
+  })
+})
+
+describe('journal d’audit : statut brut du fournisseur (revue MINEUR 1)', () => {
+  it('should keep the provider status as written (COMPLETED) in statut_fournisseur', async () => {
+    const { paiement } = await paiementEnAttente()
+
+    await recevoir(corpsPour(paiement))
+
+    expect((await lireEvenements())[0]?.statutFournisseur).toBe('COMPLETED')
+  })
+})

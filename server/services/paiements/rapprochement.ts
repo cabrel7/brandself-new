@@ -80,7 +80,8 @@ async function reclamer(now: Date, lot: number): Promise<PaiementReclame[]> {
         isNotNull(paiements.idFournisseur),
         lte(paiements.prochaineVerification, now),
       ))
-      .orderBy(asc(paiements.prochaineVerification))
+      // À égalité d'échéance, les plus anciens d'abord (ordre déterministe, pas de famine d'un paiement ancien).
+      .orderBy(asc(paiements.prochaineVerification), asc(paiements.createdAt), asc(paiements.id))
       .limit(lot)
       .for('update', { skipLocked: true })
     const reclames: PaiementReclame[] = []
@@ -113,6 +114,7 @@ function versEvenement(etat: EtatFournisseur, paiementId: string, statut: Exclud
     referenceFournisseur: etat.referenceFournisseur,
     horodatage: null,
     codeEchec: etat.codeEchec,
+    statutBrut: etat.statutBrut ?? null,
     fraisReels: etat.fraisReels,
     netReel: etat.netReel,
   }

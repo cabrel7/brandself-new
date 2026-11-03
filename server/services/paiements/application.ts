@@ -109,7 +109,10 @@ async function decider(
   const transition = transitionPaiement(statut, evt)
   if (transition.type !== 'succes' && transition.type !== 'echec') return transition
   const code = controler(paiement, evt, await identifiantDejaPris(tx, fournisseur, paiement, evt))
-  return code === null ? transition : { type: 'anomalie', code }
+  if (code === null) return transition
+  // Seul un SUCCÈS incohérent est une anomalie finale (aucune activation). Un échec ou une annulation incohérent
+  // est journalisé `ignore` : il ne doit pas verrouiller à tort un paiement qu'un vrai `completed` peut encore activer.
+  return transition.type === 'succes' ? { type: 'anomalie', code } : { type: 'ignorer', motif: code }
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -242,7 +245,12 @@ async function ecrireAnomalie(tx: DbTransaction, paiement: Paiement, code: CodeA
   console.error({ paiement: 'anomalie', id: paiement.id, fournisseur: paiement.fournisseur, code })
 }
 
-/** Insère la ligne du journal ; `false` si cet événement (fournisseur, transaction, nom) a déjà été journalisé. */
+/**
+ * Écrit la ligne du journal. Renvoie `false` si cet événement (fournisseur, transaction, nom) a déjà été TRAITÉ
+ * (`applique` ou `anomalie`) : c'est un doublon. Une ligne existante `ignore` ne bloque jamais : un événement
+ * ignoré (statut inconnu, paiement pas encore connu…) ne doit pas empêcher le même événement, devenu applicable
+ * (ex. l'interrogation `COMPLETED` après un webhook au statut illisible), d'activer l'abonnement. Elle est mise à jour.
+ */
 async function journaliser(
   tx: DbTransaction,
   fournisseur: string,
@@ -253,28 +261,39 @@ async function journaliser(
   motif: string | null,
   now: Date,
 ): Promise<boolean> {
+  const statutBrut = evt.statutBrut !== undefined && evt.statutBrut !== null && STATUT_FOURNISSEUR_FORMAT.test(evt.statutBrut)
+    ? evt.statutBrut
+    : null
+  const valeurs = {
+    source,
+    externalId: evt.externalId,
+    paiementId: paiement?.id ?? null,
+    statutFournisseur: statutBrut,
+    montant: entierOuNull(evt.montant),
+    traitement,
+    motif,
+    horodatageFournisseur: evt.horodatage,
+    recuLe: now,
+  }
   const inseres = await tx
     .insert(evenementsPaiement)
-    .values({
-      id: randomUUID(),
-      fournisseur,
-      evenement: evt.evenement,
-      source,
-      idTransaction: evt.idTransaction,
-      externalId: evt.externalId,
-      paiementId: paiement?.id ?? null,
-      statutFournisseur: STATUT_FOURNISSEUR_FORMAT.test(evt.statut) ? evt.statut : null,
-      montant: entierOuNull(evt.montant),
-      traitement,
-      motif,
-      horodatageFournisseur: evt.horodatage,
-      recuLe: now,
-    })
+    .values({ id: randomUUID(), fournisseur, evenement: evt.evenement, idTransaction: evt.idTransaction, ...valeurs })
     .onConflictDoNothing({
       target: [evenementsPaiement.fournisseur, evenementsPaiement.idTransaction, evenementsPaiement.evenement],
     })
     .returning({ id: evenementsPaiement.id })
-  return inseres.length > 0
+  if (inseres.length > 0) return true
+  const [existant] = await tx
+    .select({ id: evenementsPaiement.id, traitement: evenementsPaiement.traitement })
+    .from(evenementsPaiement)
+    .where(and(
+      eq(evenementsPaiement.fournisseur, fournisseur),
+      eq(evenementsPaiement.idTransaction, evt.idTransaction),
+      eq(evenementsPaiement.evenement, evt.evenement),
+    ))
+  if (existant === undefined || existant.traitement !== 'ignore') return false
+  await tx.update(evenementsPaiement).set(valeurs).where(eq(evenementsPaiement.id, existant.id))
+  return true
 }
 
 /**

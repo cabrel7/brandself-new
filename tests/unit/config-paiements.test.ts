@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { PRIX_MAX_MINOR } from '../../shared/devises'
 import { FRAIS_TAUX_PB_MAX } from '../../shared/paiements'
 import { PERIODES_MOIS, PLAN_IDS, RESSOURCES_QUOTA } from '../../shared/plans'
@@ -9,6 +9,7 @@ import {
   getFraisPaiement,
   getMoyenPaiement,
   MOYENS_PAIEMENT,
+  paiementVerrouille,
 } from '../../server/config/paiements'
 import type { ConfigPaiementsVerifiable, MoyenPaiementConfig } from '../../server/config/paiements'
 import { LIMITE_CHAMP_PAR_RESSOURCE, PLAN_PAYANT_ID, PLANS, PRIX_PLANS, PRIX_STATUT } from '../../server/config/plans'
@@ -139,9 +140,23 @@ describe('assertConfigPaiements (CA11, CA15)', () => {
     expect(() => assertConfigPaiements({ NODE_ENV: 'test' })).not.toThrow()
   })
 
-  it('should refuse the provisional prices in production, naming PRIX_STATUT', () => {
-    expect(() => assertConfigPaiements(PRODUCTION)).toThrow(/PRIX_STATUT/)
-    expect(messageDe(configValide({ prixStatut: 'a_valider' }), PRODUCTION)).toMatch(/PRIX_STATUT/)
+  it('should NOT stop the startup on provisional prices in production without live keys: it only warns (payment stays locked)', () => {
+    const avertissement = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+
+    expect(() => assertConfigPaiements(PRODUCTION)).not.toThrow()
+    expect(() => assertConfigPaiements({ ...PRODUCTION, KPAY_API_KEY: 'kpay_test_abc' }, configValide({ prixStatut: 'a_valider' }))).not.toThrow()
+    expect(avertissement).toHaveBeenCalledWith(expect.stringMatching(/PRIX_STATUT/))
+    avertissement.mockRestore()
+  })
+
+  it('should refuse the provisional prices in production when LIVE K-PAY keys are present, naming PRIX_STATUT (CA15)', () => {
+    expect(messageDe(configValide({ prixStatut: 'a_valider' }), { ...PRODUCTION, KPAY_API_KEY: 'kpay_live_abc' })).toMatch(/PRIX_STATUT/)
+  })
+
+  it('should lock the payment only in production while the prices are provisional', () => {
+    expect(paiementVerrouille(PRODUCTION, 'a_valider')).toBe(true)
+    expect(paiementVerrouille(PRODUCTION, 'valide')).toBe(false)
+    expect(paiementVerrouille(DEVELOPPEMENT, 'a_valider')).toBe(false)
   })
 
   it('should refuse a price below the wallet minimum', () => {
@@ -202,7 +217,10 @@ describe('assertConfigPaiements (CA11, CA15)', () => {
   })
 
   it('should report every problem at once without leaking anything but configuration', () => {
-    const message = messageDe(configValide({ prixStatut: 'a_valider', prix: avecPrix({ 1: 0, 3: 13_500, 12: 48_000 }) }), PRODUCTION)
+    const message = messageDe(
+      configValide({ prixStatut: 'a_valider', prix: avecPrix({ 1: 0, 3: 13_500, 12: 48_000 }) }),
+      { ...PRODUCTION, KPAY_API_KEY: 'kpay_live_abc' },
+    )
 
     expect(message).toMatch(/prix XAF 1 mois/)
     expect(message).toMatch(/PRIX_STATUT/)

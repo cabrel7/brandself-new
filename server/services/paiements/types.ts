@@ -38,6 +38,8 @@ export interface EtatFournisseur {
   referenceFournisseur: string | null
   /** Identifiant que nous avons envoyé à l'initiation, s'il est renvoyé (contrôle de cohérence). */
   externalId?: string | null
+  /** Statut tel que le fournisseur l'a écrit (audit, colonne `statut_fournisseur`). */
+  statutBrut?: string | null
 }
 
 export interface EvenementNormalise {
@@ -51,6 +53,8 @@ export interface EvenementNormalise {
   referenceFournisseur: string | null
   horodatage: Date | null
   codeEchec: string | null
+  /** Statut brut du fournisseur (audit), en majuscules. */
+  statutBrut?: string | null
   /** Renseignés seulement par une interrogation (les webhooks ne portent pas les frais). */
   fraisReels?: number | null
   netReel?: number | null

@@ -17,9 +17,11 @@ export const schemaKpayInit = z.looseObject({
   id: identifiant,
   reference: identifiant.nullish(),
   status: z.string().max(STATUT_MAX),
-  amount: z.number(),
+  // La documentation ne garantit que `id`, `reference` et `status` : `amount` et `externalId` sont facultatifs
+  // et, quand ils sont présents, contrôlés par l'adaptateur contre ce que nous avons envoyé.
+  amount: z.number().nullish(),
   currency: z.string().length(DEVISE_LONGUEUR).nullish(),
-  externalId: z.string().max(IDENTIFIANT_MAX),
+  externalId: z.string().max(IDENTIFIANT_MAX).nullish(),
 })
 
 export const schemaKpayTransaction = z.looseObject({

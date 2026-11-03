@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   demarrerFauxKpay,
   KPAY_TEST_CLE_API,
@@ -112,6 +112,31 @@ describe('initier : requête envoyée (CA17)', () => {
     expect(resultat).toMatchObject({ issue: 'accepte', referenceFournisseur: 'KPAY-20261103-ABC123' })
     expect(JSON.stringify(resultat)).not.toContain('champInconnu')
     expect(JSON.stringify(resultat)).not.toContain('237653456789')
+  })
+
+  it('should accept an initiation answer that only carries id, reference and status (revue MAJOR-3)', async () => {
+    faux.definirInitiation({ type: 'http', status: 201, corps: { id: 'tx_minimal', reference: 'KPAY-MIN', status: 'PENDING' } })
+    const provider = await creerProvider()
+
+    const resultat = await provider.initier(requete(), SIGNAL())
+
+    expect(resultat).toMatchObject({ issue: 'accepte', idFournisseur: 'tx_minimal', referenceFournisseur: 'KPAY-MIN' })
+  })
+
+  it.each([
+    ['another externalId', (demande: { externalId: string }) => ({ id: 'tx_x', status: 'PENDING', externalId: `${demande.externalId}-autre` })],
+    ['another amount', () => ({ id: 'tx_x', status: 'PENDING', amount: 1 })],
+  ])('should not bind the identifier to our payment when the answer carries %s : uncertain outcome, logged by code only', async (_nom, corps) => {
+    const demande = requete()
+    faux.definirInitiation({ type: 'http', status: 201, corps: corps(demande) })
+    const journal = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    const provider = await creerProvider()
+
+    const resultat = await provider.initier(demande, SIGNAL())
+
+    expect(resultat).toEqual({ issue: 'incertain', code: 'RESEAU' })
+    expect(journal).toHaveBeenCalledWith({ paiement: 'kpay_initiation_reponse_incoherente', code: 'REPONSE_INCOHERENTE' })
+    journal.mockRestore()
   })
 
   it('should refuse a currency with decimals or a non integer amount BEFORE any call', async () => {
