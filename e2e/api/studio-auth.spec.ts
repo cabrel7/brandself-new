@@ -107,6 +107,16 @@ const ROUTES_S8: Route[] = [
   { methode: 'POST', chemin: '/api/studio/ia/ameliorer', corps: {} },
 ]
 
+// S9 (CA56) : prochaine étape et partage. Corps invalides : l'authentification passe AVANT la validation.
+const ROUTES_S9: Route[] = [
+  { methode: 'GET', chemin: '/api/studio/prochaine-etape' },
+  { methode: 'POST', chemin: '/api/studio/prochaine-etape/ignorer', corps: {} },
+  { methode: 'POST', chemin: '/api/studio/prochaine-etape/ignorer', corps: { etape: 'temoignage' } },
+  { methode: 'POST', chemin: '/api/studio/vitrine/partage' },
+  // Préférences d'e-mail : corps invalide, l'authentification passe encore avant la validation.
+  { methode: 'PUT', chemin: '/api/studio/moi', corps: { emailHebdo: 'non' } },
+]
+
 const TOUTES_LES_ROUTES: Route[] = [
   ...ROUTES_S2,
   ...ROUTES_S3,
@@ -114,6 +124,7 @@ const TOUTES_LES_ROUTES: Route[] = [
   ...ROUTES_S5_S6,
   ...ROUTES_S7,
   ...ROUTES_S8,
+  ...ROUTES_S9,
 ]
 
 test.describe('CA32 /api/studio/** sans session', () => {

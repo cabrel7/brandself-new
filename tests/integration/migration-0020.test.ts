@@ -451,7 +451,8 @@ describe('migration 0020 : état après', () => {
     await expect(outbox({ type: 'reservation_visiteur_rappel', entite_type: 'demande', occurrence: '2026-11-12T09:00:00.000Z' }))
       .rejects.toMatchObject({ code: CHECK_VIOLATION })
     await expect(outbox(ligneUtilisateur('utilisateur_resume_hebdo', { entite_type: 'compte' })))
-      .rejects.toMatchObject({ code: CHECK_VIOLATION, constraint: 'emails_transactionnels_entite_type_check' })
+      // « compte » viole entite_type_check ET entite_coherence_check : Postgres rapporte le premier par ordre alphabétique.
+      .rejects.toMatchObject({ code: CHECK_VIOLATION })
     await expect(outbox({ type: 'utilisateur_inconnu', entite_type: 'utilisateur', occurrence: 'X' }))
       .rejects.toMatchObject({ code: CHECK_VIOLATION, constraint: 'emails_transactionnels_type_check' })
   })

@@ -44,6 +44,8 @@ describe('utilisateurs — profil (CA27, CA28)', () => {
       locale: 'fr',
       devise: 'XAF',
       fuseau: 'Africa/Douala',
+      emailHebdo: true,
+      emailRappelJour: true,
       aUneVitrine: false,
       vitrine: null,
     })
@@ -73,7 +75,7 @@ describe('utilisateurs — profil (CA27, CA28)', () => {
 
     expect(moi.email).toBe('cabrel@exemple.com')
     expect(moi.telephone).toBeNull()
-    expect(Object.keys(moi).sort()).toEqual(['aUneVitrine', 'devise', 'email', 'fuseau', 'id', 'locale', 'telephone', 'vitrine'])
+    expect(Object.keys(moi).sort()).toEqual(['aUneVitrine', 'devise', 'email', 'emailHebdo', 'emailRappelJour', 'fuseau', 'id', 'locale', 'telephone', 'vitrine'])
   })
 
   it('CA27 should only hide the email of the exact temporary domain (look-alike domains stay visible)', async () => {
@@ -392,5 +394,80 @@ describe('utilisateurs — suppression du compte (CA31)', () => {
     ).resolves.not.toThrow()
 
     expect(await ligneUser(user.id)).toBeUndefined()
+  })
+})
+
+// S9 (CA47, CA48, décision 5 et 96) : préférences d'e-mail. Les propriétés Drizzle sont `email_hebdo` et
+// `email_rappel_jour` ; le DTO et le schéma Zod parlent `emailHebdo` et `emailRappelJour` : le mapping explicite
+// de `updateMe` est obligatoire, sinon la préférence n'est jamais enregistrée.
+describe('utilisateurs — préférences d’e-mail (CA47, CA48)', () => {
+  it('CA47 should expose both preferences at true by default in the MoiDTO', async () => {
+    const { getMe } = await utilisateursService()
+    const { toMoiResource } = await ressourceUtilisateur()
+    const user = await createUser()
+
+    const moi = toMoiResource(await getMe(user.id))
+
+    expect(moi).toMatchObject({ emailHebdo: true, emailRappelJour: true })
+  })
+
+  it('CA47 should store emailHebdo=false in the email_hebdo column and answer it in the DTO, leaving the other preference untouched', async () => {
+    const { updateMe } = await utilisateursService()
+    const { toMoiResource } = await ressourceUtilisateur()
+    const user = await createUser()
+
+    const moi = toMoiResource(await updateMe(user.id, schemaMoiUpdate.parse({ emailHebdo: false })))
+
+    expect(moi).toMatchObject({ emailHebdo: false, emailRappelJour: true })
+    expect(await ligneUser(user.id)).toMatchObject({ email_hebdo: false, email_rappel_jour: true })
+  })
+
+  it('CA47 should store emailRappelJour=false in the email_rappel_jour column, leaving email_hebdo untouched', async () => {
+    const { updateMe } = await utilisateursService()
+    const user = await createUser()
+
+    await updateMe(user.id, schemaMoiUpdate.parse({ emailRappelJour: false }))
+
+    expect(await ligneUser(user.id)).toMatchObject({ email_hebdo: true, email_rappel_jour: false })
+  })
+
+  it('CA47 should switch a preference back on, and apply both preferences with a timezone in a single update', async () => {
+    const { updateMe } = await utilisateursService()
+    const user = await createUser({ email_hebdo: false, email_rappel_jour: false })
+    await insertVitrineRow(user.id)
+
+    await updateMe(user.id, schemaMoiUpdate.parse({ emailHebdo: true, emailRappelJour: true, fuseau: 'Europe/Paris' }))
+
+    expect(await ligneUser(user.id)).toMatchObject({ email_hebdo: true, email_rappel_jour: true, fuseau: 'Europe/Paris' })
+    expect((await ligneVitrine(user.id)).fuseau).toBe('Europe/Paris')
+  })
+
+  it('CA47 should leave the preferences of another user untouched', async () => {
+    const { updateMe } = await utilisateursService()
+    const a = await createUser()
+    const b = await createUser()
+
+    await updateMe(a.id, schemaMoiUpdate.parse({ emailHebdo: false, emailRappelJour: false }))
+
+    expect(await ligneUser(b.id)).toMatchObject({ email_hebdo: true, email_rappel_jour: true })
+  })
+
+  it('CA47 should not change the preferences when only the devise is updated', async () => {
+    const { updateMe } = await utilisateursService()
+    const user = await createUser({ email_hebdo: false })
+
+    await updateMe(user.id, schemaMoiUpdate.parse({ devise: 'EUR' }))
+
+    expect(await ligneUser(user.id)).toMatchObject({ devise: 'EUR', email_hebdo: false, email_rappel_jour: true })
+  })
+
+  it.each([
+    ['un texte', { emailHebdo: 'non' }],
+    ['un nombre', { emailRappelJour: 0 }],
+    ['null', { emailHebdo: null }],
+    ['une clé inconnue', { emailHebdo: false, newsletter: true }],
+    ['le nom de colonne brut', { email_hebdo: false }],
+  ])('CA48 should refuse %s at validation level', (_libelle, entree) => {
+    expect(schemaMoiUpdate.safeParse(entree).success).toBe(false)
   })
 })

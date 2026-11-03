@@ -1,4 +1,5 @@
-import { and, asc, eq } from 'drizzle-orm'
+import { randomUUID } from 'node:crypto'
+import { and, asc, eq, sql } from 'drizzle-orm'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { FILE_EMAILS } from '../../shared/jobs'
 import { emailsTransactionnels } from '../../shared/db/schema'
@@ -100,8 +101,10 @@ describe('outbox transactionnelle des notifications S7', () => {
       },
     ])
 
-    await confirmReservation(user.id, created.reservation.id)
-    await cancelReservation(user.id, created.reservation.id, { motif: 'Indisponibilité du professionnel' })
+    // S9 : horloge injectée (début du créneau le même jour que REFERENCE_AGENDA, donc aucun rappel visiteur à 24 h :
+    // la liste attendue des quatre événements S7 reste exacte quelle que soit la date réelle d'exécution).
+    await confirmReservation(user.id, created.reservation.id, REFERENCE_AGENDA)
+    await cancelReservation(user.id, created.reservation.id, { motif: 'Indisponibilité du professionnel' }, REFERENCE_AGENDA)
     expect((await outboxRows(created.reservation.id)).map(({ type }) => type)).toEqual([
       'reservation_professionnel_nouvelle',
       'reservation_visiteur_annulee',
@@ -123,6 +126,50 @@ describe('outbox transactionnelle des notifications S7', () => {
     }, REFERENCE_AGENDA)).rejects.toBeDefined()
     expect(await outboxRows(created.reservation.id)).toHaveLength(4)
     expect(await outboxRows()).toHaveLength(4)
+  })
+
+  it('S9 : garde la clé d’occurrence vide et la catégorie transactionnelle pour les événements S7 (cible ON CONFLICT à 4 colonnes)', async () => {
+    const { created } = await createReservation('notifications-occurrence-s7')
+
+    const lignes = await outboxRows(created.reservation.id)
+
+    expect(lignes).toHaveLength(2)
+    for (const ligne of lignes) {
+      expect(ligne).toMatchObject({ occurrence: '', categorie: 'transactionnel', statut: 'en_attente', erreurCode: null })
+    }
+  })
+
+  it('S9 : reste idempotent pour un même événement S7 rejoué (occurrence vide) et n’ajoute aucune ligne', async () => {
+    const { created } = await createReservation('notifications-rejeu-s7')
+
+    for (let rejeu = 0; rejeu < 3; rejeu += 1) {
+      await db.transaction(async (tx) => {
+        await insertTransactionalEmailEvents(tx, 'reservation', created.reservation.id, [
+          'reservation_professionnel_nouvelle',
+          'reservation_visiteur_recue',
+        ])
+      })
+    }
+
+    expect(await outboxRows(created.reservation.id)).toHaveLength(2)
+  })
+
+  it('S9 : n’écrase pas un événement planifié d’une autre occurrence lorsqu’un événement S7 du même type est rejoué', async () => {
+    const { created } = await createReservation('notifications-cohabitation')
+    await db.execute(sql`
+      INSERT INTO emails_transactionnels (id, type, entite_type, entite_id, occurrence)
+      VALUES (${randomUUID()}, 'reservation_visiteur_rappel', 'reservation', ${created.reservation.id}, '2026-11-02T09:00:00.000Z')
+    `)
+
+    await db.transaction(async (tx) => {
+      await insertTransactionalEmailEvents(tx, 'reservation', created.reservation.id, ['reservation_visiteur_recue'])
+    })
+
+    expect((await outboxRows(created.reservation.id)).map(({ type }) => type)).toEqual([
+      'reservation_professionnel_nouvelle',
+      'reservation_visiteur_rappel',
+      'reservation_visiteur_recue',
+    ])
   })
 
   it('écrit les deux événements d’une demande dans sa transaction', async () => {
@@ -193,7 +240,7 @@ describe('traitement idempotent et reprises', () => {
       await expect(processTransactionalEmail(
         event.id,
         transport,
-        new Date(REFERENCE_AGENDA.getTime() + attempt * 10_000),
+        new Date(REFERENCE_AGENDA.getTime() + attempt * 60_000),
       )).rejects.toBeInstanceOf(EmailOutboxProcessingError)
     }
 
