@@ -112,6 +112,9 @@ export const CODES_ANNULATION = [
   'AUCUN_RENDEZ_VOUS',
   'DESTINATAIRE_ABSENT',
   'PLAFOND_RELATIONNEL',
+  // S10 : rappel d'abonnement devenu sans objet (renouvelé), reçu d'un paiement non abouti.
+  'ABONNEMENT_RENOUVELE',
+  'PAIEMENT_NON_REUSSI',
 ] as const
 export type CodeAnnulation = (typeof CODES_ANNULATION)[number]
 

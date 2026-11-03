@@ -1,8 +1,8 @@
 import type { TemoignagePublicCarteDTO, TemoignageStudioDTO, TemoignagesCompteursDTO } from '../../shared/dto'
-import type { Compteurs } from '../services/listes-regles'
-import type { TemoignageRow } from '../services/temoignages'
+import type { CompteursAvecPlan } from '../services/plan-visibilite'
+import type { TemoignageRow, TemoignageStudioRow } from '../services/temoignages'
 
-export function toTemoignageStudioResource(row: TemoignageRow): TemoignageStudioDTO {
+export function toTemoignageStudioResource(row: TemoignageStudioRow): TemoignageStudioDTO {
   return {
     id: row.id,
     slug: row.slug,
@@ -11,18 +11,20 @@ export function toTemoignageStudioResource(row: TemoignageRow): TemoignageStudio
     texte: row.texte,
     enVedette: row.enVedette,
     actif: row.actif,
+    masqueParPlan: row.masqueParPlan,
     ordre: row.ordre,
     creeLe: row.createdAt.toISOString(),
     modifieLe: row.updatedAt.toISOString(),
   }
 }
 
-export function toTemoignagesCompteursResource(compteurs: Compteurs): TemoignagesCompteursDTO {
+export function toTemoignagesCompteursResource(compteurs: CompteursAvecPlan): TemoignagesCompteursDTO {
   return {
     total: compteurs.total,
     visibles: compteurs.visibles,
     enVedette: compteurs.enVedette,
     vedetteMax: compteurs.vedetteMax,
+    limitePlan: { ...compteurs.limitePlan },
   }
 }
 

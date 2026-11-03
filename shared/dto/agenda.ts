@@ -11,6 +11,8 @@ export interface CreneauxPublicsReponse {
   service: { id: string, slug: string, titre: string, dureeMin: number }
   fuseau: string
   creneaux: CreneauDTO[]
+  /** S10 : quota mensuel de réservations atteint, `creneaux` est vide (jamais de mention du plan au visiteur). */
+  suspendues: boolean
 }
 
 export interface DisponibiliteDTO {

@@ -9,9 +9,9 @@ import type {
 import { PAIEMENT_MODES, RYTHMES, SERVICE_TYPES, TARIFS } from '../../shared/services'
 import type { PaiementMode, Rythme, ServiceType, Tarif } from '../../shared/services'
 import { displayName } from '../../shared/vitrine'
-import type { Compteurs } from '../services/listes-regles'
 import type { MediaRow } from '../services/medias'
-import type { ServiceRow } from '../services/services'
+import type { CompteursAvecPlan } from '../services/plan-visibilite'
+import type { ServiceRow, ServiceStudioRow } from '../services/services'
 import type { VitrineRow } from '../services/vitrines'
 import { toMediaResource } from './media'
 import { truncateForSeo } from './seo'
@@ -55,7 +55,7 @@ function effectivePaiementMode(value: string | null, { paiementEnLigne }: Option
   return paiementEnLigne ? mode : MODE_HORS_LIGNE
 }
 
-export function toServiceStudioResource(row: ServiceRow, image: MediaRow | null): ServiceStudioDTO {
+export function toServiceStudioResource(row: ServiceStudioRow, image: MediaRow | null): ServiceStudioDTO {
   return {
     id: row.id,
     slug: row.slug,
@@ -75,18 +75,20 @@ export function toServiceStudioResource(row: ServiceRow, image: MediaRow | null)
     reservable: row.reservable,
     enVedette: row.enVedette,
     actif: row.actif,
+    masqueParPlan: row.masqueParPlan,
     ordre: row.ordre,
     creeLe: row.createdAt.toISOString(),
     modifieLe: row.updatedAt.toISOString(),
   }
 }
 
-export function toServicesCompteursResource(compteurs: Compteurs): ServicesCompteursDTO {
+export function toServicesCompteursResource(compteurs: CompteursAvecPlan): ServicesCompteursDTO {
   return {
     total: compteurs.total,
     visibles: compteurs.visibles,
     enVedette: compteurs.enVedette,
     vedetteMax: compteurs.vedetteMax,
+    limitePlan: { ...compteurs.limitePlan },
   }
 }
 

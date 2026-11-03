@@ -3,15 +3,18 @@ import { Temporal } from '@js-temporal/polyfill'
 import { and, asc, eq, gte, inArray, lt, lte, or, sql } from 'drizzle-orm'
 import { TEMP_EMAIL_DOMAIN } from '../../shared/compte'
 import {
+  abonnements,
   demandes,
   emailsTransactionnels,
   messages,
+  paiements,
   reservations,
   services,
   users,
   vitrines,
 } from '../../shared/db/schema'
 import { env } from '../../shared/env'
+import { isValidTimeZone } from '../../shared/fuseau'
 import {
   TRANSACTIONAL_EMAIL_BACKOFF_MS,
   TRANSACTIONAL_EMAIL_MAX_ATTEMPTS,
@@ -26,6 +29,9 @@ import {
   SUGGESTION_RESUME_DEFAUT,
 } from '../../shared/notifications'
 import type { CodeAnnulation, EmailCategorie, PreferenceEmail } from '../../shared/notifications'
+import { ABONNEMENT_FUSEAU_REPLI, PERIODES_MOIS } from '../../shared/plans'
+import type { PeriodeMois } from '../../shared/plans'
+import { getMoyenPaiement } from '../config/paiements'
 import { db } from '../utils/db'
 import { signUnsubscribeToken } from './desabonnement'
 import { buildTransactionalEmail } from './emails/contenus'
@@ -38,7 +44,7 @@ import {
 import type { EmailTransport } from './emails/transport'
 import { choisirSuggestion, compterActivite } from './notifications/activite'
 import { debutSemaineIso, journeeLocale, periodeResume } from './notifications/fenetres'
-import { evaluerPertinence } from './notifications/pertinence'
+import { analyserOccurrenceRappel, evaluerPertinence } from './notifications/pertinence'
 
 const PROCESSING_LEASE_MS = 60_000
 const OUTBOX_BATCH_SIZE = 100
@@ -48,7 +54,7 @@ const OCCURRENCE_VIDE = ''
 
 type TransactionCallback = Parameters<typeof db.transaction>[0]
 export type DbTransaction = Parameters<TransactionCallback>[0]
-export type EmailEntityType = 'reservation' | 'demande' | 'message' | 'utilisateur'
+export type EmailEntityType = 'reservation' | 'demande' | 'message' | 'utilisateur' | 'abonnement' | 'paiement'
 export type EmailOutboxRow = typeof emailsTransactionnels.$inferSelect
 
 // Les e-mails planifiés (S9) ont leurs propres chargeurs : le rappel visiteur n'a ni pièce jointe ni ICS.
@@ -195,7 +201,7 @@ export async function cancelPendingEmailEvents(
 }
 
 /** Destinataire d'un compte professionnel : l'e-mail du compte s'il est réel, sinon l'e-mail de contact, sinon `null`. */
-function resolveRecipient(emailContact: string | null, accountEmail: string): string | null {
+export function resolveRecipient(emailContact: string | null, accountEmail: string): string | null {
   if (!accountEmail.toLowerCase().endsWith(`@${TEMP_EMAIL_DOMAIN}`)) return accountEmail
   const contact = emailContact?.trim()
   return contact || null
@@ -643,9 +649,129 @@ async function prepareResumeHebdo(row: EmailOutboxRow, now: Date): Promise<Prepa
   }
 }
 
+/** Fuseau d'affichage d'un compte : le sien s'il est valide, sinon le repli (un fuseau invalide ne bloque pas un e-mail de service). */
+function fuseauAffichage(fuseau: string): string {
+  return isValidTimeZone(fuseau) ? fuseau : ABONNEMENT_FUSEAU_REPLI
+}
+
+function estPeriodeMois(valeur: number): valeur is PeriodeMois {
+  return (PERIODES_MOIS as readonly number[]).includes(valeur)
+}
+
+/** S10 #122 : rappel d'échéance. Les faits (échéance courante, destinataire) sont jugés par `evaluerPertinence`. */
+async function prepareRappelAbonnement(row: EmailOutboxRow, now: Date): Promise<Preparation> {
+  const [result] = await db
+    .select({
+      expireLe: abonnements.expireLe,
+      fuseau: users.fuseau,
+      email: users.email,
+      prenom: vitrines.prenom,
+      emailContact: vitrines.emailContact,
+      dernierePeriode: paiements.periodeMois,
+    })
+    .from(abonnements)
+    .innerJoin(users, eq(users.id, abonnements.userId))
+    .leftJoin(vitrines, eq(vitrines.userId, users.id))
+    .leftJoin(paiements, eq(paiements.id, abonnements.dernierPaiementId))
+    .where(eq(abonnements.id, row.entiteId))
+    .limit(1)
+
+  const destinataire = result ? resolveRecipient(result.emailContact, result.email) : null
+  const code = evaluerPertinence({
+    type: 'abonnement_rappel',
+    occurrence: row.occurrence,
+    createdAt: row.createdAt,
+    abonnement: result ? { expireLe: result.expireLe, destinataire: destinataire !== null } : null,
+  }, now)
+  if (code !== null) return { annule: code }
+  const rappel = analyserOccurrenceRappel(row.occurrence)
+  if (!result || destinataire === null || rappel === null) return { annule: 'ENTITE_INTROUVABLE' }
+
+  // Lien de renouvellement : la dernière période payée est présélectionnée (repli : la plus courte).
+  const derniere = result.dernierePeriode
+  const periodeMois = derniere !== null && estPeriodeMois(derniere) ? derniere : PERIODES_MOIS[0]
+  return {
+    contenu: {
+      type: 'abonnement_rappel',
+      outboxId: row.id,
+      generatedAt: row.createdAt,
+      destinataire,
+      prenom: result.prenom ?? '',
+      fuseau: fuseauAffichage(result.fuseau),
+      siteUrl: env.NUXT_PUBLIC_SITE_URL,
+      jours: rappel.jours,
+      expireLe: result.expireLe,
+      periodeMois,
+    },
+  }
+}
+
+/** S10 #123 : reçu d'un paiement. Le numéro n'existe qu'en version masquée en base ; il n'est jamais reconstitué. */
+async function preparePaiementConfirme(row: EmailOutboxRow, now: Date): Promise<Preparation> {
+  const [result] = await db
+    .select({
+      id: paiements.id,
+      statut: paiements.statut,
+      fournisseur: paiements.fournisseur,
+      methode: paiements.methode,
+      operateur: paiements.operateur,
+      referenceFournisseur: paiements.referenceFournisseur,
+      periodeMois: paiements.periodeMois,
+      devise: paiements.devise,
+      montant: paiements.montant,
+      telephoneMasque: paiements.telephoneMasque,
+      abonnementExpireApres: paiements.abonnementExpireApres,
+      userId: users.id,
+      email: users.email,
+      fuseau: users.fuseau,
+      prenom: vitrines.prenom,
+      emailContact: vitrines.emailContact,
+    })
+    .from(paiements)
+    .leftJoin(users, eq(users.id, paiements.userId))
+    .leftJoin(vitrines, eq(vitrines.userId, users.id))
+    .where(eq(paiements.id, row.entiteId))
+    .limit(1)
+
+  const destinataire = result?.email ? resolveRecipient(result.emailContact, result.email) : null
+  const code = evaluerPertinence({
+    type: 'paiement_confirme',
+    occurrence: row.occurrence,
+    createdAt: row.createdAt,
+    paiement: result
+      ? { statut: result.statut, utilisateurPresent: result.userId !== null, destinataire: destinataire !== null }
+      : null,
+  }, now)
+  if (code !== null) return { annule: code }
+  if (!result || destinataire === null || result.fuseau === null) return { annule: 'ENTITE_INTROUVABLE' }
+
+  return {
+    contenu: {
+      type: 'paiement_confirme',
+      outboxId: row.id,
+      generatedAt: row.createdAt,
+      destinataire,
+      prenom: result.prenom ?? '',
+      fuseau: fuseauAffichage(result.fuseau),
+      siteUrl: env.NUXT_PUBLIC_SITE_URL,
+      reference: result.id,
+      referenceFournisseur: result.referenceFournisseur,
+      montant: result.montant,
+      devise: result.devise,
+      periodeMois: result.periodeMois,
+      // Libellé du catalogue (« MTN MoMo ») ; un moyen retiré du catalogue ne casse pas le reçu.
+      moyenLibelle: result.operateur === null ? null : (getMoyenPaiement(`${result.fournisseur}:${result.operateur}`)?.libelle ?? null),
+      telephoneMasque: result.telephoneMasque,
+      nouvelleEcheance: result.abonnementExpireApres,
+    },
+  }
+}
+
 async function prepareEmail(row: EmailOutboxRow, now: Date): Promise<Preparation> {
   if (!isTransactionalEmailType(row.type)) throw new EmailOutboxProcessingError('TYPE_EMAIL_INCONNU')
   assertEventMatchesEntity(row.type, row.entiteType as EmailEntityType)
+  if (row.type === 'abonnement_rappel') return prepareRappelAbonnement(row, now)
+  if (row.type === 'paiement_confirme') return preparePaiementConfirme(row, now)
   if (row.type === 'reservation_visiteur_rappel') return prepareRappelVisiteur(row, now)
   if (row.type === 'utilisateur_rappel_journee') return prepareRappelJournee(row, now)
   if (row.type === 'utilisateur_resume_hebdo') return prepareResumeHebdo(row, now)

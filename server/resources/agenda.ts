@@ -52,7 +52,7 @@ function paysLibelle(code: string | null): string | null {
 }
 
 export function toCreneauxPublicResource(
-  value: PublicAgendaService & { creneaux: Array<{ debut: Date, fin: Date }> },
+  value: PublicAgendaService & { creneaux: Array<{ debut: Date, fin: Date }>, suspendues: boolean },
 ): CreneauxPublicsReponse {
   if (value.service.dureeMin === null) throw new Error('Durée du service absente.')
   return {
@@ -64,6 +64,7 @@ export function toCreneauxPublicResource(
     },
     fuseau: value.vitrine.fuseau,
     creneaux: value.creneaux.map(({ debut, fin }) => ({ debut: debut.toISOString(), fin: fin.toISOString() })),
+    suspendues: value.suspendues,
   }
 }
 

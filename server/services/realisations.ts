@@ -8,8 +8,10 @@ import { ConflictError, NotFoundError, UnprocessableError, ValidationError } fro
 import { db } from '../utils/db'
 import { PG_FOREIGN_KEY_VIOLATION, PG_UNIQUE_VIOLATION, readPgError } from '../utils/pg-error'
 import { computeALaUne, computeCompteurs, pickAvailableSlug, resolveEnVedette } from './listes-regles'
-import type { Compteurs } from './listes-regles'
 import type { MediaRow } from './medias'
+import { getLimiteStudio, getPlanPublic, marquerMasque, sqlIdsVisibles, vuePlanStudio } from './plan-visibilite'
+import type { CompteursAvecPlan } from './plan-visibilite'
+import { assertQuota } from './plans'
 import { checkRealisationCoherence, mediasARetirer, normalizeRealisationState, slugFromTitreRealisation } from './realisations-regles'
 import type { RealisationState } from './realisations-regles'
 import { cleanupMedias, lockVitrineId, requireOwnedMedias, requireVitrineId } from './vitrine-acces'
@@ -32,14 +34,23 @@ export interface RealisationAvecMedias extends RealisationAvecImage {
   galerie: MediaRow[]
 }
 
+/** Ligne du studio : `masqueParPlan` = active mais au-delà de la limite du plan (S10 #127). */
+export type RealisationStudioRow = RealisationRow & { masqueParPlan: boolean }
+
+export interface RealisationStudioAvecMedias {
+  realisation: RealisationStudioRow
+  image: MediaRow | null
+  galerie: MediaRow[]
+}
+
 export interface RealisationAvecCompteurs {
-  item: RealisationAvecMedias
-  compteurs: Compteurs
+  item: RealisationStudioAvecMedias
+  compteurs: CompteursAvecPlan
 }
 
 export interface RealisationsAvecCompteurs {
-  items: RealisationAvecMedias[]
-  compteurs: Compteurs
+  items: RealisationStudioAvecMedias[]
+  compteurs: CompteursAvecPlan
 }
 
 export interface RealisationsPubliques {
@@ -160,26 +171,63 @@ function isMediaForeignKey(error: unknown): boolean {
   return code === PG_FOREIGN_KEY_VIOLATION && constraint !== undefined && IMAGE_FKS.includes(constraint)
 }
 
-export async function listOwnRealisations(userId: string): Promise<RealisationsAvecCompteurs> {
-  const entries = await listWithImages(db, await requireVitrineId(userId))
+/**
+ * Vue du studio sur la liste COMPLÈTE de la vitrine : chaque ligne porte `masqueParPlan`, les compteurs portent
+ * `limitePlan` (usage = toutes les lignes, visibles ou non, comme le quota de création).
+ */
+function versStudio(items: readonly RealisationAvecMedias[], limite: number | null): RealisationsAvecCompteurs {
+  const lignes = items.map((entry) => entry.realisation)
+  const vue = vuePlanStudio(lignes, limite)
   return {
-    items: await withGaleries(db, entries),
-    compteurs: computeCompteurs(entries.map((entry) => entry.realisation), VEDETTE_MAX),
+    items: items.map((entry) => ({ ...entry, realisation: marquerMasque(entry.realisation, vue.masques) })),
+    compteurs: { ...computeCompteurs(lignes, VEDETTE_MAX), limitePlan: vue.limitePlan },
   }
 }
 
-export async function getOwnRealisation(userId: string, id: string): Promise<RealisationAvecCompteurs> {
-  const entries = await listWithImages(db, await requireVitrineId(userId))
+/** Même vue, centrée sur une réalisation `cible` de `lignes` (la liste complète après l'écriture). */
+function versStudioItem(
+  lignes: readonly RealisationRow[],
+  cible: RealisationAvecMedias,
+  limite: number | null,
+): RealisationAvecCompteurs {
+  const vue = vuePlanStudio(lignes, limite)
+  return {
+    item: { ...cible, realisation: marquerMasque(cible.realisation, vue.masques) },
+    compteurs: { ...computeCompteurs(lignes, VEDETTE_MAX), limitePlan: vue.limitePlan },
+  }
+}
+
+export async function listOwnRealisations(userId: string, now: Date = new Date()): Promise<RealisationsAvecCompteurs> {
+  const vitrineId = await requireVitrineId(userId)
+  const [entries, limite] = await Promise.all([
+    listWithImages(db, vitrineId),
+    getLimiteStudio(userId, 'realisations', now),
+  ])
+  return versStudio(await withGaleries(db, entries), limite)
+}
+
+export async function getOwnRealisation(userId: string, id: string, now: Date = new Date()): Promise<RealisationAvecCompteurs> {
+  const vitrineId = await requireVitrineId(userId)
+  const [entries, limite] = await Promise.all([
+    listWithImages(db, vitrineId),
+    getLimiteStudio(userId, 'realisations', now),
+  ])
   const entry = entries.find((candidate) => candidate.realisation.id === id)
   if (!entry) throw new NotFoundError('REALISATION_INTROUVABLE')
   const [item] = await withGaleries(db, [entry])
   if (!item) throw new NotFoundError('REALISATION_INTROUVABLE')
-  return { item, compteurs: computeCompteurs(entries.map((candidate) => candidate.realisation), VEDETTE_MAX) }
+  return versStudioItem(entries.map((candidate) => candidate.realisation), item, limite)
 }
 
-async function insertRealisation(userId: string, input: RealisationCreateInput): Promise<RealisationAvecCompteurs> {
+async function insertRealisation(
+  userId: string,
+  input: RealisationCreateInput,
+  now: Date,
+): Promise<RealisationAvecCompteurs> {
   return db.transaction(async (tx) => {
     const vitrineId = await lockVitrineId(tx, userId)
+    // Quota sous le verrou vitrine : deux créations simultanées ne dépassent jamais la limite (CA80).
+    const { limite } = await assertQuota(tx, { userId, vitrineId }, 'realisations', now)
     const rows = await listRows(tx, vitrineId)
 
     const etat = normalizeRealisationState(EMPTY_STATE, pickState(input))
@@ -219,14 +267,18 @@ async function insertRealisation(userId: string, input: RealisationCreateInput):
 
     const item = await loadItem(tx, created.id)
     if (!item) throw new Error('Réalisation créée introuvable.')
-    return { item, compteurs: computeCompteurs([...rows, item.realisation], VEDETTE_MAX) }
+    return versStudioItem([...rows, item.realisation], item, limite)
   })
 }
 
-export async function createRealisation(userId: string, input: RealisationCreateInput): Promise<RealisationAvecCompteurs> {
+export async function createRealisation(
+  userId: string,
+  input: RealisationCreateInput,
+  now: Date = new Date(),
+): Promise<RealisationAvecCompteurs> {
   for (let attempt = 1; ; attempt += 1) {
     try {
-      return await insertRealisation(userId, input)
+      return await insertRealisation(userId, input, now)
     } catch (error) {
       const { code, constraint } = readPgError(error)
       // Collision de slug (insertion hors verrou) : une nouvelle tentative relit les slugs existants.
@@ -241,6 +293,7 @@ export async function updateRealisation(
   userId: string,
   id: string,
   patch: RealisationUpdateInput,
+  now: Date = new Date(),
 ): Promise<RealisationAvecCompteurs> {
   let result: RealisationAvecCompteurs
   let retires: string[]
@@ -248,6 +301,7 @@ export async function updateRealisation(
     ;({ result, retires } = await db.transaction(async (tx) => {
       const vitrineId = await lockVitrineId(tx, userId)
       const rows = await listRows(tx, vitrineId)
+      const limite = await getLimiteStudio(userId, 'realisations', now, tx)
       const current = rows.find((ligne) => ligne.id === id)
       if (!current) throw new NotFoundError('REALISATION_INTROUVABLE')
 
@@ -292,11 +346,8 @@ export async function updateRealisation(
 
       const item = await loadItem(tx, id)
       if (!item) throw new NotFoundError('REALISATION_INTROUVABLE')
-      const compteurs = computeCompteurs(
-        rows.map((ligne) => (ligne.id === id ? item.realisation : ligne)),
-        VEDETTE_MAX,
-      )
-      return { result: { item, compteurs }, retires: mediasARetirer(avant, etat) }
+      const lignes = rows.map((ligne) => (ligne.id === id ? item.realisation : ligne))
+      return { result: versStudioItem(lignes, item, limite), retires: mediasARetirer(avant, etat) }
     }))
   } catch (error) {
     if (isMediaForeignKey(error)) throw new UnprocessableError('MEDIA_INVALIDE')
@@ -329,7 +380,11 @@ export async function deleteRealisation(userId: string, id: string): Promise<voi
 }
 
 /** `ids` doit être une permutation exacte de TOUTES les réalisations de la vitrine. */
-export async function reorderRealisations(userId: string, ids: readonly string[]): Promise<RealisationsAvecCompteurs> {
+export async function reorderRealisations(
+  userId: string,
+  ids: readonly string[],
+  now: Date = new Date(),
+): Promise<RealisationsAvecCompteurs> {
   return db.transaction(async (tx) => {
     const vitrineId = await lockVitrineId(tx, userId)
     const rows = await listRows(tx, vitrineId)
@@ -346,23 +401,26 @@ export async function reorderRealisations(userId: string, ids: readonly string[]
       `)
     }
     const entries = await listWithImages(tx, vitrineId)
-    return {
-      items: await withGaleries(tx, entries),
-      compteurs: computeCompteurs(entries.map((entry) => entry.realisation), VEDETTE_MAX),
-    }
+    return versStudio(await withGaleries(tx, entries), await getLimiteStudio(userId, 'realisations', now, tx))
   })
 }
 
-async function listVisible(vitrineId: string): Promise<RealisationAvecImage[]> {
+/** Réalisations actives ET visibles au regard du plan (les `limite` plus anciennes), dans l'ordre d'affichage. */
+async function listVisible(vitrineId: string, limite: number | null): Promise<RealisationAvecImage[]> {
   return selectWithImage(db)
-    .where(and(eq(realisations.vitrineId, vitrineId), eq(realisations.actif, true)))
+    .where(and(
+      eq(realisations.vitrineId, vitrineId),
+      eq(realisations.actif, true),
+      sqlIdsVisibles(realisations, vitrineId, limite),
+    ))
     .orderBy(...ORDER)
 }
 
 /** Réalisations visibles d'une vitrine publiée. Username invalide, inconnu ou non publié : VITRINE_INTROUVABLE. */
-export async function getPublicRealisations(rawUsername: string): Promise<RealisationsPubliques> {
+export async function getPublicRealisations(rawUsername: string, now: Date = new Date()): Promise<RealisationsPubliques> {
   const { vitrine } = await getPublicVitrine(rawUsername)
-  const visibles = await listVisible(vitrine.id)
+  const { limites } = await getPlanPublic(vitrine, now)
+  const visibles = await listVisible(vitrine.id, limites.realisations)
   const retenues = new Set(computeALaUne(visibles.map((entry) => entry.realisation), VEDETTE_MAX))
   return {
     vitrine,
@@ -373,11 +431,16 @@ export async function getPublicRealisations(rawUsername: string): Promise<Realis
 }
 
 /** Détail d'une réalisation visible. Slug mal formé, masqué ou d'une autre vitrine : REALISATION_INTROUVABLE. */
-export async function getPublicRealisation(rawUsername: string, rawSlug: string): Promise<RealisationPublique> {
+export async function getPublicRealisation(
+  rawUsername: string,
+  rawSlug: string,
+  now: Date = new Date(),
+): Promise<RealisationPublique> {
   const { vitrine } = await getPublicVitrine(rawUsername)
   const slug = rawSlug.trim().toLowerCase()
   if (slug.length > LISTE_SLUG_MAX || !LISTE_SLUG_REGEX.test(slug)) throw new NotFoundError('REALISATION_INTROUVABLE')
-  const visibles = await listVisible(vitrine.id)
+  const { limites } = await getPlanPublic(vitrine, now)
+  const visibles = await listVisible(vitrine.id, limites.realisations)
   const entry = visibles.find((candidate) => candidate.realisation.slug === slug)
   if (!entry) throw new NotFoundError('REALISATION_INTROUVABLE')
   const [item] = await withGaleries(db, [entry])

@@ -25,6 +25,7 @@ import { enqueueGeneration } from '../../jobs/ia'
 import { getIaQueue } from '../../jobs/queues'
 import { db } from '../../utils/db'
 import { enforceLimit, hitLimit, releaseLimit } from '../limiteur'
+import { assertQuota, mesurerQuotaVerrouille } from '../plans'
 import { schemaEntreeAmelioration, schemaEntreeOnboarding } from './entrees'
 import type { EntreeAmelioration, EntreeIa, EntreeOnboarding } from './entrees'
 import { empreinte } from './nettoyage'
@@ -199,14 +200,25 @@ export async function createGeneration(
 
   const reservation = await reserverLimites(userId)
 
-  const { generation, aMettreEnFile, dedoublonnee } = await db.transaction(async (tx) => {
+  let resultatTransaction: { generation: GenerationRow, aMettreEnFile: boolean, dedoublonnee: boolean }
+  try {
+    resultatTransaction = await db.transaction(async (tx) => {
     await tx.execute(
       sql`select pg_advisory_xact_lock(hashtextextended(${`${userId}:${type}:${empreinteEntree}`}, 0))`,
     )
     const existante = await chercherExistante(tx, userId, type, empreinteEntree, now)
     if (existante) return { generation: existante, aMettreEnFile: false, dedoublonnee: true }
 
-    const motif = reservation.motif ?? (prompt ? null : 'sans_prompt')
+    // S10 #124/#126 : quota mensuel du plan, sous verrou consultatif par utilisateur (deux demandes différentes
+    // simultanées ne dépassent pas la limite). Amélioration : 403. Onboarding : repli, jamais de blocage.
+    let quotaAtteint = false
+    if (type === 'ameliorer_texte') {
+      await assertQuota(tx, { userId }, 'generations_ia_mois', now)
+    } else {
+      quotaAtteint = (await mesurerQuotaVerrouille(tx, { userId }, 'generations_ia_mois', now)).atteinte
+    }
+    const motifQuota: MotifRepli | null = quotaAtteint ? 'quota_atteint' : null
+    const motif = motifQuota ?? reservation.motif ?? (prompt ? null : 'sans_prompt')
     const base = {
       id: randomUUID(),
       userId,
@@ -227,7 +239,13 @@ export async function createGeneration(
       .returning()
     if (!ligne) throw new GenerationIllisibleError()
     return { generation: ligne, aMettreEnFile: motif === null, dedoublonnee: false }
-  })
+    })
+  } catch (erreur) {
+    // Quota refusé (403) ou échec : la demande n'a rien créé, ses compteurs sont rendus.
+    await Promise.all(reservation.cles.map((cle) => releaseLimit(cle)))
+    throw erreur
+  }
+  const { generation, aMettreEnFile, dedoublonnee } = resultatTransaction
 
   if (dedoublonnee) {
     await Promise.all(reservation.cles.map((cle) => releaseLimit(cle)))

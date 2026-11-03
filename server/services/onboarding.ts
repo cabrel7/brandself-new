@@ -25,6 +25,7 @@ import type { CreationResultat } from './ia/generations'
 import { detecterInjection, entreeOnboarding, nettoyerTexte } from './ia/nettoyage'
 import type { EntreeOnboarding } from './ia/entrees'
 import type { MediaRow } from './medias'
+import { getPlanEffectif, limiteDe } from './plans'
 import {
   computeEtapeReprise,
   computeManquants,
@@ -539,7 +540,11 @@ async function creerVitrineEtServices(
     publieeLe: sql`now()`,
   })
 
-  const lignes = lignesServices(vitrineId, brouillon.data)
+  // S10 #126 : au plus le quota du plan ; les services en trop sont ignorés (jamais d'échec de publication).
+  // La vitrine vient d'être créée : aucun service n'existe encore, le quota restant est la limite entière.
+  const limite = limiteDe((await getPlanEffectif(userId, new Date(), tx)).plan, 'services')
+  const proposes = lignesServices(vitrineId, brouillon.data)
+  const lignes = limite === null ? proposes : proposes.slice(0, limite)
   if (lignes.length > 0) await tx.insert(services).values(lignes)
 
   // La CHECK `validation_check` impose services_proposes non nul tant que la proposition est validée :

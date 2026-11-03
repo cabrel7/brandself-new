@@ -1,0 +1,4137 @@
+{
+  "id": "30ce637f-a97b-4a41-958d-fc73bb1edef2",
+  "prevId": "e3afc0b5-e346-48b3-929f-d9e2eec9530a",
+  "version": "7",
+  "dialect": "postgresql",
+  "tables": {
+    "public.abonnements": {
+      "name": "abonnements",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "plan": {
+          "name": "plan",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'payant'"
+        },
+        "expire_le": {
+          "name": "expire_le",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "premiere_activation_le": {
+          "name": "premiere_activation_le",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "dernier_paiement_id": {
+          "name": "dernier_paiement_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "abonnements_expire_le_idx": {
+          "name": "abonnements_expire_le_idx",
+          "columns": [
+            {
+              "expression": "expire_le",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "abonnements_dernier_paiement_idx": {
+          "name": "abonnements_dernier_paiement_idx",
+          "columns": [
+            {
+              "expression": "dernier_paiement_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "abonnements_user_id_users_id_fk": {
+          "name": "abonnements_user_id_users_id_fk",
+          "tableFrom": "abonnements",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "abonnements_dernier_paiement_id_paiements_id_fk": {
+          "name": "abonnements_dernier_paiement_id_paiements_id_fk",
+          "tableFrom": "abonnements",
+          "tableTo": "paiements",
+          "columnsFrom": [
+            "dernier_paiement_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "abonnements_user_id_unique": {
+          "name": "abonnements_user_id_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "user_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "abonnements_plan_check": {
+          "name": "abonnements_plan_check",
+          "value": "\"abonnements\".\"plan\" ~ '^[a-z_]{1,30}$' AND \"abonnements\".\"plan\" <> 'gratuit'"
+        },
+        "abonnements_dates_check": {
+          "name": "abonnements_dates_check",
+          "value": "\"abonnements\".\"premiere_activation_le\" < \"abonnements\".\"expire_le\""
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.accounts": {
+      "name": "accounts",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "provider_id": {
+          "name": "provider_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "account_id": {
+          "name": "account_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "access_token": {
+          "name": "access_token",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "refresh_token": {
+          "name": "refresh_token",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "id_token": {
+          "name": "id_token",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "access_token_expires_at": {
+          "name": "access_token_expires_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "refresh_token_expires_at": {
+          "name": "refresh_token_expires_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "scope": {
+          "name": "scope",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "password": {
+          "name": "password",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "accounts_user_id_idx": {
+          "name": "accounts_user_id_idx",
+          "columns": [
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "accounts_user_id_users_id_fk": {
+          "name": "accounts_user_id_users_id_fk",
+          "tableFrom": "accounts",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.demandes": {
+      "name": "demandes",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "vitrine_id": {
+          "name": "vitrine_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "service_id": {
+          "name": "service_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "nom": {
+          "name": "nom",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "email": {
+          "name": "email",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "telephone": {
+          "name": "telephone",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "message": {
+          "name": "message",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "statut": {
+          "name": "statut",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'nouvelle'"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "demandes_vitrine_id_created_at_idx": {
+          "name": "demandes_vitrine_id_created_at_idx",
+          "columns": [
+            {
+              "expression": "vitrine_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "demandes_service_id_idx": {
+          "name": "demandes_service_id_idx",
+          "columns": [
+            {
+              "expression": "service_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "demandes_vitrine_id_statut_idx": {
+          "name": "demandes_vitrine_id_statut_idx",
+          "columns": [
+            {
+              "expression": "vitrine_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "statut",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "demandes_vitrine_id_vitrines_id_fk": {
+          "name": "demandes_vitrine_id_vitrines_id_fk",
+          "tableFrom": "demandes",
+          "tableTo": "vitrines",
+          "columnsFrom": [
+            "vitrine_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "demandes_service_id_services_id_fk": {
+          "name": "demandes_service_id_services_id_fk",
+          "tableFrom": "demandes",
+          "tableTo": "services",
+          "columnsFrom": [
+            "service_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "demandes_statut_check": {
+          "name": "demandes_statut_check",
+          "value": "\"demandes\".\"statut\" IN ('nouvelle', 'en_cours', 'traitee', 'refusee')"
+        },
+        "demandes_message_check": {
+          "name": "demandes_message_check",
+          "value": "\"demandes\".\"message\" IS NULL OR char_length(\"demandes\".\"message\") <= 1000"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.disponibilites": {
+      "name": "disponibilites",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "vitrine_id": {
+          "name": "vitrine_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "jour_semaine": {
+          "name": "jour_semaine",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "debut": {
+          "name": "debut",
+          "type": "time",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "fin": {
+          "name": "fin",
+          "type": "time",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "disponibilites_vitrine_id_jour_idx": {
+          "name": "disponibilites_vitrine_id_jour_idx",
+          "columns": [
+            {
+              "expression": "vitrine_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "jour_semaine",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "debut",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "disponibilites_vitrine_id_vitrines_id_fk": {
+          "name": "disponibilites_vitrine_id_vitrines_id_fk",
+          "tableFrom": "disponibilites",
+          "tableTo": "vitrines",
+          "columnsFrom": [
+            "vitrine_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "disponibilites_jour_semaine_check": {
+          "name": "disponibilites_jour_semaine_check",
+          "value": "\"disponibilites\".\"jour_semaine\" BETWEEN 1 AND 7"
+        },
+        "disponibilites_plage_check": {
+          "name": "disponibilites_plage_check",
+          "value": "\"disponibilites\".\"debut\" < \"disponibilites\".\"fin\""
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.emails_transactionnels": {
+      "name": "emails_transactionnels",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "type": {
+          "name": "type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "entite_type": {
+          "name": "entite_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "entite_id": {
+          "name": "entite_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "occurrence": {
+          "name": "occurrence",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "''"
+        },
+        "categorie": {
+          "name": "categorie",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'transactionnel'"
+        },
+        "statut": {
+          "name": "statut",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'en_attente'"
+        },
+        "tentatives": {
+          "name": "tentatives",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "prochaine_tentative": {
+          "name": "prochaine_tentative",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "now()"
+        },
+        "erreur_code": {
+          "name": "erreur_code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "envoye_le": {
+          "name": "envoye_le",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "emails_transactionnels_entite_evenement_unique": {
+          "name": "emails_transactionnels_entite_evenement_unique",
+          "columns": [
+            {
+              "expression": "entite_type",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "entite_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "type",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "occurrence",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "emails_transactionnels_pending_idx": {
+          "name": "emails_transactionnels_pending_idx",
+          "columns": [
+            {
+              "expression": "prochaine_tentative",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "where": "\"emails_transactionnels\".\"statut\" = 'en_attente'",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "emails_transactionnels_relationnel_idx": {
+          "name": "emails_transactionnels_relationnel_idx",
+          "columns": [
+            {
+              "expression": "entite_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "where": "\"emails_transactionnels\".\"categorie\" = 'relationnel'",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "emails_transactionnels_terminal_idx": {
+          "name": "emails_transactionnels_terminal_idx",
+          "columns": [
+            {
+              "expression": "updated_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "where": "\"emails_transactionnels\".\"statut\" IN ('envoye','echec','annule')",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "emails_transactionnels_type_check": {
+          "name": "emails_transactionnels_type_check",
+          "value": "\"emails_transactionnels\".\"type\" IN (\n        'reservation_professionnel_nouvelle',\n        'reservation_visiteur_recue',\n        'reservation_visiteur_confirmee',\n        'reservation_visiteur_annulee',\n        'reservation_visiteur_refusee',\n        'demande_professionnel_nouvelle',\n        'demande_visiteur_recue',\n        'message_professionnel_nouvelle',\n        'reservation_visiteur_rappel',\n        'utilisateur_resume_hebdo',\n        'utilisateur_rappel_journee',\n        'abonnement_rappel',\n        'paiement_confirme'\n      )"
+        },
+        "emails_transactionnels_entite_type_check": {
+          "name": "emails_transactionnels_entite_type_check",
+          "value": "\"emails_transactionnels\".\"entite_type\" IN ('reservation', 'demande', 'message', 'utilisateur', 'abonnement', 'paiement')"
+        },
+        "emails_transactionnels_entite_coherence_check": {
+          "name": "emails_transactionnels_entite_coherence_check",
+          "value": "(\"emails_transactionnels\".\"entite_type\" = 'reservation' AND \"emails_transactionnels\".\"type\" LIKE 'reservation_%')\n        OR (\"emails_transactionnels\".\"entite_type\" = 'demande' AND \"emails_transactionnels\".\"type\" LIKE 'demande_%')\n        OR (\"emails_transactionnels\".\"entite_type\" = 'message' AND \"emails_transactionnels\".\"type\" LIKE 'message_%')\n        OR (\"emails_transactionnels\".\"entite_type\" = 'utilisateur' AND \"emails_transactionnels\".\"type\" LIKE 'utilisateur_%')\n        OR (\"emails_transactionnels\".\"entite_type\" = 'abonnement' AND \"emails_transactionnels\".\"type\" LIKE 'abonnement_%')\n        OR (\"emails_transactionnels\".\"entite_type\" = 'paiement' AND \"emails_transactionnels\".\"type\" LIKE 'paiement_%')"
+        },
+        "emails_transactionnels_statut_check": {
+          "name": "emails_transactionnels_statut_check",
+          "value": "\"emails_transactionnels\".\"statut\" IN ('en_attente', 'en_cours', 'envoye', 'echec', 'annule')"
+        },
+        "emails_transactionnels_tentatives_check": {
+          "name": "emails_transactionnels_tentatives_check",
+          "value": "\"emails_transactionnels\".\"tentatives\" BETWEEN 0 AND 5"
+        },
+        "emails_transactionnels_erreur_code_check": {
+          "name": "emails_transactionnels_erreur_code_check",
+          "value": "\"emails_transactionnels\".\"erreur_code\" IS NULL OR (\n        char_length(\"emails_transactionnels\".\"erreur_code\") BETWEEN 1 AND 64\n        AND \"emails_transactionnels\".\"erreur_code\" ~ '^[A-Z0-9_]+$'\n      )"
+        },
+        "emails_transactionnels_envoye_le_check": {
+          "name": "emails_transactionnels_envoye_le_check",
+          "value": "(\"emails_transactionnels\".\"statut\" = 'envoye') = (\"emails_transactionnels\".\"envoye_le\" IS NOT NULL)"
+        },
+        "emails_transactionnels_categorie_check": {
+          "name": "emails_transactionnels_categorie_check",
+          "value": "\"emails_transactionnels\".\"categorie\" IN ('transactionnel', 'relationnel')"
+        },
+        "emails_transactionnels_categorie_type_check": {
+          "name": "emails_transactionnels_categorie_type_check",
+          "value": "(\"emails_transactionnels\".\"type\" = 'utilisateur_resume_hebdo') = (\"emails_transactionnels\".\"categorie\" = 'relationnel')"
+        },
+        "emails_transactionnels_occurrence_check": {
+          "name": "emails_transactionnels_occurrence_check",
+          "value": "char_length(\"emails_transactionnels\".\"occurrence\") <= 32 AND \"emails_transactionnels\".\"occurrence\" ~ '^[0-9A-Z:.-]*$'"
+        },
+        "emails_transactionnels_occurrence_requise_check": {
+          "name": "emails_transactionnels_occurrence_requise_check",
+          "value": "\"emails_transactionnels\".\"type\" NOT IN ('reservation_visiteur_rappel','utilisateur_resume_hebdo','utilisateur_rappel_journee','abonnement_rappel')\n        OR \"emails_transactionnels\".\"occurrence\" <> ''"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.evenements_paiement": {
+      "name": "evenements_paiement",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "fournisseur": {
+          "name": "fournisseur",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "evenement": {
+          "name": "evenement",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "source": {
+          "name": "source",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "id_transaction": {
+          "name": "id_transaction",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "external_id": {
+          "name": "external_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "paiement_id": {
+          "name": "paiement_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "statut_fournisseur": {
+          "name": "statut_fournisseur",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "montant": {
+          "name": "montant",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "traitement": {
+          "name": "traitement",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "motif": {
+          "name": "motif",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "horodatage_fournisseur": {
+          "name": "horodatage_fournisseur",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "recu_le": {
+          "name": "recu_le",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "evenements_paiement_dedup_unique": {
+          "name": "evenements_paiement_dedup_unique",
+          "columns": [
+            {
+              "expression": "fournisseur",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "id_transaction",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "evenement",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "evenements_paiement_paiement_idx": {
+          "name": "evenements_paiement_paiement_idx",
+          "columns": [
+            {
+              "expression": "paiement_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "evenements_paiement_paiement_id_paiements_id_fk": {
+          "name": "evenements_paiement_paiement_id_paiements_id_fk",
+          "tableFrom": "evenements_paiement",
+          "tableTo": "paiements",
+          "columnsFrom": [
+            "paiement_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "evenements_paiement_fournisseur_check": {
+          "name": "evenements_paiement_fournisseur_check",
+          "value": "\"evenements_paiement\".\"fournisseur\" ~ '^[a-z0-9_-]{1,40}$'"
+        },
+        "evenements_paiement_evenement_check": {
+          "name": "evenements_paiement_evenement_check",
+          "value": "\"evenements_paiement\".\"evenement\" ~ '^[a-z_]{1,20}\\.[a-z_]{1,20}$'"
+        },
+        "evenements_paiement_source_check": {
+          "name": "evenements_paiement_source_check",
+          "value": "\"evenements_paiement\".\"source\" IN ('webhook','interrogation')"
+        },
+        "evenements_paiement_ids_check": {
+          "name": "evenements_paiement_ids_check",
+          "value": "char_length(\"evenements_paiement\".\"id_transaction\") BETWEEN 1 AND 100\n        AND (\"evenements_paiement\".\"external_id\" IS NULL OR char_length(\"evenements_paiement\".\"external_id\") <= 100)"
+        },
+        "evenements_paiement_statut_check": {
+          "name": "evenements_paiement_statut_check",
+          "value": "\"evenements_paiement\".\"statut_fournisseur\" IS NULL OR \"evenements_paiement\".\"statut_fournisseur\" ~ '^[A-Z_]{1,30}$'"
+        },
+        "evenements_paiement_traitement_check": {
+          "name": "evenements_paiement_traitement_check",
+          "value": "\"evenements_paiement\".\"traitement\" IN ('applique','ignore','anomalie')"
+        },
+        "evenements_paiement_motif_check": {
+          "name": "evenements_paiement_motif_check",
+          "value": "\"evenements_paiement\".\"motif\" IS NULL OR \"evenements_paiement\".\"motif\" ~ '^[A-Z0-9_]{1,64}$'"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.generations_ia": {
+      "name": "generations_ia",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "type": {
+          "name": "type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "statut": {
+          "name": "statut",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'en_attente'"
+        },
+        "motif_repli": {
+          "name": "motif_repli",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "prompt_id": {
+          "name": "prompt_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "fournisseur": {
+          "name": "fournisseur",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "modele": {
+          "name": "modele",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "tentatives": {
+          "name": "tentatives",
+          "type": "smallint",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "tokens_entree": {
+          "name": "tokens_entree",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "tokens_sortie": {
+          "name": "tokens_sortie",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "duree_ms": {
+          "name": "duree_ms",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "erreur_code": {
+          "name": "erreur_code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "injection_suspectee": {
+          "name": "injection_suspectee",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "entree_empreinte": {
+          "name": "entree_empreinte",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "entree": {
+          "name": "entree",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "sortie": {
+          "name": "sortie",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "demarree_le": {
+          "name": "demarree_le",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "terminee_le": {
+          "name": "terminee_le",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "generations_ia_user_created_idx": {
+          "name": "generations_ia_user_created_idx",
+          "columns": [
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "\"created_at\" desc",
+              "asc": true,
+              "isExpression": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "generations_ia_dedoublonnage_idx": {
+          "name": "generations_ia_dedoublonnage_idx",
+          "columns": [
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "type",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "entree_empreinte",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "generations_ia_actives_idx": {
+          "name": "generations_ia_actives_idx",
+          "columns": [
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "where": "\"generations_ia\".\"statut\" IN ('en_attente','en_cours')",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "generations_ia_a_purger_idx": {
+          "name": "generations_ia_a_purger_idx",
+          "columns": [
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "where": "\"generations_ia\".\"entree\" IS NOT NULL OR \"generations_ia\".\"sortie\" IS NOT NULL",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "generations_ia_user_id_users_id_fk": {
+          "name": "generations_ia_user_id_users_id_fk",
+          "tableFrom": "generations_ia",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "generations_ia_prompt_id_prompts_ia_id_fk": {
+          "name": "generations_ia_prompt_id_prompts_ia_id_fk",
+          "tableFrom": "generations_ia",
+          "tableTo": "prompts_ia",
+          "columnsFrom": [
+            "prompt_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "generations_ia_type_check": {
+          "name": "generations_ia_type_check",
+          "value": "\"generations_ia\".\"type\" IN ('onboarding_vitrine','ameliorer_texte')"
+        },
+        "generations_ia_statut_check": {
+          "name": "generations_ia_statut_check",
+          "value": "\"generations_ia\".\"statut\" IN ('en_attente','en_cours','terminee','repli','expiree')"
+        },
+        "generations_ia_motif_check": {
+          "name": "generations_ia_motif_check",
+          "value": "\"generations_ia\".\"motif_repli\" IS NULL OR \"generations_ia\".\"motif_repli\" IN (\n        'echec_fournisseur','delai_depasse','sortie_invalide','injection','sans_fournisseur',\n        'sans_prompt','file_indisponible','limiteur_indisponible','plafond_global','quota_atteint')"
+        },
+        "generations_ia_motif_coherence_check": {
+          "name": "generations_ia_motif_coherence_check",
+          "value": "(\"generations_ia\".\"statut\" = 'repli') = (\"generations_ia\".\"motif_repli\" IS NOT NULL)"
+        },
+        "generations_ia_terminee_check": {
+          "name": "generations_ia_terminee_check",
+          "value": "\"generations_ia\".\"statut\" IN ('en_attente','en_cours') OR \"generations_ia\".\"terminee_le\" IS NOT NULL"
+        },
+        "generations_ia_fournisseur_check": {
+          "name": "generations_ia_fournisseur_check",
+          "value": "\"generations_ia\".\"fournisseur\" IS NULL OR \"generations_ia\".\"fournisseur\" ~ '^[a-z0-9_-]{1,40}$'"
+        },
+        "generations_ia_modele_check": {
+          "name": "generations_ia_modele_check",
+          "value": "\"generations_ia\".\"modele\" IS NULL OR char_length(\"generations_ia\".\"modele\") <= 100"
+        },
+        "generations_ia_tentatives_check": {
+          "name": "generations_ia_tentatives_check",
+          "value": "\"generations_ia\".\"tentatives\" BETWEEN 0 AND 10"
+        },
+        "generations_ia_tokens_check": {
+          "name": "generations_ia_tokens_check",
+          "value": "coalesce(\"generations_ia\".\"tokens_entree\",0) >= 0 AND coalesce(\"generations_ia\".\"tokens_sortie\",0) >= 0"
+        },
+        "generations_ia_duree_check": {
+          "name": "generations_ia_duree_check",
+          "value": "\"generations_ia\".\"duree_ms\" IS NULL OR \"generations_ia\".\"duree_ms\" >= 0"
+        },
+        "generations_ia_erreur_code_check": {
+          "name": "generations_ia_erreur_code_check",
+          "value": "\"generations_ia\".\"erreur_code\" IS NULL OR \"generations_ia\".\"erreur_code\" ~ '^[a-z_]{1,40}$'"
+        },
+        "generations_ia_empreinte_check": {
+          "name": "generations_ia_empreinte_check",
+          "value": "\"generations_ia\".\"entree_empreinte\" ~ '^[0-9a-f]{64}$'"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.indisponibilites": {
+      "name": "indisponibilites",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "vitrine_id": {
+          "name": "vitrine_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "date": {
+          "name": "date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "raison": {
+          "name": "raison",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "indisponibilites_vitrine_id_date_unique": {
+          "name": "indisponibilites_vitrine_id_date_unique",
+          "columns": [
+            {
+              "expression": "vitrine_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "date",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "indisponibilites_vitrine_id_vitrines_id_fk": {
+          "name": "indisponibilites_vitrine_id_vitrines_id_fk",
+          "tableFrom": "indisponibilites",
+          "tableTo": "vitrines",
+          "columnsFrom": [
+            "vitrine_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "indisponibilites_raison_check": {
+          "name": "indisponibilites_raison_check",
+          "value": "\"indisponibilites\".\"raison\" IS NULL OR char_length(\"indisponibilites\".\"raison\") <= 200"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.liens": {
+      "name": "liens",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "vitrine_id": {
+          "name": "vitrine_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "slug": {
+          "name": "slug",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "libelle": {
+          "name": "libelle",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "url": {
+          "name": "url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "type": {
+          "name": "type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "ordre": {
+          "name": "ordre",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "clics": {
+          "name": "clics",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "clics_semaine": {
+          "name": "clics_semaine",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "semaine_debut": {
+          "name": "semaine_debut",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "CURRENT_DATE"
+        },
+        "actif": {
+          "name": "actif",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "liens_vitrine_id_idx": {
+          "name": "liens_vitrine_id_idx",
+          "columns": [
+            {
+              "expression": "vitrine_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "liens_vitrine_id_slug_unique": {
+          "name": "liens_vitrine_id_slug_unique",
+          "columns": [
+            {
+              "expression": "vitrine_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "slug",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "liens_actif_idx": {
+          "name": "liens_actif_idx",
+          "columns": [
+            {
+              "expression": "actif",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "liens_vitrine_id_vitrines_id_fk": {
+          "name": "liens_vitrine_id_vitrines_id_fk",
+          "tableFrom": "liens",
+          "tableTo": "vitrines",
+          "columnsFrom": [
+            "vitrine_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.medias": {
+      "name": "medias",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "disk": {
+          "name": "disk",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'local'"
+        },
+        "chemin": {
+          "name": "chemin",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "mime": {
+          "name": "mime",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "taille": {
+          "name": "taille",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "largeur": {
+          "name": "largeur",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "hauteur": {
+          "name": "hauteur",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "medias_user_id_idx": {
+          "name": "medias_user_id_idx",
+          "columns": [
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "medias_user_id_users_id_fk": {
+          "name": "medias_user_id_users_id_fk",
+          "tableFrom": "medias",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "medias_taille_check": {
+          "name": "medias_taille_check",
+          "value": "\"medias\".\"taille\" > 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.messages": {
+      "name": "messages",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "vitrine_id": {
+          "name": "vitrine_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "nom": {
+          "name": "nom",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "email": {
+          "name": "email",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "telephone": {
+          "name": "telephone",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "sujet": {
+          "name": "sujet",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "message": {
+          "name": "message",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "lu_le": {
+          "name": "lu_le",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "messages_vitrine_id_cree_le_idx": {
+          "name": "messages_vitrine_id_cree_le_idx",
+          "columns": [
+            {
+              "expression": "vitrine_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "\"created_at\" desc",
+              "asc": true,
+              "isExpression": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "messages_non_lus_idx": {
+          "name": "messages_non_lus_idx",
+          "columns": [
+            {
+              "expression": "vitrine_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "\"created_at\" desc",
+              "asc": true,
+              "isExpression": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "where": "\"messages\".\"lu_le\" IS NULL",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "messages_vitrine_id_vitrines_id_fk": {
+          "name": "messages_vitrine_id_vitrines_id_fk",
+          "tableFrom": "messages",
+          "tableTo": "vitrines",
+          "columnsFrom": [
+            "vitrine_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "messages_sujet_check": {
+          "name": "messages_sujet_check",
+          "value": "\"messages\".\"sujet\" IN ('question_avant_reservation','demande_information','suivi_reservation','autre')"
+        },
+        "messages_nom_check": {
+          "name": "messages_nom_check",
+          "value": "char_length(\"messages\".\"nom\") BETWEEN 1 AND 120"
+        },
+        "messages_email_check": {
+          "name": "messages_email_check",
+          "value": "char_length(\"messages\".\"email\") <= 254 AND \"messages\".\"email\" ~ '^\\S+@\\S+'"
+        },
+        "messages_telephone_check": {
+          "name": "messages_telephone_check",
+          "value": "\"messages\".\"telephone\" IS NULL OR \"messages\".\"telephone\" ~ '^\\+\\d+$'"
+        },
+        "messages_message_check": {
+          "name": "messages_message_check",
+          "value": "char_length(\"messages\".\"message\") BETWEEN 1 AND 1000"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.paiements": {
+      "name": "paiements",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "fournisseur": {
+          "name": "fournisseur",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "methode": {
+          "name": "methode",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "operateur": {
+          "name": "operateur",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "environnement": {
+          "name": "environnement",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "id_fournisseur": {
+          "name": "id_fournisseur",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "reference_fournisseur": {
+          "name": "reference_fournisseur",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "statut": {
+          "name": "statut",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'cree'"
+        },
+        "plan": {
+          "name": "plan",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "periode_mois": {
+          "name": "periode_mois",
+          "type": "smallint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "devise": {
+          "name": "devise",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "montant_plan": {
+          "name": "montant_plan",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "montant": {
+          "name": "montant",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "frais_taux_pb": {
+          "name": "frais_taux_pb",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "frais_supporteur": {
+          "name": "frais_supporteur",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "frais_estimes": {
+          "name": "frais_estimes",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "net_estime": {
+          "name": "net_estime",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "frais_reels": {
+          "name": "frais_reels",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "net_reel": {
+          "name": "net_reel",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "telephone_masque": {
+          "name": "telephone_masque",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "telephone_empreinte": {
+          "name": "telephone_empreinte",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "code_echec": {
+          "name": "code_echec",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "initiation_incertaine": {
+          "name": "initiation_incertaine",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "expire_avant": {
+          "name": "expire_avant",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "prochaine_verification": {
+          "name": "prochaine_verification",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "verifications": {
+          "name": "verifications",
+          "type": "smallint",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "applique_le": {
+          "name": "applique_le",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "abonnement_expire_avant": {
+          "name": "abonnement_expire_avant",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "abonnement_expire_apres": {
+          "name": "abonnement_expire_apres",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "termine_le": {
+          "name": "termine_le",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "paiements_fournisseur_id_unique": {
+          "name": "paiements_fournisseur_id_unique",
+          "columns": [
+            {
+              "expression": "fournisseur",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "id_fournisseur",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"paiements\".\"id_fournisseur\" IS NOT NULL",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "paiements_fournisseur_reference_unique": {
+          "name": "paiements_fournisseur_reference_unique",
+          "columns": [
+            {
+              "expression": "fournisseur",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "reference_fournisseur",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"paiements\".\"reference_fournisseur\" IS NOT NULL",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "paiements_user_created_idx": {
+          "name": "paiements_user_created_idx",
+          "columns": [
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "\"created_at\" desc",
+              "asc": true,
+              "isExpression": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "paiements_ouverts_idx": {
+          "name": "paiements_ouverts_idx",
+          "columns": [
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "where": "\"paiements\".\"statut\" IN ('cree','en_attente')",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "paiements_a_verifier_idx": {
+          "name": "paiements_a_verifier_idx",
+          "columns": [
+            {
+              "expression": "prochaine_verification",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "where": "\"paiements\".\"statut\" IN ('cree','en_attente')",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "paiements_telephone_idx": {
+          "name": "paiements_telephone_idx",
+          "columns": [
+            {
+              "expression": "telephone_empreinte",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "where": "\"paiements\".\"telephone_empreinte\" IS NOT NULL",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "paiements_user_id_users_id_fk": {
+          "name": "paiements_user_id_users_id_fk",
+          "tableFrom": "paiements",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "paiements_fournisseur_check": {
+          "name": "paiements_fournisseur_check",
+          "value": "\"paiements\".\"fournisseur\" ~ '^[a-z0-9_-]{1,40}$'"
+        },
+        "paiements_methode_check": {
+          "name": "paiements_methode_check",
+          "value": "\"paiements\".\"methode\" ~ '^[a-z_]{1,30}$'"
+        },
+        "paiements_operateur_check": {
+          "name": "paiements_operateur_check",
+          "value": "\"paiements\".\"operateur\" IS NULL OR \"paiements\".\"operateur\" ~ '^[A-Z0-9_]{2,40}$'"
+        },
+        "paiements_environnement_check": {
+          "name": "paiements_environnement_check",
+          "value": "\"paiements\".\"environnement\" IN ('test','live')"
+        },
+        "paiements_statut_check": {
+          "name": "paiements_statut_check",
+          "value": "\"paiements\".\"statut\" IN ('cree','en_attente','reussi','echoue','annule','expire','anomalie')"
+        },
+        "paiements_plan_check": {
+          "name": "paiements_plan_check",
+          "value": "\"paiements\".\"plan\" ~ '^[a-z_]{1,30}$' AND \"paiements\".\"plan\" <> 'gratuit'"
+        },
+        "paiements_periode_check": {
+          "name": "paiements_periode_check",
+          "value": "\"paiements\".\"periode_mois\" BETWEEN 1 AND 36"
+        },
+        "paiements_devise_check": {
+          "name": "paiements_devise_check",
+          "value": "\"paiements\".\"devise\" ~ '^[A-Z]{3}$'"
+        },
+        "paiements_montants_check": {
+          "name": "paiements_montants_check",
+          "value": "\"paiements\".\"montant_plan\" > 0 AND \"paiements\".\"montant\" >= \"paiements\".\"montant_plan\" AND \"paiements\".\"montant\" <= 1000000000\n        AND \"paiements\".\"frais_estimes\" >= 0 AND \"paiements\".\"net_estime\" = \"paiements\".\"montant\" - \"paiements\".\"frais_estimes\"\n        AND (\"paiements\".\"frais_reels\" IS NULL OR \"paiements\".\"frais_reels\" >= 0) AND (\"paiements\".\"net_reel\" IS NULL OR \"paiements\".\"net_reel\" >= 0)"
+        },
+        "paiements_frais_taux_check": {
+          "name": "paiements_frais_taux_check",
+          "value": "\"paiements\".\"frais_taux_pb\" BETWEEN 0 AND 5000"
+        },
+        "paiements_frais_supporteur_check": {
+          "name": "paiements_frais_supporteur_check",
+          "value": "\"paiements\".\"frais_supporteur\" IN ('marchand','client')"
+        },
+        "paiements_telephone_masque_check": {
+          "name": "paiements_telephone_masque_check",
+          "value": "\"paiements\".\"telephone_masque\" IS NULL\n        OR (char_length(\"paiements\".\"telephone_masque\") <= 32 AND position('•' in \"paiements\".\"telephone_masque\") > 0)"
+        },
+        "paiements_telephone_empreinte_check": {
+          "name": "paiements_telephone_empreinte_check",
+          "value": "\"paiements\".\"telephone_empreinte\" IS NULL OR \"paiements\".\"telephone_empreinte\" ~ '^[0-9a-f]{64}$'"
+        },
+        "paiements_code_echec_check": {
+          "name": "paiements_code_echec_check",
+          "value": "\"paiements\".\"code_echec\" IS NULL OR \"paiements\".\"code_echec\" ~ '^[A-Z0-9_]{1,64}$'"
+        },
+        "paiements_ids_check": {
+          "name": "paiements_ids_check",
+          "value": "(\"paiements\".\"id_fournisseur\" IS NULL OR char_length(\"paiements\".\"id_fournisseur\") BETWEEN 1 AND 100)\n        AND (\"paiements\".\"reference_fournisseur\" IS NULL OR char_length(\"paiements\".\"reference_fournisseur\") BETWEEN 1 AND 100)"
+        },
+        "paiements_applique_check": {
+          "name": "paiements_applique_check",
+          "value": "(\"paiements\".\"statut\" = 'reussi') = (\"paiements\".\"applique_le\" IS NOT NULL)"
+        },
+        "paiements_terminal_check": {
+          "name": "paiements_terminal_check",
+          "value": "(\"paiements\".\"statut\" IN ('cree','en_attente')) = (\"paiements\".\"termine_le\" IS NULL)"
+        },
+        "paiements_attente_id_check": {
+          "name": "paiements_attente_id_check",
+          "value": "\"paiements\".\"statut\" <> 'en_attente' OR \"paiements\".\"id_fournisseur\" IS NOT NULL OR \"paiements\".\"initiation_incertaine\""
+        },
+        "paiements_verifications_check": {
+          "name": "paiements_verifications_check",
+          "value": "\"paiements\".\"verifications\" BETWEEN 0 AND 1000"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.progressions_inscription": {
+      "name": "progressions_inscription",
+      "schema": "",
+      "columns": {
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "titre": {
+          "name": "titre",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "prenom": {
+          "name": "prenom",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "nom": {
+          "name": "nom",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "metier": {
+          "name": "metier",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "ville": {
+          "name": "ville",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "pays": {
+          "name": "pays",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "photo_media_id": {
+          "name": "photo_media_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "generation_id": {
+          "name": "generation_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "accroche": {
+          "name": "accroche",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "presentation": {
+          "name": "presentation",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "services_proposes": {
+          "name": "services_proposes",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "proposition_validee_le": {
+          "name": "proposition_validee_le",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "termine_le": {
+          "name": "termine_le",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "progressions_inscription_photo_media_id_idx": {
+          "name": "progressions_inscription_photo_media_id_idx",
+          "columns": [
+            {
+              "expression": "photo_media_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "progressions_inscription_generation_id_idx": {
+          "name": "progressions_inscription_generation_id_idx",
+          "columns": [
+            {
+              "expression": "generation_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "progressions_inscription_user_id_users_id_fk": {
+          "name": "progressions_inscription_user_id_users_id_fk",
+          "tableFrom": "progressions_inscription",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "progressions_inscription_photo_media_id_medias_id_fk": {
+          "name": "progressions_inscription_photo_media_id_medias_id_fk",
+          "tableFrom": "progressions_inscription",
+          "tableTo": "medias",
+          "columnsFrom": [
+            "photo_media_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "progressions_inscription_generation_id_generations_ia_id_fk": {
+          "name": "progressions_inscription_generation_id_generations_ia_id_fk",
+          "tableFrom": "progressions_inscription",
+          "tableTo": "generations_ia",
+          "columnsFrom": [
+            "generation_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "progressions_inscription_titre_check": {
+          "name": "progressions_inscription_titre_check",
+          "value": "\"progressions_inscription\".\"titre\" IS NULL OR \"progressions_inscription\".\"titre\" IN ('dr','pr','me','m','mme')"
+        },
+        "progressions_inscription_pays_check": {
+          "name": "progressions_inscription_pays_check",
+          "value": "\"progressions_inscription\".\"pays\" IS NULL OR \"progressions_inscription\".\"pays\" ~ '^[A-Z]{2}$'"
+        },
+        "progressions_inscription_longueurs_check": {
+          "name": "progressions_inscription_longueurs_check",
+          "value": "coalesce(char_length(\"progressions_inscription\".\"prenom\"),0) <= 60 AND coalesce(char_length(\"progressions_inscription\".\"nom\"),0) <= 60\n        AND coalesce(char_length(\"progressions_inscription\".\"metier\"),0) <= 80 AND coalesce(char_length(\"progressions_inscription\".\"ville\"),0) <= 80\n        AND coalesce(char_length(\"progressions_inscription\".\"accroche\"),0) <= 160 AND coalesce(char_length(\"progressions_inscription\".\"presentation\"),0) <= 2000"
+        },
+        "progressions_inscription_services_check": {
+          "name": "progressions_inscription_services_check",
+          "value": "\"progressions_inscription\".\"services_proposes\" IS NULL\n        OR (jsonb_typeof(\"progressions_inscription\".\"services_proposes\") = 'array' AND jsonb_array_length(\"progressions_inscription\".\"services_proposes\") <= 3)"
+        },
+        "progressions_inscription_validation_check": {
+          "name": "progressions_inscription_validation_check",
+          "value": "\"progressions_inscription\".\"proposition_validee_le\" IS NULL\n        OR (\"progressions_inscription\".\"accroche\" IS NOT NULL AND \"progressions_inscription\".\"presentation\" IS NOT NULL AND \"progressions_inscription\".\"services_proposes\" IS NOT NULL)"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.prompts_ia": {
+      "name": "prompts_ia",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "type": {
+          "name": "type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "version": {
+          "name": "version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "systeme": {
+          "name": "systeme",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "gabarit": {
+          "name": "gabarit",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "variables": {
+          "name": "variables",
+          "type": "text[]",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'"
+        },
+        "parametres": {
+          "name": "parametres",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'::jsonb"
+        },
+        "schema_sortie": {
+          "name": "schema_sortie",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "actif": {
+          "name": "actif",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "prompts_ia_type_version_unique": {
+          "name": "prompts_ia_type_version_unique",
+          "columns": [
+            {
+              "expression": "type",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "version",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "prompts_ia_type_actif_unique": {
+          "name": "prompts_ia_type_actif_unique",
+          "columns": [
+            {
+              "expression": "type",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"prompts_ia\".\"actif\"",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "prompts_ia_type_check": {
+          "name": "prompts_ia_type_check",
+          "value": "\"prompts_ia\".\"type\" IN ('onboarding_vitrine','ameliorer_texte')"
+        },
+        "prompts_ia_version_check": {
+          "name": "prompts_ia_version_check",
+          "value": "\"prompts_ia\".\"version\" >= 1"
+        },
+        "prompts_ia_systeme_check": {
+          "name": "prompts_ia_systeme_check",
+          "value": "char_length(\"prompts_ia\".\"systeme\") BETWEEN 1 AND 20000"
+        },
+        "prompts_ia_gabarit_check": {
+          "name": "prompts_ia_gabarit_check",
+          "value": "char_length(\"prompts_ia\".\"gabarit\") BETWEEN 1 AND 5000"
+        },
+        "prompts_ia_parametres_check": {
+          "name": "prompts_ia_parametres_check",
+          "value": "jsonb_typeof(\"prompts_ia\".\"parametres\") = 'object'"
+        },
+        "prompts_ia_schema_sortie_check": {
+          "name": "prompts_ia_schema_sortie_check",
+          "value": "\"prompts_ia\".\"schema_sortie\" ~ '^[a-z0-9_]{1,60}$'"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.realisation_images": {
+      "name": "realisation_images",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "realisation_id": {
+          "name": "realisation_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "media_id": {
+          "name": "media_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "ordre": {
+          "name": "ordre",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "realisation_images_realisation_id_ordre_unique": {
+          "name": "realisation_images_realisation_id_ordre_unique",
+          "columns": [
+            {
+              "expression": "realisation_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "ordre",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "realisation_images_realisation_id_media_id_unique": {
+          "name": "realisation_images_realisation_id_media_id_unique",
+          "columns": [
+            {
+              "expression": "realisation_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "media_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "realisation_images_media_id_idx": {
+          "name": "realisation_images_media_id_idx",
+          "columns": [
+            {
+              "expression": "media_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "realisation_images_realisation_id_realisations_id_fk": {
+          "name": "realisation_images_realisation_id_realisations_id_fk",
+          "tableFrom": "realisation_images",
+          "tableTo": "realisations",
+          "columnsFrom": [
+            "realisation_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "realisation_images_media_id_medias_id_fk": {
+          "name": "realisation_images_media_id_medias_id_fk",
+          "tableFrom": "realisation_images",
+          "tableTo": "medias",
+          "columnsFrom": [
+            "media_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "realisation_images_ordre_check": {
+          "name": "realisation_images_ordre_check",
+          "value": "\"realisation_images\".\"ordre\" BETWEEN 0 AND 5"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.realisations": {
+      "name": "realisations",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "vitrine_id": {
+          "name": "vitrine_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "slug": {
+          "name": "slug",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "titre": {
+          "name": "titre",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "description": {
+          "name": "description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "image_media_id": {
+          "name": "image_media_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "annee": {
+          "name": "annee",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "lieu": {
+          "name": "lieu",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "role": {
+          "name": "role",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "lien": {
+          "name": "lien",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "en_vedette": {
+          "name": "en_vedette",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "ordre": {
+          "name": "ordre",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "actif": {
+          "name": "actif",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "realisations_vitrine_id_slug_unique": {
+          "name": "realisations_vitrine_id_slug_unique",
+          "columns": [
+            {
+              "expression": "vitrine_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "slug",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "realisations_image_media_id_idx": {
+          "name": "realisations_image_media_id_idx",
+          "columns": [
+            {
+              "expression": "image_media_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "realisations_vitrine_id_vitrines_id_fk": {
+          "name": "realisations_vitrine_id_vitrines_id_fk",
+          "tableFrom": "realisations",
+          "tableTo": "vitrines",
+          "columnsFrom": [
+            "vitrine_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "realisations_image_media_id_medias_id_fk": {
+          "name": "realisations_image_media_id_medias_id_fk",
+          "tableFrom": "realisations",
+          "tableTo": "medias",
+          "columnsFrom": [
+            "image_media_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "realisations_slug_format_check": {
+          "name": "realisations_slug_format_check",
+          "value": "char_length(\"realisations\".\"slug\") BETWEEN 1 AND 80 AND \"realisations\".\"slug\" ~ '^[a-z0-9]+(-[a-z0-9]+)*$'"
+        },
+        "realisations_annee_check": {
+          "name": "realisations_annee_check",
+          "value": "\"realisations\".\"annee\" IS NULL OR \"realisations\".\"annee\" BETWEEN 1900 AND 2100"
+        },
+        "realisations_lien_check": {
+          "name": "realisations_lien_check",
+          "value": "\"realisations\".\"lien\" IS NULL OR (char_length(\"realisations\".\"lien\") <= 500 AND \"realisations\".\"lien\" ~* '^https?://')"
+        },
+        "realisations_ordre_check": {
+          "name": "realisations_ordre_check",
+          "value": "\"realisations\".\"ordre\" >= 0"
+        },
+        "realisations_vedette_actif_check": {
+          "name": "realisations_vedette_actif_check",
+          "value": "NOT \"realisations\".\"en_vedette\" OR \"realisations\".\"actif\""
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.reservations": {
+      "name": "reservations",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "vitrine_id": {
+          "name": "vitrine_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "service_id": {
+          "name": "service_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "nom": {
+          "name": "nom",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "email": {
+          "name": "email",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "telephone": {
+          "name": "telephone",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "note": {
+          "name": "note",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "motif_annulation": {
+          "name": "motif_annulation",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "debut": {
+          "name": "debut",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "fin": {
+          "name": "fin",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "statut": {
+          "name": "statut",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'en_attente'"
+        },
+        "paiement_choisi": {
+          "name": "paiement_choisi",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'sur_place'"
+        },
+        "paiement_statut": {
+          "name": "paiement_statut",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'non_requis'"
+        },
+        "rappel_email": {
+          "name": "rappel_email",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "confirmation_token_hash": {
+          "name": "confirmation_token_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "confirmation_expire_le": {
+          "name": "confirmation_expire_le",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "reservations_vitrine_id_debut_idx": {
+          "name": "reservations_vitrine_id_debut_idx",
+          "columns": [
+            {
+              "expression": "vitrine_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "debut",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "reservations_service_id_idx": {
+          "name": "reservations_service_id_idx",
+          "columns": [
+            {
+              "expression": "service_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "reservations_vitrine_id_statut_idx": {
+          "name": "reservations_vitrine_id_statut_idx",
+          "columns": [
+            {
+              "expression": "vitrine_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "statut",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "reservations_confirmation_token_hash_unique": {
+          "name": "reservations_confirmation_token_hash_unique",
+          "columns": [
+            {
+              "expression": "confirmation_token_hash",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "reservations_vitrine_id_vitrines_id_fk": {
+          "name": "reservations_vitrine_id_vitrines_id_fk",
+          "tableFrom": "reservations",
+          "tableTo": "vitrines",
+          "columnsFrom": [
+            "vitrine_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "reservations_service_id_services_id_fk": {
+          "name": "reservations_service_id_services_id_fk",
+          "tableFrom": "reservations",
+          "tableTo": "services",
+          "columnsFrom": [
+            "service_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "reservations_plage_check": {
+          "name": "reservations_plage_check",
+          "value": "\"reservations\".\"debut\" < \"reservations\".\"fin\""
+        },
+        "reservations_statut_check": {
+          "name": "reservations_statut_check",
+          "value": "\"reservations\".\"statut\" IN ('en_attente', 'confirmee', 'annulee', 'terminee', 'refusee')"
+        },
+        "reservations_paiement_choisi_check": {
+          "name": "reservations_paiement_choisi_check",
+          "value": "\"reservations\".\"paiement_choisi\" = 'sur_place'"
+        },
+        "reservations_paiement_statut_check": {
+          "name": "reservations_paiement_statut_check",
+          "value": "\"reservations\".\"paiement_statut\" = 'non_requis'"
+        },
+        "reservations_note_check": {
+          "name": "reservations_note_check",
+          "value": "\"reservations\".\"note\" IS NULL OR char_length(\"reservations\".\"note\") <= 1000"
+        },
+        "reservations_motif_annulation_check": {
+          "name": "reservations_motif_annulation_check",
+          "value": "\"reservations\".\"motif_annulation\" IS NULL OR char_length(\"reservations\".\"motif_annulation\") <= 1000"
+        },
+        "reservations_confirmation_hash_check": {
+          "name": "reservations_confirmation_hash_check",
+          "value": "\"reservations\".\"confirmation_token_hash\" ~ '^[a-f0-9]{64}$'"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.services": {
+      "name": "services",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "vitrine_id": {
+          "name": "vitrine_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "slug": {
+          "name": "slug",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "titre": {
+          "name": "titre",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "description": {
+          "name": "description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "image_media_id": {
+          "name": "image_media_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "type": {
+          "name": "type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "nb_seances": {
+          "name": "nb_seances",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "rythme": {
+          "name": "rythme",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "duree_min": {
+          "name": "duree_min",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "tarif": {
+          "name": "tarif",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "prix_montant": {
+          "name": "prix_montant",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "prix_devise": {
+          "name": "prix_devise",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "paiement_mode": {
+          "name": "paiement_mode",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "paiement_instructions": {
+          "name": "paiement_instructions",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "inclus": {
+          "name": "inclus",
+          "type": "text[]",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'"
+        },
+        "reservable": {
+          "name": "reservable",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "en_vedette": {
+          "name": "en_vedette",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "ordre": {
+          "name": "ordre",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "actif": {
+          "name": "actif",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "services_vitrine_id_slug_unique": {
+          "name": "services_vitrine_id_slug_unique",
+          "columns": [
+            {
+              "expression": "vitrine_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "slug",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "services_image_media_id_idx": {
+          "name": "services_image_media_id_idx",
+          "columns": [
+            {
+              "expression": "image_media_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "services_vitrine_id_vitrines_id_fk": {
+          "name": "services_vitrine_id_vitrines_id_fk",
+          "tableFrom": "services",
+          "tableTo": "vitrines",
+          "columnsFrom": [
+            "vitrine_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "services_image_media_id_medias_id_fk": {
+          "name": "services_image_media_id_medias_id_fk",
+          "tableFrom": "services",
+          "tableTo": "medias",
+          "columnsFrom": [
+            "image_media_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "services_type_check": {
+          "name": "services_type_check",
+          "value": "\"services\".\"type\" IN ('rdv','accompagnement','atelier','devis')"
+        },
+        "services_tarif_check": {
+          "name": "services_tarif_check",
+          "value": "\"services\".\"tarif\" IN ('gratuit','payant','devis')"
+        },
+        "services_paiement_mode_check": {
+          "name": "services_paiement_mode_check",
+          "value": "\"services\".\"paiement_mode\" IS NULL OR \"services\".\"paiement_mode\" IN ('en_ligne','sur_place','au_choix')"
+        },
+        "services_rythme_check": {
+          "name": "services_rythme_check",
+          "value": "\"services\".\"rythme\" IS NULL OR \"services\".\"rythme\" IN ('hebdomadaire','bimensuel','mensuel','libre')"
+        },
+        "services_prix_devise_check": {
+          "name": "services_prix_devise_check",
+          "value": "\"services\".\"prix_devise\" IS NULL OR \"services\".\"prix_devise\" IN ('XAF','EUR','USD')"
+        },
+        "services_prix_montant_check": {
+          "name": "services_prix_montant_check",
+          "value": "\"services\".\"prix_montant\" IS NULL OR \"services\".\"prix_montant\" BETWEEN 1 AND 1000000000"
+        },
+        "services_duree_min_check": {
+          "name": "services_duree_min_check",
+          "value": "\"services\".\"duree_min\" IS NULL OR \"services\".\"duree_min\" BETWEEN 5 AND 1440"
+        },
+        "services_nb_seances_check": {
+          "name": "services_nb_seances_check",
+          "value": "\"services\".\"nb_seances\" IS NULL OR \"services\".\"nb_seances\" BETWEEN 2 AND 52"
+        },
+        "services_ordre_check": {
+          "name": "services_ordre_check",
+          "value": "\"services\".\"ordre\" >= 0"
+        },
+        "services_slug_format_check": {
+          "name": "services_slug_format_check",
+          "value": "char_length(\"services\".\"slug\") BETWEEN 1 AND 80 AND \"services\".\"slug\" ~ '^[a-z0-9]+(-[a-z0-9]+)*$'"
+        },
+        "services_inclus_check": {
+          "name": "services_inclus_check",
+          "value": "cardinality(\"services\".\"inclus\") <= 12"
+        },
+        "services_duree_requise_check": {
+          "name": "services_duree_requise_check",
+          "value": "\"services\".\"type\" = 'devis' OR \"services\".\"duree_min\" IS NOT NULL"
+        },
+        "services_seances_type_check": {
+          "name": "services_seances_type_check",
+          "value": "(\"services\".\"type\" = 'accompagnement') = (\"services\".\"nb_seances\" IS NOT NULL)"
+        },
+        "services_rythme_type_check": {
+          "name": "services_rythme_type_check",
+          "value": "\"services\".\"rythme\" IS NULL OR \"services\".\"type\" = 'accompagnement'"
+        },
+        "services_devis_tarif_check": {
+          "name": "services_devis_tarif_check",
+          "value": "\"services\".\"type\" <> 'devis' OR \"services\".\"tarif\" = 'devis'"
+        },
+        "services_prix_tarif_check": {
+          "name": "services_prix_tarif_check",
+          "value": "(\"services\".\"tarif\" = 'payant') = (\"services\".\"prix_montant\" IS NOT NULL AND \"services\".\"prix_devise\" IS NOT NULL)"
+        },
+        "services_paiement_tarif_check": {
+          "name": "services_paiement_tarif_check",
+          "value": "(\"services\".\"tarif\" = 'payant') = (\"services\".\"paiement_mode\" IS NOT NULL)"
+        },
+        "services_vedette_actif_check": {
+          "name": "services_vedette_actif_check",
+          "value": "NOT \"services\".\"en_vedette\" OR \"services\".\"actif\""
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.sessions": {
+      "name": "sessions",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "expires_at": {
+          "name": "expires_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "token": {
+          "name": "token",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "ip_address": {
+          "name": "ip_address",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "user_agent": {
+          "name": "user_agent",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "sessions_token_unique": {
+          "name": "sessions_token_unique",
+          "columns": [
+            {
+              "expression": "token",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "sessions_user_id_idx": {
+          "name": "sessions_user_id_idx",
+          "columns": [
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "sessions_user_id_users_id_fk": {
+          "name": "sessions_user_id_users_id_fk",
+          "tableFrom": "sessions",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.temoignages": {
+      "name": "temoignages",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "vitrine_id": {
+          "name": "vitrine_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "slug": {
+          "name": "slug",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "auteur": {
+          "name": "auteur",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "fonction": {
+          "name": "fonction",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "texte": {
+          "name": "texte",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "en_vedette": {
+          "name": "en_vedette",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "ordre": {
+          "name": "ordre",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "actif": {
+          "name": "actif",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "temoignages_vitrine_id_idx": {
+          "name": "temoignages_vitrine_id_idx",
+          "columns": [
+            {
+              "expression": "vitrine_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "temoignages_vitrine_id_slug_unique": {
+          "name": "temoignages_vitrine_id_slug_unique",
+          "columns": [
+            {
+              "expression": "vitrine_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "slug",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "temoignages_actif_idx": {
+          "name": "temoignages_actif_idx",
+          "columns": [
+            {
+              "expression": "actif",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "temoignages_vitrine_id_vitrines_id_fk": {
+          "name": "temoignages_vitrine_id_vitrines_id_fk",
+          "tableFrom": "temoignages",
+          "tableTo": "vitrines",
+          "columnsFrom": [
+            "vitrine_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.users": {
+      "name": "users",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "email": {
+          "name": "email",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "email_verified": {
+          "name": "email_verified",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "image": {
+          "name": "image",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "telephone": {
+          "name": "telephone",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "telephone_verifie": {
+          "name": "telephone_verifie",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "nom": {
+          "name": "nom",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "''"
+        },
+        "locale": {
+          "name": "locale",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'fr'"
+        },
+        "devise": {
+          "name": "devise",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'XAF'"
+        },
+        "fuseau": {
+          "name": "fuseau",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'Africa/Douala'"
+        },
+        "email_hebdo": {
+          "name": "email_hebdo",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "email_rappel_jour": {
+          "name": "email_rappel_jour",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "users_email_unique": {
+          "name": "users_email_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "email"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.verifications": {
+      "name": "verifications",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "identifier": {
+          "name": "identifier",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "value": {
+          "name": "value",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "expires_at": {
+          "name": "expires_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "verifications_identifier_idx": {
+          "name": "verifications_identifier_idx",
+          "columns": [
+            {
+              "expression": "identifier",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.vitrines": {
+      "name": "vitrines",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "username": {
+          "name": "username",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "titre": {
+          "name": "titre",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "prenom": {
+          "name": "prenom",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "nom": {
+          "name": "nom",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "metier": {
+          "name": "metier",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "ville": {
+          "name": "ville",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "pays": {
+          "name": "pays",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "accroche": {
+          "name": "accroche",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "bio": {
+          "name": "bio",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "photo_media_id": {
+          "name": "photo_media_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "email_contact": {
+          "name": "email_contact",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "telephone": {
+          "name": "telephone",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "whatsapp": {
+          "name": "whatsapp",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "palette": {
+          "name": "palette",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'terracotta'"
+        },
+        "seo_titre": {
+          "name": "seo_titre",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "seo_description": {
+          "name": "seo_description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "sections_masquees": {
+          "name": "sections_masquees",
+          "type": "text[]",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'"
+        },
+        "etapes_ignorees": {
+          "name": "etapes_ignorees",
+          "type": "text[]",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'"
+        },
+        "partagee_le": {
+          "name": "partagee_le",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "fuseau": {
+          "name": "fuseau",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'Africa/Douala'"
+        },
+        "pas_creneau_min": {
+          "name": "pas_creneau_min",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 30
+        },
+        "preavis_heures": {
+          "name": "preavis_heures",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 2
+        },
+        "horizon_jours": {
+          "name": "horizon_jours",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 60
+        },
+        "publiee_le": {
+          "name": "publiee_le",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "vitrines_photo_media_id_idx": {
+          "name": "vitrines_photo_media_id_idx",
+          "columns": [
+            {
+              "expression": "photo_media_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "vitrines_user_id_users_id_fk": {
+          "name": "vitrines_user_id_users_id_fk",
+          "tableFrom": "vitrines",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "vitrines_photo_media_id_medias_id_fk": {
+          "name": "vitrines_photo_media_id_medias_id_fk",
+          "tableFrom": "vitrines",
+          "tableTo": "medias",
+          "columnsFrom": [
+            "photo_media_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "vitrines_user_id_unique": {
+          "name": "vitrines_user_id_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "user_id"
+          ]
+        },
+        "vitrines_username_unique": {
+          "name": "vitrines_username_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "username"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "vitrines_titre_check": {
+          "name": "vitrines_titre_check",
+          "value": "\"vitrines\".\"titre\" IS NULL OR \"vitrines\".\"titre\" IN ('dr','pr','me','m','mme')"
+        },
+        "vitrines_pays_check": {
+          "name": "vitrines_pays_check",
+          "value": "\"vitrines\".\"pays\" IS NULL OR \"vitrines\".\"pays\" ~ '^[A-Z]{2}$'"
+        },
+        "vitrines_palette_check": {
+          "name": "vitrines_palette_check",
+          "value": "\"vitrines\".\"palette\" IN ('terracotta','sauge','indigo','ocre','bordeaux')"
+        },
+        "vitrines_username_format_check": {
+          "name": "vitrines_username_format_check",
+          "value": "char_length(\"vitrines\".\"username\") BETWEEN 3 AND 30 AND \"vitrines\".\"username\" ~ '^[a-z0-9]+(-[a-z0-9]+)*$'"
+        },
+        "vitrines_pas_creneau_min_check": {
+          "name": "vitrines_pas_creneau_min_check",
+          "value": "\"vitrines\".\"pas_creneau_min\" IN (15, 30, 60)"
+        },
+        "vitrines_preavis_heures_check": {
+          "name": "vitrines_preavis_heures_check",
+          "value": "\"vitrines\".\"preavis_heures\" BETWEEN 0 AND 720"
+        },
+        "vitrines_horizon_jours_check": {
+          "name": "vitrines_horizon_jours_check",
+          "value": "\"vitrines\".\"horizon_jours\" BETWEEN 1 AND 365"
+        },
+        "vitrines_etapes_ignorees_check": {
+          "name": "vitrines_etapes_ignorees_check",
+          "value": "\"vitrines\".\"etapes_ignorees\" <@ ARRAY['photo','service','disponibilites','realisation','partager']::text[]"
+        }
+      },
+      "isRLSEnabled": false
+    }
+  },
+  "enums": {},
+  "schemas": {},
+  "sequences": {},
+  "roles": {},
+  "policies": {},
+  "views": {},
+  "_meta": {
+    "columns": {},
+    "schemas": {},
+    "tables": {}
+  }
+}

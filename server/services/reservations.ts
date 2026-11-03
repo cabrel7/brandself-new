@@ -14,6 +14,7 @@ import {
 import type { PublicAgendaService, ServiceLookup } from './creneaux'
 import { insertTransactionalEmailEvents } from './email-outbox'
 import { annulerRappelVisiteur, programmerRappelVisiteur } from './notifications/planification'
+import { mesurerQuotaVerrouille } from './plans'
 import { canTransitionReservation, getServiceFlow, isServiceType } from './reservations-regles'
 import { requireVitrineId } from './vitrine-acces'
 
@@ -94,8 +95,17 @@ export async function createReservation(
       const lookup: ServiceLookup = 'serviceSlug' in input
         ? { serviceSlug: input.serviceSlug }
         : { serviceId: input.serviceId }
-      const context = await requirePublicAgendaService(tx, username, lookup)
+      const context = await requirePublicAgendaService(tx, username, lookup, maintenant)
       assertReservationService(context)
+      // S10 #124/#125 : quota mensuel sous verrou consultatif (pris seulement si le plan est limité). Au visiteur,
+      // un message neutre : jamais de mention du plan.
+      const quota = await mesurerQuotaVerrouille(
+        tx,
+        { userId: context.vitrine.userId, vitrineId: context.vitrine.id, fuseau: context.vitrine.fuseau },
+        'reservations_mois',
+        maintenant,
+      )
+      if (quota.atteinte) throw new ConflictError('RESERVATIONS_INDISPONIBLES')
       const localDate = requestedLocalDate(debutDemande, context.vitrine.fuseau)
       const disponibles = await computeServiceCreneaux(tx, context, localDate, localDate, maintenant)
       const creneau = disponibles.find(({ debut }) => debut.getTime() === debutDemande.getTime())
@@ -126,6 +136,8 @@ export async function createReservation(
           rappelEmail: input.rappelEmail,
           confirmationTokenHash: tokenHash(token),
           confirmationExpireLe: expireLe,
+          // Horloge injectée : le quota du mois civil compte sur `created_at`.
+          createdAt: maintenant,
         })
         .returning()
       if (!reservation) throw new Error('Insertion de la réservation sans résultat.')

@@ -4,6 +4,7 @@ import sharp from 'sharp'
 import { db } from '../utils/db'
 import { deleteMediaIfUnreferenced, uploadMedia } from '../services/medias'
 import {
+  abonnements,
   disponibilites,
   liens,
   medias,
@@ -463,6 +464,123 @@ async function assertActivePrompts(): Promise<void> {
   console.info(`[seed] prompts IA actifs présents (${IA_TYPES.join(', ')})`)
 }
 
+// S10 (#130) : deux variantes de la même persona pour montrer les plans. `dr-cabrel` RESTE gratuit (les e2e du
+// badge la lisent). Chaque variante a 5 services créés à des jours différents : en gratuit, seuls les 3 plus
+// anciens seraient visibles ; en payant ou en grâce, les 5 le sont.
+const MS_PAR_JOUR = 86_400_000
+const SERVICES_VARIANTE = 5
+const JOURS_PAYANT_RESTANTS = 45
+const JOURS_PAYANT_ECOULES = 15
+const JOURS_GRACE_ECOULES = 3
+const JOURS_GRACE_ACTIVATION = 33
+
+interface VarianteDemo {
+  cle: 'payant' | 'grace'
+  userId: string
+  vitrineId: string
+  username: string
+  email: string
+  abonnementId: string
+  /** Écart en jours à `maintenant` : échéance et première activation. */
+  expireDansJours: number
+  activeIlYaJours: number
+}
+
+const variantesDemo: readonly VarianteDemo[] = [
+  {
+    cle: 'payant',
+    userId: 'seed-dr-cabrel-payant',
+    vitrineId: 'seed-vitrine-dr-cabrel-payant',
+    username: 'dr-cabrel-payant',
+    email: 'cabrel-payant@brandself.test',
+    abonnementId: 'seed-abonnement-dr-cabrel-payant',
+    expireDansJours: JOURS_PAYANT_RESTANTS,
+    activeIlYaJours: JOURS_PAYANT_ECOULES,
+  },
+  {
+    cle: 'grace',
+    userId: 'seed-dr-cabrel-grace',
+    vitrineId: 'seed-vitrine-dr-cabrel-grace',
+    username: 'dr-cabrel-grace',
+    email: 'cabrel-grace@brandself.test',
+    abonnementId: 'seed-abonnement-dr-cabrel-grace',
+    expireDansJours: -JOURS_GRACE_ECOULES,
+    activeIlYaJours: JOURS_GRACE_ACTIVATION,
+  },
+]
+
+async function assurerVarianteDemo(variante: VarianteDemo, maintenant: Date): Promise<void> {
+  await db
+    .insert(users)
+    .values({
+      id: variante.userId,
+      name: 'Dr Cabrel Nguesso',
+      email: variante.email,
+      emailVerified: true,
+      nom: 'Cabrel Nguesso',
+      locale: 'fr',
+      devise: 'XAF',
+      fuseau: 'Africa/Douala',
+    })
+    .onConflictDoNothing({ target: users.id })
+
+  const vitrine = {
+    id: variante.vitrineId,
+    userId: variante.userId,
+    username: variante.username,
+    titre: 'dr',
+    prenom: 'Cabrel',
+    nom: 'Nguesso',
+    metier: 'Cardiologue interventionnel',
+    ville: 'Douala',
+    pays: 'CM',
+    accroche: 'Cardiologue interventionnel à Douala, rendez-vous en ligne.',
+    bio: "J'accompagne mes patients du diagnostic au suivi, en cabinet et à l'hôpital.",
+    palette: 'terracotta',
+    publieeLe: maintenant,
+  } as const
+  await db
+    .insert(vitrines)
+    .values(vitrine)
+    .onConflictDoUpdate({ target: vitrines.id, set: { ...vitrine, updatedAt: maintenant } })
+
+  for (let rang = 0; rang < SERVICES_VARIANTE; rang++) {
+    const ligne = {
+      id: `6f1c2a10-3b7e-4d58-9a41-0c5e8b2d7b${variante.cle === 'payant' ? '1' : '2'}${rang}`,
+      vitrineId: variante.vitrineId,
+      slug: `consultation-${rang + 1}`,
+      titre: `Consultation ${rang + 1}`,
+      description: 'Un temps d’écoute et d’examen pour comprendre votre situation.',
+      type: 'rdv',
+      dureeMin: 30,
+      tarif: 'gratuit',
+      reservable: true,
+      enVedette: false,
+      ordre: rang,
+      actif: true,
+      // Service n°1 = le plus ancien : l'ordre de masquage d'un plan gratuit est celui de création.
+      createdAt: new Date(maintenant.getTime() - (SERVICES_VARIANTE - rang) * MS_PAR_JOUR),
+    }
+    await db
+      .insert(services)
+      .values(ligne)
+      .onConflictDoUpdate({ target: services.id, set: { ...ligne, updatedAt: maintenant } })
+  }
+
+  const abonnement = {
+    id: variante.abonnementId,
+    userId: variante.userId,
+    plan: 'payant',
+    expireLe: new Date(maintenant.getTime() + variante.expireDansJours * MS_PAR_JOUR),
+    premiereActivationLe: new Date(maintenant.getTime() - variante.activeIlYaJours * MS_PAR_JOUR),
+  }
+  await db
+    .insert(abonnements)
+    .values(abonnement)
+    .onConflictDoUpdate({ target: abonnements.userId, set: { ...abonnement, updatedAt: maintenant } })
+  console.info(`[seed] ${variante.username} : abonnement ${variante.cle}, ${SERVICES_VARIANTE} services à jour`)
+}
+
 async function main(): Promise<void> {
   await assertActivePrompts()
 
@@ -664,6 +782,12 @@ async function main(): Promise<void> {
       .onConflictDoUpdate({ target: liens.id, set: { ...ligne, updatedAt: new Date() } })
   }
   console.info(`[seed] ${liensDemo.length} liens à jour`)
+
+  // S10 (#130) : `dr-cabrel` reste GRATUIT (un abonnement laissé par un essai précédent est retiré).
+  const abonnementsRetires = await db.delete(abonnements).where(eq(abonnements.userId, ID_UTILISATEUR)).returning({ id: abonnements.id })
+  console.info(`[seed] dr-cabrel gratuit (${abonnementsRetires.length} abonnement retiré)`)
+  const maintenant = new Date()
+  for (const variante of variantesDemo) await assurerVarianteDemo(variante, maintenant)
   console.info('[seed] connexion : /connexion → email ' + EMAIL_DEMO)
 }
 

@@ -5,6 +5,8 @@ import { disponibilites, indisponibilites, reservations, services, vitrines } fr
 import { NotFoundError } from '../exceptions/http'
 import { db } from '../utils/db'
 import { hasValidUsernameFormat, normalizeUsername } from '../utils/username'
+import { getPlanPublic, sqlIdsVisibles } from './plan-visibilite'
+import { evaluerQuota } from './plans'
 import { getServiceFlow, isServiceType } from './reservations-regles'
 
 export interface DisponibiliteCreneaux {
@@ -48,6 +50,8 @@ export type AgendaServiceRow = typeof services.$inferSelect
 export interface PublicAgendaService {
   vitrine: {
     id: string
+    /** Propriétaire : sert à résoudre le plan (masquage du service, quota de réservations). */
+    userId: string
     username: string
     fuseau: string
     pasCreneauMin: number
@@ -144,6 +148,7 @@ export async function requirePublicAgendaService(
   executor: Executor,
   rawUsername: string,
   lookup: ServiceLookup,
+  maintenant: Date = new Date(),
 ): Promise<PublicAgendaService> {
   const username = normalizeUsername(rawUsername)
   if (!hasValidUsernameFormat(username)) throw new NotFoundError('SERVICE_INTROUVABLE')
@@ -154,6 +159,7 @@ export async function requirePublicAgendaService(
     .select({
       vitrine: {
         id: vitrines.id,
+        userId: vitrines.userId,
         username: vitrines.username,
         fuseau: vitrines.fuseau,
         pasCreneauMin: vitrines.pasCreneauMin,
@@ -173,6 +179,16 @@ export async function requirePublicAgendaService(
     ))
     .limit(1)
   if (!row) throw new NotFoundError('SERVICE_INTROUVABLE')
+  // S10 #127 : un service masqué par le plan n'existe pas pour le visiteur (créneaux, réservation, demande : 404).
+  const { limites } = await getPlanPublic(row.vitrine, maintenant, executor)
+  if (limites.services !== null) {
+    const [visible] = await executor
+      .select({ id: services.id })
+      .from(services)
+      .where(and(eq(services.id, row.service.id), sqlIdsVisibles(services, row.vitrine.id, limites.services)))
+      .limit(1)
+    if (!visible) throw new NotFoundError('SERVICE_INTROUVABLE')
+  }
   return row
 }
 
@@ -228,11 +244,21 @@ export async function computeServiceCreneaux(
   })
 }
 
-export async function listCreneaux(input: ListCreneauxInput): Promise<PublicAgendaService & { creneaux: Creneau[] }> {
-  const context = await requirePublicAgendaService(db, input.username, { serviceSlug: input.serviceSlug })
+export async function listCreneaux(
+  input: ListCreneauxInput,
+): Promise<PublicAgendaService & { creneaux: Creneau[], suspendues: boolean }> {
+  const context = await requirePublicAgendaService(db, input.username, { serviceSlug: input.serviceSlug }, input.maintenant)
   if (!isServiceType(context.service.type) || getServiceFlow(context.service.type) !== 'reservation') {
     throw new NotFoundError('SERVICE_INTROUVABLE')
   }
+  // S10 #125 : quota mensuel de réservations atteint : aucun créneau, sans jamais mentionner le plan.
+  const quota = await evaluerQuota(
+    db,
+    { userId: context.vitrine.userId, vitrineId: context.vitrine.id, fuseau: context.vitrine.fuseau },
+    'reservations_mois',
+    input.maintenant,
+  )
+  if (quota.atteinte) return { ...context, creneaux: [], suspendues: true }
   const creneaux = await computeServiceCreneaux(db, context, input.du, input.au, input.maintenant)
-  return { ...context, creneaux }
+  return { ...context, creneaux, suspendues: false }
 }

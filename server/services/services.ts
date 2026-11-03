@@ -8,6 +8,9 @@ import { ConflictError, NotFoundError, UnprocessableError, ValidationError } fro
 import { db } from '../utils/db'
 import { PG_FOREIGN_KEY_VIOLATION, PG_RESTRICT_VIOLATION, PG_UNIQUE_VIOLATION, readPgError } from '../utils/pg-error'
 import type { MediaRow } from './medias'
+import { getLimiteStudio, getPlanPublic, marquerMasque, sqlIdsVisibles, vuePlanStudio } from './plan-visibilite'
+import type { CompteursAvecPlan } from './plan-visibilite'
+import { assertQuota } from './plans'
 import {
   checkServiceCoherence,
   computeALaUne,
@@ -17,7 +20,7 @@ import {
   resolveEnVedette,
   slugFromTitle,
 } from './services-regles'
-import type { Compteurs, ServiceState } from './services-regles'
+import type { ServiceState } from './services-regles'
 import { cleanupMedias, lockVitrineId, requireOwnedMedias, requireVitrineId } from './vitrine-acces'
 import type { Executor } from './vitrine-acces'
 import { getPublicVitrine } from './vitrines'
@@ -32,14 +35,22 @@ export interface ServiceAvecImage {
   image: MediaRow | null
 }
 
+/** Ligne du studio : `masqueParPlan` = actif mais au-delà de la limite du plan (S10 #127). */
+export type ServiceStudioRow = ServiceRow & { masqueParPlan: boolean }
+
+export interface ServiceStudioAvecImage {
+  service: ServiceStudioRow
+  image: MediaRow | null
+}
+
 export interface ServiceAvecCompteurs {
-  item: ServiceAvecImage
-  compteurs: Compteurs
+  item: ServiceStudioAvecImage
+  compteurs: CompteursAvecPlan
 }
 
 export interface ServicesAvecCompteurs {
-  items: ServiceAvecImage[]
-  compteurs: Compteurs
+  items: ServiceStudioAvecImage[]
+  compteurs: CompteursAvecPlan
 }
 
 export interface OptionsService {
@@ -167,21 +178,51 @@ async function cleanupImage(userId: string, mediaId: string | null): Promise<voi
   await cleanupMedias(userId, mediaId === null ? [] : [mediaId], LOG_CONTEXTE)
 }
 
-export async function listOwnServices(userId: string): Promise<ServicesAvecCompteurs> {
-  const items = await listWithImages(db, await requireVitrineId(userId))
-  return { items, compteurs: computeCompteurs(items.map((item) => item.service), VEDETTE_MAX) }
+/**
+ * Vue du studio sur la liste COMPLÈTE de la vitrine : chaque ligne porte `masqueParPlan`, les compteurs portent
+ * `limitePlan` (usage = toutes les lignes, visibles ou non, comme le quota de création).
+ */
+function versStudio(items: readonly ServiceAvecImage[], limite: number | null): ServicesAvecCompteurs {
+  const lignes = items.map((entry) => entry.service)
+  const vue = vuePlanStudio(lignes, limite)
+  return {
+    items: items.map(({ service, image }) => ({ service: marquerMasque(service, vue.masques), image })),
+    compteurs: { ...computeCompteurs(lignes, VEDETTE_MAX), limitePlan: vue.limitePlan },
+  }
 }
 
-export async function getOwnService(userId: string, id: string): Promise<ServiceAvecCompteurs> {
-  const { items, compteurs } = await listOwnServices(userId)
+/** Même vue, centrée sur une ligne `cible` de `lignes` (la liste complète après l'écriture). */
+function versStudioItem(lignes: readonly ServiceRow[], cible: ServiceAvecImage, limite: number | null): ServiceAvecCompteurs {
+  const vue = vuePlanStudio(lignes, limite)
+  return {
+    item: { service: marquerMasque(cible.service, vue.masques), image: cible.image },
+    compteurs: { ...computeCompteurs(lignes, VEDETTE_MAX), limitePlan: vue.limitePlan },
+  }
+}
+
+export async function listOwnServices(userId: string, now: Date = new Date()): Promise<ServicesAvecCompteurs> {
+  const vitrineId = await requireVitrineId(userId)
+  const [items, limite] = await Promise.all([listWithImages(db, vitrineId), getLimiteStudio(userId, 'services', now)])
+  return versStudio(items, limite)
+}
+
+export async function getOwnService(userId: string, id: string, now: Date = new Date()): Promise<ServiceAvecCompteurs> {
+  const { items, compteurs } = await listOwnServices(userId, now)
   const item = items.find((entry) => entry.service.id === id)
   if (!item) throw new NotFoundError('SERVICE_INTROUVABLE')
   return { item, compteurs }
 }
 
-async function insertService(userId: string, input: ServiceCreateInput, options: OptionsService): Promise<ServiceAvecCompteurs> {
+async function insertService(
+  userId: string,
+  input: ServiceCreateInput,
+  options: OptionsService,
+  now: Date,
+): Promise<ServiceAvecCompteurs> {
   return db.transaction(async (tx) => {
     const vitrineId = await lockVitrineId(tx, userId)
+    // Quota sous le verrou vitrine : deux créations simultanées ne dépassent jamais la limite (CA79).
+    const { limite } = await assertQuota(tx, { userId, vitrineId }, 'services', now)
     const rows = await listRows(tx, vitrineId)
 
     const etat = normalizeServiceState(EMPTY_STATE, pickState(input))
@@ -228,7 +269,7 @@ async function insertService(userId: string, input: ServiceCreateInput, options:
 
     const [item] = await selectWithImage(tx).where(eq(services.id, created.id))
     if (!item) throw new Error('Service créé introuvable.')
-    return { item, compteurs: computeCompteurs([...rows, item.service], VEDETTE_MAX) }
+    return versStudioItem([...rows, item.service], item, limite)
   })
 }
 
@@ -236,10 +277,11 @@ export async function createService(
   userId: string,
   input: ServiceCreateInput,
   options: OptionsService = resolveServiceOptions(),
+  now: Date = new Date(),
 ): Promise<ServiceAvecCompteurs> {
   for (let attempt = 1; ; attempt += 1) {
     try {
-      return await insertService(userId, input, options)
+      return await insertService(userId, input, options, now)
     } catch (error) {
       const { code, constraint } = readPgError(error)
       // Collision de slug (insertion hors verrou) : une nouvelle tentative relit les slugs existants.
@@ -255,6 +297,7 @@ export async function updateService(
   id: string,
   patch: ServiceUpdateInput,
   options: OptionsService = resolveServiceOptions(),
+  now: Date = new Date(),
 ): Promise<ServiceAvecCompteurs> {
   let result: ServiceAvecCompteurs
   let previousImageId: string | null
@@ -262,6 +305,7 @@ export async function updateService(
     ;({ result, previousImageId } = await db.transaction(async (tx) => {
       const vitrineId = await lockVitrineId(tx, userId)
       const rows = await listRows(tx, vitrineId)
+      const limite = await getLimiteStudio(userId, 'services', now, tx)
       const current = rows.find((ligne) => ligne.id === id)
       if (!current) throw new NotFoundError('SERVICE_INTROUVABLE')
 
@@ -304,11 +348,8 @@ export async function updateService(
 
       const [item] = await selectWithImage(tx).where(eq(services.id, id))
       if (!item) throw new NotFoundError('SERVICE_INTROUVABLE')
-      const compteurs = computeCompteurs(
-        rows.map((ligne) => (ligne.id === id ? item.service : ligne)),
-        VEDETTE_MAX,
-      )
-      return { result: { item, compteurs }, previousImageId: current.imageMediaId }
+      const lignes = rows.map((ligne) => (ligne.id === id ? item.service : ligne))
+      return { result: versStudioItem(lignes, item, limite), previousImageId: current.imageMediaId }
     }))
   } catch (error) {
     const { code, constraint } = readPgError(error)
@@ -343,7 +384,11 @@ export async function deleteService(userId: string, id: string): Promise<void> {
 }
 
 /** `ids` doit être une permutation exacte de TOUS les services de la vitrine. */
-export async function reorderServices(userId: string, ids: readonly string[]): Promise<ServicesAvecCompteurs> {
+export async function reorderServices(
+  userId: string,
+  ids: readonly string[],
+  now: Date = new Date(),
+): Promise<ServicesAvecCompteurs> {
   return db.transaction(async (tx) => {
     const vitrineId = await lockVitrineId(tx, userId)
     const rows = await listRows(tx, vitrineId)
@@ -360,20 +405,22 @@ export async function reorderServices(userId: string, ids: readonly string[]): P
       `)
     }
     const items = await listWithImages(tx, vitrineId)
-    return { items, compteurs: computeCompteurs(items.map((item) => item.service), VEDETTE_MAX) }
+    return versStudio(items, await getLimiteStudio(userId, 'services', now, tx))
   })
 }
 
-async function listVisible(vitrineId: string): Promise<ServiceAvecImage[]> {
+/** Services actifs ET visibles au regard du plan (les `limite` plus anciens), dans l'ordre d'affichage. */
+async function listVisible(vitrineId: string, limite: number | null): Promise<ServiceAvecImage[]> {
   return selectWithImage(db)
-    .where(and(eq(services.vitrineId, vitrineId), eq(services.actif, true)))
+    .where(and(eq(services.vitrineId, vitrineId), eq(services.actif, true), sqlIdsVisibles(services, vitrineId, limite)))
     .orderBy(...ORDER)
 }
 
 /** Services visibles d'une vitrine publiée. Username invalide, inconnu ou non publié : VITRINE_INTROUVABLE. */
-export async function getPublicServices(rawUsername: string): Promise<ServicesPublics> {
+export async function getPublicServices(rawUsername: string, now: Date = new Date()): Promise<ServicesPublics> {
   const { vitrine } = await getPublicVitrine(rawUsername)
-  const visibles = await listVisible(vitrine.id)
+  const { limites } = await getPlanPublic(vitrine, now)
+  const visibles = await listVisible(vitrine.id, limites.services)
   const retenus = new Set(computeALaUne(visibles.map((item) => item.service), VEDETTE_MAX))
   return {
     vitrine,
@@ -384,11 +431,16 @@ export async function getPublicServices(rawUsername: string): Promise<ServicesPu
 }
 
 /** Détail d'un service visible. Slug mal formé, masqué ou d'une autre vitrine : SERVICE_INTROUVABLE. */
-export async function getPublicService(rawUsername: string, rawSlug: string): Promise<ServicePublic> {
+export async function getPublicService(
+  rawUsername: string,
+  rawSlug: string,
+  now: Date = new Date(),
+): Promise<ServicePublic> {
   const { vitrine } = await getPublicVitrine(rawUsername)
   const slug = rawSlug.trim().toLowerCase()
   if (slug.length > SERVICE_SLUG_MAX || !SERVICE_SLUG_REGEX.test(slug)) throw new NotFoundError('SERVICE_INTROUVABLE')
-  const visibles = await listVisible(vitrine.id)
+  const { limites } = await getPlanPublic(vitrine, now)
+  const visibles = await listVisible(vitrine.id, limites.services)
   const item = visibles.find((entry) => entry.service.slug === slug)
   if (!item) throw new NotFoundError('SERVICE_INTROUVABLE')
   return {

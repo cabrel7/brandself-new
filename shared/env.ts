@@ -2,13 +2,22 @@ import { z } from 'zod'
 import { IA_CLE_API_LONGUEUR_MIN, IA_FOURNISSEURS, IA_HOTES_HTTP_AUTORISES, IA_MODELE_DEFAUT } from './ia'
 import type { IaFournisseur } from './ia'
 import { EMAIL_EXPEDITEUR_DEV_DEFAUT, SITE_URL_DEV_DEFAUT } from './notifications'
+import {
+  KPAY_BASE_URL_DEFAUT,
+  KPAY_CLE_API_FORMAT,
+  KPAY_CLE_PREFIXE_LIVE,
+  KPAY_CLE_SECRETE_FORMAT,
+  KPAY_HOTES_HTTP_AUTORISES,
+  KPAY_WEBHOOK_SECRET_LONGUEUR_MIN,
+} from './paiements'
+import type { PaiementEnvironnement } from './paiements'
 
 function videVautAbsent(valeur: unknown): unknown {
   return typeof valeur === 'string' && valeur.trim() === '' ? undefined : valeur
 }
 
-/** HTTPS, ou HTTP vers un hôte local ; jamais un autre schéma (file:…) ni des identifiants dans l'URL. */
-function baseUrlIaValide(valeur: string): boolean {
+/** HTTPS, ou HTTP vers un hôte local de la liste ; jamais un autre schéma (file:…) ni des identifiants dans l'URL. */
+function baseUrlValide(valeur: string, hotesHttp: readonly string[]): boolean {
   let url: URL
   try {
     url = new URL(valeur)
@@ -17,11 +26,19 @@ function baseUrlIaValide(valeur: string): boolean {
   }
   if (url.username !== '' || url.password !== '') return false
   if (url.protocol === 'https:') return true
-  return url.protocol === 'http:' && IA_HOTES_HTTP_AUTORISES.includes(url.hostname)
+  return url.protocol === 'http:' && hotesHttp.includes(url.hostname)
 }
+
+const baseUrlIaValide = (valeur: string): boolean => baseUrlValide(valeur, IA_HOTES_HTTP_AUTORISES)
+const baseUrlKpayValide = (valeur: string): boolean => baseUrlValide(valeur, KPAY_HOTES_HTTP_AUTORISES)
+
+/** Variable texte facultative : vide ou espaces = absente, sinon rognée. */
+const rognerOuAbsent = (valeur: unknown): unknown => videVautAbsent(typeof valeur === 'string' ? valeur.trim() : valeur)
 
 // `PAIEMENT_EN_LIGNE=` (chaîne vide, ex. copié depuis .env.example) vaut « absent » : défaut faux.
 const schemaPaiementEnLigne = z.preprocess(videVautAbsent, z.stringbool().default(false))
+// S10 : même règle pour `KPAY_MODE_TEST_AUTORISE` (défaut faux).
+const schemaBooleenFaux = z.preprocess(videVautAbsent, z.stringbool().default(false))
 
 const schemaEnv = z
   .object({
@@ -61,6 +78,30 @@ const schemaEnv = z
       (valeur) => videVautAbsent(typeof valeur === 'string' ? valeur.trim() : valeur),
       z.string().refine(baseUrlIaValide, 'doit être une URL https (http seulement pour localhost ou 127.0.0.1), sans identifiants').optional(),
     ),
+    // S10 (#118) : K-PAY (paiement Mobile Money de l'abonnement). Lues côté serveur seulement : jamais dans
+    // runtimeConfig.public, un DTO ou un journal. Variable vide = absente ; les messages d'erreur ne répètent
+    // jamais la valeur. Fournisseur « configuré » <=> clé API et clé secrète présentes (`kpayConfigure`).
+    KPAY_API_KEY: z.preprocess(
+      rognerOuAbsent,
+      z.string().regex(KPAY_CLE_API_FORMAT, 'format invalide (clé K-PAY de test ou de production attendue)').optional(),
+    ),
+    KPAY_SECRET_KEY: z.preprocess(
+      rognerOuAbsent,
+      z.string().regex(KPAY_CLE_SECRETE_FORMAT, 'doit contenir 64 caractères hexadécimaux').optional(),
+    ),
+    // Secret de signature des webhooks (HMAC-SHA256). Obligatoire en production dès que les clés sont présentes.
+    KPAY_WEBHOOK_SECRET: z.preprocess(
+      rognerOuAbsent,
+      z.string().min(KPAY_WEBHOOK_SECRET_LONGUEUR_MIN, `doit contenir au moins ${KPAY_WEBHOOK_SECRET_LONGUEUR_MIN} caractères`).optional(),
+    ),
+    // Absente = KPAY_BASE_URL_DEFAUT. HTTPS obligatoire en production ; http://127.0.0.1 ou http://localhost
+    // seulement hors production (faux serveur K-PAY des tests). Sans identifiants dans l'URL.
+    KPAY_BASE_URL: z.preprocess(
+      rognerOuAbsent,
+      z.string().refine(baseUrlKpayValide, 'doit être une URL https (http seulement pour localhost ou 127.0.0.1 hors production), sans identifiants').optional(),
+    ),
+    // Autorise une clé kpay_test_ en production (préproduction uniquement). Défaut faux.
+    KPAY_MODE_TEST_AUTORISE: schemaBooleenFaux,
   })
   .superRefine((env, ctx) => {
     if (env.IA_FOURNISSEUR === 'openai' && !env.IA_MODELE) {
@@ -106,6 +147,38 @@ const schemaEnv = z
         })
       }
     }
+    // S10 (#118) : K-PAY. Les clés vont ensemble ; en production, pas de clé de test (sauf préproduction
+    // explicite), secret de webhook obligatoire et HTTPS strict. Messages sans valeur.
+    if (Boolean(env.KPAY_API_KEY) !== Boolean(env.KPAY_SECRET_KEY)) {
+      ctx.addIssue({
+        code: 'custom',
+        path: [env.KPAY_API_KEY ? 'KPAY_SECRET_KEY' : 'KPAY_API_KEY'],
+        message: 'KPAY_API_KEY et KPAY_SECRET_KEY vont ensemble',
+      })
+    }
+    if (env.NODE_ENV === 'production') {
+      if (env.KPAY_API_KEY && resolveKpayEnvironnement(env.KPAY_API_KEY) === 'test' && !env.KPAY_MODE_TEST_AUTORISE) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['KPAY_API_KEY'],
+          message: 'une clé de test est interdite en production (KPAY_MODE_TEST_AUTORISE=true seulement en préproduction)',
+        })
+      }
+      if (env.KPAY_API_KEY && env.KPAY_SECRET_KEY && !env.KPAY_WEBHOOK_SECRET) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['KPAY_WEBHOOK_SECRET'],
+          message: 'requis en production dès que les clés K-PAY sont présentes (signature des webhooks)',
+        })
+      }
+      if (env.KPAY_BASE_URL && !env.KPAY_BASE_URL.startsWith('https://')) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['KPAY_BASE_URL'],
+          message: 'doit commencer par https:// en production',
+        })
+      }
+    }
     if ((env.GOOGLE_CLIENT_ID && !env.GOOGLE_CLIENT_SECRET) || (!env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET)) {
       ctx.addIssue({
         code: 'custom',
@@ -121,6 +194,8 @@ const schemaEnv = z
     EMAIL_EXPEDITEUR: env.EMAIL_EXPEDITEUR ?? EMAIL_EXPEDITEUR_DEV_DEFAUT,
     // Sans barre finale : les chemins ajoutés commencent par `/`.
     NUXT_PUBLIC_SITE_URL: (env.NUXT_PUBLIC_SITE_URL ?? SITE_URL_DEV_DEFAUT).replace(/\/+$/, ''),
+    // Garanti défini : adresse par défaut de K-PAY sinon (sans barre finale, les chemins commencent par `/`).
+    KPAY_BASE_URL: (env.KPAY_BASE_URL ?? KPAY_BASE_URL_DEFAUT).replace(/\/+$/, ''),
   }))
 
 export type Env = z.infer<typeof schemaEnv>
@@ -136,6 +211,16 @@ export function loadEnv(source: Record<string, string | undefined>): Env {
     )
   }
   return result.data
+}
+
+/** Environnement K-PAY déduit du préfixe de la clé API (`kpay_live_` = production, tout le reste = test). */
+export function resolveKpayEnvironnement(cleApi: string): PaiementEnvironnement {
+  return cleApi.startsWith(KPAY_CLE_PREFIXE_LIVE) ? 'live' : 'test'
+}
+
+/** K-PAY est configuré <=> la clé API et la clé secrète sont présentes (la validation exige qu'elles aillent ensemble). */
+export function kpayConfigure(env: Pick<Env, 'KPAY_API_KEY' | 'KPAY_SECRET_KEY'>): boolean {
+  return Boolean(env.KPAY_API_KEY) && Boolean(env.KPAY_SECRET_KEY)
 }
 
 /**

@@ -5,9 +5,9 @@ import type {
   RealisationsCompteursDTO,
 } from '../../shared/dto'
 import { displayName } from '../../shared/vitrine'
-import type { Compteurs } from '../services/listes-regles'
 import type { MediaRow } from '../services/medias'
-import type { RealisationRow } from '../services/realisations'
+import type { CompteursAvecPlan } from '../services/plan-visibilite'
+import type { RealisationRow, RealisationStudioRow } from '../services/realisations'
 import type { VitrineRow } from '../services/vitrines'
 import { toMediaResource } from './media'
 import { truncateForSeo } from './seo'
@@ -17,7 +17,7 @@ const ESPACES = /\s+/g
 
 /** `galerie` arrive déjà dans l'ordre d'affichage : la ressource ne la retrie jamais. */
 export function toRealisationStudioResource(
-  row: RealisationRow,
+  row: RealisationStudioRow,
   image: MediaRow | null,
   galerie: readonly MediaRow[],
 ): RealisationStudioDTO {
@@ -34,18 +34,20 @@ export function toRealisationStudioResource(
     lien: row.lien,
     enVedette: row.enVedette,
     actif: row.actif,
+    masqueParPlan: row.masqueParPlan,
     ordre: row.ordre,
     creeLe: row.createdAt.toISOString(),
     modifieLe: row.updatedAt.toISOString(),
   }
 }
 
-export function toRealisationsCompteursResource(compteurs: Compteurs): RealisationsCompteursDTO {
+export function toRealisationsCompteursResource(compteurs: CompteursAvecPlan): RealisationsCompteursDTO {
   return {
     total: compteurs.total,
     visibles: compteurs.visibles,
     enVedette: compteurs.enVedette,
     vedetteMax: compteurs.vedetteMax,
+    limitePlan: { ...compteurs.limitePlan },
   }
 }
 
