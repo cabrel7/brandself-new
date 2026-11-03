@@ -13,9 +13,13 @@ import {
   iaJobDataSchema,
   transactionalEmailJobDataSchema,
 } from '../shared/jobs'
+import { EMAILS_DEBIT_FENETRE_MS, EMAILS_DEBIT_MAX } from '../shared/notifications'
 import { planifierPurge } from '../server/jobs/ia'
 import { dispatchPendingTransactionalEmails } from '../server/jobs/email-outbox'
+import { planifierNotificationsRepetees, planifierPurgeNotifications } from '../server/jobs/notifications'
 import { processTransactionalEmail } from '../server/services/email-outbox'
+import { planifierNotifications } from '../server/services/notifications/planification'
+import { purgeOutbox } from '../server/services/notifications/purge'
 import { executeGeneration, purgeGenerations } from '../server/services/ia/generations'
 import { createIaProvider } from '../server/services/ia/fournisseurs'
 import type { ExecutionDeps } from '../server/services/ia/types'
@@ -34,6 +38,19 @@ const workerSystem = new Worker(
     if (job.name === JOBS.ping) {
       console.info(`[worker] ping processed (job ${job.id})`)
       return { pong: true, processedAt: new Date().toISOString() }
+    }
+    // S9 : planification des e-mails récurrents (tick de 5 min) et purge de l'outbox. Nombres seulement dans les journaux.
+    if (job.name === JOBS.planifierNotifications) {
+      const planifiees = await planifierNotifications(new Date())
+      console.info(
+        `[worker] notifications planifiées : ${planifiees.resumes} résumé(s), ${planifiees.rappelsJour} rendez-vous du jour`,
+      )
+      return
+    }
+    if (job.name === JOBS.purgerNotifications) {
+      const purgees = await purgeOutbox(new Date())
+      console.info(`[worker] purge notifications : ${purgees} ligne(s) supprimée(s)`)
+      return
     }
     throw new Error(`Unknown job: ${job.name}`)
   },
@@ -61,7 +78,11 @@ const workerEmails = new Worker(
     }
     throw new Error(`Unknown job: ${job.name}`)
   },
-  { connection: createConnection() },
+  {
+    connection: createConnection(),
+    // S9 #92 : débit d'envoi (quota Resend). Les 429 suivent le chemin d'essai existant de l'outbox.
+    limiter: { max: EMAILS_DEBIT_MAX, duration: EMAILS_DEBIT_FENETRE_MS },
+  },
 )
 
 // S8 : file `ia`. Le worker est le SEUL processus qui lit la clé du fournisseur (createIaProvider).
@@ -121,6 +142,16 @@ planifierPurge(iaQueue).catch(() => {
   console.error('[worker] IA purge scheduling failed (IA_PURGE_SCHEDULE_FAILED)')
 })
 
+// S9 : ordonnanceurs de la file `system` (tick de planification et purge de l'outbox), idempotents au redémarrage.
+const systemQueue = new Queue(FILE_SYSTEM, { connection: createConnection() })
+
+planifierNotificationsRepetees(systemQueue).catch(() => {
+  console.error('[worker] notifications scheduling failed (NOTIFICATIONS_SCHEDULE_FAILED)')
+})
+planifierPurgeNotifications(systemQueue).catch(() => {
+  console.error('[worker] notifications purge scheduling failed (NOTIFICATIONS_PURGE_SCHEDULE_FAILED)')
+})
+
 let dispatchRunning = false
 async function dispatchOutbox(): Promise<void> {
   if (dispatchRunning) return
@@ -154,6 +185,7 @@ async function stop(signal: string): Promise<void> {
       workerIa.close(),
       emailDispatchQueue.close(),
       iaQueue.close(),
+      systemQueue.close(),
     ])
     process.exit(0)
   } catch {

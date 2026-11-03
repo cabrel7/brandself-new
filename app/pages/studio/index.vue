@@ -9,7 +9,37 @@ const { etat: etatAgenda } = useStudioAgendaApercu()
 const { nonLus: messagesNonLus } = useStudioMessages()
 const { affichee } = useAdressePublique(() => vitrine.value?.username)
 
-const etape = computed(() => prochaineEtape(resume.value?.prochaineEtape ?? null))
+const {
+  etape, definition: definitionEtape, enChargement: etapeEnChargement, enErreur: etapeEnErreur,
+  ignorerEnCours, erreurIgnorer, annonce: annonceEtape, ignorer: ignorerEtape, refresh: rechargerEtape,
+} = useProchaineEtape()
+
+const carteEtape = useTemplateRef<{ focusTitre: () => void }>('carteEtape')
+const titreListe = useTemplateRef<HTMLHeadingElement>('titreListe')
+const partageOuvert = ref(false)
+// Les disponibilités sont ouvertes : le message de partage peut proposer la réservation.
+const reservable = computed(() => etatAgenda.value === 'Ouvert')
+
+async function ignorer(): Promise<void> {
+  if (!(await ignorerEtape())) return
+  await nextTick()
+  // Étape suivante : focus sur son titre ; sinon sur le titre « Votre vitrine ».
+  if (carteEtape.value) carteEtape.value.focusTitre()
+  else titreListe.value?.focus()
+}
+
+function actionEtape(): void {
+  if (etape.value === 'partager') partageOuvert.value = true
+}
+
+// Le panneau a pu enregistrer le partage : la carte « Partagez votre vitrine » doit alors disparaître.
+watch(partageOuvert, async (ouvert) => {
+  if (ouvert) return
+  await rechargerEtape()
+  await nextTick()
+  if (!carteEtape.value && document.activeElement === document.body) titreListe.value?.focus()
+})
+
 const manquants = computed(() => resume.value?.manquantsPourPublier ?? [])
 
 function compteur(nombre: number): string {
@@ -134,10 +164,48 @@ async function depublier(): Promise<void> {
         </BsCard>
       </section>
 
-      <StudioProchaineEtape v-if="etape" :etape="etape" />
+      <p class="sr-only" role="status">
+        {{ annonceEtape }}
+      </p>
+
+      <!-- Un seul message à l'écran : la carte s'efface quand une erreur de publication est affichée. -->
+      <template v-if="!messagePublication">
+        <USkeleton v-if="etapeEnChargement" class="h-48 w-full" aria-hidden="true" />
+        <div v-else-if="etapeEnErreur" class="flex flex-col items-start gap-2">
+          <p role="alert" class="message-erreur">
+            <UIcon name="i-ph-warning-circle" class="size-5 shrink-0" aria-hidden="true" />
+            <span>{{ MESSAGE_ETAPE_CHARGEMENT }}</span>
+          </p>
+          <UButton
+            label="Réessayer"
+            variant="outline"
+            color="neutral"
+            size="lg"
+            class="min-h-(--cible-tactile)"
+            @click="() => rechargerEtape()"
+          />
+        </div>
+        <StudioProchaineEtape
+          v-else-if="definitionEtape"
+          ref="carteEtape"
+          :etape="definitionEtape"
+          ignorable
+          :ignorer-en-cours="ignorerEnCours"
+          :erreur="erreurIgnorer"
+          @action="actionEtape"
+          @ignorer="ignorer"
+        />
+      </template>
+
+      <StudioPartageVitrine v-model:open="partageOuvert" :reservable="reservable" />
 
       <section aria-labelledby="titre-liste">
-        <h2 id="titre-liste" class="m-0 mb-2 text-(length:--fs-20) font-semibold text-encre">
+        <h2
+          id="titre-liste"
+          ref="titreListe"
+          tabindex="-1"
+          class="m-0 mb-2 text-(length:--fs-20) font-bold text-encre outline-none"
+        >
           Votre vitrine
         </h2>
         <ul class="m-0 list-none p-0">
@@ -188,6 +256,7 @@ async function depublier(): Promise<void> {
           </div>
           <div v-else class="flex flex-col gap-2 sm:flex-row">
             <UButton label="Voir ma vitrine" :to="`/${vitrine.username}`" target="_blank" variant="outline" />
+            <UButton label="Partager ma vitrine" icon="i-ph-share-network" variant="outline" aria-haspopup="dialog" @click="partageOuvert = true" />
             <UButton label="Dépublier" variant="ghost" color="neutral" @click="confirmerDepublication = true" />
           </div>
         </template>

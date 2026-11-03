@@ -13,6 +13,7 @@ import {
 } from './creneaux'
 import type { PublicAgendaService, ServiceLookup } from './creneaux'
 import { insertTransactionalEmailEvents } from './email-outbox'
+import { annulerRappelVisiteur, programmerRappelVisiteur } from './notifications/planification'
 import { canTransitionReservation, getServiceFlow, isServiceType } from './reservations-regles'
 import { requireVitrineId } from './vitrine-acces'
 
@@ -131,7 +132,7 @@ export async function createReservation(
       await insertTransactionalEmailEvents(tx, 'reservation', reservation.id, [
         'reservation_professionnel_nouvelle',
         'reservation_visiteur_recue',
-      ])
+      ], maintenant)
       return { reservation, service: context.service, vitrine: context.vitrine, confirmation: { token, expireLe } }
     })
   } catch (error) {
@@ -169,6 +170,7 @@ async function transitionOwnReservation(
   id: string,
   statut: ReservationStatut,
   motifAnnulation?: string,
+  now: Date = new Date(),
 ): Promise<{ item: ReservationRow }> {
   return db.transaction(async (tx) => {
     const [current] = await tx
@@ -187,7 +189,7 @@ async function transitionOwnReservation(
       .set({
         statut,
         motifAnnulation: statut === 'annulee' ? motifAnnulation : current.reservation.motifAnnulation,
-        updatedAt: new Date(),
+        updatedAt: now,
       })
       .where(eq(reservations.id, id))
       .returning()
@@ -200,25 +202,37 @@ async function transitionOwnReservation(
         : statut === 'refusee'
           ? 'reservation_visiteur_refusee'
           : 'reservation_visiteur_annulee',
-    ])
+    ], now)
+    // S9 §4.2 : le rappel du visiteur naît et meurt dans la même transaction que la décision du professionnel.
+    if (statut === 'confirmee') await programmerRappelVisiteur(tx, item, now)
+    else await annulerRappelVisiteur(tx, item.id, now)
     return { item }
   })
 }
 
-export function confirmReservation(userId: string, id: string): Promise<{ item: ReservationRow }> {
-  return transitionOwnReservation(userId, id, 'confirmee')
+export function confirmReservation(
+  userId: string,
+  id: string,
+  now: Date = new Date(),
+): Promise<{ item: ReservationRow }> {
+  return transitionOwnReservation(userId, id, 'confirmee', undefined, now)
 }
 
 export function cancelReservation(
   userId: string,
   id: string,
   input: { motif?: string },
+  now: Date = new Date(),
 ): Promise<{ item: ReservationRow }> {
-  return transitionOwnReservation(userId, id, 'annulee', input.motif)
+  return transitionOwnReservation(userId, id, 'annulee', input.motif, now)
 }
 
-export function refuseReservation(userId: string, id: string): Promise<{ item: ReservationRow }> {
-  return transitionOwnReservation(userId, id, 'refusee')
+export function refuseReservation(
+  userId: string,
+  id: string,
+  now: Date = new Date(),
+): Promise<{ item: ReservationRow }> {
+  return transitionOwnReservation(userId, id, 'refusee', undefined, now)
 }
 
 export async function completePastReservations(maintenant: Date = new Date()): Promise<number> {
