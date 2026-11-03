@@ -8,6 +8,10 @@ export interface MoiDTO {
   locale: Locale
   devise: Devise
   fuseau: string
+  /** Résumé hebdomadaire du lundi. */
+  emailHebdo: boolean
+  /** E-mail du matin avec les rendez-vous du jour. */
+  emailRappelJour: boolean
   aUneVitrine: boolean
   vitrine: { username: string, publiee: boolean } | null
 }

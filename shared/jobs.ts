@@ -15,6 +15,10 @@ export const TRANSACTIONAL_EMAIL_TYPES = [
   'demande_professionnel_nouvelle',
   'demande_visiteur_recue',
   'message_professionnel_nouvelle',
+  // S9 : e-mails planifiés (rappel visiteur, rendez-vous du jour, résumé hebdomadaire).
+  'reservation_visiteur_rappel',
+  'utilisateur_resume_hebdo',
+  'utilisateur_rappel_journee',
 ] as const
 
 export type TransactionalEmailType = (typeof TRANSACTIONAL_EMAIL_TYPES)[number]
@@ -29,6 +33,8 @@ export const JOBS = {
   sendTransactionalEmail: 'send-transactional-email',
   genererIa: 'ia-generer',
   purgerIa: 'ia-purger',
+  planifierNotifications: 'notifications-planifier',
+  purgerNotifications: 'notifications-purger',
 } as const
 
 export type JobName = (typeof JOBS)[keyof typeof JOBS]
