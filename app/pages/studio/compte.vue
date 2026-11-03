@@ -5,7 +5,11 @@ import type { Devise, Locale } from '#shared/compte'
 definePageMeta({ layout: 'studio' })
 useSeoMeta({ title: 'Mon compte — Brandself' })
 
-const { moi, enChargement, enErreur, refresh, enregistrement, erreur, confirmation, mettreAJour } = useMoi()
+const {
+  moi, enChargement, enErreur, refresh, enregistrement, mettreAJour,
+  erreurInformations, confirmationInformations, erreurEmails, confirmationEmails,
+} = useMoi()
+const preferences = usePreferencesEmail(moi, mettreAJour)
 const appareils = useAppareils()
 const deconnexion = useDeconnexion()
 const suppression = useSuppressionCompte()
@@ -130,12 +134,45 @@ function annulerSuppression(): void {
           <USelect v-model="fuseau" :items="fuseauxItems" :disabled="enregistrement" @update:model-value="enregistrerFuseau" />
         </UFormField>
 
-        <p v-if="erreur" role="alert" class="message-erreur">
+        <p v-if="erreurInformations" role="alert" class="message-erreur">
           <UIcon name="i-ph-warning-circle" class="size-5 shrink-0" aria-hidden="true" />
-          <span>{{ erreur }}</span>
+          <span>{{ erreurInformations }}</span>
         </p>
         <p v-else class="m-0 min-h-6 text-(length:--fs-14) text-texte-secondaire" role="status">
-          {{ confirmation }}
+          {{ confirmationInformations }}
+        </p>
+      </section>
+
+      <section aria-labelledby="titre-emails" class="flex flex-col gap-3">
+        <h2 id="titre-emails" class="m-0 text-(length:--fs-20) font-semibold text-encre">
+          E-mails
+        </h2>
+
+        <ul class="m-0 list-none border-y border-bordure p-0">
+          <li v-for="preference in PREFERENCES_EMAIL_AFFICHEES" :key="preference.cle" class="min-h-14 border-b border-bordure py-4 last:border-b-0">
+            <USwitch
+              :id="preference.id"
+              v-model="preferences.valeurs[preference.cle]"
+              :label="preference.label"
+              :description="preference.description"
+              :disabled="enregistrement"
+              :loading="preferences.enCours.value === preference.cle"
+              :ui="{ root: 'w-full flex-row-reverse items-center justify-between gap-4', wrapper: 'ms-0' }"
+              @update:model-value="(valeur: boolean) => preferences.basculer(preference, valeur)"
+            />
+          </li>
+        </ul>
+
+        <p class="m-0 text-(length:--fs-14) text-texte-secondaire">
+          {{ NOTE_EMAILS_TRANSACTIONNELS }}
+        </p>
+
+        <p v-if="erreurEmails" role="alert" class="message-erreur">
+          <UIcon name="i-ph-warning-circle" class="size-5 shrink-0" aria-hidden="true" />
+          <span>{{ erreurEmails }}</span>
+        </p>
+        <p v-else class="m-0 min-h-6 text-(length:--fs-14) text-texte-secondaire" role="status">
+          {{ confirmationEmails }}
         </p>
       </section>
 

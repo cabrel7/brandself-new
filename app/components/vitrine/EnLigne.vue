@@ -4,12 +4,12 @@ import type { NextStep } from '#shared/vitrine'
 const props = defineProps<{ username: string, prochaineEtape: NextStep | null }>()
 
 const adresse = computed(() => `${HOTE_VITRINES}/${props.username}`)
-const lienPartage = computed(
-  () => `https://wa.me/?text=${encodeURIComponent(`Découvrez ma vitrine : https://${adresse.value}`)}`,
-)
-const etape = computed(() => prochaineEtape(props.prochaineEtape))
+// Le partage est déjà sur cet écran : la carte « Partagez votre vitrine » ferait doublon.
+const etape = computed(() => (props.prochaineEtape === 'partager' ? null : prochaineEtape(props.prochaineEtape)))
 
 const { copy, copied } = useClipboard({ copiedDuring: 2000 })
+const { pret, lienWhatsapp, partagerWhatsapp } = usePartageVitrine()
+const panneauOuvert = ref(false)
 
 // Le bouton « Publier » vient de disparaître : le focus passe au titre de l'écran final.
 const titre = useTemplateRef<HTMLHeadingElement>('titre')
@@ -45,9 +45,27 @@ onMounted(() => titre.value?.focus())
     <p class="sr-only" aria-live="polite">{{ copied ? 'Adresse copiée.' : '' }}</p>
 
     <UButton :to="`/${username}`" block>Voir ma vitrine</UButton>
-    <UButton :to="lienPartage" target="_blank" rel="noopener" variant="outline" block icon="i-ph-whatsapp-logo">
+    <UButton
+      :to="lienWhatsapp"
+      :disabled="!pret"
+      target="_blank"
+      rel="noopener"
+      variant="outline"
+      block
+      icon="i-ph-whatsapp-logo"
+      @click="partagerWhatsapp"
+    >
       Partager sur WhatsApp
     </UButton>
+    <UButton
+      label="Autres façons de partager"
+      variant="link"
+      size="lg"
+      class="min-h-(--cible-tactile)"
+      aria-haspopup="dialog"
+      @click="panneauOuvert = true"
+    />
+    <StudioPartageVitrine v-model:open="panneauOuvert" />
 
     <StudioProchaineEtape v-if="etape" :etape="etape" class="mt-4 w-full" />
   </main>

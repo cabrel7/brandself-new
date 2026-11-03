@@ -121,6 +121,16 @@ async function envoyer(): Promise<void> {
       </div>
     </section>
 
+    <div class="border-y border-bordure py-4">
+      <USwitch
+        v-model="form.rappelEmail"
+        :label="LIBELLE_RAPPEL_EMAIL"
+        :description="DESCRIPTION_RAPPEL_EMAIL"
+        :disabled="envoi"
+        :ui="{ root: 'w-full flex-row-reverse items-center justify-between gap-4', wrapper: 'ms-0' }"
+      />
+    </div>
+
     <div class="flex flex-col gap-4">
       <p v-if="erreurGenerale" class="message-erreur" role="alert" aria-live="assertive">
         <UIcon name="i-ph-warning-circle" class="size-5 shrink-0" aria-hidden="true" />
