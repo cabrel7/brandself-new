@@ -32,6 +32,9 @@ describe('loadEnv (configuration validation)', () => {
       NODE_ENV: 'production',
       DATABASE_URL: 'postgresql://u:p@localhost:5432/db',
       RESEND_API_KEY: 're_x',
+      // S9 (#91) : obligatoires en production.
+      EMAIL_EXPEDITEUR: 'Brandself <bonjour@brandself.io>',
+      NUXT_PUBLIC_SITE_URL: 'https://brandself.io',
     })
     expect(env.NODE_ENV).toBe('production')
   })

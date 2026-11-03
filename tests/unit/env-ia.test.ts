@@ -11,7 +11,14 @@ const BASE = {
   REDIS_URL: 'redis://localhost:6379',
   NUXT_BETTER_AUTH_SECRET: 'secret-de-test-au-moins-trente-deux-caracteres',
 }
-const BASE_PRODUCTION = { ...BASE, NODE_ENV: 'production', RESEND_API_KEY: 're_test_cle_resend' }
+// S9 (#91) : EMAIL_EXPEDITEUR et NUXT_PUBLIC_SITE_URL (https) sont obligatoires en production.
+const BASE_PRODUCTION = {
+  ...BASE,
+  NODE_ENV: 'production',
+  RESEND_API_KEY: 're_test_cle_resend',
+  EMAIL_EXPEDITEUR: 'Brandself <bonjour@brandself.io>',
+  NUXT_PUBLIC_SITE_URL: 'https://brandself.io',
+}
 
 describe('resolveIaFournisseur (règle #71)', () => {
   it.each([

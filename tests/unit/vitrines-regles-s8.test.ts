@@ -2,15 +2,17 @@ import { describe, expect, it } from 'vitest'
 import { NEXT_STEPS } from '../../shared/vitrine'
 
 // S8 §0 #78 / CA51 : la prochaine étape suit l'ordre photo → service → disponibilités → réalisation.
-// ÉCART À SIGNALER AU LOT E : l'entrée de computeNextStep gagne un champ `disponibilites` (nombre de
-// disponibilités de l'agenda). Les cas existants de tests/unit/publication.test.ts (qui n'ont pas ce champ)
-// devront être mis à jour dans le même lot, sous peine de les voir basculer sur « disponibilites ».
+// S9 (#93) : NEXT_STEPS gagne `partager` en dernier, et l'entrée de computeNextStep gagne `publiee`, `partagee`
+// et `ignorees`. Les cas S8 ci-dessous sont rejoués avec une vitrine NON publiée (jamais « partager ») : leurs
+// résultats sont inchangés. Les cas propres à S9 sont dans tests/unit/notifications-prochaine-etape.test.ts.
 
 const regles = () => import('../../server/services/vitrines-regles')
 
+const S9_NEUTRE = { publiee: false, partagee: false, ignorees: [] as never[] }
+
 describe('NEXT_STEPS', () => {
-  it('should order photo, service, disponibilites, realisation', () => {
-    expect([...NEXT_STEPS]).toEqual(['photo', 'service', 'disponibilites', 'realisation'])
+  it('should order photo, service, disponibilites, realisation, partager', () => {
+    expect([...NEXT_STEPS]).toEqual(['photo', 'service', 'disponibilites', 'realisation', 'partager'])
   })
 })
 
@@ -29,12 +31,12 @@ describe('computeNextStep (CA51)', () => {
   ])('should answer for %j', async (etat, attendu) => {
     const { computeNextStep } = await regles()
 
-    expect(computeNextStep(etat)).toBe(attendu)
+    expect(computeNextStep({ ...etat, ...S9_NEUTRE })).toBe(attendu)
   })
 
-  it('should walk the full ladder as the vitrine fills up', async () => {
+  it('should walk the full ladder as the vitrine fills up (unpublished: it ends at null)', async () => {
     const { computeNextStep } = await regles()
-    const etat = { hasPhoto: false, servicesActifs: 0, disponibilites: 0, realisationsActives: 0 }
+    const etat = { hasPhoto: false, servicesActifs: 0, disponibilites: 0, realisationsActives: 0, ...S9_NEUTRE }
 
     const parcours = [
       computeNextStep(etat),
@@ -54,8 +56,10 @@ describe('computeNextStep (CA51)', () => {
       for (const servicesActifs of [0, 1]) {
         for (const disponibilites of [0, 1]) {
           for (const realisationsActives of [0, 1]) {
-            const etape = computeNextStep({ hasPhoto, servicesActifs, disponibilites, realisationsActives })
-            expect(etape === null || (NEXT_STEPS as readonly string[]).includes(etape)).toBe(true)
+            for (const publiee of [true, false]) {
+              const etape = computeNextStep({ hasPhoto, servicesActifs, disponibilites, realisationsActives, publiee, partagee: false, ignorees: [] })
+              expect(etape === null || (NEXT_STEPS as readonly string[]).includes(etape)).toBe(true)
+            }
           }
         }
       }
