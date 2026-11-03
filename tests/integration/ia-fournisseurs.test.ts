@@ -15,6 +15,14 @@ const BASE = {
   REDIS_URL: 'redis://localhost:6379/15',
   NUXT_BETTER_AUTH_SECRET: 'secret-de-test-au-moins-trente-deux-caracteres',
 }
+// Requises en production depuis S9 (expéditeur vérifié, liens absolus des e-mails).
+const PRODUCTION = {
+  ...BASE,
+  NODE_ENV: 'production',
+  RESEND_API_KEY: 're_test_cle_resend',
+  EMAIL_EXPEDITEUR: 'Brandself <bonjour@exemple.test>',
+  NUXT_PUBLIC_SITE_URL: 'https://exemple.test',
+}
 
 beforeEach(reinitialiserIa)
 
@@ -40,12 +48,12 @@ describe('createIaProvider', () => {
   it('should answer null in production without key (CA33)', async () => {
     const { createIaProvider } = await iaFournisseurs()
 
-    expect(createIaProvider(loadEnv({ ...BASE, NODE_ENV: 'production', RESEND_API_KEY: 're_test_cle_resend' }))).toBeNull()
+    expect(createIaProvider(loadEnv(PRODUCTION))).toBeNull()
   })
 
   it('should answer null when the fake provider is configured in production (never served to real users)', async () => {
     const { createIaProvider } = await iaFournisseurs()
-    const env = { ...loadEnv({ ...BASE, NODE_ENV: 'production', RESEND_API_KEY: 're_test_cle_resend' }), IA_FOURNISSEUR: 'faux' as const }
+    const env = { ...loadEnv(PRODUCTION), IA_FOURNISSEUR: 'faux' as const }
 
     expect(createIaProvider(env)).toBeNull()
   })
