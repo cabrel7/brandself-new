@@ -52,7 +52,12 @@ const deviseParDefaut = computed<Devise>(() => moi.value?.devise ?? DEVISE_REPLI
       <h1 class="m-0 text-(length:--fs-32) leading-tight font-bold text-encre">
         Nouveau service
       </h1>
-      <StudioServiceForm :service="null" :compteurs="compteurs" :devise-par-defaut="deviseParDefaut" />
+      <StudioLimitePlanMessage
+        v-if="compteurs.limitePlan.atteinte"
+        ressource="services"
+        :limite="compteurs.limitePlan.limite"
+      />
+      <StudioServiceForm v-else :service="null" :compteurs="compteurs" :devise-par-defaut="deviseParDefaut" />
     </div>
   </div>
 </template>

@@ -1,3 +1,4 @@
+import type { LimiteAtteinte } from '~/composables/useLimitePlan'
 import { DEVISES } from '#shared/compte'
 import type { Devise } from '#shared/compte'
 import type { MediaDTO, ServiceStudioDTO, ServicesCompteursDTO } from '#shared/dto'
@@ -252,6 +253,8 @@ export function useServiceForm(options: OptionsServiceForm) {
   const image = ref<MediaDTO | null>(service?.image ?? null)
   const erreurs = ref<Erreurs>({})
   const erreurGenerale = ref('')
+  /** Création refusée : limite du plan atteinte (un seul message, à la place de l'erreur générale). */
+  const limiteAtteinte = ref<LimiteAtteinte | null>(null)
   const enregistrement = ref(false)
   const introuvable = ref(false)
 
@@ -319,7 +322,11 @@ export function useServiceForm(options: OptionsServiceForm) {
 
   function rangerErreur(e: unknown): void {
     const erreur = lireErreurApi(e)
-    if (erreur.code === 'VALIDATION') {
+    const limite = lireLimitePlan(e, 'services')
+    if (limite) {
+      limiteAtteinte.value = limite
+    }
+    else if (erreur.code === 'VALIDATION') {
       const parChamp: Erreurs = {}
       for (const [nom, messages] of Object.entries(erreur.champs)) {
         const cible = CHAMP_DEPUIS_API[nom]
@@ -355,6 +362,7 @@ export function useServiceForm(options: OptionsServiceForm) {
     if (enregistrement.value || !aDesModifications.value) return
     erreurs.value = {}
     erreurGenerale.value = ''
+    limiteAtteinte.value = null
     const { corps, erreurs: locales } = lireFormulaire(form, image.value?.id ?? null)
     if (Object.keys(locales).length > 0) {
       erreurs.value = locales
@@ -406,7 +414,7 @@ export function useServiceForm(options: OptionsServiceForm) {
   }
 
   return {
-    form, image, erreurs, erreurGenerale, enregistrement, introuvable, aDesModifications, viderErreur,
+    form, image, erreurs, erreurGenerale, limiteAtteinte, enregistrement, introuvable, aDesModifications, viderErreur,
     accompagnement, dureeRequise, tarifVerrouille, payant, libellePrix, prixDecimal,
     itemsTarifs, itemsPaiement, vedetteBloquee, aideVedette,
     choisirImage, retirerImage, enregistrer,

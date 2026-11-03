@@ -140,11 +140,18 @@ async function envoyer(): Promise<void> {
         type="submit"
         label="Envoyer ma demande"
         :loading="envoi"
-        :disabled="etat === 'prise' || etat === 'expiree'"
+        :disabled="etat === 'prise' || etat === 'expiree' || etat === 'indisponible'"
         block
       />
       <UButton
-        v-if="etat === 'prise' || etat === 'expiree'"
+        v-if="etat === 'indisponible'"
+        :to="`/${username}/contact`"
+        label="Contacter directement"
+        variant="outline"
+        block
+      />
+      <UButton
+        v-else-if="etat === 'prise' || etat === 'expiree'"
         :to="`/${username}/agenda`"
         label="Choisir un autre créneau"
         variant="outline"

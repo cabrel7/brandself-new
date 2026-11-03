@@ -27,7 +27,7 @@ const TARIF_UI = {
 }
 
 const {
-  form, image, erreurs, erreurGenerale, enregistrement, aDesModifications, viderErreur,
+  form, image, erreurs, erreurGenerale, limiteAtteinte, enregistrement, aDesModifications, viderErreur,
   accompagnement, dureeRequise, tarifVerrouille, payant, libellePrix, prixDecimal,
   itemsTarifs, itemsPaiement, vedetteBloquee, aideVedette,
   choisirImage, retirerImage, enregistrer,
@@ -231,7 +231,13 @@ const aidePrix = computed(() =>
     </div>
 
     <div class="flex flex-col gap-3">
-      <p v-if="erreurGenerale" role="alert" class="message-erreur">
+      <StudioLimitePlanMessage
+        v-if="limiteAtteinte"
+        alerte
+        :ressource="limiteAtteinte.ressource"
+        :limite="limiteAtteinte.limite"
+      />
+      <p v-else-if="erreurGenerale" role="alert" class="message-erreur">
         <UIcon name="i-ph-warning-circle" class="size-5 shrink-0" aria-hidden="true" />
         <span>{{ erreurGenerale }}</span>
       </p>

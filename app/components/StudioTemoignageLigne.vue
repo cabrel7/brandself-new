@@ -43,6 +43,7 @@ function surTouche(event: KeyboardEvent): void {
           :class="temoignage.actif ? 'text-encre' : 'text-texte-secondaire'"
         >{{ temoignage.auteur }}</span>
         <span v-if="meta" class="line-clamp-1 text-(length:--fs-14) text-texte-secondaire">{{ meta }}</span>
+        <StudioMasqueParPlan v-if="temoignage.masqueParPlan" />
         <UBadge
           v-if="enVedette"
           label="En vedette"

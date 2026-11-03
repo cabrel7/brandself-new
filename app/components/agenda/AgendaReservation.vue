@@ -198,6 +198,8 @@ const dureeMinutes = computed(() => props.reponse?.service.dureeMin ?? null)
         </UButton>
       </div>
 
+      <AgendaSuspendue v-else-if="reponse?.suspendues" :username="username" />
+
       <template v-else>
         <div class="mt-6 flex items-center justify-between gap-4">
           <h3 class="m-0 text-(length:--fs-20) font-bold md:text-(length:--fs-24)">{{ titreMois }}</h3>

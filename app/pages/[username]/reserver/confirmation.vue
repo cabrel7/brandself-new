@@ -114,6 +114,6 @@ useSeoMeta({ title: 'Votre demande est envoyée', robots: 'noindex, nofollow' })
       </div>
     </main>
 
-    <p class="px-6 py-8 text-center text-(length:--fs-14) text-texte-secondaire">Créé avec Brandself</p>
+    <p v-if="vitrine.badgeBrandself" class="px-6 py-8 text-center text-(length:--fs-14) text-texte-secondaire">Créé avec Brandself</p>
   </div>
 </template>

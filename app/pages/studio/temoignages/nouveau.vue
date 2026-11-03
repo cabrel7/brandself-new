@@ -49,7 +49,12 @@ async function surEnregistrement(): Promise<void> {
       <h1 class="m-0 text-(length:--fs-32) leading-tight font-bold text-encre">
         Nouveau témoignage
       </h1>
-      <StudioTemoignageForm :temoignage="null" :compteurs="compteurs" @enregistrement="surEnregistrement" />
+      <StudioLimitePlanMessage
+        v-if="compteurs.limitePlan.atteinte"
+        ressource="temoignages"
+        :limite="compteurs.limitePlan.limite"
+      />
+      <StudioTemoignageForm v-else :temoignage="null" :compteurs="compteurs" @enregistrement="surEnregistrement" />
     </div>
   </div>
 </template>

@@ -79,21 +79,7 @@ function annulerSuppression(): void {
         Mon compte
       </h1>
 
-      <section aria-labelledby="titre-abonnement">
-        <BsCard>
-          <div class="flex items-center justify-between gap-3">
-            <h2 id="titre-abonnement" class="m-0 text-(length:--fs-20) font-semibold text-encre">
-              Abonnement
-            </h2>
-            <UBadge color="neutral" variant="outline" size="lg">
-              Plan gratuit
-            </UBadge>
-          </div>
-          <p class="m-0 text-base text-texte-secondaire">
-            Vous profitez du plan gratuit. Les formules payantes seront proposées ici.
-          </p>
-        </BsCard>
-      </section>
+      <StudioAbonnementCarte :fuseau="moi.fuseau" :devise-compte="moi.devise" />
 
       <section aria-labelledby="titre-informations" class="flex flex-col gap-4">
         <h2 id="titre-informations" class="m-0 text-(length:--fs-20) font-semibold text-encre">

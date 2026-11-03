@@ -14,6 +14,9 @@ const {
   ignorerEnCours, erreurIgnorer, annonce: annonceEtape, ignorer: ignorerEtape, refresh: rechargerEtape,
 } = useProchaineEtape()
 
+// Période de grâce : le bandeau passe avant la prochaine étape (un seul message à la fois).
+const { abonnement, enChargement: abonnementEnChargement, enGrace } = useAbonnement()
+
 const carteEtape = useTemplateRef<{ focusTitre: () => void }>('carteEtape')
 const titreListe = useTemplateRef<HTMLHeadingElement>('titreListe')
 const partageOuvert = ref(false)
@@ -170,11 +173,15 @@ async function depublier(): Promise<void> {
         {{ annonceEtape }}
       </p>
 
-      <!-- Un seul message à l'écran : la carte s'efface quand une erreur de publication est affichée. -->
+      <!-- Un seul message à l'écran : le bandeau de grâce prime sur la prochaine étape, et l'un comme l'autre s'effacent quand une erreur de publication est affichée. -->
       <template v-if="!messagePublication">
-        <template v-if="etapeEnChargement">
+        <template v-if="etapeEnChargement || abonnementEnChargement">
           <USkeleton v-if="squeletteEtapeVisible" class="h-48 w-full" aria-hidden="true" />
         </template>
+        <StudioAbonnementBandeau
+          v-else-if="enGrace && abonnement?.graceJusquau"
+          :grace-jusquau="abonnement.graceJusquau"
+        />
         <div v-else-if="etapeEnErreur" class="flex flex-col items-start gap-2">
           <p role="alert" class="message-erreur">
             <UIcon name="i-ph-warning-circle" class="size-5 shrink-0" aria-hidden="true" />

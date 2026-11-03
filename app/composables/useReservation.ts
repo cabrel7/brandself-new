@@ -6,8 +6,8 @@ import { schemaReservationCreate } from '#shared/schemas/agenda'
 type ChampReservation = 'nom' | 'email' | 'telephone' | 'motif'
 type ErreursReservation = Partial<Record<ChampReservation, string>>
 
-export type EtatReservation = 'idle' | 'envoi' | 'envoyee' | 'prise' | 'expiree' | 'erreur'
-export type ResultatReservation = 'envoyee' | 'prise' | 'expiree' | 'echec'
+export type EtatReservation = 'idle' | 'envoi' | 'envoyee' | 'prise' | 'expiree' | 'indisponible' | 'erreur'
+export type ResultatReservation = 'envoyee' | 'prise' | 'expiree' | 'indisponible' | 'echec'
 
 interface UseReservationOptions {
   username: string
@@ -92,6 +92,12 @@ export function useReservation(options: UseReservationOptions) {
 
   function rangerErreur(error: unknown): ResultatReservation {
     const api = lireErreurApi(error)
+    // Avant le test du 409 générique : ce 409 n'est pas un créneau pris, aucune autre date n'y changera rien.
+    if (api.code === 'RESERVATIONS_INDISPONIBLES') {
+      etat.value = 'indisponible'
+      erreurGenerale.value = MESSAGE_RESERVATIONS_INDISPONIBLES
+      return 'indisponible'
+    }
     if (api.code === 'CRENEAU_PRIS' || api.statut === 409) {
       etat.value = 'prise'
       erreurGenerale.value = 'Ce créneau vient d’être réservé. Vos informations sont gardées : choisissez-en un autre.'

@@ -17,7 +17,7 @@ const props = defineProps<{
 const SWITCH_UI = { root: 'w-full flex-row-reverse items-center justify-between gap-4', wrapper: 'ms-0' }
 
 const {
-  form, image, galerie, erreurs, erreurGenerale, enregistrement, introuvable, aDesModifications, viderErreur,
+  form, image, galerie, erreurs, erreurGenerale, limiteAtteinte, enregistrement, introuvable, aDesModifications, viderErreur,
   vedetteBloquee, aideVedette, choisirImage, majGalerie, enregistrer,
   suppressionOuverte, suppressionEnCours, erreurSuppression, supprimer,
 } = useRealisationForm({
@@ -138,7 +138,13 @@ const {
     </div>
 
     <div class="flex flex-col gap-3">
-      <p v-if="erreurGenerale" role="alert" class="message-erreur">
+      <StudioLimitePlanMessage
+        v-if="limiteAtteinte"
+        alerte
+        :ressource="limiteAtteinte.ressource"
+        :limite="limiteAtteinte.limite"
+      />
+      <p v-else-if="erreurGenerale" role="alert" class="message-erreur">
         <UIcon name="i-ph-warning-circle" class="size-5 shrink-0" aria-hidden="true" />
         <span>{{ erreurGenerale }}</span>
       </p>
