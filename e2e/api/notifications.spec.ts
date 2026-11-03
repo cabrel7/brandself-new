@@ -1,7 +1,7 @@
 import { createHmac, hkdfSync, randomUUID } from 'node:crypto'
 import { expect, test } from '@playwright/test'
 import { makePng } from '../../tests/support/images'
-import { DESABONNEMENT_LIMIT } from '../../shared/limites'
+import { DESABONNEMENT_ACTION_LIMIT } from '../../shared/limites'
 import {
   DESABONNEMENT_HKDF_INFO,
   DESABONNEMENT_JETON_VALIDITE_JOURS,
@@ -152,7 +152,7 @@ test.describe.serial('notifications : préférences, désabonnement, prochaine �
     const jeton = signer(autre.userId, 'email_rappel_jour')
     // Le jeton ci-dessus désabonne `autre` : la préférence n'a plus d'importance pour la suite du fichier.
 
-    for (let i = 1; i <= DESABONNEMENT_LIMIT.limit; i += 1) {
+    for (let i = 1; i <= DESABONNEMENT_ACTION_LIMIT.limit; i += 1) {
       expect((await request.post(`/api/public/desabonnement?jeton=${jeton}`, { form: ONE_CLICK })).status(), `appel ${i}`).toBe(200)
     }
     const refus = await request.post(`/api/public/desabonnement?jeton=${jeton}`, { form: ONE_CLICK })

@@ -8,6 +8,8 @@ const ID = '3f2b8c1e-9d4a-4e7b-8a61-0c5d2f9e7b10'
 interface Route {
   methode: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
   chemin: string
+  /** Titre explicite du test (évite les doublons quand deux routes partagent le même chemin/méthode). */
+  titre?: string
   /** Corps volontairement invalide : l'authentification doit passer AVANT la validation (401, pas 400). */
   corps?: Record<string, unknown>
 }
@@ -110,11 +112,11 @@ const ROUTES_S8: Route[] = [
 // S9 (CA56) : prochaine étape et partage. Corps invalides : l'authentification passe AVANT la validation.
 const ROUTES_S9: Route[] = [
   { methode: 'GET', chemin: '/api/studio/prochaine-etape' },
-  { methode: 'POST', chemin: '/api/studio/prochaine-etape/ignorer', corps: {} },
-  { methode: 'POST', chemin: '/api/studio/prochaine-etape/ignorer', corps: { etape: 'temoignage' } },
+  { methode: 'POST', chemin: '/api/studio/prochaine-etape/ignorer', corps: {}, titre: 'CA32 POST /api/studio/prochaine-etape/ignorer répond 401 (corps vide)' },
+  { methode: 'POST', chemin: '/api/studio/prochaine-etape/ignorer', corps: { etape: 'temoignage' }, titre: 'CA32 POST /api/studio/prochaine-etape/ignorer répond 401 (etape invalide)' },
   { methode: 'POST', chemin: '/api/studio/vitrine/partage' },
   // Préférences d'e-mail : corps invalide, l'authentification passe encore avant la validation.
-  { methode: 'PUT', chemin: '/api/studio/moi', corps: { emailHebdo: 'non' } },
+  { methode: 'PUT', chemin: '/api/studio/moi', corps: { emailHebdo: 'non' }, titre: 'CA32 PUT /api/studio/moi répond 401 (préférences invalides)' },
 ]
 
 const TOUTES_LES_ROUTES: Route[] = [
@@ -129,7 +131,7 @@ const TOUTES_LES_ROUTES: Route[] = [
 
 test.describe('CA32 /api/studio/** sans session', () => {
   for (const route of TOUTES_LES_ROUTES) {
-    test(`CA32 ${route.methode} ${route.chemin} répond 401`, async ({ request }) => {
+    test(route.titre ?? `CA32 ${route.methode} ${route.chemin} répond 401`, async ({ request }) => {
       const reponse = await request.fetch(route.chemin, { method: route.methode, data: route.corps })
 
       expect(reponse.status()).toBe(401)
