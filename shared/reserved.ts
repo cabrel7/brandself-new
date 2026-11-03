@@ -24,6 +24,7 @@ export const RESERVED_USERNAMES = [
   'blog',
   'mentions-legales',
   'services',
+  'desabonnement',
 ]
 
 export function isReserved(value: string): boolean {

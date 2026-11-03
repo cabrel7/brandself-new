@@ -62,6 +62,7 @@ describe('computeNextStep (U6)', () => {
   ])('should answer for %j', async (etat, attendu) => {
     const { computeNextStep } = await vitrinesService()
 
-    expect(computeNextStep(etat)).toBe(attendu)
+    // S9 : l'entrée gagne publiee / partagee / ignorees ; vitrine non publiée = jamais « partager », les cas ci-dessus restent valables.
+    expect(computeNextStep({ ...etat, publiee: false, partagee: false, ignorees: [] })).toBe(attendu)
   })
 })

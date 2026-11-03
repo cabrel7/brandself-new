@@ -27,3 +27,12 @@ export const IA_LIMITE_CLE_GLOBALE = 'ia-global'
 /** S8 — `terminer` (création de la vitrine) : même débit que la vérification d'adresse, compteur distinct, sans quota IA. */
 export const ONBOARDING_TERMINER_LIMIT: RateLimit = USERNAME_CHECK_LIMIT
 export const ONBOARDING_TERMINER_CLE_PREFIXE = 'onboarding-terminer:'
+/**
+ * S9 — désabonnement, par IP, fail-open (le droit d'opposition reste effectif sans Redis). Budgets distincts :
+ * l'aperçu (GET) est large car les scanners de liens des messageries l'ouvrent ; l'action (POST) reste serrée.
+ */
+export const DESABONNEMENT_APERCU_LIMIT: RateLimit = { limit: 60, windowS: 60 }
+export const DESABONNEMENT_ACTION_LIMIT: RateLimit = { limit: 20, windowS: 60 }
+export const DESABONNEMENT_OPERATIONS = ['apercu', 'action'] as const
+export type DesabonnementOperation = (typeof DESABONNEMENT_OPERATIONS)[number]
+export const DESABONNEMENT_CLE_PREFIXE = 'desabonnement:'

@@ -110,7 +110,7 @@ export function formatDureeCourte(min: number): string {
 }
 
 export function formatDureeLongue(min: number): string {
-  return `${min} minutes`
+  return `${min} minute${min > 1 ? 's' : ''}`
 }
 
 function libelleSeances(nb: number): string {

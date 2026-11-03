@@ -9,7 +9,14 @@ import Redis from 'ioredis'
 import { Pool } from 'pg'
 import { TEMP_EMAIL_DOMAIN } from '../shared/compte'
 import { env } from '../shared/env'
-import { FILE_EMAILS, JOBS } from '../shared/jobs'
+import {
+  FILE_MESSAGES_AUTH,
+  JOBS,
+  OTP_JOB_BACKOFF_MS,
+  OTP_JOB_GARDER_ECHECS,
+  OTP_JOB_GARDER_REUSSIS,
+  OTP_JOB_MAX_ATTEMPTS,
+} from '../shared/jobs'
 import * as schema from '../shared/db/schema'
 
 export type OptionsAuth = Omit<BetterAuthOptions, 'secret' | 'baseURL' | 'basePath'>
@@ -20,31 +27,31 @@ function validatePhone(value: string): boolean {
   return phoneRegex.test(value)
 }
 
-// File BullMQ dedicated to OTP sends (jobs are processed by the worker).
+// File BullMQ dédiée aux OTP (e-mail et SMS), sans limiteur de débit : jamais derrière des e-mails de notification.
 // This file is checked by the tsconfig.node project: it only imports node_modules and shared/.
-const g = globalThis as typeof globalThis & { __fileEmailsAuth?: Queue }
+const g = globalThis as typeof globalThis & { __fileMessagesAuth?: Queue }
 
-function getEmailsQueue(): Queue {
-  const queue = g.__fileEmailsAuth ?? new Queue(FILE_EMAILS, { connection: new Redis(env.REDIS_URL) })
-  g.__fileEmailsAuth = queue
+function getMessagesAuthQueue(): Queue {
+  const queue = g.__fileMessagesAuth ?? new Queue(FILE_MESSAGES_AUTH, { connection: new Redis(env.REDIS_URL) })
+  g.__fileMessagesAuth = queue
   return queue
 }
 
 async function enqueueOtpEmail(identifier: string, code: string): Promise<void> {
-  await getEmailsQueue().add(JOBS.sendOtpEmail, { identifier, code }, {
-    attempts: 3,
-    backoff: { type: 'exponential', delay: 2_000 },
-    removeOnComplete: 100,
-    removeOnFail: 200,
+  await getMessagesAuthQueue().add(JOBS.sendOtpEmail, { identifier, code }, {
+    attempts: OTP_JOB_MAX_ATTEMPTS,
+    backoff: { type: 'exponential', delay: OTP_JOB_BACKOFF_MS },
+    removeOnComplete: OTP_JOB_GARDER_REUSSIS,
+    removeOnFail: OTP_JOB_GARDER_ECHECS,
   })
 }
 
 async function enqueueOtpSms(identifier: string, code: string): Promise<void> {
-  await getEmailsQueue().add(JOBS.sendOtpSms, { identifier, code }, {
-    attempts: 3,
-    backoff: { type: 'exponential', delay: 2_000 },
-    removeOnComplete: 100,
-    removeOnFail: 200,
+  await getMessagesAuthQueue().add(JOBS.sendOtpSms, { identifier, code }, {
+    attempts: OTP_JOB_MAX_ATTEMPTS,
+    backoff: { type: 'exponential', delay: OTP_JOB_BACKOFF_MS },
+    removeOnComplete: OTP_JOB_GARDER_REUSSIS,
+    removeOnFail: OTP_JOB_GARDER_ECHECS,
   })
 }
 
@@ -60,12 +67,15 @@ export const optionsAuth: OptionsAuth = {
     expiresIn: 60 * 60 * 24 * 30,
   },
   user: {
+    // S9 (#96) : `input: false` ferme `/api/auth/update-user` à ces champs (ils contourneraient Zod et la
+    // synchronisation du fuseau avec la vitrine). Ils ne s'écrivent que par `PUT /api/studio/moi`.
+    // Les valeurs par défaut restent appliquées à la création du compte.
     additionalFields: {
-      nom: { type: 'string', defaultValue: '' },
-      locale: { type: 'string', defaultValue: 'fr' },
-      devise: { type: 'string', defaultValue: 'XAF' },
-      fuseau: { type: 'string', defaultValue: 'Africa/Douala' },
-      email_hebdo: { type: 'boolean', defaultValue: true },
+      nom: { type: 'string', defaultValue: '', input: false },
+      locale: { type: 'string', defaultValue: 'fr', input: false },
+      devise: { type: 'string', defaultValue: 'XAF', input: false },
+      fuseau: { type: 'string', defaultValue: 'Africa/Douala', input: false },
+      email_hebdo: { type: 'boolean', defaultValue: true, input: false },
     },
   },
   plugins: [

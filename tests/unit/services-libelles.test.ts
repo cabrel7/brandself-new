@@ -98,6 +98,7 @@ describe('durées et séances (U16)', () => {
   it('should format durations', () => {
     expect(formatDureeCourte(45)).toBe('45 min')
     expect(formatDureeLongue(45)).toBe('45 minutes')
+    expect(formatDureeLongue(1)).toBe('1 minute')
     expect(formatDureeCourte(5)).toBe('5 min')
   })
 

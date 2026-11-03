@@ -43,10 +43,18 @@ export async function getMe(userId: string): Promise<MeView> {
 
 /** Met à jour les préférences ; un changement de fuseau suit sur la vitrine (même transaction). */
 export async function updateMe(userId: string, patch: MoiUpdateInput): Promise<MeView> {
+  // Les préférences d'e-mails ont un nom d'API en camelCase et des propriétés Drizzle en snake_case :
+  // sans ce mapping explicite, Drizzle ignorerait la clé et la préférence ne serait pas enregistrée.
+  const { emailHebdo, emailRappelJour, ...reste } = patch
   await db.transaction(async (tx) => {
     const updated = await tx
       .update(users)
-      .set({ ...patch, updatedAt: new Date() })
+      .set({
+        ...reste,
+        ...(emailHebdo === undefined ? {} : { email_hebdo: emailHebdo }),
+        ...(emailRappelJour === undefined ? {} : { email_rappel_jour: emailRappelJour }),
+        updatedAt: new Date(),
+      })
       .where(eq(users.id, userId))
       .returning({ id: users.id })
     if (updated.length === 0) throw new Error('Utilisateur introuvable.')

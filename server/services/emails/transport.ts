@@ -1,7 +1,6 @@
 import { Resend } from 'resend'
 import { env } from '../../../shared/env'
 
-const EMAIL_FROM = 'Brandself <onboarding@resend.dev>'
 const EMAIL_TIMEOUT_MS = 10_000
 const ERROR_CODE_MAX_LENGTH = 64
 
@@ -16,6 +15,8 @@ export interface EmailMessage {
   subject: string
   text: string
   attachments: EmailAttachment[]
+  /** En-têtes SMTP supplémentaires (S9 : `List-Unsubscribe` et `List-Unsubscribe-Post`, RFC 8058). */
+  headers?: Record<string, string>
 }
 
 export interface EmailTransport {
@@ -44,6 +45,8 @@ export class ResendEmailTransport implements EmailTransport {
   constructor(
     private readonly apiKey: string | undefined = env.RESEND_API_KEY,
     private readonly baseUrl?: string,
+    // Expéditeur issu de la configuration validée (obligatoire en production, domaine vérifié).
+    private readonly from: string = env.EMAIL_EXPEDITEUR,
   ) {}
 
   async send(message: EmailMessage, idempotencyKey: string): Promise<void> {
@@ -52,11 +55,12 @@ export class ResendEmailTransport implements EmailTransport {
     try {
       const resend = new Resend(this.apiKey, this.baseUrl ? { baseUrl: this.baseUrl } : undefined)
       const result = await resend.emails.send({
-        from: EMAIL_FROM,
+        from: this.from,
         to: message.to,
         subject: message.subject,
         text: message.text,
         attachments: message.attachments,
+        ...(message.headers ? { headers: message.headers } : {}),
       }, {
         idempotencyKey,
         signal: AbortSignal.timeout(EMAIL_TIMEOUT_MS),

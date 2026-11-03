@@ -18,7 +18,7 @@ function lienTel(numero: string): string {
 }
 
 const cartes = computed(() => [
-  { icone: 'i-ph-envelope-simple', libelle: 'Email', valeur: liens.value.email, href: liens.value.email ? `mailto:${liens.value.email}` : null },
+  { icone: 'i-ph-envelope-simple', libelle: 'E-mail', valeur: liens.value.email, href: liens.value.email ? `mailto:${liens.value.email}` : null },
   { icone: 'i-ph-phone', libelle: 'Téléphone', valeur: liens.value.telephone, href: liens.value.telephone ? lienTel(liens.value.telephone) : null },
   { icone: 'i-ph-whatsapp-logo', libelle: 'WhatsApp', valeur: props.vitrine.contact.whatsapp, href: null },
   { icone: 'i-ph-map-pin', libelle: 'Cabinet', valeur: liens.value.cabinet, href: null },

@@ -29,6 +29,8 @@ export function toMoiResource({ user, vitrine }: MeView): MoiDTO {
     locale: asLocale(user.locale),
     devise: asDevise(user.devise),
     fuseau: user.fuseau,
+    emailHebdo: user.email_hebdo,
+    emailRappelJour: user.email_rappel_jour,
     aUneVitrine: vitrine !== null,
     vitrine: vitrine ? { username: vitrine.username, publiee: vitrine.publieeLe !== null } : null,
   }

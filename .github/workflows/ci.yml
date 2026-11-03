@@ -40,6 +40,9 @@ jobs:
       REDIS_URL: redis://localhost:6379/15
       NUXT_BETTER_AUTH_SECRET: secret-de-test-au-moins-trente-deux-caracteres
       RESEND_API_KEY: re_ci_test_non_secret
+      # Requises par le build de production depuis S9 (expéditeur vérifié, liens absolus des e-mails).
+      EMAIL_EXPEDITEUR: Brandself <noreply@example.test>
+      NUXT_PUBLIC_SITE_URL: https://ci.example.test
     steps:
       - uses: actions/checkout@v4
 

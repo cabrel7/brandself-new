@@ -4,6 +4,7 @@ import { disponibilites, liens, medias, realisations, services, temoignages, use
 import { USERNAME_CHECK_LIMIT } from '../../shared/limites'
 import { isReserved } from '../../shared/reserved'
 import type { UsernameChangeInput, VitrineCreateInput, VitrineUpdateInput } from '../../shared/schemas/vitrine'
+import { NEXT_STEPS } from '../../shared/vitrine'
 import type { NextStep, PublicationField } from '../../shared/vitrine'
 import { ConflictError, NotFoundError, UnprocessableError } from '../exceptions/http'
 import { db } from '../utils/db'
@@ -194,7 +195,31 @@ export async function unpublishVitrine(userId: string): Promise<VitrineAvecPhoto
   return requireOwn(userId)
 }
 
-async function summarize({ vitrine, photo }: VitrineAvecPhoto): Promise<StudioSummary> {
+/** Étapes mémorisées en base, rétrécies au type `NextStep` (la CHECK de la base garantit les valeurs). */
+function asIgnoredSteps(values: readonly string[]): NextStep[] {
+  return NEXT_STEPS.filter((etape) => values.includes(etape))
+}
+
+interface StepCounts {
+  services: number
+  realisations: number
+  disponibilites: number
+}
+
+function stepOf({ vitrine, photo }: VitrineAvecPhoto, counts: StepCounts): NextStep | null {
+  return computeNextStep({
+    hasPhoto: photo !== null,
+    servicesActifs: counts.services,
+    disponibilites: counts.disponibilites,
+    realisationsActives: counts.realisations,
+    publiee: vitrine.publieeLe !== null,
+    partagee: vitrine.partageeLe !== null,
+    ignorees: asIgnoredSteps(vitrine.etapesIgnorees),
+  })
+}
+
+async function summarize(row: VitrineAvecPhoto): Promise<StudioSummary> {
+  const { vitrine } = row
   const actifs = (table: typeof services | typeof realisations | typeof temoignages | typeof liens) =>
     db.$count(table, and(eq(table.vitrineId, vitrine.id), eq(table.actif, true)))
   const [nbServices, nbRealisations, nbTemoignages, nbLiens, nbDisponibilites] = await Promise.all([
@@ -206,14 +231,54 @@ async function summarize({ vitrine, photo }: VitrineAvecPhoto): Promise<StudioSu
   ])
   return {
     compteurs: { services: nbServices, realisations: nbRealisations, temoignages: nbTemoignages, liens: nbLiens },
-    prochaineEtape: computeNextStep({
-      hasPhoto: photo !== null,
-      servicesActifs: nbServices,
-      disponibilites: nbDisponibilites,
-      realisationsActives: nbRealisations,
-    }),
+    prochaineEtape: stepOf(row, { services: nbServices, realisations: nbRealisations, disponibilites: nbDisponibilites }),
     manquants: computeMissingForPublication(vitrine),
   }
+}
+
+/** Prochaine étape de l'utilisateur (trois comptes seulement, pas le résumé complet). */
+export async function getNextStepForUser(userId: string): Promise<NextStep | null> {
+  const row = await requireOwn(userId)
+  const vitrineId = row.vitrine.id
+  const [nbServices, nbRealisations, nbDisponibilites] = await Promise.all([
+    db.$count(services, and(eq(services.vitrineId, vitrineId), eq(services.actif, true))),
+    db.$count(realisations, and(eq(realisations.vitrineId, vitrineId), eq(realisations.actif, true))),
+    db.$count(disponibilites, eq(disponibilites.vitrineId, vitrineId)),
+  ])
+  return stepOf(row, { services: nbServices, realisations: nbRealisations, disponibilites: nbDisponibilites })
+}
+
+export async function getNextStep(userId: string): Promise<NextStep | null> {
+  return getNextStepForUser(userId)
+}
+
+/** Mémorise « ignorer » pour toujours (ajout idempotent) et renvoie l'étape suivante. */
+export async function ignoreNextStep(userId: string, etape: NextStep): Promise<NextStep | null> {
+  const updated = await db
+    .update(vitrines)
+    .set({
+      etapesIgnorees: sql`CASE WHEN ${etape}::text = ANY(${vitrines.etapesIgnorees}) THEN ${vitrines.etapesIgnorees} ELSE array_append(${vitrines.etapesIgnorees}, ${etape}::text) END`,
+    })
+    .where(eq(vitrines.userId, userId))
+    .returning({ id: vitrines.id })
+  if (updated.length === 0) throw new NotFoundError('VITRINE_INTROUVABLE')
+  return getNextStepForUser(userId)
+}
+
+/** Marque la vitrine comme partagée (idempotent : la première date est conservée). */
+export async function markShared(userId: string, now: Date = new Date()): Promise<Date> {
+  return db.transaction(async (tx) => {
+    const [current] = await tx.select().from(vitrines).where(eq(vitrines.userId, userId)).for('update')
+    if (!current) throw new NotFoundError('VITRINE_INTROUVABLE')
+    if (current.publieeLe === null) throw new UnprocessableError('VITRINE_NON_PUBLIEE')
+    const [updated] = await tx
+      .update(vitrines)
+      .set({ partageeLe: sql`COALESCE(${vitrines.partageeLe}, ${now.toISOString()}::timestamptz)` })
+      .where(eq(vitrines.id, current.id))
+      .returning({ partageeLe: vitrines.partageeLe })
+    if (!updated?.partageeLe) throw new Error('Partage de la vitrine sans résultat.')
+    return updated.partageeLe
+  })
 }
 
 export async function getStudioSummary(userId: string): Promise<StudioSummary> {

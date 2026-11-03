@@ -14,7 +14,16 @@ describe('loadDrapeauxPublics', () => {
   it('dérive googleActif et boiteOtpDev de la configuration validée', () => {
     expect(loadDrapeauxPublics(valide, ['dev'])).toEqual({ googleActif: false, boiteOtpDev: true, paiementEnLigne: false })
     expect(
-      loadDrapeauxPublics({ ...valide, GOOGLE_CLIENT_ID: 'id', GOOGLE_CLIENT_SECRET: 's', NODE_ENV: 'production', RESEND_API_KEY: 're_x' }, ['build']),
+      loadDrapeauxPublics({
+        ...valide,
+        GOOGLE_CLIENT_ID: 'id',
+        GOOGLE_CLIENT_SECRET: 's',
+        NODE_ENV: 'production',
+        RESEND_API_KEY: 're_x',
+        // S9 (#91) : obligatoires en production.
+        EMAIL_EXPEDITEUR: 'Brandself <bonjour@brandself.io>',
+        NUXT_PUBLIC_SITE_URL: 'https://brandself.io',
+      }, ['build']),
     ).toEqual({ googleActif: true, boiteOtpDev: false, paiementEnLigne: false })
   })
   it('tolère un environnement vide pour prepare et typecheck', () => {

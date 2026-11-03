@@ -3,10 +3,25 @@ import { SUJET_LIBELLES } from '../../../shared/message'
 import type { SujetMessage } from '../../../shared/message'
 import { TITRES, displayName } from '../../../shared/vitrine'
 import type { Titre } from '../../../shared/vitrine'
+import { formatDureeLongue } from '../../../shared/services'
 import { buildReservationIcs } from '../agenda-ics'
+import {
+  TEXTES_NOTIFICATIONS,
+  buildUtilisateurEmail,
+  formatJour,
+  formatJourComplet,
+  formatHeure,
+  joinUrl,
+  pied,
+  singleLine,
+} from './notifications-contenus'
+import type { UtilisateurEmailContent } from './notifications-contenus'
 import type { EmailAttachment, EmailMessage } from './transport'
 
-type ReservationEmailType = Extract<TransactionalEmailType, `reservation_${string}`>
+export type { UtilisateurEmailContent } from './notifications-contenus'
+
+// Le rappel visiteur (S9) n'a ni pièce jointe ni statut ICS : il a son propre type de contenu.
+type ReservationEmailType = Exclude<Extract<TransactionalEmailType, `reservation_${string}`>, 'reservation_visiteur_rappel'>
 type DemandeEmailType = Extract<TransactionalEmailType, `demande_${string}`>
 type MessageEmailType = Extract<TransactionalEmailType, `message_${string}`>
 
@@ -43,10 +58,27 @@ interface BaseEmailContent {
   visiteur: EmailVisiteur
 }
 
+/** S9 : rappel envoyé au visiteur avant son rendez-vous (texte seul, sans ICS, sans désabonnement). */
+export interface RappelVisiteurContent extends BaseEmailContent {
+  type: 'reservation_visiteur_rappel'
+  vitrine: EmailVitrine & { username: string }
+  service: ServiceEmailInfo
+  reservation: {
+    id: string
+    debut: Date
+    fin: Date
+    paiementChoisi: string
+  }
+  /** URL publique du site (`NUXT_PUBLIC_SITE_URL`), lue par l'appelant : le contenu est pur. */
+  siteUrl: string
+}
+
 // S7-bis : le contenu d'un email de message n'a pas de service (la page Contact n'en
 // mentionne pas) ; les réservations et demandes portent le leur. Le visiteur d'un
 // message peut être sans téléphone (facultatif).
-export type TransactionalEmailContent = BaseEmailContent & (
+export type TransactionalEmailContent = RappelVisiteurContent | UtilisateurEmailContent | BaseTransactionalEmailContent
+
+type BaseTransactionalEmailContent = BaseEmailContent & (
   | {
       type: ReservationEmailType
       service: ServiceEmailInfo
@@ -82,18 +114,12 @@ export type TransactionalEmailContent = BaseEmailContent & (
     }
 )
 
-// Défense en profondeur : une valeur saisie par un visiteur et placée dans l'objet ou sur
-// une ligne d'un email ne peut jamais contenir de saut de ligne ni de caractère de contrôle.
-function singleLine(value: string): string {
-  return value.replaceAll(/[\p{Cc}\p{Zl}\p{Zp}]+/gu, ' ').trim()
-}
-
 function asTitre(value: string | null): Titre | null {
   return TITRES.find((titre) => titre === value) ?? null
 }
 
 function professionalName(content: BaseEmailContent): string {
-  return displayName(asTitre(content.vitrine.titre), content.vitrine.prenom, content.vitrine.nom)
+  return singleLine(displayName(asTitre(content.vitrine.titre), content.vitrine.prenom, content.vitrine.nom))
 }
 
 function formatDate(date: Date, timeZone: string): string {
@@ -125,7 +151,7 @@ function reservationRecap(content: Extract<TransactionalEmailContent, { type: Re
     `Service : ${content.service.titre}`,
     `Professionnel : ${professionalName(content)}`,
     `Date : ${formatDate(content.reservation.debut, content.vitrine.fuseau)}`,
-    ...(content.service.dureeMin === null ? [] : [`Durée : ${content.service.dureeMin} minutes`]),
+    ...(content.service.dureeMin === null ? [] : [`Durée : ${formatDureeLongue(content.service.dureeMin)}`]),
     ...(content.vitrine.ville ? [`Lieu : ${content.vitrine.ville}`] : []),
     ...paymentLines(content.service, content.reservation.paiementChoisi),
   ]
@@ -194,8 +220,56 @@ function visitorReservationEmail(
   }
 }
 
+function rappelVisiteurRecap(content: RappelVisiteurContent): string[] {
+  const { service, vitrine, reservation } = content
+  return [
+    `Service : ${singleLine(service.titre)}`,
+    `Professionnel : ${professionalName(content)}`,
+    `Date : ${formatJourComplet(reservation.debut, vitrine.fuseau)}`,
+    ...(service.dureeMin === null ? [] : [`Durée : ${formatDureeLongue(service.dureeMin)}`]),
+    ...(vitrine.ville ? [`Lieu : ${singleLine(vitrine.ville)}`] : []),
+    `Tarif : ${formatPrice(service)}`,
+    ...(reservation.paiementChoisi === 'sur_place' ? ['Règlement : sur place'] : []),
+  ]
+}
+
+/**
+ * S9 §5.1 : rappel au visiteur. Minimisation (#100) : ni motif ni téléphone ; pas de « demain »
+ * (le rattrapage peut le rendre faux) ; pas d'ICS (l'événement existe déjà dans son agenda) ; pas
+ * de List-Unsubscribe (le visiteur l'a demandé pour CE rendez-vous).
+ */
+function rappelVisiteurEmail(content: RappelVisiteurContent): EmailMessage {
+  const { debut } = content.reservation
+  const { fuseau, username } = content.vitrine
+  const professionnel = professionalName(content)
+  return {
+    to: content.visiteur.email,
+    subject: `Rappel : votre rendez-vous du ${formatJour(debut, fuseau)} à ${formatHeure(debut, fuseau)}`,
+    text: [
+      'Bonjour,',
+      '',
+      `Petit rappel : votre rendez-vous avec ${professionnel} approche.`,
+      '',
+      ...rappelVisiteurRecap(content),
+      '',
+      `Un empêchement ? Prévenez ${professionnel} dès que possible depuis sa vitrine :`,
+      joinUrl(content.siteUrl, `/${username}`),
+      '',
+      'À bientôt,',
+      TEXTES_NOTIFICATIONS.signatureMarque,
+      ...pied([TEXTES_NOTIFICATIONS.pied.rappelVisiteur(professionnel)]),
+    ].join('\n'),
+    attachments: [],
+  }
+}
+
 export function buildTransactionalEmail(content: TransactionalEmailContent): EmailMessage {
   switch (content.type) {
+    case 'reservation_visiteur_rappel':
+      return rappelVisiteurEmail(content)
+    case 'utilisateur_rappel_journee':
+    case 'utilisateur_resume_hebdo':
+      return buildUtilisateurEmail(content)
     case 'reservation_professionnel_nouvelle':
       return {
         to: content.professionnelEmail,

@@ -8,6 +8,12 @@ export type {
 } from './vitrine'
 export type { MoiDTO, AppareilDTO } from './utilisateur'
 export type {
+  ProchaineEtapeDTO,
+  DesabonnementApercuDTO,
+  DesabonnementDTO,
+  PartageDTO,
+} from './notifications'
+export type {
   ServiceStudioDTO,
   ServicesCompteursDTO,
   ServicePublicCarteDTO,

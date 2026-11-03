@@ -1,4 +1,5 @@
 import type { ReservationCreatedDTO } from '#shared/dto'
+import { RAPPEL_VISITEUR_AVANCE_HEURES } from '#shared/notifications'
 import type { ReservationCreateInput } from '#shared/schemas/agenda'
 import { schemaReservationCreate } from '#shared/schemas/agenda'
 
@@ -13,6 +14,9 @@ interface UseReservationOptions {
   serviceId: string
   debut: string
 }
+
+export const LIBELLE_RAPPEL_EMAIL = 'Recevoir un rappel par e-mail'
+export const DESCRIPTION_RAPPEL_EMAIL = `${libelleHeures(RAPPEL_VISITEUR_AVANCE_HEURES)} avant le rendez-vous.`
 
 const CHAMPS_RESERVATION: readonly ChampReservation[] = ['nom', 'email', 'telephone', 'motif']
 const MESSAGE_GENERIQUE = 'Nous n’avons pas pu envoyer votre demande. Vos informations sont gardées, réessayez dans un instant.'
@@ -46,6 +50,8 @@ export function useReservation(options: UseReservationOptions) {
     telephone: '',
     motif: '',
     siteWeb: '',
+    // Désactivé par défaut : le visiteur choisit (consentement explicite, spec S9 #85).
+    rappelEmail: false,
   })
   const erreurs = ref<ErreursReservation>({})
   const erreurGenerale = ref('')
@@ -64,7 +70,7 @@ export function useReservation(options: UseReservationOptions) {
       email: form.email.trim(),
       telephone: normaliserTelephone(form.telephone),
       siteWeb: form.siteWeb,
-      rappelEmail: false,
+      rappelEmail: form.rappelEmail,
       paiementChoisi: 'sur_place',
       ...(motif === '' ? {} : { motif }),
     }

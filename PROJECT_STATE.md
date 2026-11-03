@@ -22,8 +22,8 @@ L'ancien projet (Laravel + Nuxt, système de blocs polymorphique, ~60 tables, do
 | S5 | Témoignages | **fait, durci** | migration 0014 (slug unique par vitrine), schémas create/update sans défauts parasites, routes dossier fines + service/resource, studio aligné Réalisations (liste, tri, visibilité, formulaires), bloc public sur l'accueil avec dépliage, e2e parcours complet 6/6 + intégration 19 tests |
 | S6 | Liens et link-in-bio | **fait** | migration 0013 (slug par vitrine), CRUD + ordre + visibilité + clics hebdomadaires, studio (carte partage, copie, QR modal+téléchargement, formulaire 6 types), `/@username` conforme maquette, clic natif non bloquant, e2e liens 9/9, captures 390/1280 |
 | S7 | Agenda, réservations, demandes | **fait** | schéma 0015/0016 (exclusion GiST, token SHA-256 hashé), service de créneaux (Temporal, fuseaux), routes studio + publiques, `/reserver` + confirmation + e-mails, Studio agenda, nav +Agenda, captures 390/768/1280. **Durcissement post-review** : 23505 → 409, anti-spoof IP (helper client-ip + Nginx versionné + loopback PM2), HTML confirmation `private, no-store`, limite contact 3/24 h hachée, e2e répétables (purge Redis), timeout webServer 300 s. Gates 2026-10-31 : lint/typecheck verts, Vitest 2087/2087, intégration 563/563, e2e 268/268, build prod 11m22s. Écarts assumés + findings : voir §7. **Fin S7 : bêta fermée** (avec S8 pour l'inscription guidée) |
-| S8 | Inscription guidée + IA | **implémenté, à merger** | branche `sprint/s8-onboarding-ia` : migration 0018 (`prompts_ia`, `generations_ia`, `progressions_inscription`), service IA (fournisseur interchangeable, repli, garde-fous, job BullMQ), routes onboarding/ia, parcours `/onboarding` en 4 étapes, « Améliorer avec l'IA » au Profil, prochaine étape « Ouvrez vos disponibilités ». Gates 2026-11-02 : lint/typecheck verts, unit 2338, intégration 1001, e2e API 113/115 puis connexion 7/7, e2e UI S8 17/17 (avant passage sur Gemini), **build prod OK (10m13s, pic 2,1 Go)**. Revues sécurité/UX/régression faites et corrigées. **Reste** : prompt v2 (accents), relancer l'e2e S8 avec `IA_FOURNISSEUR=faux`, captures vs maquettes, merge ; dette S8 en §7 |
-| S9 | Notifications et rétention | à faire | |
+| S8 | Inscription guidée + IA | **mergé sur `main` (079de8c)** | branche `sprint/s8-onboarding-ia` : migration 0018 (`prompts_ia`, `generations_ia`, `progressions_inscription`), service IA (fournisseur interchangeable, repli, garde-fous, job BullMQ), routes onboarding/ia, parcours `/onboarding` en 4 étapes, « Améliorer avec l'IA » au Profil, prochaine étape « Ouvrez vos disponibilités ». Gates 2026-11-02 : lint/typecheck verts, unit 2338, intégration 1001, e2e API 113/115 puis connexion 7/7, e2e UI S8 17/17 (avant passage sur Gemini), **build prod OK (10m13s, pic 2,1 Go)**. Revues sécurité/UX/régression faites et corrigées. **Reste** : prompt v2 (accents), **rejouer les e2e S8 avec `IA_FOURNISSEUR=faux`** (le code a changé depuis leur dernier passage : adaptateur compatible OpenAI, migration 0019, réouverture de l'inscription ; couverts par unit/intégration mais pas par l'e2e), captures vs maquettes ; dette S8 en §7 |
+| S9 | Notifications et rétention | **repris, fait** | Outbox planifiée (occurrence, catégorie, statut annule), rappel visiteur 24 h, rendez-vous du jour, résumé hebdo, désabonnement HMAC, prochaine étape (étape partager), partage vitrine, préférences e-mail au Compte, migration 0020, jobs planifier/purger, limiteur Resend. Gates 2026-11-03 : lint, typecheck verts ; unit 2702/2702 ; intégration 1243/1243 (0 sauté) ; e2e S9 interface 21/21 + API/studio-auth verts. **Post-revue** : files séparées (`messages-auth` sans limiteur, `emails-notifications` limitée, `maintenance`, `ia`, `system`), rappel annulé si vitrine dépubliée, désabonnement POST avec repli sur la query + budgets GET/POST. Reste : build, merge `sprint/s9-notifications` sur `main`. |
 | S10 | Abonnements, plans, K-PAY | à faire | **Fin S10 : lancement payant** |
 | S11 | Statistiques | à faire | |
 | S12 | SEO final et performance | à faire | |
@@ -48,6 +48,7 @@ L'ancien projet (Laravel + Nuxt, système de blocs polymorphique, ~60 tables, do
 | 13 | Accès sandbox K-PAY (clés, documentation des webhooks) | à fournir par Cabrel | S10 |
 | 14 | « Lire d'autres avis » sur l'accueil (pas de page témoignages) | dépliage sur place, sans nouvelle page | S5 |
 | 15 | Site marketing de Brandself (`/`) : maquette à produire | page provisoire | S12 |
+| 16 | ~~Tests S8 `ia-fournisseurs` en échec~~ | **résolu 2026-11-03** : cause réelle = `EMAIL_EXPEDITEUR`/`NUXT_PUBLIC_SITE_URL` requis en production et absents du test (corrigé), pas le `.env` | — |
 
 ## 4. Décisions tranchées (résumé ; détail dans PROJECT_CONTEXT.md)
 
@@ -95,6 +96,29 @@ Les textes entre crochets (`[Prix]`, `[numéro]`, `[Témoignage d'un patient]`) 
 - Lockfile : `@anthropic-ai/sdk` ajoute `@opentelemetry/api` (peers réécrits) : vérifier `pnpm install --frozen-lockfile` en CI.
 - `.env.example` : ajouter `IA_FOURNISSEUR=` (anthropic | openai | faux | aucun ; `openai` = tout fournisseur compatible OpenAI), `IA_CLE_API=`, `IA_MODELE=` (obligatoire avec `openai`), `IA_BASE_URL=` (optionnelle, HTTPS) ; `CLAUDE.md` §8 : `@anthropic-ai/sdk`.
 - Page Confidentialité : mentionner les données envoyées au fournisseur d'IA (métier, ville, pays, textes de présentation).
+
+### Dette S9 (écarts maquettes, à valider — voir spec §7.7)
+
+1. Partie « E-mails » au Compte : absente de la maquette Studio-Compte.
+2. Bouton « Ne plus proposer cette étape » : absent de la maquette Studio.
+3. « Autres façons de partager » sur En ligne : absent de la maquette Inscription-Fin.
+4. Interrupteur du rappel désactivé par défaut (la maquette Réservation le montre activé — écart #85, décision à trancher).
+5. Maquette Studio montre « Ajoutez un premier témoignage » comme prochaine étape, absente de l'ordre SPRINTS (photo→service→disponibilités→réalisation→partager).
+6. Statistiques de l'accueil du studio restent à 0/0/0 en dur (S11 les rendra réelles — affichage trompeur en attendant).
+7. Variables `.env` requises en production (`EMAIL_EXPEDITEUR`, `NUXT_PUBLIC_SITE_URL`) absentes de `.env` local : le build `nuxt build` (force `NODE_ENV=production`) les exige ; passer en CLI ou les ajouter à `.env` (non committé).
+
+### Dette S9 après revues (2026-11-03)
+
+- Rappel visiteur : pas de lien d'opposition (risque d'abus par un tiers, mitigations en spec §14 entrée 10).
+- Clé v2 du jeton de désabonnement : documentée, non implémentée ; une rotation de `NUXT_BETTER_AUTH_SECRET` invalide les jetons ≤ 90 j (spec, « Notes de déploiement S9 »).
+- Worker de transition sur l'ancienne file `emails` (`FILE_EMAILS_LEGACY`) : **à retirer à la release suivante**. Déployer app + worker ensemble.
+- Constantes de temps encore dupliquées : `MS_PAR_JOUR` (`onboarding.ts`, `ia/generations.ts`), `MINUTE_MS` (`creneaux.ts`), `60_000` (`reservations.ts`), supports de tests ; `libelleSeances(1)` → « 1 séances ».
+- Labels de champ « Email » (ReservationForm, DemandeForm, ContactMessageForm) à passer en « E-mail » avec `e2e/messages.spec.ts` et `e2e/reservation.spec.ts`.
+- « Me connecter » du désabonnement expiré : pas de redirection après connexion (callback `/onboarding` en dur) ; CA60 dit « lien vers le compte », spec §7.6 dit `/connexion`.
+- `terminer` (onboarding) répond « proposition manquante » pour un service `rdv` sans `dureeMin` : message trompeur (`onboarding-regles.ts:96`, `onboarding.ts:514`).
+- Panneau « un seul message » carte prochaine étape / `messagePublication` : non couvert en e2e.
+- Opérations hors CI : `.github/` non vérifié pour les tests d'intégration S9 (CI : variables de production ajoutées).
+- nginx : logs sans query string pour `/api/public/desabonnement`, `client_max_body_size 2k`.
 
 ### Essai réel du fournisseur d'IA (2026-11-02)
 
@@ -175,3 +199,5 @@ Aujourd'hui ce sont des constantes nommées dans `shared/` ou `server/config/` (
 - 2026-10-30 : S5 durci + S6 livré (témoignages studio refaits, migrations 0013/0014, routes legacy retirées, link-in-bio et studio liens conformes maquettes, QR téléchargeable, clics hebdomadaires). Gates : lint/typecheck verts ; Vitest 1855/1855 ; intégration 526/526 ; Playwright 248/248 ; build prod 10m19s ; captures 390/1280 validées.
 - 2026-10-31 : S7 Agenda/réservations/demandes livré et durci (migrations 0015/0016 ; 2 revues de review security/ux/regression/reviewer). Correctifs : prix + lieu sur la confirmation, nav Agenda/Contact, 23505 → 409 `INDISPONIBILITE_EXISTANTE`, ancre agenda pilotée par `contenus.agenda`, anti-spoof XFF (`server/utils/client-ip.ts` + Nginx loopback), confirmation `private, no-store`, limite contact réservation 3/24 h (SHA-256, fail-closed), e2e répétables (purge `limite:*`) et webServer 300 s, message 429 dynamique. HIGH-2 (auto-annulation à 30 min) rejeté avec preuve PostgreSQL. Gates : lint/typecheck verts ; Vitest 2087/2087 ; intégration 563/563 ; e2e 268/268 (36m21s) ; build prod 11m22s.
 - 2026-11-02 : S7-bis (agenda public/studio, contact, messages) implémenté et revu (sécurité, UX, régression). Correctifs : plafond 30 messages/h/vitrine fail-closed, liste bornée à 200, verrous `FOR UPDATE OF`, injection d'en-têtes par le nom, message de succès persistant, liens « Réserver » → `/agenda`. Page Disponibilités déplacée en `agenda/index.vue` + `agenda/disponibilites.vue` (sans `<NuxtPage />` le parent masquait l'enfant). E2E réalignés sur l'UI (onglets sans compteur, `h4`, onglet Demandes, « Fermé »). Run e2e complet interrompu par manque de mémoire.
+- 2026-11-03 : S9 Notifications et rétention implémenté (branche `sprint/s9-notifications`, 10 commits + corrections e2e) : outbox planifiée (occurrence, catégorie, statut annule), rappel visiteur 24 h, rendez-vous du jour, résumé hebdo, désabonnement HMAC, prochaine étape « partager », partage vitrine, préférences e-mail au Compte, migration 0020, jobs planifier/purger, limiteur Resend. Gates vertes : lint, typecheck, unit 2678/2678, integration S9 265/265, build 12m50s, e2e API notifications + studio-auth. Corrigé : titres de test dupliqués dans `e2e/api/studio-auth.spec.ts`. Reste : committer `.env.example` + `studio-auth.spec.ts`, merger `sprint/s9-notifications` sur `main`, merger `sprint/s6-s7-s7bis` (en attente).
+- 2026-11-03 (suite) : revues S9 (sécurité tier critique : 0 CRITICAL/MAJOR, 8 MINOR ; régression : variables de production en CI corrigées ; UX 8,5/10). Corrigé : files d'attente séparées (OTP jamais derrière les résumés), purges en file `maintenance`, rappel annulé si vitrine dépubliée, POST désabonnement tolérant, budgets GET/POST, graphie « e-mail », cibles tactiles, retours de copie. Migration 0020 appliquée à la base de dev. e2e interface 21/21.

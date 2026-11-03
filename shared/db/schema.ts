@@ -16,7 +16,7 @@ import {
 
 // Tables gérées par Better Auth (source des champs : @better-auth/core dist/db/schema).
 // Propriétés = noms de modèles Better Auth ; colonnes = français sans accents (PROJECT_CONTEXT.md §11).
-// Champs applicatifs supplémentaires : nom, locale, devise, fuseau, email_hebdo.
+// Champs applicatifs supplémentaires : nom, locale, devise, fuseau, email_hebdo, email_rappel_jour.
 // Le schéma vit dans shared/ : importé par le serveur, le worker et la configuration Better Auth.
 
 export const users = pgTable('users', {
@@ -32,6 +32,8 @@ export const users = pgTable('users', {
   devise: text('devise').notNull().default('XAF'),
   fuseau: text('fuseau').notNull().default('Africa/Douala'),
   email_hebdo: boolean('email_hebdo').notNull().default(true),
+  // S9 (migration 0020) : préférence « rendez-vous du jour » (e-mail du matin au professionnel), désabonnable.
+  email_rappel_jour: boolean('email_rappel_jour').notNull().default(true),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 })
@@ -143,6 +145,10 @@ export const vitrines = pgTable(
     seoTitre: text('seo_titre'),
     seoDescription: text('seo_description'),
     sectionsMasquees: text('sections_masquees').array().notNull().default([]),
+    // S9 (migration 0020) : étapes de « prochaine étape » ignorées pour toujours (sous-ensemble de NEXT_STEPS) et
+    // date du premier partage de la vitrine (le canal n'est pas stocké : minimisation).
+    etapesIgnorees: text('etapes_ignorees').array().notNull().default([]),
+    partageeLe: timestamp('partagee_le', { withTimezone: true }),
     fuseau: text('fuseau').notNull().default('Africa/Douala'),
     pasCreneauMin: integer('pas_creneau_min').notNull().default(30),
     preavisHeures: integer('preavis_heures').notNull().default(2),
@@ -168,6 +174,11 @@ export const vitrines = pgTable(
     check('vitrines_pas_creneau_min_check', sql`${table.pasCreneauMin} IN (15, 30, 60)`),
     check('vitrines_preavis_heures_check', sql`${table.preavisHeures} BETWEEN 0 AND 720`),
     check('vitrines_horizon_jours_check', sql`${table.horizonJours} BETWEEN 1 AND 365`),
+    // Liste recopiée depuis NEXT_STEPS (shared/vitrine.ts) : garder synchronisées.
+    check(
+      'vitrines_etapes_ignorees_check',
+      sql`${table.etapesIgnorees} <@ ARRAY['photo','service','disponibilites','realisation','partager']::text[]`,
+    ),
   ],
 )
 
@@ -531,8 +542,15 @@ export const messages = pgTable(
   ],
 )
 
-// Outbox des courriels transactionnels : l'événement est écrit dans la même transaction que
-// la réservation ou la demande. Les types sont recopiés depuis shared/jobs.ts.
+// Outbox des courriels : l'événement est écrit dans la même transaction que la réservation, la demande ou le
+// message ; depuis S9 (migration 0020) elle est aussi le planificateur unique des envois différés
+// (`prochaine_tentative` = heure d'envoi) et des e-mails récurrents (`occurrence` = clé d'idempotence métier :
+// '' pour les types S7, `debut` en ISO UTC pour le rappel visiteur, `AAAA-MM-JJ` pour le rendez-vous du jour,
+// `GGGG-Www` pour le résumé hebdomadaire). `categorie` : le résumé est le seul e-mail `relationnel` (plafonné à
+// un par semaine) ; tout le reste est `transactionnel`. Statut `annule` = ligne devenue non pertinente, jamais
+// envoyée (`erreur_code` = code d'annulation). Les listes (types, entités, statuts, catégories, types à
+// occurrence obligatoire) sont recopiées depuis shared/jobs.ts (TRANSACTIONAL_EMAIL_TYPES) et
+// shared/notifications.ts (EMAIL_STATUTS, EMAIL_CATEGORIES) : garder synchronisées.
 export const emailsTransactionnels = pgTable(
   'emails_transactionnels',
   {
@@ -540,6 +558,8 @@ export const emailsTransactionnels = pgTable(
     type: text('type').notNull(),
     entiteType: text('entite_type').notNull(),
     entiteId: text('entite_id').notNull(),
+    occurrence: text('occurrence').notNull().default(''),
+    categorie: text('categorie').notNull().default('transactionnel'),
     statut: text('statut').notNull().default('en_attente'),
     tentatives: integer('tentatives').notNull().default(0),
     prochaineTentative: timestamp('prochaine_tentative', { withTimezone: true }).defaultNow(),
@@ -553,10 +573,19 @@ export const emailsTransactionnels = pgTable(
       table.entiteType,
       table.entiteId,
       table.type,
+      table.occurrence,
     ),
     index('emails_transactionnels_pending_idx')
       .on(table.prochaineTentative, table.createdAt)
       .where(sql`${table.statut} = 'en_attente'`),
+    // Plafond « un e-mail relationnel par semaine » (S9 §4.3) : lignes relationnelles d'un utilisateur.
+    index('emails_transactionnels_relationnel_idx')
+      .on(table.entiteId, table.createdAt)
+      .where(sql`${table.categorie} = 'relationnel'`),
+    // Purge de rétention (job quotidien notifications-purger, S9 #97) : lignes terminales anciennes.
+    index('emails_transactionnels_terminal_idx')
+      .on(table.updatedAt)
+      .where(sql`${table.statut} IN ('envoye','echec','annule')`),
     check(
       'emails_transactionnels_type_check',
       sql`${table.type} IN (
@@ -567,22 +596,26 @@ export const emailsTransactionnels = pgTable(
         'reservation_visiteur_refusee',
         'demande_professionnel_nouvelle',
         'demande_visiteur_recue',
-        'message_professionnel_nouvelle'
+        'message_professionnel_nouvelle',
+        'reservation_visiteur_rappel',
+        'utilisateur_resume_hebdo',
+        'utilisateur_rappel_journee'
       )`,
     ),
     check(
       'emails_transactionnels_entite_type_check',
-      sql`${table.entiteType} IN ('reservation', 'demande', 'message')`,
+      sql`${table.entiteType} IN ('reservation', 'demande', 'message', 'utilisateur')`,
     ),
     check(
       'emails_transactionnels_entite_coherence_check',
       sql`(${table.entiteType} = 'reservation' AND ${table.type} LIKE 'reservation_%')
         OR (${table.entiteType} = 'demande' AND ${table.type} LIKE 'demande_%')
-        OR (${table.entiteType} = 'message' AND ${table.type} LIKE 'message_%')`,
+        OR (${table.entiteType} = 'message' AND ${table.type} LIKE 'message_%')
+        OR (${table.entiteType} = 'utilisateur' AND ${table.type} LIKE 'utilisateur_%')`,
     ),
     check(
       'emails_transactionnels_statut_check',
-      sql`${table.statut} IN ('en_attente', 'en_cours', 'envoye', 'echec')`,
+      sql`${table.statut} IN ('en_attente', 'en_cours', 'envoye', 'echec', 'annule')`,
     ),
     check(
       'emails_transactionnels_tentatives_check',
@@ -598,6 +631,25 @@ export const emailsTransactionnels = pgTable(
     check(
       'emails_transactionnels_envoye_le_check',
       sql`(${table.statut} = 'envoye') = (${table.envoyeLe} IS NOT NULL)`,
+    ),
+    check(
+      'emails_transactionnels_categorie_check',
+      sql`${table.categorie} IN ('transactionnel', 'relationnel')`,
+    ),
+    // Le résumé hebdomadaire est le seul e-mail relationnel, et réciproquement.
+    check(
+      'emails_transactionnels_categorie_type_check',
+      sql`(${table.type} = 'utilisateur_resume_hebdo') = (${table.categorie} = 'relationnel')`,
+    ),
+    check(
+      'emails_transactionnels_occurrence_check',
+      sql`char_length(${table.occurrence}) <= 32 AND ${table.occurrence} ~ '^[0-9A-Z:.-]*$'`,
+    ),
+    // Un e-mail récurrent ou replanifiable sans clé d'occurrence ne serait plus idempotent.
+    check(
+      'emails_transactionnels_occurrence_requise_check',
+      sql`${table.type} NOT IN ('reservation_visiteur_rappel','utilisateur_resume_hebdo','utilisateur_rappel_journee')
+        OR ${table.occurrence} <> ''`,
     ),
   ],
 )

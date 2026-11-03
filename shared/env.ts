@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { IA_CLE_API_LONGUEUR_MIN, IA_FOURNISSEURS, IA_HOTES_HTTP_AUTORISES, IA_MODELE_DEFAUT } from './ia'
 import type { IaFournisseur } from './ia'
+import { EMAIL_EXPEDITEUR_DEV_DEFAUT, SITE_URL_DEV_DEFAUT } from './notifications'
 
 function videVautAbsent(valeur: unknown): unknown {
   return typeof valeur === 'string' && valeur.trim() === '' ? undefined : valeur
@@ -33,6 +34,12 @@ const schemaEnv = z
     GOOGLE_CLIENT_ID: z.string().optional(),
     GOOGLE_CLIENT_SECRET: z.string().optional(),
     RESEND_API_KEY: z.string().optional(),
+    // S9 (#91) : expéditeur des e-mails (domaine vérifié chez Resend). Absent hors production =
+    // adresse de test de Resend, qui n'envoie qu'au titulaire du compte. Obligatoire en production.
+    EMAIL_EXPEDITEUR: z.preprocess(videVautAbsent, z.string().trim().min(3).optional()),
+    // S9 (#91) : URL publique du site (liens absolus des e-mails ; le worker n'a pas runtimeConfig).
+    // Absente hors production = http://localhost:3000. Obligatoire et en https en production.
+    NUXT_PUBLIC_SITE_URL: z.preprocess(videVautAbsent, z.url('doit être une URL valide').optional()),
     // Paiement en ligne (K-PAY) : faux en v1, seul le règlement sur place est proposé (PROJECT_CONTEXT §4.1).
     PAIEMENT_EN_LIGNE: schemaPaiementEnLigne,
     // IA (S8). Lues par le worker seul : jamais dans runtimeConfig ni dans les drapeaux publics.
@@ -77,6 +84,28 @@ const schemaEnv = z
         message: 'requise en production (envoi des codes par courriel)',
       })
     }
+    if (env.NODE_ENV === 'production' && !env.EMAIL_EXPEDITEUR) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['EMAIL_EXPEDITEUR'],
+        message: 'requis en production (adresse d’un domaine vérifié chez Resend)',
+      })
+    }
+    if (env.NODE_ENV === 'production') {
+      if (!env.NUXT_PUBLIC_SITE_URL) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['NUXT_PUBLIC_SITE_URL'],
+          message: 'requise en production (liens absolus des e-mails)',
+        })
+      } else if (!env.NUXT_PUBLIC_SITE_URL.startsWith('https://')) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['NUXT_PUBLIC_SITE_URL'],
+          message: 'doit commencer par https:// en production',
+        })
+      }
+    }
     if ((env.GOOGLE_CLIENT_ID && !env.GOOGLE_CLIENT_SECRET) || (!env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET)) {
       ctx.addIssue({
         code: 'custom',
@@ -85,7 +114,14 @@ const schemaEnv = z
       })
     }
   })
-  .transform((env) => ({ ...env, IA_MODELE: env.IA_MODELE ?? IA_MODELE_DEFAUT }))
+  .transform((env) => ({
+    ...env,
+    IA_MODELE: env.IA_MODELE ?? IA_MODELE_DEFAUT,
+    // Garanti défini : requis en production par la validation ci-dessus, valeur de repli sinon.
+    EMAIL_EXPEDITEUR: env.EMAIL_EXPEDITEUR ?? EMAIL_EXPEDITEUR_DEV_DEFAUT,
+    // Sans barre finale : les chemins ajoutés commencent par `/`.
+    NUXT_PUBLIC_SITE_URL: (env.NUXT_PUBLIC_SITE_URL ?? SITE_URL_DEV_DEFAUT).replace(/\/+$/, ''),
+  }))
 
 export type Env = z.infer<typeof schemaEnv>
 

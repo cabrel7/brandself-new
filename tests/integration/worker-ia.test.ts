@@ -2,14 +2,14 @@ import { randomUUID } from 'node:crypto'
 import Redis from 'ioredis'
 import { Worker } from 'bullmq'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
-import { FILE_IA, IA_JOB_ID_PREFIXE, IA_PURGE_CRON, IA_PURGE_SCHEDULER_ID, IA_PURGE_TZ, JOBS, iaJobDataSchema } from '../../shared/jobs'
+import { FILE_IA, FILE_MAINTENANCE, IA_JOB_ID_PREFIXE, IA_PURGE_CRON, IA_PURGE_SCHEDULER_ID, IA_PURGE_TZ, JOBS, iaJobDataSchema } from '../../shared/jobs'
 import { ENTREE_ONBOARDING_DEMO } from '../unit/support/ia-fixtures'
 import { createUser, insertGeneration } from './support/fabriques'
 import { creerGeneration, iaFaux, iaGenerations, jobsIa, lireGeneration, queuesJobs, reinitialiserIa } from './support/ia'
 
 // S8 §5, §9 : vraie file BullMQ et vrai Worker sur Redis /15, exécuteur réel, faux fournisseur réel.
 // Le processeur ci-dessous reproduit le routage décrit pour worker/index.ts (ia-generer → executeGeneration,
-// ia-purger → purgeGenerations) ; worker/index.ts est un script de démarrage qui n'est pas importable.
+// la purge vit sur la file `maintenance`, plus sur `ia`) ; worker/index.ts est un script de démarrage qui n'est pas importable.
 
 const DELAI_MAX_MS = 10_000
 const PAUSE_MS = 100
@@ -29,7 +29,7 @@ async function attendre<T>(lire: () => Promise<T | undefined>): Promise<T> {
 }
 
 async function demarrerWorker(): Promise<void> {
-  const { executeGeneration, purgeGenerations } = await iaGenerations()
+  const { executeGeneration } = await iaGenerations()
   const { creerFauxProvider } = await iaFaux()
   const provider = creerFauxProvider()
   providerFaux = provider
@@ -39,10 +39,6 @@ async function demarrerWorker(): Promise<void> {
       if (job.name === JOBS.genererIa) {
         const { generationId } = iaJobDataSchema.parse(job.data)
         await executeGeneration(generationId, { provider, now: Date.now, sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)) })
-        return
-      }
-      if (job.name === JOBS.purgerIa) {
-        await purgeGenerations(new Date())
         return
       }
       throw new Error(`Job inconnu : ${job.name}`)
@@ -125,14 +121,17 @@ describe('file ia et worker réels', () => {
     expect(IA_JOB_ID_PREFIXE).toBe('ia-generation-')
   })
 
-  it('should register the daily purge once, at 03:00 UTC, even when planned twice (upsert)', async () => {
+  it('should register the daily purge once, at 03:00 UTC, on the maintenance queue (never on ia), even when planned twice (upsert)', async () => {
     const { planifierPurge } = await jobsIa()
-    const { getIaQueue } = await queuesJobs()
+    const { getIaQueue, getMaintenanceQueue } = await queuesJobs()
+    await getMaintenanceQueue().obliterate({ force: true })
 
-    await planifierPurge(getIaQueue())
-    await planifierPurge(getIaQueue())
+    await planifierPurge(getMaintenanceQueue())
+    await planifierPurge(getMaintenanceQueue())
 
-    const planifications = await getIaQueue().getJobSchedulers()
+    expect(getMaintenanceQueue().name).toBe(FILE_MAINTENANCE)
+    expect(await getIaQueue().getJobSchedulers()).toHaveLength(0)
+    const planifications = await getMaintenanceQueue().getJobSchedulers()
     expect(planifications.filter((p) => p.key === IA_PURGE_SCHEDULER_ID)).toHaveLength(1)
     expect(planifications[0]).toMatchObject({ pattern: IA_PURGE_CRON, tz: IA_PURGE_TZ })
   })
