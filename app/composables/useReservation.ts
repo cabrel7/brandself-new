@@ -15,8 +15,8 @@ interface UseReservationOptions {
   debut: string
 }
 
-export const LIBELLE_RAPPEL_EMAIL = 'Recevoir un rappel par email'
-export const DESCRIPTION_RAPPEL_EMAIL = `${RAPPEL_VISITEUR_AVANCE_HEURES} heures avant le rendez-vous.`
+export const LIBELLE_RAPPEL_EMAIL = 'Recevoir un rappel par e-mail'
+export const DESCRIPTION_RAPPEL_EMAIL = `${libelleHeures(RAPPEL_VISITEUR_AVANCE_HEURES)} avant le rendez-vous.`
 
 const CHAMPS_RESERVATION: readonly ChampReservation[] = ['nom', 'email', 'telephone', 'motif']
 const MESSAGE_GENERIQUE = 'Nous n’avons pas pu envoyer votre demande. Vos informations sont gardées, réessayez dans un instant.'

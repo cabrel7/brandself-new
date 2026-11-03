@@ -48,13 +48,12 @@ defineExpose({ focusTitre: () => titre.value?.focus() })
       size="lg"
       :disabled="ignorerEnCours"
       class="min-h-(--cible-tactile) focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-encre"
-      :aria-describedby="idTitre"
       @click="emit('action')"
     />
     <UButton
       v-if="ignorable"
       label="Ne plus proposer cette étape"
-      variant="outline"
+      variant="link"
       color="neutral"
       block
       size="lg"

@@ -19,6 +19,8 @@ const titreListe = useTemplateRef<HTMLHeadingElement>('titreListe')
 const partageOuvert = ref(false)
 // Les disponibilités sont ouvertes : le message de partage peut proposer la réservation.
 const reservable = computed(() => etatAgenda.value === 'Ouvert')
+// Le squelette de l'étape n'apparaît qu'après 200 ms : pas de flash sur un chargement rapide.
+const { ready: squeletteEtapeVisible } = useTimeout(200, { controls: true })
 
 async function ignorer(): Promise<void> {
   if (!(await ignorerEtape())) return
@@ -170,7 +172,9 @@ async function depublier(): Promise<void> {
 
       <!-- Un seul message à l'écran : la carte s'efface quand une erreur de publication est affichée. -->
       <template v-if="!messagePublication">
-        <USkeleton v-if="etapeEnChargement" class="h-48 w-full" aria-hidden="true" />
+        <template v-if="etapeEnChargement">
+          <USkeleton v-if="squeletteEtapeVisible" class="h-48 w-full" aria-hidden="true" />
+        </template>
         <div v-else-if="etapeEnErreur" class="flex flex-col items-start gap-2">
           <p role="alert" class="message-erreur">
             <UIcon name="i-ph-warning-circle" class="size-5 shrink-0" aria-hidden="true" />
@@ -251,13 +255,13 @@ async function depublier(): Promise<void> {
             Elle ne sera plus visible tant que vous ne l’aurez pas publiée de nouveau.
           </p>
           <div v-if="confirmerDepublication" class="flex flex-col gap-2 sm:flex-row">
-            <UButton label="Dépublier ma vitrine" color="error" :loading="publicationEnCours" @click="depublier" />
-            <UButton label="Annuler" variant="outline" color="neutral" :disabled="publicationEnCours" @click="confirmerDepublication = false" />
+            <UButton label="Dépublier ma vitrine" color="error" class="min-h-(--cible-tactile)" :loading="publicationEnCours" @click="depublier" />
+            <UButton label="Annuler" variant="outline" color="neutral" class="min-h-(--cible-tactile)" :disabled="publicationEnCours" @click="confirmerDepublication = false" />
           </div>
           <div v-else class="flex flex-col gap-2 sm:flex-row">
-            <UButton label="Voir ma vitrine" :to="`/${vitrine.username}`" target="_blank" variant="outline" />
-            <UButton label="Partager ma vitrine" icon="i-ph-share-network" variant="outline" aria-haspopup="dialog" @click="partageOuvert = true" />
-            <UButton label="Dépublier" variant="ghost" color="neutral" @click="confirmerDepublication = true" />
+            <UButton label="Voir ma vitrine" :to="`/${vitrine.username}`" target="_blank" variant="outline" class="min-h-(--cible-tactile)" />
+            <UButton label="Partager ma vitrine" icon="i-ph-share-network" variant="outline" aria-haspopup="dialog" class="min-h-(--cible-tactile)" @click="partageOuvert = true" />
+            <UButton label="Dépublier" variant="ghost" color="neutral" class="min-h-(--cible-tactile)" @click="confirmerDepublication = true" />
           </div>
         </template>
 
@@ -274,10 +278,12 @@ async function depublier(): Promise<void> {
               label="Compléter mon profil"
               to="/studio/profil"
               variant="outline"
+              class="min-h-(--cible-tactile)"
             />
             <UButton
               v-else
               label="Publier ma vitrine"
+              class="min-h-(--cible-tactile)"
               :loading="publicationEnCours"
               @click="publier"
             />

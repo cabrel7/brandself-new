@@ -103,7 +103,7 @@ function annulerSuppression(): void {
         <dl class="m-0 flex flex-col gap-4">
           <div>
             <dt class="text-base font-semibold text-encre">
-              Email
+              E-mail
             </dt>
             <dd class="m-0 text-base text-encre">
               {{ moi.email ?? 'Non renseignée' }}

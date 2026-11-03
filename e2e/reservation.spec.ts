@@ -314,8 +314,11 @@ test('un visiteur passe par /agenda, choisit service, jour et heure, confirme vi
   await verifierChampRequis(telephone, 'Téléphone ou WhatsApp')
   await expect(page.getByText(/Payer en ligne/i)).toHaveCount(0)
   await expect(page.getByText('Rappel 24h', { exact: true })).toHaveCount(0)
-  await expect(page.getByText('Recevoir un rappel par email', { exact: true })).toHaveCount(0)
-  await expect(page.getByText('24 heures avant le rendez-vous.', { exact: true })).toHaveCount(0)
+  // S9 : le rappel est proposé au visiteur, désactivé par défaut (consentement explicite).
+  const rappel = page.getByRole('switch', { name: /Recevoir un rappel par e-mail/ })
+  await expect(rappel).toBeVisible()
+  await expect(rappel).not.toBeChecked()
+  await expect(page.getByText('24 heures avant le rendez-vous.', { exact: true })).toBeVisible()
   await expect(page.getByRole('heading', { name: 'Payer sur place' })).toBeVisible()
 
   const envoyer = page.getByRole('button', { name: 'Envoyer ma demande' })

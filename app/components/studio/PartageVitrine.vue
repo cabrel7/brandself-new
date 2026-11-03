@@ -15,6 +15,9 @@ const {
 
 const qrConteneur = useTemplateRef<HTMLElement>('qrConteneur')
 
+const ECHECS = [ANNONCE_COPIE_IMPOSSIBLE, ANNONCE_QR_IMPOSSIBLE]
+const iconeAnnonce = computed(() => (ECHECS.includes(annonce.value) ? 'i-ph-warning-circle' : 'i-ph-check-circle'))
+
 watch(ouvert, (valeur) => {
   if (!valeur) reinitialiserAnnonce()
 })
@@ -61,7 +64,7 @@ watch(ouvert, (valeur) => {
           <UButton
             label="Copier le message"
             icon="i-ph-copy"
-            variant="outline"
+            variant="link"
             color="neutral"
             size="lg"
             block
@@ -69,11 +72,16 @@ watch(ouvert, (valeur) => {
             :disabled="!pret"
             @click="copierMessage"
           />
+          <p role="status" class="m-0 flex min-h-6 items-center gap-2 text-(length:--fs-14) font-medium text-encre">
+            <UIcon v-if="annonce" :name="iconeAnnonce" class="size-5 shrink-0" aria-hidden="true" />
+            <span>{{ annonce }}</span>
+          </p>
         </div>
 
         <div ref="qrConteneur" class="flex flex-col items-center gap-3 border-t border-bordure pt-4">
           <Qrcode
             v-if="ouvert && pret"
+            role="img"
             :value="url"
             :width="QR_TAILLE"
             :height="QR_TAILLE"
@@ -91,10 +99,6 @@ watch(ouvert, (valeur) => {
             @click="telechargerQrcode(qrConteneur)"
           />
         </div>
-
-        <p role="status" class="m-0 min-h-6 text-(length:--fs-14) font-medium text-encre">
-          {{ annonce }}
-        </p>
       </div>
     </template>
   </UModal>

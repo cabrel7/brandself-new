@@ -52,7 +52,8 @@ const { ready: squeletteVisible } = useTimeout(200, { controls: true })
     </template>
 
     <template v-else-if="etat === 'succes'">
-      <h1 ref="titre" tabindex="-1" class="m-0 pt-8 font-(family-name:--font-titre) text-(length:--fs-32) leading-[1.15] font-bold outline-none">
+      <UIcon name="i-ph-check-circle" class="mt-8 size-10 text-accent" aria-hidden="true" />
+      <h1 ref="titre" tabindex="-1" class="m-0 font-(family-name:--font-titre) text-(length:--fs-32) leading-[1.15] font-bold outline-none">
         C’est fait.
       </h1>
       <p class="m-0 text-base text-texte-secondaire">
