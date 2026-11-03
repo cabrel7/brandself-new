@@ -539,7 +539,7 @@ Les heures sont en UTC sauf mention contraire. L'horloge est injectée (`now`).
 - **CA31** Given une vitrine non publiée, When lundi 08:00 locale, Then aucune ligne ; Given une ligne planifiée puis la vitrine dépubliée, When envoi, Then `annule` / `VITRINE_NON_PUBLIEE`.
 - **CA32** Given un compte supprimé après la planification (cascade), When envoi, Then `annule` / `ENTITE_INTROUVABLE`, pas de nouvel essai.
 - **CA33** Given un utilisateur à e-mail temporaire sans `email_contact`, When lundi 08:00, Then aucune ligne.
-- **CA34** Given `Europe/Paris` et la semaine du 26 octobre au 1er novembre 2026 (changement d'heure le 25, donc semaine entière en heure d'hiver) puis celle du 23 au 29 mars 2027 (passage à l'heure d'été le 28), When `periodeResume` est calculée, Then les bornes sont les minuits locaux (`2027-03-22T23:00Z` → `2027-03-28T22:00Z`, soit 167 h).
+- **CA34** Given `Europe/Paris` et la semaine du 26 octobre au 1er novembre 2026 (changement d'heure le 25, donc semaine entière en heure d'hiver) puis celle du 23 au 29 mars 2027 (passage à l'heure d'été le 28), When `periodeResume` est calculée, Then les bornes sont les minuits locaux (`2027-03-21T23:00Z` → `2027-03-28T22:00Z`, soit 167 h).
 - **CA35** Given un utilisateur dont le fuseau en base vaut `Mars/Olympus`, When planification, Then il est ignoré, les autres fuseaux sont traités, et le journal ne contient que le nombre de fuseaux invalides.
 
 ### Fréquence
@@ -700,3 +700,17 @@ WhatsApp ou SMS comme canal, notifications dans le navigateur, centre de notific
 - /home/cabrel/projects/brandself-app/brandself-app/app/pages/studio/index.vue, compte.vue
 - /home/cabrel/projects/brandself-app/brandself-app/server/resources/vitrine.ts (`statistiques7j` à 0 en dur, ligne 49)
 - /home/cabrel/projects/brandself-app/brandself-app/worker/index.ts
+
+---
+
+## 14. Arbitrages de l'orchestrateur (2026-11-03, après relecture du tester)
+
+1. **CA34 corrigé** : la semaine du lundi 22 mars 2027 (00:00 CET) commence le `2027-03-21T23:00Z` ; elle finit le `2027-03-28T22:00Z` (167 h).
+2. **Dates du résumé** : le premier jour du mois s'écrit « 1er » (`Intl fr-FR` donne « 1 ») ; formateur pur et testé.
+3. **Lien du résumé** : `partager` renvoie `{site}/studio` ; la suggestion par défaut renvoie son propre chemin (`SUGGESTION_RESUME_DEFAUT.chemin`), la constante fait foi.
+4. **Règle des 2 h du rappel visiteur** : conservée comme garde défensive (inatteignable avec les valeurs par défaut, car le retard maximal de 6 h la couvre déjà) ; documentée, testée seulement par configuration injectée.
+5. **`updateMe`** : les propriétés Drizzle sont `email_hebdo` et `email_rappel_jour` ; un mapping explicite est obligatoire (lot C), sinon la préférence n'est pas enregistrée.
+6. **Jeton inutilisable** (mal formé, signature fausse, version inconnue) : toujours **404 `JETON_INVALIDE`** sur GET et POST, jamais 400 (la validation Zod du jeton est interne au service) ; 410 `JETON_EXPIRE` seulement pour un jeton authentique expiré.
+7. **`rappel_email` à false à l'envoi** : code d'annulation `PREFERENCE_DESACTIVEE`.
+8. **Routes studio S9** : DTO nu, sans fichier ressource.
+9. **Couplage de déploiement** : la cible `ON CONFLICT` de `insertTransactionalEmailEvents` passe à 4 colonnes (avec `occurrence`) dans le même lot que la migration 0020 (lot B2).
