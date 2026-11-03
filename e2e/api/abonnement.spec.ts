@@ -76,7 +76,8 @@ test.describe.serial('abonnement, paiements, tarifs et webhook', () => {
 
     expect(reponse.status()).toBe(200)
     const texte = await reponse.text()
-    const { abonnement } = JSON.parse(texte) as { abonnement: Record<string, unknown> & { quotas: Array<{ ressource: string }>, offre: { paiementDisponible: boolean, devises: Array<{ devise: string }>, moyens: unknown[] } } }
+    // La route renvoie l'AbonnementDTO nu (spec §4), sans enveloppe.
+    const abonnement = JSON.parse(texte) as Record<string, unknown> & { quotas: Array<{ ressource: string }>, offre: { paiementDisponible: boolean, devises: Array<{ devise: string }>, moyens: unknown[] } }
     expect(abonnement).toMatchObject({ plan: 'gratuit', etat: 'gratuit', renouvellementAutomatique: false, paiementEnCours: null })
     expect(abonnement.quotas.map((q) => q.ressource).sort()).toEqual(['generations_ia_mois', 'realisations', 'reservations_mois', 'services', 'temoignages'])
     expect(abonnement.offre.paiementDisponible).toBe(abonnement.offre.devises.length > 0 && abonnement.offre.moyens.length > 0)
@@ -123,11 +124,15 @@ test.describe.serial('abonnement, paiements, tarifs et webhook', () => {
     expect((JSON.parse(texte) as { paiement: Record<string, unknown> }).paiement).toMatchObject({ id, statut: 'en_attente', montant: 5000, devise: 'XAF', telephoneMasque: '+237 6•• ••• •89', messageEchec: null })
     for (const interdit of [...ASCII_SANS_SECRET, '653456789', 'tx_']) expect(texte).not.toContain(interdit)
     const corps = await attendreErreur(intrus, 404, 'PAIEMENT_INTROUVABLE')
-    expect(JSON.stringify(corps)).not.toContain(id)
+    // Aucun oracle : le paiement d'autrui répond exactement comme un identifiant inconnu (seule l'URL demandée, que l'appelant a lui-même fournie, diffère).
+    const inconnuId = randomUUID()
+    const inconnu = await attendreErreur(await autre.api.get(`/api/studio/abonnement/paiements/${inconnuId}`), 404, 'PAIEMENT_INTROUVABLE')
+    const normaliser = (valeur: unknown, ident: string): string => JSON.stringify(valeur).split(ident).join('<id>')
+    expect(normaliser(corps, id)).toBe(normaliser(inconnu, inconnuId))
   })
 
   test('the ongoing payment is part of GET /api/studio/abonnement (a reload resumes the waiting screen)', async () => {
-    const { abonnement } = (await (await session.api.get('/api/studio/abonnement')).json()) as { abonnement: { paiementEnCours: { statut: string } | null } }
+    const abonnement = (await (await session.api.get('/api/studio/abonnement')).json()) as { paiementEnCours: { statut: string } | null }
 
     expect(abonnement.paiementEnCours?.statut).toBe('en_attente')
   })
@@ -159,9 +164,10 @@ test.describe.serial('abonnement, paiements, tarifs et webhook', () => {
     await attendreErreur(reponse, 404, 'FOURNISSEUR_INCONNU')
   })
 
-  test('CA48 an announced body over the limit is refused with 413 before being read', async () => {
+  test('CA48 an announced body over the limit is refused with 413', async () => {
     const url = new URL(BASE_URL)
-    const reponse = await requeteBrute({ method: 'POST', path: '/api/webhooks/kpay', headers: { host: url.host, 'content-type': 'application/json', 'content-length': String(CORPS_MAX + 1) }, corps: null })
+    const reponse = await requeteBrute({ method: 'POST', path: '/api/webhooks/kpay', headers: { host: url.host, 'content-type': 'application/json', 'content-length': String(CORPS_MAX + 1) }, corps: Buffer.alloc(CORPS_MAX + 1, 'x') })
+    // Le refus AVANT lecture du corps est prouvé en intégration (webhook-kpay-route) ; le proxy de dev Vite attend le corps annoncé, d'où l'envoi réel ici.
 
     expect(reponse.status).toBe(413)
     expect(JSON.parse(reponse.corps) as ErreurCorps).toMatchObject({ data: { code: 'CORPS_TROP_GROS' } })
@@ -178,7 +184,7 @@ test.describe.serial('abonnement, paiements, tarifs et webhook', () => {
     const id = await insererPaiementOuvert(session.userId, 5000)
     const corps = corpsCompleted(id, 5000)
     const attenduStatut = SECRET === undefined ? 503 : 401
-    const attenduCode = SECRET === undefined ? 'WEBHOOK_NON_CONFIGURE' : 'SIGNATURE_INVALIDE'
+    const attenduCode = SECRET === undefined ? 'PAIEMENT_INDISPONIBLE' : 'SIGNATURE_INVALIDE'
 
     const sansEntete = await sansSession.post('/api/webhooks/kpay', { data: corps, headers: { 'content-type': 'application/json' } })
     const fausse = await sansSession.post('/api/webhooks/kpay', { data: corps, headers: { 'content-type': 'application/json', 'x-kpay-signature': 'a'.repeat(64) } })
@@ -200,8 +206,8 @@ test.describe.serial('abonnement, paiements, tarifs et webhook', () => {
     const rejeu = await sansSession.post('/api/webhooks/kpay', { data: corps, headers: entetes })
 
     if (SECRET === undefined) {
-      await attendreErreur(premier, 503, 'WEBHOOK_NON_CONFIGURE')
-      await attendreErreur(rejeu, 503, 'WEBHOOK_NON_CONFIGURE')
+      await attendreErreur(premier, 503, 'PAIEMENT_INDISPONIBLE')
+      await attendreErreur(rejeu, 503, 'PAIEMENT_INDISPONIBLE')
       return
     }
     expect(premier.status()).toBe(200)
@@ -212,16 +218,16 @@ test.describe.serial('abonnement, paiements, tarifs et webhook', () => {
     expect(abonnement.rows).toHaveLength(1)
     const evenements = await db().query<{ n: string }>('SELECT count(*)::text AS n FROM evenements_paiement WHERE paiement_id = $1', [id])
     expect(evenements.rows[0].n).toBe('1')
-    const vue = (await (await autre.api.get('/api/studio/abonnement')).json()) as { abonnement: { plan: string, etat: string, joursRestants: number | null } }
-    expect(vue.abonnement).toMatchObject({ plan: 'payant', etat: 'actif' })
-    expect(vue.abonnement.joursRestants).toBeGreaterThanOrEqual(28)
+    const vue = (await (await autre.api.get('/api/studio/abonnement')).json()) as { plan: string, etat: string, joursRestants: number | null }
+    expect(vue).toMatchObject({ plan: 'payant', etat: 'actif' })
+    expect(vue.joursRestants).toBeGreaterThanOrEqual(28)
   })
 
   test('CA42 a signed completed webhook with the wrong amount activates nothing and still answers 200 { recu: true }', async () => {
     const id = await insererPaiementOuvert(session.userId, 5000)
     const corps = corpsCompleted(id, 4000)
     if (SECRET === undefined) {
-      await attendreErreur(await sansSession.post('/api/webhooks/kpay', { data: corps, headers: { 'content-type': 'application/json' } }), 503, 'WEBHOOK_NON_CONFIGURE')
+      await attendreErreur(await sansSession.post('/api/webhooks/kpay', { data: corps, headers: { 'content-type': 'application/json' } }), 503, 'PAIEMENT_INDISPONIBLE')
       return
     }
 
@@ -235,16 +241,17 @@ test.describe.serial('abonnement, paiements, tarifs et webhook', () => {
     expect(abonnement.rows).toHaveLength(0)
   })
 
-  test('CA49 a signed but unreadable JSON is a 400 CORPS_ILLISIBLE', async () => {
+  test('CA49 a signed but unreadable JSON is a retryable 503 (K-PAY never retries a 4xx), never a silent 400', async () => {
     const corps = '{"event": "payment.completed", '
     if (SECRET === undefined) {
-      await attendreErreur(await sansSession.post('/api/webhooks/kpay', { data: corps, headers: { 'content-type': 'application/json' } }), 503, 'WEBHOOK_NON_CONFIGURE')
+      await attendreErreur(await sansSession.post('/api/webhooks/kpay', { data: corps, headers: { 'content-type': 'application/json' } }), 503, 'PAIEMENT_INDISPONIBLE')
       return
     }
 
-    const reponse = await sansSession.post('/api/webhooks/kpay', { data: corps, headers: { 'content-type': 'application/json', 'x-kpay-signature': signer(corps, SECRET) } })
+    // Buffer : Playwright re-sérialiserait un texte JSON invalide (guillemets), le corps ne serait plus celui qui est signé.
+    const reponse = await sansSession.post('/api/webhooks/kpay', { data: Buffer.from(corps, 'utf8'), headers: { 'content-type': 'application/json', 'x-kpay-signature': signer(corps, SECRET) } })
 
-    await attendreErreur(reponse, 400, 'CORPS_ILLISIBLE')
+    await attendreErreur(reponse, 503, 'PAIEMENT_INDISPONIBLE')
   })
 
   test('CA99 a session cookie or a foreign Origin has no effect on the webhook : the signature is the only authorization', async () => {

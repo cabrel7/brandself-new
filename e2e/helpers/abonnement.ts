@@ -133,7 +133,7 @@ export interface OffreApi {
 export async function lireOffre(api: APIRequestContext): Promise<OffreApi> {
   const reponse = await api.get('/api/studio/abonnement')
   expect(reponse.status()).toBe(200)
-  return ((await reponse.json()) as { abonnement: { offre: OffreApi } }).abonnement.offre
+  return ((await reponse.json()) as { offre: OffreApi }).offre
 }
 
 /** Montant de l'API formaté comme l'interface (espace insécable fine d'Intl remplacée par une espace simple). */
@@ -150,6 +150,8 @@ export class CarteAbonnementPage {
   constructor(readonly page: Page) {}
 
   async ouvrir(requete = ''): Promise<void> {
+    // Même URL + ancre que le test précédent = navigation dans le même document, sans rechargement : on repart d'une page vide.
+    await this.page.goto('about:blank')
     await ouvrirStudio(this.page, `/studio/compte${requete}${ANCRE_ABONNEMENT}`)
     await expect(this.titre()).toBeVisible({ timeout: DELAI_ECRAN_MS })
   }
