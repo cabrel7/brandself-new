@@ -119,6 +119,16 @@ const ROUTES_S9: Route[] = [
   { methode: 'PUT', chemin: '/api/studio/moi', corps: { emailHebdo: 'non' }, titre: 'CA32 PUT /api/studio/moi répond 401 (préférences invalides)' },
 ]
 
+// S10 (CA95) : abonnement et paiement. Corps invalides : l'authentification passe AVANT la validation (401, pas 400).
+// Un identifiant mal formé reste un 401 sans session (jamais un 400 ni un 404).
+const ROUTES_S10: Route[] = [
+  { methode: 'GET', chemin: '/api/studio/abonnement' },
+  { methode: 'POST', chemin: '/api/studio/abonnement/paiements', corps: {}, titre: 'CA32 POST /api/studio/abonnement/paiements répond 401 (corps vide)' },
+  { methode: 'POST', chemin: '/api/studio/abonnement/paiements', corps: { periodeMois: 6, devise: 'EUR', moyen: 'x', telephone: '1', montant: 1 }, titre: 'CA32 POST /api/studio/abonnement/paiements répond 401 (corps invalide)' },
+  { methode: 'GET', chemin: `/api/studio/abonnement/paiements/${ID}` },
+  { methode: 'GET', chemin: '/api/studio/abonnement/paiements/pas-un-uuid' },
+]
+
 const TOUTES_LES_ROUTES: Route[] = [
   ...ROUTES_S2,
   ...ROUTES_S3,
@@ -127,6 +137,7 @@ const TOUTES_LES_ROUTES: Route[] = [
   ...ROUTES_S7,
   ...ROUTES_S8,
   ...ROUTES_S9,
+  ...ROUTES_S10,
 ]
 
 test.describe('CA32 /api/studio/** sans session', () => {

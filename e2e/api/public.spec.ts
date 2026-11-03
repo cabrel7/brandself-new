@@ -7,7 +7,7 @@ import type { Session } from '../helpers/session'
 // CA13 (vitrine publique : liste blanche, aucune fuite) et CA33 (404 uniforme, message intact).
 
 const CLES_DTO_PUBLIC = [
-  'accroche', 'bio', 'contact', 'fuseau', 'metier', 'nom', 'nomAffiche', 'palette', 'pays',
+  'accroche', 'badgeBrandself', 'bio', 'contact', 'fuseau', 'metier', 'nom', 'nomAffiche', 'palette', 'pays',
   'paysLibelle', 'photo', 'prenom', 'seo', 'titre', 'username', 'ville',
 ].sort()
 

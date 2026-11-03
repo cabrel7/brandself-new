@@ -87,11 +87,13 @@ describe('shared/notifications.ts : valeurs décidées (#84, #86, #87, #88, #92,
     expect([...N.EMAIL_STATUTS]).toEqual(['en_attente', 'en_cours', 'envoye', 'echec', 'annule'])
   })
 
-  it('should list nine cancellation codes that fit the erreur_code CHECK (A-Z0-9_, 1 to 64 characters)', () => {
+  it('should list eleven cancellation codes (nine S9 + two S10) that fit the erreur_code CHECK (A-Z0-9_, 1 to 64 characters)', () => {
     expect([...N.CODES_ANNULATION].sort()).toEqual([
+      'ABONNEMENT_RENOUVELE',
       'AUCUN_RENDEZ_VOUS',
       'DESTINATAIRE_ABSENT',
       'ENTITE_INTROUVABLE',
+      'PAIEMENT_NON_REUSSI',
       'PLAFOND_RELATIONNEL',
       'PREFERENCE_DESACTIVEE',
       'RAPPEL_PERIME',
@@ -111,7 +113,7 @@ describe('shared/notifications.ts : valeurs décidées (#84, #86, #87, #88, #92,
 })
 
 describe('shared/jobs.ts : types d’e-mails et jobs (#81, #82)', () => {
-  it('should add the three planned e-mail types after the eight historical ones, without duplicates', () => {
+  it('should add the three planned e-mail types (S9) then the two subscription ones (S10) after the eight historical ones, without duplicates', () => {
     expect([...TRANSACTIONAL_EMAIL_TYPES]).toEqual([
       'reservation_professionnel_nouvelle',
       'reservation_visiteur_recue',
@@ -124,13 +126,15 @@ describe('shared/jobs.ts : types d’e-mails et jobs (#81, #82)', () => {
       'reservation_visiteur_rappel',
       'utilisateur_resume_hebdo',
       'utilisateur_rappel_journee',
+      'abonnement_rappel',
+      'paiement_confirme',
     ])
     expect(new Set(TRANSACTIONAL_EMAIL_TYPES).size).toBe(TRANSACTIONAL_EMAIL_TYPES.length)
   })
 
   it('should prefix every type with the entity it belongs to (the coherence CHECK reads the prefix)', () => {
     for (const type of TRANSACTIONAL_EMAIL_TYPES) {
-      expect(type).toMatch(/^(reservation|demande|message|utilisateur)_/)
+      expect(type).toMatch(/^(reservation|demande|message|utilisateur|abonnement|paiement)_/)
     }
     expect(TRANSACTIONAL_EMAIL_TYPES.filter((type) => type.startsWith('utilisateur_'))).toEqual([
       'utilisateur_resume_hebdo',

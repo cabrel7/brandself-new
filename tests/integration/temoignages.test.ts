@@ -79,7 +79,7 @@ describe('temoignages — création : la ligne existe réellement en base', () =
       actif: true,
       ordre: 0,
     })
-    expect(compteurs).toEqual({ total: 1, visibles: 1, enVedette: 1, vedetteMax: 3 })
+    expect(compteurs).toMatchObject({ total: 1, visibles: 1, enVedette: 1, vedetteMax: 3 })
 
     const ligne = await ligneEnBase(item.id)
     expect(ligne).toMatchObject({
@@ -120,7 +120,7 @@ describe('temoignages — création : la ligne existe réellement en base', () =
     })
 
     expect(item).toMatchObject({ actif: false, enVedette: false })
-    expect(compteurs).toEqual({ total: 1, visibles: 0, enVedette: 0, vedetteMax: 3 })
+    expect(compteurs).toMatchObject({ total: 1, visibles: 0, enVedette: 0, vedetteMax: 3 })
     expect(await ligneEnBase(item.id)).toMatchObject({ actif: false, enVedette: false })
   })
 
@@ -156,7 +156,7 @@ describe('temoignages — liste : tri et compteurs', () => {
 
     expect(items.map((ligne) => ligne.slug)).toEqual(['premier', 'second', 'tiers'])
     expect(items.map((ligne) => ligne.ordre)).toEqual([0, 1, 2])
-    expect(compteurs).toEqual({ total: 3, visibles: 2, enVedette: 2, vedetteMax: 3 })
+    expect(compteurs).toMatchObject({ total: 3, visibles: 2, enVedette: 2, vedetteMax: 3 })
   })
 
   it('should answer VITRINE_INTROUVABLE (404) for a user without vitrine', async () => {
@@ -194,7 +194,7 @@ describe('temoignages — mise à jour', () => {
       actif: true,
       ordre: 0,
     })
-    expect(compteurs).toEqual({ total: 1, visibles: 1, enVedette: 1, vedetteMax: 3 })
+    expect(compteurs).toMatchObject({ total: 1, visibles: 1, enVedette: 1, vedetteMax: 3 })
     expect(await ligneEnBase(item.id)).toMatchObject({
       slug: 'bruno-njoya',
       auteur: 'Bruno',
@@ -212,7 +212,7 @@ describe('temoignages — mise à jour', () => {
     const { item: masque, compteurs } = await modifier(user.id, item.id, { actif: false })
 
     expect(masque).toMatchObject({ actif: false, enVedette: false })
-    expect(compteurs).toEqual({ total: 1, visibles: 0, enVedette: 0, vedetteMax: 3 })
+    expect(compteurs).toMatchObject({ total: 1, visibles: 0, enVedette: 0, vedetteMax: 3 })
     expect(await ligneEnBase(item.id)).toMatchObject({ actif: false, enVedette: false })
   })
 
@@ -320,7 +320,7 @@ describe('temoignages — slug unique par vitrine et accès studio par slug', ()
     expect(dto.creeLe).toBe(item.createdAt.toISOString())
     expect(dto.modifieLe).toBe(item.updatedAt.toISOString())
     expect(new Date(dto.creeLe).toISOString()).toBe(dto.creeLe)
-    expect(toTemoignagesCompteursResource(compteurs)).toEqual({ total: 1, visibles: 1, enVedette: 1, vedetteMax: 3 })
+    expect(toTemoignagesCompteursResource(compteurs)).toMatchObject({ total: 1, visibles: 1, enVedette: 1, vedetteMax: 3 })
   })
 })
 

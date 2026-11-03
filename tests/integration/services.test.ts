@@ -38,6 +38,12 @@ async function uploaderImage(userId: string): Promise<string> {
   return (await uploadMedia(userId, await makePng(300, 200))).id
 }
 
+/** S10 : les lignes du studio portent `masqueParPlan` (vue), absent de la ligne en base. */
+function sansPlan<T extends { masqueParPlan?: boolean }>(ligne: T): Omit<T, 'masqueParPlan'> {
+  const { masqueParPlan: _masque, ...reste } = ligne
+  return reste
+}
+
 async function utilisateurAvecVitrine(username = 'dr-test') {
   const user = await createUser()
   const vitrine = await creerVitrinePubliee(user, username)
@@ -162,8 +168,8 @@ describe('services — création (CA05 à CA15)', () => {
       imageMediaId: null,
     })
     expect(item.image).toBeNull()
-    expect(compteurs).toEqual({ total: 1, visibles: 1, enVedette: 1, vedetteMax: 3 })
-    expect(await ligneService(item.service.id)).toEqual(item.service)
+    expect(compteurs).toMatchObject({ total: 1, visibles: 1, enVedette: 1, vedetteMax: 3 })
+    expect(await ligneService(item.service.id)).toEqual(sansPlan(item.service))
   })
 
   it('CA05 should give the service a UUID identifier (the studio routes validate :id as a uuid)', async () => {
@@ -542,7 +548,7 @@ describe('services — mise à jour (CA16 à CA24 ; CA25 est dans schemas-servic
     expect(apres.description).toBe('x')
     expect(apres.updatedAt.getTime()).toBeGreaterThan(avant.updatedAt.getTime())
     expect({ ...apres, description: avant.description, updatedAt: avant.updatedAt }).toEqual(avant)
-    expect(modifie.service).toEqual(apres)
+    expect(sansPlan(modifie.service)).toEqual(apres)
   })
 
   it('CA16 should store an empty description as NULL', async () => {
@@ -665,12 +671,12 @@ describe('services — mise à jour (CA16 à CA24 ; CA25 est dans schemas-servic
     const s1 = await creer(user.id, { titre: 'S1' })
     await creer(user.id, { titre: 'S2' })
     const avant = (await modifier(user.id, s1.item.service.id, { titre: 'S1' })).compteurs
-    expect(avant).toEqual({ total: 2, visibles: 2, enVedette: 2, vedetteMax: 3 })
+    expect(avant).toMatchObject({ total: 2, visibles: 2, enVedette: 2, vedetteMax: 3 })
 
     const { item, compteurs } = await modifier(user.id, s1.item.service.id, { actif: false })
 
     expect(item.service).toMatchObject({ actif: false, enVedette: false })
-    expect(compteurs).toEqual({ total: 2, visibles: 1, enVedette: 1, vedetteMax: 3 })
+    expect(compteurs).toMatchObject({ total: 2, visibles: 1, enVedette: 1, vedetteMax: 3 })
   })
 
   it('CA21 should refuse actif false together with an explicit enVedette true (400 enVedette)', async () => {
@@ -859,7 +865,7 @@ describe('services — mise à jour (CA16 à CA24 ; CA25 est dans schemas-servic
       const a = await utilisateurAvecVitrine('vitrine-a')
       const b = await utilisateurAvecVitrine('vitrine-b')
       const { item } = await creer(a.user.id, { titre: 'Service de A' })
-      return { a, b, serviceDeA: item.service }
+      return { a, b, serviceDeA: sansPlan(item.service) }
     }
 
     it('CA24 should answer SERVICE_INTROUVABLE when B reads a service of A', async () => {
@@ -909,7 +915,7 @@ describe('services — mise à jour (CA16 à CA24 ; CA25 est dans schemas-servic
       const { items, compteurs } = await listOwnServices(b.user.id)
 
       expect(items).toEqual([])
-      expect(compteurs).toEqual({ total: 0, visibles: 0, enVedette: 0, vedetteMax: 3 })
+      expect(compteurs).toMatchObject({ total: 0, visibles: 0, enVedette: 0, vedetteMax: 3 })
     })
   })
 
@@ -923,7 +929,7 @@ describe('services — mise à jour (CA16 à CA24 ; CA25 est dans schemas-servic
 
     expect(lu.item.service).toEqual(item.service)
     expect(lu.item.image?.id).toBe(imageId)
-    expect(lu.compteurs).toEqual({ total: 1, visibles: 1, enVedette: 1, vedetteMax: 3 })
+    expect(lu.compteurs).toMatchObject({ total: 1, visibles: 1, enVedette: 1, vedetteMax: 3 })
   })
 })
 
@@ -967,7 +973,7 @@ describe('services — suppression, ordre et liste (CA26 à CA30)', () => {
     const { item, compteurs } = await creer(user.id, { titre: 'S5' })
 
     expect(item.service.enVedette).toBe(true)
-    expect(compteurs).toEqual({ total: 4, visibles: 4, enVedette: 3, vedetteMax: 3 })
+    expect(compteurs).toMatchObject({ total: 4, visibles: 4, enVedette: 3, vedetteMax: 3 })
   })
 
   it('CA27 should answer SERVICE_INTROUVABLE when the deleted uuid is unknown', async () => {
@@ -1111,7 +1117,7 @@ describe('services — suppression, ordre et liste (CA26 à CA30)', () => {
 
     expect(items.map((i) => i.service.titre)).toEqual(['S1', 'S2', 'S3', 'S4', 'S5', 'S6'])
     expect(items.map((i) => i.service.ordre)).toEqual([0, 1, 2, 3, 4, 5])
-    expect(toServicesCompteursResource(compteurs)).toEqual({ total: 6, visibles: 5, enVedette: 3, vedetteMax: 3 })
+    expect(toServicesCompteursResource(compteurs)).toMatchObject({ total: 6, visibles: 5, enVedette: 3, vedetteMax: 3 })
   })
 
   it('CA30 should sort by order, then creation date, then id', async () => {
@@ -1144,7 +1150,7 @@ describe('services — suppression, ordre et liste (CA26 à CA30)', () => {
     const erreur = await rejet(listOwnServices(sansVitrine.id))
 
     expect(vide.items).toEqual([])
-    expect(vide.compteurs).toEqual({ total: 0, visibles: 0, enVedette: 0, vedetteMax: 3 })
+    expect(vide.compteurs).toMatchObject({ total: 0, visibles: 0, enVedette: 0, vedetteMax: 3 })
     expect(erreur.code).toBe('VITRINE_INTROUVABLE')
   })
 

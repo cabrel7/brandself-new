@@ -513,7 +513,7 @@ describe('vitrines — publication (CA10 à CA13)', () => {
     const EMAIL_COMPTE = 'compte-prive@exemple.com'
     const TELEPHONE_COMPTE = '+237600000001'
     const CLES_ATTENDUES = [
-      'accroche', 'bio', 'contact', 'fuseau', 'metier', 'nom', 'nomAffiche', 'palette', 'paysLibelle',
+      'accroche', 'badgeBrandself', 'bio', 'contact', 'fuseau', 'metier', 'nom', 'nomAffiche', 'palette', 'paysLibelle',
       'pays', 'photo', 'prenom', 'seo', 'titre', 'username', 'ville',
     ].sort()
 
@@ -831,7 +831,7 @@ describe('vitrines — résumé du studio (CA17)', () => {
 
 describe('vitrines — compteurs de navigation publique (S4-CA41)', () => {
   const CLES_DTO_PUBLIC = [
-    'accroche', 'bio', 'contact', 'fuseau', 'metier', 'nom', 'nomAffiche', 'palette', 'pays',
+    'accroche', 'badgeBrandself', 'bio', 'contact', 'fuseau', 'metier', 'nom', 'nomAffiche', 'palette', 'pays',
     'paysLibelle', 'photo', 'prenom', 'seo', 'titre', 'username', 'ville',
   ].sort()
 
@@ -858,9 +858,10 @@ describe('vitrines — compteurs de navigation publique (S4-CA41)', () => {
 
     const page = await getPublicVitrinePage('dr-test')
 
-    expect(page.contenus).toEqual({ services: 5, realisations: 3, agenda: false })
-    expect(toContenusPublicsResource(page.contenus)).toEqual({ services: 5, realisations: 3, agenda: false })
-    expect(Object.keys(toVitrinePublicResource(page.vitrine)).sort()).toEqual(CLES_DTO_PUBLIC)
+    // S10 : 5 services actifs sur le plan gratuit (limite 3) -> la navigation n'en compte que 3 (les plus anciens).
+    expect(page.contenus).toEqual({ services: 3, realisations: 3, agenda: false })
+    expect(toContenusPublicsResource(page.contenus)).toEqual({ services: 3, realisations: 3, agenda: false })
+    expect(Object.keys(toVitrinePublicResource(page.vitrine, page.badgeBrandself)).sort()).toEqual(CLES_DTO_PUBLIC)
     expect(page.vitrine.vitrine.username).toBe('dr-test')
   })
 
@@ -905,7 +906,7 @@ describe('vitrines — compteurs de navigation publique (S4-CA41)', () => {
     }
   })
 
-  it('CA41 should cost exactly one query more than getPublicVitrine (both counts in a single statement)', async () => {
+  it('CA41 should cost exactly two queries more than getPublicVitrine : the plan lookup (S10) and both counts in a single statement', async () => {
     const { getPublicVitrine, getPublicVitrinePage } = await vitrinesService()
     await vitrinePubliee()
     const compter = async (action: () => Promise<unknown>) => {
@@ -921,6 +922,7 @@ describe('vitrines — compteurs de navigation publique (S4-CA41)', () => {
     const base = await compter(() => getPublicVitrine('dr-test'))
     const page = await compter(() => getPublicVitrinePage('dr-test'))
 
-    expect(page - base).toBe(1)
+    // S10 : une requête pour le plan de la vitrine (badge, limites), une pour les compteurs et le drapeau agenda.
+    expect(page - base).toBe(2)
   })
 })

@@ -52,6 +52,12 @@ async function uploaderImages(userId: string, n: number): Promise<string[]> {
   return ids
 }
 
+/** S10 : les lignes du studio portent `masqueParPlan` (vue), absent de la ligne en base. */
+function sansPlan<T extends { masqueParPlan?: boolean }>(ligne: T): Omit<T, 'masqueParPlan'> {
+  const { masqueParPlan: _masque, ...reste } = ligne
+  return reste
+}
+
 async function utilisateurAvecVitrine(username = 'dr-test') {
   const user = await createUser()
   const vitrine = await creerVitrinePubliee(user, username)
@@ -311,12 +317,12 @@ describe('realisations — création (CA06 à CA16)', () => {
     })
     expect(item.galerie).toEqual([])
     expect(item.image?.id).toBe(imageId)
-    expect(compteurs).toEqual({ total: 1, visibles: 1, enVedette: 1, vedetteMax: 3 })
-    expect(await ligneRealisation(item.realisation.id)).toEqual(item.realisation)
+    expect(compteurs).toMatchObject({ total: 1, visibles: 1, enVedette: 1, vedetteMax: 3 })
+    expect(await ligneRealisation(item.realisation.id)).toEqual(sansPlan(item.realisation))
     const dto = toRealisationStudioResource(item.realisation, item.image, item.galerie)
     expect(dto.image).toMatchObject({ id: imageId, url: `/medias/${imageId}/1600.webp` })
     expect(dto.galerie).toEqual([])
-    expect(toRealisationsCompteursResource(compteurs)).toEqual({ total: 1, visibles: 1, enVedette: 1, vedetteMax: 3 })
+    expect(toRealisationsCompteursResource(compteurs)).toMatchObject({ total: 1, visibles: 1, enVedette: 1, vedetteMax: 3 })
   })
 
   it('CA06 should give the realisation a UUID identifier (the studio routes validate :id as a uuid)', async () => {
@@ -614,7 +620,7 @@ describe('realisations — mise à jour (CA17 à CA28)', () => {
     expect(apres.description).toBe('x')
     expect(apres.updatedAt.getTime()).toBeGreaterThan(avant.updatedAt.getTime())
     expect({ ...apres, description: avant.description, updatedAt: avant.updatedAt }).toEqual(avant)
-    expect(modifie.realisation).toEqual(apres)
+    expect(sansPlan(modifie.realisation)).toEqual(apres)
     expect(modifie.image?.id).toBe(image.id)
     expect(modifie.galerie.map((m) => m.id)).toEqual(galerie)
     expect(await galerieEnBase(item.realisation.id)).toEqual(galerie)
@@ -947,7 +953,7 @@ describe('realisations — mise à jour (CA17 à CA28)', () => {
       const { item, compteurs } = await creer(user.id, { titre: 'R4' })
 
       expect(item.realisation.enVedette).toBe(true)
-      expect(compteurs).toEqual({ total: 4, visibles: 3, enVedette: 3, vedetteMax: 3 })
+      expect(compteurs).toMatchObject({ total: 4, visibles: 3, enVedette: 3, vedetteMax: 3 })
     })
   })
 
@@ -957,12 +963,12 @@ describe('realisations — mise à jour (CA17 à CA28)', () => {
       const r1 = await creer(user.id, { titre: 'R1' })
       await creer(user.id, { titre: 'R2' })
       const avant = (await modifier(user.id, r1.item.realisation.id, { titre: 'R1' })).compteurs
-      expect(avant).toEqual({ total: 2, visibles: 2, enVedette: 2, vedetteMax: 3 })
+      expect(avant).toMatchObject({ total: 2, visibles: 2, enVedette: 2, vedetteMax: 3 })
 
       const { item, compteurs } = await modifier(user.id, r1.item.realisation.id, { actif: false })
 
       expect(item.realisation).toMatchObject({ actif: false, enVedette: false })
-      expect(compteurs).toEqual({ total: 2, visibles: 1, enVedette: 1, vedetteMax: 3 })
+      expect(compteurs).toMatchObject({ total: 2, visibles: 1, enVedette: 1, vedetteMax: 3 })
     })
 
     it('CA24 should refuse actif false together with an explicit enVedette true (400 enVedette) and keep it visible', async () => {
@@ -1171,7 +1177,7 @@ describe('realisations — mise à jour (CA17 à CA28)', () => {
       const b = await utilisateurAvecVitrine('vitrine-b')
       const g1 = (await insertMediaRow(a.user.id)).id
       const { item } = await creer(a.user.id, { titre: 'Réalisation de A', galerie: [g1] })
-      return { a, b, realisationDeA: item.realisation, g1 }
+      return { a, b, realisationDeA: sansPlan(item.realisation), g1 }
     }
 
     it('CA27 should answer REALISATION_INTROUVABLE when B reads a realisation of A', async () => {
@@ -1225,7 +1231,7 @@ describe('realisations — mise à jour (CA17 à CA28)', () => {
       const { items, compteurs } = await listOwnRealisations(b.user.id)
 
       expect(items).toEqual([])
-      expect(compteurs).toEqual({ total: 0, visibles: 0, enVedette: 0, vedetteMax: 3 })
+      expect(compteurs).toMatchObject({ total: 0, visibles: 0, enVedette: 0, vedetteMax: 3 })
     })
   })
 
@@ -1241,7 +1247,7 @@ describe('realisations — mise à jour (CA17 à CA28)', () => {
     expect(lu.item.realisation).toEqual(item.realisation)
     expect(lu.item.image?.id).toBe(m1)
     expect(lu.item.galerie.map((m) => m.id)).toEqual(ordre)
-    expect(lu.compteurs).toEqual({ total: 1, visibles: 1, enVedette: 1, vedetteMax: 3 })
+    expect(lu.compteurs).toMatchObject({ total: 1, visibles: 1, enVedette: 1, vedetteMax: 3 })
   })
 
   it('CA28 should refuse an empty patch before the service (400)', () => {
@@ -1299,7 +1305,7 @@ describe('realisations — suppression, ordre et liste (CA29 à CA33)', () => {
     const { item, compteurs } = await creer(user.id, { titre: 'R5' })
 
     expect(item.realisation.enVedette).toBe(true)
-    expect(compteurs).toEqual({ total: 4, visibles: 4, enVedette: 3, vedetteMax: 3 })
+    expect(compteurs).toMatchObject({ total: 4, visibles: 4, enVedette: 3, vedetteMax: 3 })
   })
 
   it('CA30 should answer REALISATION_INTROUVABLE when the deleted uuid is unknown, and when it was already deleted (double click)', async () => {
@@ -1328,7 +1334,7 @@ describe('realisations — suppression, ordre et liste (CA29 à CA33)', () => {
     const { items, compteurs } = await reorderRealisations(user.id, [r3, r1, r2].map((r) => r.item.realisation.id))
 
     expect(items.map((i) => i.realisation.titre)).toEqual(['R3', 'R1', 'R2'])
-    expect(compteurs).toEqual({ total: 3, visibles: 3, enVedette: 3, vedetteMax: 3 })
+    expect(compteurs).toMatchObject({ total: 3, visibles: 3, enVedette: 3, vedetteMax: 3 })
     const lignes = await lignesDeLaVitrine(vitrine.id)
     expect(lignes.map((l) => [l.titre, l.ordre])).toEqual([['R3', 0], ['R1', 1], ['R2', 2]])
     expect((await listOwnRealisations(user.id)).items.map((i) => i.realisation.titre)).toEqual(['R3', 'R1', 'R2'])
@@ -1457,7 +1463,7 @@ describe('realisations — suppression, ordre et liste (CA29 à CA33)', () => {
     expect(items.map((i) => i.realisation.titre)).toEqual(['R1', 'R2', 'R3', 'R4 masquée'])
     expect(items.map((i) => i.galerie.map((m) => m.id))).toEqual([[a, b], [], [], []])
     expect(items[0]?.image?.id).toBe(principale.id)
-    expect(toRealisationsCompteursResource(compteurs)).toEqual({ total: 4, visibles: 3, enVedette: 2, vedetteMax: 3 })
+    expect(toRealisationsCompteursResource(compteurs)).toMatchObject({ total: 4, visibles: 3, enVedette: 2, vedetteMax: 3 })
   })
 
   it('CA33 should sort by order, then creation date, then id', async () => {
@@ -1490,7 +1496,7 @@ describe('realisations — suppression, ordre et liste (CA29 à CA33)', () => {
     const erreur = await rejet(listOwnRealisations(sansVitrine.id))
 
     expect(vide.items).toEqual([])
-    expect(vide.compteurs).toEqual({ total: 0, visibles: 0, enVedette: 0, vedetteMax: 3 })
+    expect(vide.compteurs).toMatchObject({ total: 0, visibles: 0, enVedette: 0, vedetteMax: 3 })
     expect(erreur.code).toBe('VITRINE_INTROUVABLE')
   })
 

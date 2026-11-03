@@ -18,7 +18,7 @@ const CLES_CARTE_PUBLIQUE = ['annee', 'description', 'image', 'lieu', 'slug', 't
 const CLES_DETAIL_PUBLIC = [...CLES_CARTE_PUBLIQUE, 'galerie', 'lien', 'role', 'seo'].sort()
 const CLES_MEDIA = ['hauteur', 'id', 'largeur', 'srcset', 'url']
 const CLES_VITRINE_PUBLIQUE = [
-  'accroche', 'bio', 'contact', 'fuseau', 'metier', 'nom', 'nomAffiche', 'palette', 'pays',
+  'accroche', 'badgeBrandself', 'bio', 'contact', 'fuseau', 'metier', 'nom', 'nomAffiche', 'palette', 'pays',
   'paysLibelle', 'photo', 'prenom', 'seo', 'titre', 'username', 'ville',
 ].sort()
 

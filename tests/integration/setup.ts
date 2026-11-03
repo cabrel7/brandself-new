@@ -1,11 +1,15 @@
 import { mkdir, rm } from 'node:fs/promises'
 import { sql } from 'drizzle-orm'
 import { afterAll, beforeAll, beforeEach } from 'vitest'
+// PREMIER import applicatif : les variables K-PAY doivent exister avant que `shared/env.ts` ne lise `process.env`.
+import { fauxKpay } from './support/env-kpay'
 import { db } from '../../server/utils/db'
 import { redis } from '../../server/utils/redis'
 import { assertBaseDeTest, assertRedisDeTest } from './support/garde-base'
 
 const PREFIXE_LIMITES = 'limite:'
+/** Compteur global des appels K-PAY (S10 #110) : hors du préfixe des limiteurs, à remettre à zéro aussi. */
+const PREFIXE_BUDGET_KPAY = 'kpay:'
 
 function mediasDir(): string {
   const dossier = process.env.MEDIAS_DIR
@@ -30,13 +34,16 @@ beforeAll(() => {
 
 // Chaque test part d'un état vide : tables (CASCADE depuis users), compteurs de limitation, disque.
 beforeEach(async () => {
-  await db.execute(sql`TRUNCATE TABLE users, verifications RESTART IDENTITY CASCADE`)
+  await db.execute(sql`TRUNCATE TABLE users, verifications, emails_transactionnels RESTART IDENTITY CASCADE`)
   await supprimerCles(`${PREFIXE_LIMITES}*`)
+  await supprimerCles(`${PREFIXE_BUDGET_KPAY}*`)
+  fauxKpay.reinitialiser()
   await rm(mediasDir(), { recursive: true, force: true })
   await mkdir(mediasDir(), { recursive: true })
 })
 
 afterAll(async () => {
+  await fauxKpay.fermer()
   await db.$client.end()
   await redis.quit()
 })

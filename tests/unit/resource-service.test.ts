@@ -21,7 +21,7 @@ const ID_UTILISATEUR = 'utilisateur-secret-12345'
 const ID_MEDIA = '5e6f7a8b-aaaa-4bbb-8ccc-ddddeeeeffff'
 
 const CLES_STUDIO = [
-  'actif', 'creeLe', 'description', 'dureeMin', 'enVedette', 'id', 'image', 'inclus', 'modifieLe', 'nbSeances',
+  'actif', 'creeLe', 'description', 'dureeMin', 'enVedette', 'id', 'image', 'inclus', 'masqueParPlan', 'modifieLe', 'nbSeances',
   'ordre', 'paiementInstructions', 'paiementMode', 'prixDevise', 'prixMontant', 'rythme', 'reservable', 'slug',
   'tarif', 'titre', 'type',
 ].sort()
@@ -33,8 +33,9 @@ const CLES_CARTE = [
 
 const CLES_DETAIL = [...CLES_CARTE, 'inclus', 'paiementInstructions', 'paiementMode', 'seo'].sort()
 
-function ligne(surcharges: Partial<ServiceRow> = {}): ServiceRow {
+function ligne(surcharges: Partial<ServiceRow & { masqueParPlan: boolean }> = {}): ServiceRow & { masqueParPlan: boolean } {
   return {
+    masqueParPlan: false,
     id: ID_SERVICE,
     vitrineId: ID_VITRINE,
     slug: 'consultation-de-cardiologie',
@@ -183,10 +184,14 @@ describe('toServiceStudioResource (U17)', () => {
 })
 
 describe('toServicesCompteursResource (U17)', () => {
-  it('should expose the four counters and nothing else', async () => {
+  it('should expose the four counters and the plan usage, nothing else (S10)', async () => {
     const { toServicesCompteursResource } = await ressource()
 
-    expect(toServicesCompteursResource({ total: 6, visibles: 5, enVedette: 3, vedetteMax: 3 })).toEqual({ total: 6, visibles: 5, enVedette: 3, vedetteMax: 3 })
+    const limitePlan = { limite: 3, utilise: 6, atteinte: true }
+    const dto = toServicesCompteursResource({ total: 6, visibles: 5, enVedette: 3, vedetteMax: 3, limitePlan })
+
+    expect(dto).toEqual({ total: 6, visibles: 5, enVedette: 3, vedetteMax: 3, limitePlan })
+    expect(dto.limitePlan).not.toBe(limitePlan)
   })
 })
 

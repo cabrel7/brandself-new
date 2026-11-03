@@ -238,7 +238,7 @@ describe('createGeneration : dédoublonnage et replis transitoires (revue sécur
 
   it('should list the transient fallbacks in the shared constant (provider failure and timeout included)', () => {
     expect([...MOTIFS_REPLI_TRANSITOIRES].sort()).toEqual(
-      ['delai_depasse', 'echec_fournisseur', 'file_indisponible', 'limiteur_indisponible', 'plafond_global'],
+      ['delai_depasse', 'echec_fournisseur', 'file_indisponible', 'limiteur_indisponible', 'plafond_global', 'quota_atteint'],
     )
   })
 
@@ -631,14 +631,14 @@ describe('getIaQuota : 3 générations « terminee » par mois civil, au fuseau 
     expect((await getIaQuota(a.id, MAINTENANT)).utilisees).toBe(0)
   })
 
-  it('should NOT block a generation once the quota is reached (S8 only reads it)', async () => {
+  it('should answer an immediate `quota_atteint` fallback for the onboarding once the quota is reached : never a blocked sign-up (S10 #126, replaces S8 "reads only")', async () => {
     const createGeneration = await creerGeneration()
     const user = await createUser()
     for (const jour of ['03', '04', '05']) await genererTerminee(user.id, `2026-11-${jour}T09:00:00.000Z`)
 
-    const ligne = await createGeneration(user.id, 'onboarding_vitrine', ENTREE_ONBOARDING_DEMO, { injection: false })
+    const ligne = await createGeneration(user.id, 'onboarding_vitrine', ENTREE_ONBOARDING_DEMO, { injection: false }, MAINTENANT)
 
-    expect(ligne.statut).toBe('en_attente')
+    expect(ligne).toMatchObject({ statut: 'repli', motifRepli: 'quota_atteint' })
   })
 })
 
