@@ -77,6 +77,12 @@ export default defineNuxtConfig({
     '/onboarding': { ssr: false, auth: { only: 'user', redirectTo: '/connexion' } },
     '/connexion': { auth: { only: 'guest', redirectTo: '/studio' } },
     '/connexion/code': { auth: { only: 'guest', redirectTo: '/studio' } },
+    // S9 (#89) : page de désabonnement, ouverte depuis un e-mail sans session (aucune règle `auth`), rendue
+    // côté serveur. Le jeton est dans l'URL : jamais indexée, jamais en cache, aucun Referer sortant.
+    '/desabonnement': {
+      robots: false,
+      headers: { 'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer' },
+    },
   },
   // Développement uniquement : les sous-modules lourds de @nuxtjs/seo sont coupés.
   // nuxt-og-image télécharge des polices depuis fonts.gstatic.com pendant le build

@@ -60,12 +60,15 @@ export const optionsAuth: OptionsAuth = {
     expiresIn: 60 * 60 * 24 * 30,
   },
   user: {
+    // S9 (#96) : `input: false` ferme `/api/auth/update-user` à ces champs (ils contourneraient Zod et la
+    // synchronisation du fuseau avec la vitrine). Ils ne s'écrivent que par `PUT /api/studio/moi`.
+    // Les valeurs par défaut restent appliquées à la création du compte.
     additionalFields: {
-      nom: { type: 'string', defaultValue: '' },
-      locale: { type: 'string', defaultValue: 'fr' },
-      devise: { type: 'string', defaultValue: 'XAF' },
-      fuseau: { type: 'string', defaultValue: 'Africa/Douala' },
-      email_hebdo: { type: 'boolean', defaultValue: true },
+      nom: { type: 'string', defaultValue: '', input: false },
+      locale: { type: 'string', defaultValue: 'fr', input: false },
+      devise: { type: 'string', defaultValue: 'XAF', input: false },
+      fuseau: { type: 'string', defaultValue: 'Africa/Douala', input: false },
+      email_hebdo: { type: 'boolean', defaultValue: true, input: false },
     },
   },
   plugins: [
