@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test'
 import type { BrowserContext, Locator, Page } from '@playwright/test'
+import { donnerPlanPayant } from './helpers/abonnement'
 import { attendreHydration, ouvrirStudio } from './helpers/hydratation'
 import { BASE_URL, fermerConnexions, seConnecter } from './helpers/session'
 import type { Session } from './helpers/session'
@@ -88,6 +89,9 @@ test.describe.serial('studio témoignages — vitrine fraîche (S5 : parcours co
     expect(creation.status(), await creation.text()).toBe(201)
     expect((await session.api.put('/api/studio/vitrine', { data: { ville: 'Douala', pays: 'CM' } })).status()).toBe(200)
     expect((await session.api.post('/api/studio/vitrine/publier')).status()).toBe(200)
+    // Ce parcours crée un 4e témoignage par le formulaire : il ne porte pas sur le quota (3 au plan gratuit, S10 #124).
+    // Le compte a donc un abonnement payant actif.
+    await donnerPlanPayant(session.userId)
 
     // Trois témoignages : 1 vedette visible, 1 visible non vedette, 1 masqué.
     const alice = await creerParApi({

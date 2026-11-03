@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { expect, test } from '@playwright/test'
 import { makePng } from '../../tests/support/images'
+import { donnerPlanPayant, retirerPlan } from '../helpers/abonnement'
 import { attendreErreur, fermerConnexions, lireErreur, seConnecter } from '../helpers/session'
 import type { Session } from '../helpers/session'
 
@@ -9,9 +10,12 @@ import type { Session } from '../helpers/session'
 // vedettes, du réordonnancement et de l'isolation. Les routes sans session (CA43) sont dans studio-auth.spec.ts.
 // Une session par fichier (limite d'envoi OTP) : describe.serial, un utilisateur, une vitrine.
 // Les téléversements sont comptés (30 par heure et par utilisateur) : une image par test au plus, sauf galerie.
+// S10 : le plan gratuit limite à 3 réalisations (403 LIMITE_PLAN_ATTEINTE à la 4e création, avant le contrôle des vedettes)
+// et masque au public ce qui dépasse les 3 plus anciennes. Chaque test repart du plan gratuit (`beforeEach`) ; ceux qui portent
+// sur 4 réalisations ou plus se donnent un abonnement payant actif (`donnerPlanPayant`).
 
 const CLES_STUDIO = [
-  'actif', 'annee', 'creeLe', 'description', 'enVedette', 'galerie', 'id', 'image', 'lieu', 'lien', 'modifieLe',
+  'actif', 'annee', 'creeLe', 'description', 'enVedette', 'galerie', 'id', 'image', 'lieu', 'lien', 'masqueParPlan', 'modifieLe',
   'ordre', 'role', 'slug', 'titre',
 ].sort()
 const CLES_CARTE_PUBLIQUE = ['annee', 'description', 'image', 'lieu', 'slug', 'titre'].sort()
@@ -42,7 +46,14 @@ interface RealisationStudio {
   lien: string | null
   enVedette: boolean
   actif: boolean
+  masqueParPlan: boolean
   ordre: number
+}
+
+interface LimitePlan {
+  limite: number | null
+  utilise: number
+  atteinte: boolean
 }
 
 interface Compteurs {
@@ -50,6 +61,7 @@ interface Compteurs {
   visibles: number
   enVedette: number
   vedetteMax: number
+  limitePlan: LimitePlan
 }
 
 interface ReponseRealisation {
@@ -99,6 +111,11 @@ test.describe.serial('réalisations — API studio et publique (S4-CA44 à CA46)
   test.afterAll(async () => {
     await session.api.dispose()
     await fermerConnexions()
+  })
+
+  // Chaque test repart du plan gratuit : l'ordre des tests ne doit jamais décider du quota applicable.
+  test.beforeEach(async () => {
+    await retirerPlan(session.userId)
   })
 
   async function televerser(): Promise<string> {
@@ -204,7 +221,7 @@ test.describe.serial('réalisations — API studio et publique (S4-CA44 à CA46)
       expect(Object.keys(corps.realisation.image ?? {}).sort()).toEqual(CLES_MEDIA)
       expect(corps.realisation.image).toMatchObject({ id: imageMediaId, url: `/medias/${imageMediaId}/1600.webp` })
       expect(corps.realisation.id).toMatch(/^[0-9a-f-]{36}$/)
-      expect(corps.compteurs).toEqual({ total: 1, visibles: 1, enVedette: 1, vedetteMax: 3 })
+      expect(corps.compteurs).toEqual({ total: 1, visibles: 1, enVedette: 1, vedetteMax: 3, limitePlan: { limite: 3, utilise: 1, atteinte: false } })
     })
 
     test('CA45 GET /api/studio/realisations/:id and the list answer the same realisation', async () => {
@@ -215,7 +232,7 @@ test.describe.serial('réalisations — API studio et publique (S4-CA44 à CA46)
 
       expect(unitaire.realisation).toEqual(realisation)
       expect(liste.realisations).toEqual([realisation])
-      expect(liste.compteurs).toEqual({ total: 1, visibles: 1, enVedette: 1, vedetteMax: 3 })
+      expect(liste.compteurs).toMatchObject({ total: 1, visibles: 1, enVedette: 1, vedetteMax: 3 })
     })
 
     test('CA45 PUT answers 200 with the updated realisation and the counters; DELETE answers 204 with an empty body', async () => {
@@ -332,6 +349,7 @@ test.describe.serial('réalisations — API studio et publique (S4-CA44 à CA46)
     })
 
     test('CA09 an explicit fourth vedette answers 409 VEDETTE_COMPLETE with the three current ones in data.enVedette and a generic message', async () => {
+      await donnerPlanPayant(session.userId)
       const crees: RealisationStudio[] = []
       const image = partagee
       for (const titre of ['R1', 'R2', 'R3']) {
@@ -350,6 +368,7 @@ test.describe.serial('réalisations — API studio et publique (S4-CA44 à CA46)
     })
 
     test('CA23 PUT enVedette true on a fourth realisation answers 409; once a vedette is withdrawn it answers 200', async () => {
+      await donnerPlanPayant(session.userId)
       const image = partagee
       const [, r2, , r4] = [
         (await creer({ titre: 'R1', imageMediaId: image })).realisation,
@@ -374,7 +393,7 @@ test.describe.serial('réalisations — API studio et publique (S4-CA44 à CA46)
       expect(masquee.status()).toBe(200)
       const corps = (await masquee.json()) as ReponseRealisation
       expect(corps.realisation).toMatchObject({ actif: false, enVedette: false })
-      expect(corps.compteurs).toEqual({ total: 1, visibles: 0, enVedette: 0, vedetteMax: 3 })
+      expect(corps.compteurs).toMatchObject({ total: 1, visibles: 0, enVedette: 0, vedetteMax: 3 })
       const refus = await attendreErreur(await session.api.put(`/api/studio/realisations/${realisation.id}`, { data: { enVedette: true } }), 400, 'VALIDATION')
       expect(Object.keys(refus.data?.champs ?? {})).toEqual(['enVedette'])
       await session.api.put(`/api/studio/realisations/${realisation.id}`, { data: { actif: true } })
@@ -443,7 +462,8 @@ test.describe.serial('réalisations — API studio et publique (S4-CA44 à CA46)
       expect(reponse.status()).toBe(200)
       const corps = (await reponse.json()) as ReponseListe
       expect(corps.realisations.map((r) => [r.titre, r.ordre])).toEqual([['C', 0], ['A', 1], ['B', 2]])
-      expect(corps.compteurs).toEqual({ total: 3, visibles: 3, enVedette: 3, vedetteMax: 3 })
+      expect(corps.compteurs).toMatchObject({ total: 3, visibles: 3, enVedette: 3, vedetteMax: 3 })
+      expect(corps.compteurs.limitePlan).toEqual({ limite: 3, utilise: 3, atteinte: true })
     })
 
     test('CA26 two simultaneous POST of the same title give distinct slugs (bilan, bilan-2)', async () => {
@@ -461,6 +481,7 @@ test.describe.serial('réalisations — API studio et publique (S4-CA44 à CA46)
     })
 
     test('CA26 two simultaneous vedette updates: exactly one 200 and one 409', async () => {
+      await donnerPlanPayant(session.userId)
       const image = partagee
       await creer({ titre: 'R1', imageMediaId: image })
       await creer({ titre: 'R2', imageMediaId: image })
@@ -503,6 +524,42 @@ test.describe.serial('réalisations — API studio et publique (S4-CA44 à CA46)
     })
   })
 
+  test.describe('S10 : plan gratuit, limite de création et masquage public (#124, #125, #127)', () => {
+    test.beforeEach(viderLesRealisations)
+
+    test('the 4th creation answers 403 LIMITE_PLAN_ATTEINTE before the vedette check, with the quota in data, and persists nothing', async () => {
+      for (const titre of ['R1', 'R2', 'R3']) await creer({ titre })
+
+      const reponse = await session.api.post('/api/studio/realisations', { data: { titre: 'R4', imageMediaId: partagee, enVedette: true } })
+
+      const corps = await attendreErreur(reponse, 403, 'LIMITE_PLAN_ATTEINTE')
+      expect(corps.data).toMatchObject({ ressource: 'realisations', limite: 3, utilise: 3, plan: 'gratuit' })
+      expect((await lister()).realisations).toHaveLength(3)
+    })
+
+    test('beyond the limit only the 3 oldest realisations are public, the studio flags the others, and an active subscription brings them back', async ({ request }) => {
+      await donnerPlanPayant(session.userId)
+      for (const titre of ['R1', 'R2', 'R3', 'R4']) await creer({ titre })
+      await retirerPlan(session.userId)
+
+      const publiques = (await (await request.get(`/api/public/${username}/realisations`)).json()) as ReponsePublicListe
+      expect(publiques.total).toBe(3)
+      expect(publiques.realisations.map((r) => r.titre)).toEqual(['R1', 'R2', 'R3'])
+      await attendreErreur(await request.get(`/api/public/${username}/realisations/r4`), 404, 'REALISATION_INTROUVABLE')
+      expect(((await (await request.get(`/api/public/${username}`)).json()) as ReponseVitrinePublique).contenus.realisations).toBe(3)
+      const studio = await lister()
+      expect(studio.realisations.map((r) => [r.titre, r.masqueParPlan])).toEqual([['R1', false], ['R2', false], ['R3', false], ['R4', true]])
+      expect(studio.compteurs.limitePlan).toEqual({ limite: 3, utilise: 4, atteinte: true })
+
+      await donnerPlanPayant(session.userId)
+
+      const apres = (await (await request.get(`/api/public/${username}/realisations`)).json()) as ReponsePublicListe
+      expect(apres.total).toBe(4)
+      expect((await request.get(`/api/public/${username}/realisations/r4`)).status()).toBe(200)
+      expect((await lister()).realisations.every((r) => !r.masqueParPlan)).toBe(true)
+    })
+  })
+
   test.describe('lecture publique et parcours (CA41, CA46)', () => {
     test.beforeEach(viderLesRealisations)
 
@@ -522,6 +579,7 @@ test.describe.serial('réalisations — API studio et publique (S4-CA44 à CA46)
     })
 
     test('CA46 parcours: 4 creations, aLaUne 3 and contenus 4, hide R1 (detail 404, contenus 3), reorder, the public order follows', async ({ request }) => {
+      await donnerPlanPayant(session.userId)
       const image = partagee
       const r1 = (await creer({ titre: 'R1', imageMediaId: image })).realisation
       const r2 = (await creer({ titre: 'R2', imageMediaId: image })).realisation
@@ -578,6 +636,7 @@ test.describe.serial('réalisations — API studio et publique (S4-CA44 à CA46)
     })
 
     test('CA38 the public detail answers the realisation with its gallery in order, at most two others and the total; slug case is ignored', async ({ request }) => {
+      await donnerPlanPayant(session.userId)
       const [g1, g2] = [await televerser(), await televerser()]
       const { realisation } = await creer({ titre: 'Unité de cathétérisme', galerie: [g2, g1] })
       await creer({ titre: 'Bilan' })

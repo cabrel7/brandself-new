@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { expect, test } from '@playwright/test'
 import type { BrowserContext, Page } from '@playwright/test'
 import { makePng } from '../tests/support/images'
+import { donnerPlanPayant } from './helpers/abonnement'
 import { attendreHydration } from './helpers/hydratation'
 import { BASE_URL, fermerConnexions, seConnecter } from './helpers/session'
 import type { Session } from './helpers/session'
@@ -10,7 +11,8 @@ import type { FichierImage } from './pages/studio-realisations'
 import { VitrineRealisations } from './pages/vitrine-realisations'
 
 // S4-CA48 à CA55 : parcours UI des réalisations (studio et vitrine publique).
-// - Pages publiques lues sur la vitrine de démonstration `dr-cabrel` (seed), en lecture seule.
+// - Pages publiques lues sur la vitrine de démonstration `dr-cabrel` (seed), en lecture seule. Elle reste sur le plan gratuit
+//   (S10 #130) : ses 3 réalisations tiennent dans la limite, rien n'est masqué.
 // - Parcours du studio sur une vitrine fraîche, dans un seul describe.serial : une session par fichier
 //   (limite d'envoi OTP), ouverte par l'API puis injectée dans le navigateur. Les images sont fabriquées avec
 //   sharp (aucun binaire commité) ; les téléversements sont comptés (30 par heure) : on en consomme une dizaine.
@@ -211,6 +213,8 @@ test.describe.serial('studio des réalisations — vitrine fraîche (S4-CA48, CA
     expect(televersement.status(), await televersement.text()).toBe(201)
     photo = ((await televersement.json()) as { media: { id: string } }).media.id
     expect((await session.api.put('/api/studio/vitrine', { data: { photoMediaId: photo } })).status()).toBe(200)
+    // Ce parcours ne porte pas sur le quota : le compte a un abonnement payant actif (4 réalisations, aucune limite).
+    await donnerPlanPayant(session.userId)
     contexte = await browser.newContext({ baseURL: BASE_URL, storageState: await session.api.storageState(), viewport: MOBILE })
     page = await contexte.newPage()
     liste = new StudioRealisationsListe(page)

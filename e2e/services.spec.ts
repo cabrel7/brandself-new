@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { expect, test } from '@playwright/test'
 import type { BrowserContext, Page } from '@playwright/test'
+import { donnerPlanPayant } from './helpers/abonnement'
 import { attendreHydration } from './helpers/hydratation'
 import { BASE_URL, fermerConnexions, seConnecter } from './helpers/session'
 import type { Session } from './helpers/session'
@@ -8,6 +9,7 @@ import { StudioServiceFormulaire, StudioServicesListe } from './pages/studio-ser
 
 // S3-CA44 à CA49 : parcours UI des services (studio et vitrine publique).
 // - Pages publiques lues sur la vitrine de démonstration `dr-cabrel` (seed), en lecture seule.
+// - dr-cabrel reste sur le plan GRATUIT (S10 #130) : seuls ses 3 plus anciens services sont visibles en public.
 // - Parcours du studio sur une vitrine fraîche, dans un seul describe.serial : une session par fichier
 //   (limite d'envoi OTP), ouverte par l'API puis injectée dans le navigateur (le parcours UI de
 //   connexion est couvert par connexion.spec.ts).
@@ -32,7 +34,8 @@ test.describe('vitrine publique dr-cabrel (S3-CA44, CA47)', () => {
     await expect(page.getByRole('heading', { level: 1, name: 'Mes services' })).toBeVisible()
     await expect(page.getByRole('heading', { level: 1, name: /Cardiologue interventionnel/ })).toHaveCount(0)
     await expect(page.getByRole('heading', { level: 3, name: 'Consultation de cardiologie' })).toBeVisible()
-    await expect(page.getByRole('heading', { level: 3 })).toHaveCount(6)
+    // Plan gratuit : 6 services en base, 3 visibles (S10 #127).
+    await expect(page.getByRole('heading', { level: 3 })).toHaveCount(3)
   })
 
   test('CA44 /dr-cabrel/services/<slug> affiche le détail du service', async ({ page }) => {
@@ -75,7 +78,7 @@ test.describe('vitrine publique dr-cabrel (S3-CA44, CA47)', () => {
     expect(Math.abs((b?.y ?? 0) - (c?.y ?? 1))).toBeLessThan(2)
     expect(b?.x ?? 0).toBeGreaterThan((a?.x ?? 0) + (a?.width ?? 0) - 1)
     expect(c?.x ?? 0).toBeGreaterThan((b?.x ?? 0) + (b?.width ?? 0) - 1)
-    await expect(page.getByRole('link', { name: 'Voir tous les services (6)' })).toBeVisible()
+    await expect(page.getByRole('link', { name: 'Voir tous les services (3)' })).toBeVisible()
   })
 
   test('CA47 le libellé d’action suit le type du service', async ({ page }) => {
@@ -121,6 +124,8 @@ test.describe.serial('studio des services — vitrine fraîche (S3-CA45, CA46, C
     expect(creation.status()).toBe(201)
     expect((await session.api.put('/api/studio/vitrine', { data: { ville: 'Douala', pays: 'CM' } })).status()).toBe(200)
     expect((await session.api.post('/api/studio/vitrine/publier')).status()).toBe(200)
+    // Ce parcours ne porte pas sur le quota : le compte a un abonnement payant actif (4 services, aucune limite).
+    await donnerPlanPayant(session.userId)
     contexte = await browser.newContext({ baseURL: BASE_URL, storageState: await session.api.storageState(), viewport: MOBILE })
     page = await contexte.newPage()
     liste = new StudioServicesListe(page)
