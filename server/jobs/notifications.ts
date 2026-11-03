@@ -9,7 +9,7 @@ import {
   NOTIFICATIONS_TICK_TZ,
 } from '../../shared/notifications'
 
-// S9 §4.1 : file `system`. Deux jobs répétés, sans donnée (rien de personnel dans Redis). Aucune relance
+// S9 §4.1 : tick sur la file `system`, purge sur la file `maintenance` (les purges lentes n'attendent jamais le tick). Deux jobs répétés, sans donnée (rien de personnel dans Redis). Aucune relance
 // BullMQ (`attempts: 1`) : un tick raté est rattrapé par le suivant, les fenêtres de rattrapage durent des
 // heures. `upsertJobScheduler` est idempotent : un redémarrage du worker ne duplique rien.
 

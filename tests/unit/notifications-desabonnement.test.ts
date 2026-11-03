@@ -321,3 +321,45 @@ describe('preferences et jeton : couverture des deux préférences', () => {
     }
   })
 })
+
+describe('pickUnsubscribeToken : le jeton signé est l’autorisation', () => {
+  const JETON_CORPS = 'v1.corps.signature'
+  const JETON_QUERY = 'v1.query.signature'
+
+  it('should prefer the token of a valid JSON body', async () => {
+    const { pickUnsubscribeToken } = await desabonnement()
+    expect(pickUnsubscribeToken({ jeton: JETON_CORPS.padEnd(30, 'x') }, JETON_QUERY)).toBe(JETON_CORPS.padEnd(30, 'x'))
+  })
+
+  it('should use the query token for the RFC 8058 one-click body', async () => {
+    const { pickUnsubscribeToken } = await desabonnement()
+    expect(pickUnsubscribeToken({ 'List-Unsubscribe': 'One-Click' }, JETON_QUERY)).toBe(JETON_QUERY)
+  })
+
+  it('should fall back on the query token when the body is absent, unreadable or of an unexpected shape', async () => {
+    const { pickUnsubscribeToken } = await desabonnement()
+    for (const corps of [undefined, null, '', 'texte', 42, [], {}, { autre: 1 }, { jeton: 12 }]) {
+      expect(pickUnsubscribeToken(corps, JETON_QUERY), JSON.stringify(corps)).toBe(JETON_QUERY)
+    }
+  })
+
+  it('should give no token (the service then answers 404 JETON_INVALIDE) when neither body nor query carries one', async () => {
+    const { pickUnsubscribeToken, verifyUnsubscribeToken } = await desabonnement()
+    const jeton = pickUnsubscribeToken(undefined, undefined)
+
+    expect(jeton).toBeUndefined()
+    expect((await echec(() => verifyUnsubscribeToken(jeton, MAINTENANT))).code).toBe('JETON_INVALIDE')
+  })
+})
+
+describe('unsubscribeLimitKey : un budget par opération', () => {
+  it('should separate the preview and the action counters, and never contain the address in clear', async () => {
+    const { unsubscribeLimitKey } = await desabonnement()
+    const apercu = unsubscribeLimitKey('203.0.113.7', 'apercu')
+    const action = unsubscribeLimitKey('203.0.113.7', 'action')
+
+    expect(apercu).not.toBe(action)
+    expect(apercu).toBe(unsubscribeLimitKey('203.0.113.7', 'apercu'))
+    expect(`${apercu}${action}`).not.toContain('203.0.113.7')
+  })
+})

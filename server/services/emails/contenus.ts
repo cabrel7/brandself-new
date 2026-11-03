@@ -3,6 +3,7 @@ import { SUJET_LIBELLES } from '../../../shared/message'
 import type { SujetMessage } from '../../../shared/message'
 import { TITRES, displayName } from '../../../shared/vitrine'
 import type { Titre } from '../../../shared/vitrine'
+import { formatDureeLongue } from '../../../shared/services'
 import { buildReservationIcs } from '../agenda-ics'
 import {
   TEXTES_NOTIFICATIONS,
@@ -150,7 +151,7 @@ function reservationRecap(content: Extract<TransactionalEmailContent, { type: Re
     `Service : ${content.service.titre}`,
     `Professionnel : ${professionalName(content)}`,
     `Date : ${formatDate(content.reservation.debut, content.vitrine.fuseau)}`,
-    ...(content.service.dureeMin === null ? [] : [`Durée : ${content.service.dureeMin} minutes`]),
+    ...(content.service.dureeMin === null ? [] : [`Durée : ${formatDureeLongue(content.service.dureeMin)}`]),
     ...(content.vitrine.ville ? [`Lieu : ${content.vitrine.ville}`] : []),
     ...paymentLines(content.service, content.reservation.paiementChoisi),
   ]
@@ -225,7 +226,7 @@ function rappelVisiteurRecap(content: RappelVisiteurContent): string[] {
     `Service : ${singleLine(service.titre)}`,
     `Professionnel : ${professionalName(content)}`,
     `Date : ${formatJourComplet(reservation.debut, vitrine.fuseau)}`,
-    ...(service.dureeMin === null ? [] : [`Durée : ${service.dureeMin} minutes`]),
+    ...(service.dureeMin === null ? [] : [`Durée : ${formatDureeLongue(service.dureeMin)}`]),
     ...(vitrine.ville ? [`Lieu : ${singleLine(vitrine.ville)}`] : []),
     `Tarif : ${formatPrice(service)}`,
     ...(reservation.paiementChoisi === 'sur_place' ? ['Règlement : sur place'] : []),

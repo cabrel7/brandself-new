@@ -10,10 +10,11 @@ import {
   unsubscribe,
   unsubscribeLimitKey,
 } from '#server/services/desabonnement'
-import { DESABONNEMENT_LIMIT } from '#shared/limites'
+import { DESABONNEMENT_ACTION_LIMIT } from '#shared/limites'
 
 // Corps JSON `{ jeton }` ou form-urlencoded `List-Unsubscribe=One-Click` (RFC 8058, jeton en query).
-// Corps absent, trop gros ou illisible : traité comme « aucun jeton » (404 JETON_INVALIDE), jamais 400/500.
+// Corps absent, trop gros, en morceaux (sans content-length) ou illisible : on retombe sur le jeton de la query
+// (le jeton signé est l'autorisation). Sans jeton valide : 404 JETON_INVALIDE, jamais 400/500.
 async function lireCorps(event: H3Event): Promise<unknown> {
   const taille = Number.parseInt(getRequestHeader(event, 'content-length') ?? '', 10)
   if (!Number.isInteger(taille) || taille <= 0 || taille > DESABONNEMENT_CORPS_MAX_OCTETS) return undefined
@@ -31,7 +32,7 @@ export default defineApiHandler(async (event) => {
   const { jeton: jetonQuery } = getQuery(event)
   // Le gestionnaire d'erreurs journalise `event.path` : sans la query string, le jeton n'y figure jamais.
   event._path = event.path.split('?')[0]
-  await enforceLimit(unsubscribeLimitKey(getClientIp(event)), DESABONNEMENT_LIMIT.limit, DESABONNEMENT_LIMIT.windowS)
+  await enforceLimit(unsubscribeLimitKey(getClientIp(event), 'action'), DESABONNEMENT_ACTION_LIMIT.limit, DESABONNEMENT_ACTION_LIMIT.windowS)
   const corps = await lireCorps(event)
   return unsubscribe(pickUnsubscribeToken(corps, jetonQuery), new Date())
 })

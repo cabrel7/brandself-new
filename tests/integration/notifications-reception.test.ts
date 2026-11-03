@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest'
-import { getEmailsQueue } from '../../server/jobs/queues'
+import { getEmailsNotificationsQueue } from '../../server/jobs/queues'
 import { dispatchPendingTransactionalEmails, transactionalEmailJobId } from '../../server/jobs/email-outbox'
 import { RecordingTransport, creerPro, lireOutbox, viderOutbox } from './support/notifications'
 import { modulesEmailOutbox } from './support/planification'
@@ -9,7 +9,7 @@ import { modulesEmailOutbox } from './support/planification'
 // au professionnel, ligne `envoye`. Services réels, PostgreSQL et Redis réels ; seul Resend est remplacé.
 
 const messagesService = () => import('../../server/services/messages')
-const queue = getEmailsQueue()
+const queue = getEmailsNotificationsQueue()
 
 beforeEach(async () => {
   await viderOutbox()

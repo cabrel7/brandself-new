@@ -46,7 +46,7 @@ export const SUGGESTION_RESUME_DEFAUT = {
   chemin: '/studio/temoignages/nouveau',
 } as const
 
-// --- Planification (ordonnanceurs BullMQ répétés, file `system`) ---
+// --- Planification (ordonnanceurs BullMQ répétés : tick sur la file `system`, purge sur la file `maintenance`) ---
 
 export const NOTIFICATIONS_SCHEDULER_ID = 'notifications-planifier'
 /** Cron du tick de planification (toutes les 5 minutes). */
@@ -61,7 +61,7 @@ export const OUTBOX_RETENTION_JOURS = 90
 /** Utilisateurs : taille des lots de la planification. */
 export const PLANIFICATION_LOT_UTILISATEURS = 500
 
-// --- Débit d'envoi (limiteur BullMQ du worker `emails`, protège le quota Resend) ---
+// --- Débit d'envoi (limiteur BullMQ du worker `emails-notifications`, jamais appliqué aux OTP ; protège le quota Resend) ---
 
 /** E-mails : nombre maximal d'envois par fenêtre. */
 export const EMAILS_DEBIT_MAX = 2

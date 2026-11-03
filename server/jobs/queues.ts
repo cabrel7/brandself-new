@@ -1,10 +1,13 @@
 import { Queue } from 'bullmq'
-import { FILE_SYSTEM, FILE_EMAILS, FILE_IA } from '../../shared/jobs'
+import { FILE_EMAILS_NOTIFICATIONS, FILE_IA, FILE_MAINTENANCE, FILE_SYSTEM } from '../../shared/jobs'
 import { redis } from '../utils/redis'
 
+// Les files d'authentification (OTP) sont produites par server/auth.config.ts (fichier limité à node_modules
+// et shared/, il ne peut pas importer ce module).
 const g = globalThis as typeof globalThis & {
   __fileSystemBrandself?: Queue
-  __fileEmailsBrandself?: Queue
+  __fileMaintenanceBrandself?: Queue
+  __fileEmailsNotificationsBrandself?: Queue
   __fileIaBrandself?: Queue
 }
 
@@ -18,9 +21,16 @@ export function getSystemQueue(): Queue {
   return queue
 }
 
-export function getEmailsQueue(): Queue {
-  const queue = g.__fileEmailsBrandself ?? createQueue(FILE_EMAILS)
-  g.__fileEmailsBrandself = queue
+export function getMaintenanceQueue(): Queue {
+  const queue = g.__fileMaintenanceBrandself ?? createQueue(FILE_MAINTENANCE)
+  g.__fileMaintenanceBrandself = queue
+  return queue
+}
+
+/** E-mails de notification (outbox). Les OTP ont leur propre file, sans limiteur. */
+export function getEmailsNotificationsQueue(): Queue {
+  const queue = g.__fileEmailsNotificationsBrandself ?? createQueue(FILE_EMAILS_NOTIFICATIONS)
+  g.__fileEmailsNotificationsBrandself = queue
   return queue
 }
 

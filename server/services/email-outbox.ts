@@ -429,6 +429,7 @@ async function prepareRappelVisiteur(row: EmailOutboxRow, now: Date): Promise<Pr
         ville: vitrines.ville,
         fuseau: vitrines.fuseau,
       },
+      publieeLe: vitrines.publieeLe,
     })
     .from(reservations)
     .innerJoin(services, eq(services.id, reservations.serviceId))
@@ -441,7 +442,12 @@ async function prepareRappelVisiteur(row: EmailOutboxRow, now: Date): Promise<Pr
     occurrence: row.occurrence,
     createdAt: row.createdAt,
     reservation: result
-      ? { statut: result.reservation.statut, rappelEmail: result.reservation.rappelEmail, debut: result.reservation.debut }
+      ? {
+          statut: result.reservation.statut,
+          rappelEmail: result.reservation.rappelEmail,
+          debut: result.reservation.debut,
+          vitrinePubliee: result.publieeLe !== null,
+        }
       : null,
   }, now)
   if (code !== null) return { annule: code }

@@ -5,6 +5,7 @@ import { env } from '../../shared/env'
 import type { DesabonnementApercuDTO, DesabonnementDTO } from '../../shared/dto/notifications'
 import { users } from '../../shared/db/schema'
 import { DESABONNEMENT_CLE_PREFIXE } from '../../shared/limites'
+import type { DesabonnementOperation } from '../../shared/limites'
 import {
   DESABONNEMENT_HKDF_INFO,
   DESABONNEMENT_JETON_VALIDITE_JOURS,
@@ -13,6 +14,7 @@ import {
 } from '../../shared/notifications'
 import type { PreferenceEmail } from '../../shared/notifications'
 import { schemaDesabonnementCorps, schemaJetonDesabonnement } from '../../shared/schemas/notifications'
+import { MS_PAR_SECONDE, SECONDES_PAR_JOUR } from '../../shared/temps'
 import { GoneError, NotFoundError } from '../exceptions/http'
 import { db } from '../utils/db'
 
@@ -21,8 +23,6 @@ import { db } from '../utils/db'
 // inconnue, signature fausse) donne la MÊME réponse (404 JETON_INVALIDE) : aucun oracle. Le 410 JETON_EXPIRE
 // n'est possible qu'après vérification de la signature (un jeton falsifié n'apprend rien à son auteur).
 
-const SECONDES_PAR_JOUR = 86_400
-const MS_PAR_SECONDE = 1_000
 const ALGORITHME_HMAC = 'sha256'
 const LONGUEUR_CLE_OCTETS = 32
 const SEPARATEUR = '.'
@@ -112,16 +112,23 @@ export function verifyUnsubscribeToken(jeton: unknown, now: Date): VerifiedUnsub
   return { userId: contenu.u, preference: contenu.p }
 }
 
-/** Choisit le jeton d'un POST : JSON `{ jeton }`, ou RFC 8058 `List-Unsubscribe=One-Click` avec le jeton en query. Corps invalide : aucun jeton. */
+/**
+ * Choisit le jeton d'un POST : JSON `{ jeton }` d'abord ; sinon (RFC 8058 `List-Unsubscribe=One-Click`, corps
+ * absent, trop gros, en morceaux ou illisible) le jeton de la query. Le jeton signé est l'autorisation : un
+ * corps inutilisable ne le remplace pas, et sans jeton valide le service répond 404 JETON_INVALIDE.
+ */
 export function pickUnsubscribeToken(corps: unknown, jetonQuery: unknown): unknown {
   const lu = schemaDesabonnementCorps.safeParse(corps)
-  if (!lu.success) return undefined
-  return 'jeton' in lu.data ? lu.data.jeton : jetonQuery
+  if (lu.success && 'jeton' in lu.data) return lu.data.jeton
+  return jetonQuery
 }
 
-/** Clé du limiteur par IP (GET et POST confondus) : l'adresse n'apparaît pas en clair dans Redis. */
-export function unsubscribeLimitKey(ip: string): string {
-  return `${DESABONNEMENT_CLE_PREFIXE}${createHash('sha256').update(ip).digest('hex')}`
+/**
+ * Clé du limiteur par IP et par opération (aperçu GET / action POST : budgets distincts) : l'adresse
+ * n'apparaît pas en clair dans Redis.
+ */
+export function unsubscribeLimitKey(ip: string, operation: DesabonnementOperation): string {
+  return `${DESABONNEMENT_CLE_PREFIXE}${operation}:${createHash('sha256').update(ip).digest('hex')}`
 }
 
 /** GET : aucun effet, ne révèle ni adresse e-mail ni nom (ni même l'existence du compte). */

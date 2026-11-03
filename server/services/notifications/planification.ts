@@ -16,6 +16,7 @@ import {
   RESUME_RATTRAPAGE_HEURES,
 } from '../../../shared/notifications'
 import type { EmailStatut } from '../../../shared/notifications'
+import { HEURE_MS } from '../../../shared/temps'
 import { db } from '../../utils/db'
 import {
   cancelPendingEmailEvents,
@@ -32,7 +33,6 @@ import type { LigneOutboxPlafond } from './plafond'
 // `occurrence` = clé d'idempotence. Rien n'est écrit dans Redis. Aucun journal ne contient d'adresse,
 // de nom, de fuseau ni de contenu : des NOMBRES seulement.
 
-const HEURE_MS = 3_600_000
 const VERROU_RELATIONNEL_PREFIXE = 'relationnel:'
 const TYPE_RESUME = 'utilisateur_resume_hebdo'
 const TYPE_RAPPEL_JOURNEE = 'utilisateur_rappel_journee'

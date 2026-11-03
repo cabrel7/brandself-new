@@ -3,11 +3,7 @@ import { ERROR_MESSAGES } from '../../server/exceptions/http'
 import { ERROR_CODES, ERROR_STATUS } from '../../shared/erreurs'
 import { loadEnv } from '../../shared/env'
 import { JOBS, TRANSACTIONAL_EMAIL_TYPES } from '../../shared/jobs'
-import {
-  DESABONNEMENT_FENETRE_S,
-  DESABONNEMENT_LIMITE_IP,
-  DESABONNEMENT_LIMIT,
-} from '../../shared/limites'
+import { DESABONNEMENT_ACTION_LIMIT, DESABONNEMENT_APERCU_LIMIT } from '../../shared/limites'
 import * as N from '../../shared/notifications'
 import { isReserved } from '../../shared/reserved'
 import { validateUsername } from '../../shared/schemas/username'
@@ -173,10 +169,9 @@ describe('shared/erreurs.ts et server/exceptions/http.ts', () => {
 })
 
 describe('shared/limites.ts et shared/reserved.ts', () => {
-  it('should limit the unsubscribe routes to 20 requests per 60 seconds and per IP', () => {
-    expect(DESABONNEMENT_LIMITE_IP).toBe(20)
-    expect(DESABONNEMENT_FENETRE_S).toBe(60)
-    expect(DESABONNEMENT_LIMIT).toEqual({ limit: 20, windowS: 60 })
+  it('should limit the unsubscribe action (POST) to 20 per 60 s per IP and the preview (GET) to 60 per 60 s, separately', () => {
+    expect(DESABONNEMENT_ACTION_LIMIT).toEqual({ limit: 20, windowS: 60 })
+    expect(DESABONNEMENT_APERCU_LIMIT).toEqual({ limit: 60, windowS: 60 })
   })
 
   it('should reserve « desabonnement » as a username (route /desabonnement, #3.9)', () => {

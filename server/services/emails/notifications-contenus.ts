@@ -28,8 +28,8 @@ export const TEXTES_NOTIFICATIONS = {
     resume: (jour: string) => `Vous recevez ce résumé chaque ${jour} parce qu'il est activé dans votre compte.`,
     rappelVisiteur: (professionnel: string) =>
       `Vous recevez ce rappel parce que vous l'avez demandé en réservant sur la vitrine de ${professionnel}. C'est le seul rappel prévu pour ce rendez-vous.`,
-    desabonnementJournee: (url: string) => `Ne plus le recevoir, en un clic : ${url}`,
-    desabonnementResume: (url: string) => `Vous désabonner en un clic : ${url}`,
+    // Même phrase pour la journée et le résumé : un seul libellé de désabonnement dans tous les e-mails planifiés.
+    desabonnement: (url: string) => `Ne plus recevoir cet e-mail, en un clic : ${url}`,
     gerer: (url: string) => `Gérer vos e-mails : ${url}`,
   },
   journee: {
@@ -219,7 +219,7 @@ export function buildRappelJourneeEmail(content: RappelJourneeContent): EmailMes
       TEXTES_NOTIFICATIONS.signatureMarque,
       ...pied([
         textesPied.journee,
-        textesPied.desabonnementJournee(lienDesabonnement(content, jeton)),
+        textesPied.desabonnement(lienDesabonnement(content, jeton)),
         textesPied.gerer(joinUrl(content.siteUrl, '/studio/compte')),
       ]),
     ].join('\n'),
@@ -266,7 +266,7 @@ export function buildResumeHebdoEmail(content: ResumeHebdoContent): EmailMessage
   const avecActivite = compteurs.reservations + compteurs.demandes + compteurs.messages > 0
   const piedResume = pied([
     textesPied.resume(JOURS_ISO[RESUME_JOUR_ISO - 1] ?? ''),
-    textesPied.desabonnementResume(lienDesabonnement(content, jeton)),
+    textesPied.desabonnement(lienDesabonnement(content, jeton)),
     textesPied.gerer(joinUrl(content.siteUrl, '/studio/compte')),
   ])
   const corps = avecActivite

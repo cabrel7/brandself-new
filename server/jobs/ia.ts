@@ -28,7 +28,7 @@ export async function enqueueGeneration(queue: Pick<Queue, 'add'>, generationId:
   await queue.add(JOBS.genererIa, data, { ...iaJobOptions, jobId: iaJobId(generationId) })
 }
 
-/** Purge quotidienne (03:00 UTC). `upsertJobScheduler` est idempotent : un redémarrage ne duplique rien. */
+/** Purge quotidienne (03:00 UTC), à poser sur la file `maintenance` (jamais sur `ia`). `upsertJobScheduler` est idempotent : un redémarrage ne duplique rien. */
 export async function planifierPurge(queue: Pick<Queue, 'upsertJobScheduler'>): Promise<void> {
   await queue.upsertJobScheduler(
     IA_PURGE_SCHEDULER_ID,

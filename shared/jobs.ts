@@ -2,9 +2,37 @@ import { z } from 'zod'
 import { schemaIaJobData } from './schemas/ia'
 import type { IaJobData } from './schemas/ia'
 
+// Une file = une nature de travail et un profil de latence. Une opération sensible à la latence n'attend
+// jamais derrière une opération lente ou limitée en débit.
+/** Système : ping et tick de planification des notifications (courts, sans appel externe). */
 export const FILE_SYSTEM = 'system'
-export const FILE_EMAILS = 'emails'
+/** Maintenance : purges quotidiennes (IA, inscriptions abandonnées, outbox). Lentes, jamais urgentes. */
+export const FILE_MAINTENANCE = 'maintenance'
+/** Authentification : OTP e-mail et SMS. Sensible à la latence, JAMAIS de limiteur de débit. */
+export const FILE_MESSAGES_AUTH = 'messages-auth'
+/** E-mails de notification (outbox transactionnelle et relationnelle) : avec limiteur de débit (quota Resend). */
+export const FILE_EMAILS_NOTIFICATIONS = 'emails-notifications'
+/** Générations IA (jusqu'à 25 s) : jamais partagée. */
 export const FILE_IA = 'ia'
+/**
+ * Ancienne file unique `emails` (OTP + outbox), avant la séparation. Plus aucun producteur n'y écrit : un
+ * worker de transition la vide pendant une release (voir docs/specs/S9-notifications.md, notes de déploiement).
+ */
+export const FILE_EMAILS_LEGACY = 'emails'
+
+/** Concurrence par file (jobs traités en parallèle par le worker). */
+export const SYSTEM_CONCURRENCE_WORKER = 1
+export const MAINTENANCE_CONCURRENCE_WORKER = 1
+/** Les OTP sont indépendants et courts : on les traite en parallèle pour ne jamais former de file d'attente. */
+export const MESSAGES_AUTH_CONCURRENCE_WORKER = 5
+/** Le débit réel des notifications est fixé par le limiteur ; une seule exécution à la fois suffit. */
+export const EMAILS_NOTIFICATIONS_CONCURRENCE_WORKER = 1
+
+/** Options des jobs OTP (e-mail et SMS). */
+export const OTP_JOB_MAX_ATTEMPTS = 3
+export const OTP_JOB_BACKOFF_MS = 2_000
+export const OTP_JOB_GARDER_REUSSIS = 100
+export const OTP_JOB_GARDER_ECHECS = 200
 
 export const TRANSACTIONAL_EMAIL_TYPES = [
   'reservation_professionnel_nouvelle',

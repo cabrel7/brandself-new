@@ -4,7 +4,8 @@ import type { Pipeline } from 'ioredis'
 import { users } from '../../shared/db/schema'
 import { DESABONNEMENT_API_CHEMIN, DESABONNEMENT_JETON_VALIDITE_JOURS } from '../../shared/notifications'
 import type { PreferenceEmail } from '../../shared/notifications'
-import { DESABONNEMENT_LIMIT } from '../../shared/limites'
+import { DESABONNEMENT_ACTION_LIMIT, DESABONNEMENT_APERCU_LIMIT } from '../../shared/limites'
+import { DESABONNEMENT_CORPS_MAX_OCTETS } from '../../server/services/desabonnement'
 import { db } from '../../server/utils/db'
 import { redis } from '../../server/utils/redis'
 import {
@@ -238,18 +239,51 @@ describe('POST : désabonnement effectif et idempotent (CA40, CA43)', () => {
   })
 
   it.each([
-    ['sans aucun corps', undefined, undefined],
-    ['avec une valeur One-Click inconnue', 'List-Unsubscribe=Autre', FORM],
-    ['avec un corps vide', '', FORM],
-  ])('should not unsubscribe on a POST %s (the one-click body or the JSON token is required)', async (_cas, corps, type) => {
+    ['sans aucun corps (ni content-length)', undefined, undefined, {}],
+    ['en morceaux (transfer-encoding: chunked, sans content-length)', undefined, undefined, { 'transfer-encoding': 'chunked' }],
+    ['avec une valeur One-Click inconnue', 'List-Unsubscribe=Autre', FORM, {}],
+    ['avec un corps vide', '', FORM, {}],
+    ['avec un JSON illisible', '{pas du json', 'application/json', {}],
+    ['avec un JSON de forme inattendue', JSON.stringify({ autre: 1 }), 'application/json', {}],
+    ['avec un corps de plus de DESABONNEMENT_CORPS_MAX_OCTETS', JSON.stringify({ rempli: 'x'.repeat(DESABONNEMENT_CORPS_MAX_OCTETS) }), 'application/json', {}],
+  ])('should fall back on the signed token of the query on a POST %s (the signed token is the authorization)', async (_cas, corps, type, entetes) => {
     const pro = await creerPro()
     const jeton = await jetonDesabonnement(pro.user.id, 'email_hebdo', new Date())
     const { default: handler } = await routePost()
 
-    const r = await appeler(handler, evenement({ methode: 'POST', chemin: `${DESABONNEMENT_API_CHEMIN}?jeton=${jeton}`, corps, typeContenu: type, ip: ip() }))
+    const r = await appeler(handler, evenement({ methode: 'POST', chemin: `${DESABONNEMENT_API_CHEMIN}?jeton=${jeton}`, corps, typeContenu: type, entetes, ip: ip() }))
 
-    expect(r.status).not.toBe(200)
-    expect(r.status).toBeLessThan(500)
+    expect(r).toMatchObject({ status: 200, corps: { preference: 'email_hebdo', desabonne: true } })
+    expect((await preferences(pro.user.id)).email_hebdo).toBe(false)
+  })
+
+  it.each([
+    ['sans corps ni jeton', undefined, undefined],
+    ['avec un corps illisible et sans jeton', '{pas du json', 'application/json'],
+    ['avec un corps One-Click mais sans jeton en query', ONE_CLICK, FORM],
+  ])('should answer 404 JETON_INVALIDE on a POST %s and change nothing', async (_cas, corps, type) => {
+    const pro = await creerPro()
+    const { default: handler } = await routePost()
+
+    const r = await appeler(handler, evenement({ methode: 'POST', chemin: DESABONNEMENT_API_CHEMIN, corps, typeContenu: type, ip: ip() }))
+
+    expect(r).toMatchObject({ status: 404, code: 'JETON_INVALIDE' })
+    expect(await preferences(pro.user.id)).toEqual({ email_hebdo: true, email_rappel_jour: true })
+  })
+
+  it('should answer 404 (not the query token) when the JSON body carries an invalid token: the body wins when it is well-formed', async () => {
+    const pro = await creerPro()
+    const valide = await jetonDesabonnement(pro.user.id, 'email_hebdo', new Date())
+    const { default: handler } = await routePost()
+
+    const r = await appeler(handler, evenement({
+      methode: 'POST',
+      chemin: `${DESABONNEMENT_API_CHEMIN}?jeton=${valide}`,
+      corps: JSON.stringify({ jeton: modifierSignature(valide) }),
+      ip: ip(),
+    }))
+
+    expect(r).toMatchObject({ status: 404, code: 'JETON_INVALIDE' })
     expect((await preferences(pro.user.id)).email_hebdo).toBe(true)
   })
 
@@ -267,28 +301,43 @@ describe('POST : désabonnement effectif et idempotent (CA40, CA43)', () => {
 })
 
 describe('limiteur par IP, fail-open (CA44)', () => {
-  it('should answer 429 TROP_DE_REQUETES with Retry-After on the 21st POST of the same IP within a minute', async () => {
+  it('should answer 429 TROP_DE_REQUETES with Retry-After on the first POST above the action budget within a minute', async () => {
     const pro = await creerPro()
     const jeton = await jetonDesabonnement(pro.user.id, 'email_hebdo', new Date())
     const adresse = '203.0.113.50'
 
-    for (let i = 1; i <= DESABONNEMENT_LIMIT.limit; i += 1) expect((await postOneClick(jeton, adresse)).status, `appel ${i}`).toBe(200)
+    for (let i = 1; i <= DESABONNEMENT_ACTION_LIMIT.limit; i += 1) expect((await postOneClick(jeton, adresse)).status, `appel ${i}`).toBe(200)
     const refus = await postOneClick(jeton, adresse)
 
     expect(refus).toMatchObject({ status: 429, code: 'TROP_DE_REQUETES' })
     expect(Number(refus.entetes['retry-after'])).toBeGreaterThan(0)
-    expect(Number(refus.entetes['retry-after'])).toBeLessThanOrEqual(DESABONNEMENT_LIMIT.windowS)
+    expect(Number(refus.entetes['retry-after'])).toBeLessThanOrEqual(DESABONNEMENT_ACTION_LIMIT.windowS)
   })
 
-  it('should share the counter between GET and POST of the same IP, and leave other IPs free', async () => {
+  it('should give the preview (GET) its own wider budget: link scanners do not exhaust the POST budget of the same IP', async () => {
     const pro = await creerPro()
     const jeton = await jetonDesabonnement(pro.user.id, 'email_hebdo', new Date())
     const adresse = '203.0.113.51'
 
-    for (let i = 0; i < DESABONNEMENT_LIMIT.limit; i += 1) await get(jeton, adresse)
+    for (let i = 1; i <= DESABONNEMENT_APERCU_LIMIT.limit; i += 1) expect((await get(jeton, adresse)).status, `aperçu ${i}`).toBe(200)
+
+    const refusApercu = await get(jeton, adresse)
+    expect(refusApercu).toMatchObject({ status: 429, code: 'TROP_DE_REQUETES' })
+    expect(Number(refusApercu.entetes['retry-after'])).toBeLessThanOrEqual(DESABONNEMENT_APERCU_LIMIT.windowS)
+    // L'action de la même IP reste possible : compteurs distincts, et l'aperçu est plus large que l'action.
+    expect(DESABONNEMENT_APERCU_LIMIT.limit).toBeGreaterThan(DESABONNEMENT_ACTION_LIMIT.limit)
+    expect((await postOneClick(jeton, adresse)).status).toBe(200)
+  })
+
+  it('should not let POSTs consume the preview budget, and leave other IPs free', async () => {
+    const pro = await creerPro()
+    const jeton = await jetonDesabonnement(pro.user.id, 'email_hebdo', new Date())
+    const adresse = '203.0.113.53'
+
+    for (let i = 0; i < DESABONNEMENT_ACTION_LIMIT.limit; i += 1) await postOneClick(jeton, adresse)
 
     expect((await postOneClick(jeton, adresse)).status).toBe(429)
-    expect((await get(jeton, adresse)).status).toBe(429)
+    expect((await get(jeton, adresse)).status).toBe(200)
     expect((await postOneClick(jeton, '203.0.113.52')).status).toBe(200)
   })
 

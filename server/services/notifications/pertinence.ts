@@ -6,14 +6,13 @@ import {
   RESUME_RATTRAPAGE_HEURES,
 } from '../../../shared/notifications'
 import type { CodeAnnulation } from '../../../shared/notifications'
+import { HEURE_MS } from '../../../shared/temps'
 
 // S9 (docs/specs/S9-notifications.md #83, #102, §4.4) : revalidation PURE d'une ligne d'outbox juste
 // avant l'envoi. Les faits (réservation, préférences, vitrine publiée, nombre de rendez-vous du jour,
 // destinataire) sont chargés par l'appelant (email-outbox.ts) ; ici on ne fait que décider.
 // Renvoie le code d'annulation, ou `null` si l'e-mail peut partir. L'ordre des contrôles est l'ordre
 // de priorité des codes de la spec.
-
-const HEURE_MS = 3_600_000
 
 interface EntreeBase {
   /** Clé d'occurrence de la ligne d'outbox. */
@@ -25,7 +24,7 @@ interface EntreeBase {
 export interface EntreeRappelVisiteur extends EntreeBase {
   type: 'reservation_visiteur_rappel'
   /** `null` : réservation introuvable. `statut` est celui de la base (chaîne). */
-  reservation: { statut: string, rappelEmail: boolean, debut: Date } | null
+  reservation: { statut: string, rappelEmail: boolean, debut: Date, vitrinePubliee: boolean } | null
 }
 
 export interface EntreeResumeHebdo extends EntreeBase {
@@ -85,6 +84,8 @@ function pertinenceRappelVisiteur(entree: EntreeRappelVisiteur, now: Date, regla
   if (reservation === null) return 'ENTITE_INTROUVABLE'
   if (reservation.statut !== 'confirmee') return 'RESERVATION_NON_CONFIRMEE'
   if (!reservation.rappelEmail) return 'PREFERENCE_DESACTIVEE'
+  // Vitrine dépubliée depuis la planification : plus rien ne doit partir en son nom (comme le résumé).
+  if (!reservation.vitrinePubliee) return 'VITRINE_NON_PUBLIEE'
   // Rendez-vous déplacé : la ligne a été planifiée pour un autre début.
   if (reservation.debut.toISOString() !== entree.occurrence) return 'RAPPEL_PERIME'
   const debut = reservation.debut.getTime()

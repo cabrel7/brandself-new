@@ -9,7 +9,7 @@ import {
 } from '../../shared/notifications'
 import { messages, reservations, users, vitrines } from '../../shared/db/schema'
 import { transactionalEmailJobId } from '../../server/jobs/email-outbox'
-import { getEmailsQueue } from '../../server/jobs/queues'
+import { getEmailsNotificationsQueue } from '../../server/jobs/queues'
 import { db } from '../../server/utils/db'
 import {
   RecordingTransport,
@@ -44,7 +44,7 @@ import { rejet } from './support/erreurs'
 
 const DEBUT = utc('2026-11-12T09:00:00.000Z')
 const PREVU = new Date(DEBUT.getTime() - heures(RAPPEL_VISITEUR_AVANCE_HEURES))
-const queue = getEmailsQueue()
+const queue = getEmailsNotificationsQueue()
 
 /** Attend TOUTES les promesses (même en cas d'échec) pour ne laisser aucune transaction orpheline au test suivant. */
 async function toutesLesIssues<T>(promesses: Array<Promise<T>>): Promise<T[]> {
@@ -294,6 +294,18 @@ describe('rappel visiteur : envoi et revalidation (CA08, CA12, CA13)', () => {
     const { ligne: apres, transport } = await traiter(ligne.id, PREVU)
 
     expect(apres).toMatchObject({ statut: 'annule', erreurCode: 'PREFERENCE_DESACTIVEE' })
+    expect(transport.sends).toHaveLength(0)
+  })
+
+  it('should cancel with VITRINE_NON_PUBLIEE when the vitrine was unpublished after the reminder was planned', async () => {
+    const pro = await creerPro()
+    const { ligne } = await poserRappelVisiteur(pro, { debut: DEBUT })
+    await db.update(vitrines).set({ publieeLe: null }).where(eq(vitrines.id, pro.vitrine.id))
+
+    const { resultat, ligne: apres, transport } = await traiter(ligne.id, PREVU)
+
+    expect(resultat).toMatchObject({ statut: 'annule' })
+    expect(apres).toMatchObject({ statut: 'annule', erreurCode: 'VITRINE_NON_PUBLIEE' })
     expect(transport.sends).toHaveLength(0)
   })
 

@@ -1,9 +1,9 @@
 import { randomUUID } from 'node:crypto'
 import { and, asc, eq, sql } from 'drizzle-orm'
 import { beforeEach, describe, expect, it } from 'vitest'
-import { FILE_EMAILS } from '../../shared/jobs'
+import { FILE_EMAILS_NOTIFICATIONS } from '../../shared/jobs'
 import { emailsTransactionnels } from '../../shared/db/schema'
-import { getEmailsQueue } from '../../server/jobs/queues'
+import { getEmailsNotificationsQueue } from '../../server/jobs/queues'
 import {
   dispatchPendingTransactionalEmails,
   transactionalEmailJobId,
@@ -33,7 +33,7 @@ const VISITEUR = {
   rappelEmail: true,
 }
 
-const queue = getEmailsQueue()
+const queue = getEmailsNotificationsQueue()
 
 class RecordingTransport implements EmailTransport {
   readonly sends: Array<{ message: EmailMessage, idempotencyKey: string }> = []
@@ -260,7 +260,7 @@ describe('dispatch BullMQ depuis l’outbox', () => {
     await expect(dispatchPendingTransactionalEmails(queue, new Date())).resolves.toBe(2)
 
     const jobs = await queue.getJobs(['waiting', 'delayed'])
-    expect(queue.name).toBe(FILE_EMAILS)
+    expect(queue.name).toBe(FILE_EMAILS_NOTIFICATIONS)
     expect(jobs).toHaveLength(2)
     for (const event of events) {
       const job = jobs.find(({ id }) => id === transactionalEmailJobId(event.id))

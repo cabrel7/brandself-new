@@ -80,7 +80,7 @@ SPRINTS.md (BLOC COMMUN, S9, S10 pour la frontière), CLAUDE.md, PROJECT_STATE.m
 | 89 | Désabonnement | Jeton sans état `v1.<payload base64url>.<HMAC-SHA256 base64url>`, payload `{ u: userId, p: preference, e: expiration epoch s }`, valable 90 jours. Clé dérivée par HKDF-SHA256 de `NUXT_BETTER_AUTH_SECRET` (info `brandself-desabonnement-v1`), comparaison à temps constant. GET = aperçu sans effet ; POST = désabonnement (RFC 8058 `List-Unsubscribe=One-Click`, ou JSON `{ jeton }`). Idempotent ; ne réactive jamais. Limiteur IP **fail-open** (le droit d'opposition doit rester effectif même si Redis tombe). |
 | 90 | Format et suivi | E-mails en texte seul (aucun HTML, donc aucun pixel possible). Le suivi des ouvertures et des clics de Resend doit rester désactivé sur le domaine (lot H). `List-Unsubscribe` et `List-Unsubscribe-Post` seulement sur le résumé et le rendez-vous du jour. Chaque e-mail se termine par une phrase « Vous recevez… » qui donne sa raison d'être. |
 | 91 | Configuration | `EMAIL_EXPEDITEUR` (défaut en dev `Brandself <onboarding@resend.dev>`, **obligatoire en production**, domaine vérifié) et `NUXT_PUBLIC_SITE_URL` (URL, https en production) validés dans `shared/env.ts`, lus par le worker. |
-| 92 | Débit | Limiteur BullMQ sur le worker `emails` : `EMAILS_DEBIT_MAX` par `EMAILS_DEBIT_FENETRE_MS` (2/s par défaut). Les 429 de Resend suivent le chemin d'essai existant. |
+| 92 | Débit | Limiteur BullMQ sur le worker `emails-notifications` (jamais sur les OTP, file `messages-auth`) : `EMAILS_DEBIT_MAX` par `EMAILS_DEBIT_FENETRE_MS` (2/s par défaut). Les 429 de Resend suivent le chemin d'essai existant. |
 | 93 | Prochaine étape | Ordre photo → service → disponibilités → réalisation → **partager**. `partager` n'est proposé que si la vitrine est publiée et que `partagee_le` est NULL. Les étapes ignorées sont stockées dans `vitrines.etapes_ignorees text[]` (CHECK de sous-ensemble, comme `sections_masquees`) et sautées pour toujours ; on passe à la suivante. Toutes les étapes sont ignorables. |
 | 94 | Partage | `vitrines.partagee_le` est posé (`COALESCE`, idempotent) par `POST /api/studio/vitrine/partage` au premier geste : WhatsApp, LinkedIn, copie du message ou téléchargement du QR. Le canal n'est pas stocké. |
 | 95 | Message prêt | Fonction pure `buildShareMessage` (`shared/partage.ts`). WhatsApp : `https://wa.me/?text=`. LinkedIn : `share-offsite/?url=` (LinkedIn n'accepte que l'URL : le message est copié avant l'ouverture, avec une annonce). QR : composant `Qrcode` déjà installé, téléchargement en SVG (patron de la page Liens). |
@@ -207,7 +207,7 @@ export const CODES_ANNULATION = ['RAPPEL_PERIME', 'RESERVATION_NON_CONFIRMEE', '
   'DESTINATAIRE_ABSENT', 'PLAFOND_RELATIONNEL'] as const
 ```
 
-Limiteur (dans `shared/limites.ts`, avec les autres) : `DESABONNEMENT_LIMITE_IP = 20`, `DESABONNEMENT_FENETRE_S = 60`.
+Limiteurs (dans `shared/limites.ts`, avec les autres) : `DESABONNEMENT_ACTION_LIMIT = { limit: 20, windowS: 60 }` (POST) et `DESABONNEMENT_APERCU_LIMIT = { limit: 60, windowS: 60 }` (GET, plus large : les scanners de liens des messageries l'ouvrent), compteurs distincts par opération.
 
 ### 3.2 `shared/jobs.ts`
 - `TRANSACTIONAL_EMAIL_TYPES` reçoit `'reservation_visiteur_rappel'`, `'utilisateur_resume_hebdo'` et `'utilisateur_rappel_journee'`.
@@ -263,8 +263,11 @@ Ajout de `desabonnement`.
 | File | Job | Déclenchement | Rôle |
 |---|---|---|---|
 | `system` | `notifications-planifier` | `upsertJobScheduler(NOTIFICATIONS_SCHEDULER_ID, { pattern: '*/5 * * * *', tz: 'UTC' })` au démarrage du worker | `planifierNotifications(new Date())` : insère les lignes résumé et rendez-vous du jour |
-| `system` | `notifications-purger` | cron `30 3 * * *` UTC | supprime les lignes terminales de plus de 90 jours |
-| `emails` | `send-transactional-email` (existant) | dispatcher toutes les 5 s | envoie ; **nouveau** `limiter: { max: EMAILS_DEBIT_MAX, duration: EMAILS_DEBIT_FENETRE_MS }` |
+| `maintenance` | `notifications-purger` | cron `30 3 * * *` UTC | supprime les lignes terminales de plus de 90 jours |
+| `emails-notifications` | `send-transactional-email` (existant) | dispatcher toutes les 5 s | envoie ; **nouveau** `limiter: { max: EMAILS_DEBIT_MAX, duration: EMAILS_DEBIT_FENETRE_MS }` |
+| `messages-auth` | `send-otp-email`, `send-otp-sms` | à la demande de code (Better Auth) | envoie les codes de connexion ; **aucun limiteur**, concurrence `MESSAGES_AUTH_CONCURRENCE_WORKER` |
+
+Séparation des files (décision utilisateur, après la spec initiale) : le limiteur BullMQ frappe toute la file, donc une rafale de résumés du lundi retardait les OTP. Une file = une nature de travail et un profil de latence : `system` (ping, tick), `maintenance` (purges IA, inscriptions abandonnées et outbox), `messages-auth` (OTP), `emails-notifications` (outbox, limitée), `ia` (générations seules). L'ancienne file `emails` n'est plus alimentée ; un worker de transition la vide (voir « Notes de déploiement S9 »).
 
 Options des deux nouveaux jobs : `attempts: 1`, `removeOnComplete/Fail: true`. Un tick raté est rattrapé par le suivant (fenêtres de plusieurs heures). Fichier `server/jobs/notifications.ts` : `planifierNotificationsRepetees(queue)` et `planifierPurgeNotifications(queue)`, sur le patron de `planifierPurge`.
 
@@ -431,7 +434,8 @@ Toutes suivent `defineApiHandler` : Zod, puis service, puis ressource. Aucune lo
 | POST | `server/api/public/desabonnement/index.post.ts` | `?jeton=` + corps `List-Unsubscribe=One-Click` (form-urlencoded), **ou** JSON `{ jeton }` | 200 `{ preference, desabonne: true }`. Préférence mise à false. Utilisateur introuvable : même 200 (aucun oracle) | 404, 410, 429 |
 
 Détails :
-- Désabonnement : limiteur `desabonnement:{ipHash}` 20/min **fail-open** ; en-têtes `Cache-Control: no-store`, `Referrer-Policy: no-referrer`, `X-Robots-Tag: noindex`. Le jeton n'est jamais journalisé (le gestionnaire d'erreurs logue `event.path` : utiliser le chemin sans la query string).
+- Désabonnement : limiteur `desabonnement:{apercu|action}:{ipHash}` (60/min pour l'aperçu, 20/min pour l'action) **fail-open** ; en-têtes `Cache-Control: no-store`, `Referrer-Policy: no-referrer`, `X-Robots-Tag: noindex`. Le jeton n'est jamais journalisé (le gestionnaire d'erreurs logue `event.path` : utiliser le chemin sans la query string).
+- POST : si le corps est absent, trop gros, en morceaux (sans `content-length`) ou illisible, on retombe sur le jeton de la query ; sans jeton valide : 404 `JETON_INVALIDE`.
 - Pas de jeton CSRF : le jeton signé est l'autorisation, et l'opération ne peut que désactiver.
 - Service `server/services/desabonnement.ts` : `signUnsubscribeToken(userId, preference, now)`, `verifyUnsubscribeToken(jeton, now)`, `previewUnsubscribe`, `unsubscribe`.
 - Service vitrines (lot E) : `getNextStep(userId)`, `ignoreNextStep(userId, etape)`, `markShared(userId)`. `summarize` passe à `computeNextStep({ hasPhoto, servicesActifs, disponibilites, realisationsActives, publiee, partagee, ignorees })`.
@@ -714,3 +718,34 @@ WhatsApp ou SMS comme canal, notifications dans le navigateur, centre de notific
 7. **`rappel_email` à false à l'envoi** : code d'annulation `PREFERENCE_DESACTIVEE`.
 8. **Routes studio S9** : DTO nu, sans fichier ressource.
 9. **Couplage de déploiement** : la cible `ON CONFLICT` de `insertTransactionalEmailEvents` passe à 4 colonnes (avec `occurrence`) dans le même lot que la migration 0020 (lot B2).
+10. **Arbitrage — rappel visiteur : opposition.** Le rappel visiteur n'a PAS de lien d'opposition ni de nouveau jeton. Risque résiduel : un tiers peut saisir l'adresse d'une victime dans le formulaire de réservation avec « rappel par e-mail » coché, et la victime recevrait un e-mail qu'elle n'a pas demandé, sans moyen de s'y opposer en un clic. Mitigations existantes : un seul e-mail par rendez-vous (`occurrence` = début du rendez-vous, unicité en base) ; confirmation humaine préalable (le professionnel doit avoir confirmé la réservation, sinon aucun rappel) ; texte seul, sans lien ni pièce jointe, minimisation (ni téléphone ni motif) ; limiteurs par IP, par contact et par vitrine sur la réservation publique ; le message nomme le professionnel et la raison de l'envoi. Le risque reste borné à un message par réservation confirmée. À rouvrir si des signalements apparaissent (piste : jeton d'opposition par réservation, hors S9).
+11. **Files séparées.** Voir §4.1. Les purges quittent `ia` et `system` pour `maintenance` ; les OTP quittent `emails` pour `messages-auth` (sans limiteur).
+12. **Vocabulaire.** « Demandes reçues » est conservé dans le résumé : « demande » est le terme métier des demandes de devis et d'atelier (table `demandes`, PROJECT_CONTEXT.md). Pied de désabonnement unifié : « Ne plus recevoir cet e-mail, en un clic : … » (journée et résumé).
+13. **Revalidation du rappel visiteur.** Une vitrine dépubliée depuis la planification annule le rappel (`VITRINE_NON_PUBLIEE`), après le statut et la préférence, avant la péremption.
+
+---
+
+## Notes de déploiement S9
+
+### Séparation des files : jobs déjà en file sous l'ancien nom
+
+- Le worker lance, pendant UNE release, un `Worker` de transition sur l'ancienne file `emails` (`FILE_EMAILS_LEGACY`) : il traite les OTP et les envois d'outbox enfilés par l'ancienne version juste avant le déploiement (avec le limiteur d'avant). Aucun producteur n'y écrit plus. Retirer ce worker, `FILE_EMAILS_LEGACY` et son test à la release suivante, une fois `emails` vide (`getJobCounts` à 0).
+- Outbox : sans risque de perte. Le dispatcher relit la base toutes les 5 s et enfile sur `emails-notifications` ; l'envoi est idempotent (bail `en_cours`, statuts terminaux), un job resté dans `emails` ne peut pas provoquer un second envoi.
+- OTP : un code vit 10 minutes ; un job OTP resté dans `emails` est de toute façon vidé par le worker de transition.
+- Purges : au démarrage, le worker retire les anciens ordonnanceurs (`ia-purger` sur `ia`, `notifications-purger` sur `system`, avec leur prochain job différé) puis pose les nouveaux sur `maintenance`. Un job de purge déjà promu au moment du déploiement échoue une fois (`Unknown job`, sans nouvel essai) ; la purge suivante rattrape (idempotente).
+- Ordre : déployer l'application ET le worker ensemble (les OTP partent sur `messages-auth`, que seul le nouveau worker lit). Une application neuve avec un ancien worker laisserait les OTP en attente.
+
+### Rotation de `NUXT_BETTER_AUTH_SECRET`
+
+La clé de signature des jetons de désabonnement est dérivée de ce secret (HKDF-SHA256, `DESABONNEMENT_HKDF_INFO`). Changer le secret invalide tous les jetons déjà envoyés, donc les liens des e-mails des 90 derniers jours (`DESABONNEMENT_JETON_VALIDITE_JOURS`) répondent 404 `JETON_INVALIDE`, ainsi que toutes les sessions Better Auth. Procédure :
+
+1. Planifier la rotation hors période sensible (pas un lundi matin : jour du résumé ; pas pendant une campagne de rendez-vous). Les liens des e-mails déjà reçus deviennent inutilisables, et le droit d'opposition passe alors par la page Compte.
+2. Alternative sans rupture : prévoir une clé v2 (`DESABONNEMENT_JETON_VERSION = 'v2'`, nouvelle `info` HKDF), vérifier v1 ET v2 pendant 90 jours, signer en v2 seulement, puis retirer v1. Non implémenté aujourd'hui (le jeton v1 n'accepte qu'une clé).
+3. Mettre à jour le secret dans l'environnement (jamais dans le dépôt), redémarrer l'application ET le worker (le cache de la clé dérivée vit en mémoire de chaque process).
+4. Vérifier : un nouvel e-mail du jour porte un lien qui fonctionne (GET `/api/public/desabonnement?jeton=…` répond 200).
+
+### Notes nginx pour `/api/public/desabonnement`
+
+- Journaux d'accès sans query string : le jeton est dans l'URL. Utiliser `$uri` à la place de `$request_uri`/`$request` dans le `log_format` (ou un `access_log off;` dédié à cette `location`). Les journaux applicatifs sont déjà sans query string.
+- Taille du corps : `client_max_body_size 2k;` dans cette `location` (le corps légitime tient en quelques dizaines d'octets ; l'application ne lit pas au-delà de `DESABONNEMENT_CORPS_MAX_OCTETS` = 1 024 octets, mais nginx doit couper avant). Garder `proxy_set_header X-Forwarded-For $remote_addr;` : le limiteur par IP en dépend.
+- Ne pas mettre en cache cette `location` (`proxy_no_cache 1; proxy_cache_bypass 1;`) : l'application envoie déjà `Cache-Control: no-store`.

@@ -194,6 +194,14 @@ describe('reservation_visiteur_rappel (§5.1, CA08, CA15)', () => {
     expectPied(rappel())
   })
 
+  it('should write « 1 minute » in the singular and « N minutes » in the plural', () => {
+    const singulier = rappel({ service: { ...rappelBase.service, dureeMin: 1 } })
+    const pluriel = rappel({ service: { ...rappelBase.service, dureeMin: 5 } })
+
+    expect(lignes(singulier.text)).toContain('Durée : 1 minute')
+    expect(lignes(pluriel.text)).toContain('Durée : 5 minutes')
+  })
+
   it('should omit the duration and the place when they are unknown', () => {
     const message = rappel({
       service: { ...rappelBase.service, dureeMin: null },
@@ -327,7 +335,7 @@ describe('utilisateur_rappel_journee (§5.2, CA23, CA45)', () => {
     expect(corps).toContain(`Le détail est dans votre agenda : ${SITE}/studio/agenda`)
     expect(corps).toContain('Belle journée,')
     expect(corps).toContain("Vous recevez cet e-mail parce que vous avez des rendez-vous aujourd'hui.")
-    expect(corps).toContain(`Ne plus le recevoir, en un clic : ${SITE}/desabonnement?jeton=${JETON}`)
+    expect(corps).toContain(`Ne plus recevoir cet e-mail, en un clic : ${SITE}/desabonnement?jeton=${JETON}`)
     expect(corps).toContain(`Gérer vos e-mails : ${SITE}/studio/compte`)
     expectPied(message)
   })
@@ -413,7 +421,7 @@ describe('utilisateur_resume_hebdo avec activité (§5.3, CA26, CA27, CA45)', ()
     expect(corps).toContain('Bonne semaine,')
     expect(corps).toContain('Brandself')
     expect(corps).toContain("Vous recevez ce résumé chaque lundi parce qu'il est activé dans votre compte.")
-    expect(corps).toContain(`Vous désabonner en un clic : ${SITE}/desabonnement?jeton=${JETON}`)
+    expect(corps).toContain(`Ne plus recevoir cet e-mail, en un clic : ${SITE}/desabonnement?jeton=${JETON}`)
     expect(corps).toContain(`Gérer vos e-mails : ${SITE}/studio/compte`)
     expectPied(message)
   })

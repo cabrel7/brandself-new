@@ -20,12 +20,12 @@ const DEBUT = new Date('2026-11-12T09:00:00.000Z')
 const PREVU = new Date(DEBUT.getTime() - RAPPEL_VISITEUR_AVANCE_HEURES * HEURE_MS)
 const CREE_LE = new Date('2026-11-02T07:00:00.000Z')
 
-function rappel(reservation: Partial<{ statut: string, rappelEmail: boolean, debut: Date }> | null, surcharge: { occurrence?: string } = {}) {
+function rappel(reservation: Partial<{ statut: string, rappelEmail: boolean, debut: Date, vitrinePubliee: boolean }> | null, surcharge: { occurrence?: string } = {}) {
   return {
     type: 'reservation_visiteur_rappel' as const,
     occurrence: surcharge.occurrence ?? DEBUT.toISOString(),
     createdAt: PREVU,
-    reservation: reservation === null ? null : { statut: 'confirmee', rappelEmail: true, debut: DEBUT, ...reservation },
+    reservation: reservation === null ? null : { statut: 'confirmee', rappelEmail: true, debut: DEBUT, vitrinePubliee: true, ...reservation },
   }
 }
 
@@ -104,6 +104,21 @@ describe('evaluerPertinence : reservation_visiteur_rappel (CA12 à CA14)', () =>
     const { evaluerPertinence } = await pertinence()
 
     expect(evaluerPertinence(rappel({ rappelEmail: false }), PREVU)).toBe('PREFERENCE_DESACTIVEE')
+  })
+
+  it('should drop it with VITRINE_NON_PUBLIEE when the vitrine was unpublished since the planning', async () => {
+    const { evaluerPertinence } = await pertinence()
+
+    expect(evaluerPertinence(rappel({ vitrinePubliee: false }), PREVU)).toBe('VITRINE_NON_PUBLIEE')
+  })
+
+  it('should report the unpublished vitrine after the status and the preference, before the lateness', async () => {
+    const { evaluerPertinence } = await pertinence()
+    const tard = new Date(PREVU.getTime() + 20 * HEURE_MS)
+
+    expect(evaluerPertinence(rappel({ vitrinePubliee: false, statut: 'annulee' }), PREVU)).toBe('RESERVATION_NON_CONFIRMEE')
+    expect(evaluerPertinence(rappel({ vitrinePubliee: false, rappelEmail: false }), PREVU)).toBe('PREFERENCE_DESACTIVEE')
+    expect(evaluerPertinence(rappel({ vitrinePubliee: false }), tard)).toBe('VITRINE_NON_PUBLIEE')
   })
 
   it('should report the status before the lateness (priority of the §4.4 table)', async () => {
