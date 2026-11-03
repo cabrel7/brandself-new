@@ -166,6 +166,13 @@ export default defineAppConfig({
       },
     },
 
+    // Badge de plan : pastille d'accent doux (plan payant), texte d'accent lisible (>= 4,5:1).
+    badge: {
+      compoundVariants: [
+        { color: 'primary', variant: 'soft', class: 'bg-accent-doux font-semibold text-accent-texte' },
+      ],
+    },
+
     separator: {
       slots: {
         label: 'text-sm text-muted font-normal',

@@ -12,6 +12,7 @@ const {
 } = await useTarifs()
 
 const LIEN_COMMENCER = '/connexion'
+const { loggedIn } = useUserSession()
 const exposant = computed(() => deviseOffre.value?.exposant ?? 0)
 
 const itemsDevises = computed(() => devises.value.map((d) => ({ value: d.devise, label: d.devise })))
@@ -41,8 +42,12 @@ const precisionPayant = computed(() => {
   return `par mois, facturé ${formaterMontant(choisi.montant, devise.value, exposant.value)} pour ${libellePeriode(choisi.periodeMois)}`
 })
 
-// Un abonné ouvre sa carte Abonnement (la durée choisie ici est présélectionnée) ; sinon, il commence par se connecter.
-const lienPayant = computed(() => (periode.value ? `/studio/compte?periode=${periode.value}#abonnement` : '/studio/compte#abonnement'))
+// Connecté : sa carte Abonnement s'ouvre, la durée choisie ici est présélectionnée. Visiteur : il commence par se connecter
+// (aucun retour vers l'abonnement après la connexion n'existe : il le retrouve depuis son compte).
+const lienPayant = computed(() => {
+  if (!loggedIn.value) return LIEN_COMMENCER
+  return periode.value ? `/studio/compte?periode=${periode.value}#abonnement` : '/studio/compte#abonnement'
+})
 const moyensTexte = computed(() => moyensLibelles.value.join(' ou '))
 </script>
 
@@ -79,7 +84,7 @@ const moyensTexte = computed(() => moyensLibelles.value.join(' ou '))
           <TarifsPlanCarte
             v-if="gratuit"
             titre="Gratuit"
-            :prix="prixGratuit ?? 'Gratuit'"
+            :prix="prixGratuit"
             precision="pour toujours"
             :lignes="lignesPlan(gratuit)"
             :action="{ label: 'Commencer gratuitement', to: LIEN_COMMENCER }"

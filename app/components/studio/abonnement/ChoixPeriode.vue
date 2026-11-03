@@ -17,7 +17,12 @@ const props = defineProps<{
 const emit = defineEmits<{ choisir: [] }>()
 const periode = defineModel<PeriodeMois>({ required: true })
 
-const UI = { legend: 'mb-2 text-base font-semibold text-encre', item: 'w-full bg-champ', fieldset: 'gap-3' }
+const UI = {
+  legend: 'mb-2 text-base font-semibold text-encre',
+  item: 'w-full bg-champ has-data-[state=checked]:border-accent has-data-[state=checked]:bg-accent-doux',
+  fieldset: 'gap-3',
+}
+const idErreur = useId()
 
 // Les valeurs d'un groupe radio sont des textes : conversion explicite vers la durée en mois.
 const valeur = computed({
@@ -39,7 +44,7 @@ const items = computed(() => props.prix.map((p) => ({
 </script>
 
 <template>
-  <div class="flex flex-col gap-2">
+  <div class="flex flex-col gap-2" data-champ="periode">
     <URadioGroup
       v-model="valeur"
       :legend="legende"
@@ -48,8 +53,9 @@ const items = computed(() => props.prix.map((p) => ({
       size="lg"
       :disabled="disabled"
       :ui="UI"
+      :aria-describedby="erreur ? idErreur : undefined"
     />
-    <p v-if="erreur" role="alert" class="message-erreur">
+    <p v-if="erreur" :id="idErreur" class="message-erreur">
       <UIcon name="i-ph-warning-circle" class="size-5 shrink-0" aria-hidden="true" />
       <span>{{ erreur }}</span>
     </p>

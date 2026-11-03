@@ -11,9 +11,12 @@ const props = defineProps<{
 const route = useRoute()
 const { abonnement, enChargement, enErreur, refresh } = useAbonnement()
 const {
-  periode, moyenId, telephone, paiement, etape, erreurs, devise, deviseOffre, devisesProposees,
+  periode, moyenId, telephone, paiement, etape, erreurs, signalErreur, devise, deviseOffre, devisesProposees,
   prixChoisi, moyens, moyenChoisi, payer, reessayer, verifierEncore, viderErreur,
 } = usePaiementAbonnement(abonnement, refresh)
+
+// Le squelette n'apparaît qu'après 200 ms : pas de flash sur un chargement rapide.
+const { ready: squeletteVisible } = useTimeout(200, { controls: true })
 
 const etat = computed(() => abonnement.value?.etat ?? 'gratuit')
 const offre = computed(() => abonnement.value?.offre ?? null)
@@ -52,6 +55,23 @@ const action = computed(() => {
 })
 const afficherMention = computed(() => abonne.value || formulaireVisible.value)
 
+/**
+ * Annonce vocale des changements qui ne déplacent pas le focus (attente prolongée, suivi coupé).
+ * Les autres états (attente, réussite, échec, vérification) sont annoncés par le focus sur leur titre.
+ */
+const annonce = computed(() => {
+  const e = suivi.value?.etape
+  if (e === 'delai') return 'Toujours en attente de la confirmation de l’opérateur'
+  return e === 'reseau' ? 'Le suivi du paiement est interrompu' : ''
+})
+
+/** Fin d'un résultat : le formulaire revient, le focus passe au titre de la carte plutôt que de se perdre. */
+async function retourFormulaire(): Promise<void> {
+  reessayer()
+  await nextTick()
+  document.getElementById('titre-abonnement')?.focus()
+}
+
 // Lien « Voir l'abonnement » ou de rappel (`#abonnement`) : la carte arrive après le chargement de la page.
 let ancreTraitee = false
 watch(() => abonnement.value !== null, async (charge) => {
@@ -66,7 +86,7 @@ watch(() => abonnement.value !== null, async (charge) => {
   <section id="abonnement" aria-labelledby="titre-abonnement" class="scroll-mt-6">
     <BsCard>
       <div class="flex items-center justify-between gap-3">
-        <h2 id="titre-abonnement" class="m-0 text-(length:--fs-20) font-semibold text-encre">
+        <h2 id="titre-abonnement" tabindex="-1" class="m-0 text-(length:--fs-20) font-semibold text-encre outline-none">
           Abonnement
         </h2>
         <UBadge
@@ -74,16 +94,14 @@ watch(() => abonnement.value !== null, async (charge) => {
           :color="abonne ? 'primary' : 'neutral'"
           :variant="abonne ? 'soft' : 'outline'"
           size="lg"
-          :class="abonne ? 'bg-accent-doux font-semibold text-accent-texte' : ''"
         >
           {{ PLAN_LIBELLES[abonnement.plan] }}
         </UBadge>
       </div>
 
-      <div v-if="enChargement" class="flex flex-col gap-3" aria-busy="true" aria-label="Chargement de votre abonnement">
-        <USkeleton class="h-6 w-2/3" />
-        <USkeleton class="h-4 w-1/3" />
-        <USkeleton class="h-40 w-full" />
+      <div v-if="enChargement" role="status">
+        <span class="sr-only">Chargement de votre abonnement</span>
+        <USkeleton v-if="squeletteVisible" class="h-24 w-full" aria-hidden="true" />
       </div>
 
       <div v-else-if="enErreur || !abonnement" class="flex flex-col items-start gap-3">
@@ -136,9 +154,10 @@ watch(() => abonnement.value !== null, async (charge) => {
           :etape="suivi.etape"
           :paiement="suivi.paiement"
           :jour-fin="jourFinPaiement"
-          @reessayer="reessayer"
+          @reessayer="retourFormulaire"
           @verifier="verifierEncore"
-          @terminer="reessayer"
+          @terminer="retourFormulaire"
+          @actualiser="() => refresh()"
         />
 
         <StudioAbonnementFormulairePaiement
@@ -156,6 +175,7 @@ watch(() => abonnement.value !== null, async (charge) => {
           :moyens="moyens"
           :moyen-choisi="moyenChoisi"
           :erreurs="erreurs"
+          :signal-erreur="signalErreur"
           :envoi="etape === 'envoi'"
           @payer="payer"
           @vider-erreur="viderErreur"
@@ -165,6 +185,10 @@ watch(() => abonnement.value !== null, async (charge) => {
           <UIcon name="i-ph-clock" class="size-5 shrink-0" aria-hidden="true" />
           <span>Le paiement en ligne arrive bientôt.</span>
         </p>
+
+        <div class="sr-only" aria-live="polite" aria-atomic="true">
+          {{ annonce }}
+        </div>
 
         <p v-if="afficherMention" class="m-0 text-base text-texte-secondaire">
           Votre abonnement ne se renouvelle pas automatiquement. {{ phraseRappels() }}

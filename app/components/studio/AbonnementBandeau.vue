@@ -14,7 +14,7 @@ const jourFin = computed(() => (moi.value ? dernierJourAvant(props.graceJusquau,
 
 <template>
   <section :aria-labelledby="idTitre" class="flex flex-col items-start gap-3 rounded-(--rayon-carte) bg-accent-doux p-6 text-start">
-    <h2 :id="idTitre" class="m-0 font-(family-name:--font-titre) text-(length:--fs-20) leading-snug font-bold text-encre">
+    <h2 :id="idTitre" class="m-0 text-(length:--fs-20) leading-snug font-bold text-encre">
       Votre abonnement est terminé.
     </h2>
     <p class="m-0 text-base text-encre">

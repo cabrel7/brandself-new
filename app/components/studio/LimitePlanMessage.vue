@@ -10,9 +10,16 @@ const props = defineProps<{
   date?: string
   /** Réponse à une action qui vient d'échouer : annoncée tout de suite. */
   alerte?: boolean
+  /** Affiché suite à un clic : le titre reçoit le focus, qui l'annonce et le rend atteignable au clavier. */
+  prendreLeFocus?: boolean
 }>()
 
 const MESSAGE_DE_REPLI = 'Vous avez atteint la limite du plan gratuit.'
+
+const titre = useTemplateRef<HTMLElement>('titre')
+onMounted(() => {
+  if (props.prendreLeFocus) titre.value?.focus()
+})
 
 const message = computed(() => LIMITE_MESSAGES[props.ressource])
 const texte = computed(() => {
@@ -27,7 +34,7 @@ const texte = computed(() => {
     :role="alerte ? 'alert' : 'status'"
     class="flex flex-col items-start gap-3 rounded-(--rayon) border border-bordure bg-accent-doux p-4"
   >
-    <p class="m-0 flex items-start gap-2 text-base font-semibold text-encre">
+    <p ref="titre" tabindex="-1" class="m-0 flex items-start gap-2 text-base font-semibold text-encre outline-none">
       <UIcon name="i-ph-info" class="mt-0.5 size-5 shrink-0 text-accent-texte" aria-hidden="true" />
       <span>{{ message.titre }}</span>
     </p>

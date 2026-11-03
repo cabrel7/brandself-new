@@ -16,6 +16,8 @@ const props = defineProps<{
   moyens: MoyenPaiementDTO[]
   moyenChoisi: MoyenPaiementDTO | null
   erreurs: ErreursPaiement
+  /** Compteur de refus : à chaque changement, le focus va au premier champ invalide. */
+  signalErreur: number
   envoi: boolean
 }>()
 
@@ -34,11 +36,24 @@ const UI_DEVISE = {
 
 const itemsDevises = computed(() => props.devises.map((d) => ({ value: d.devise, label: d.devise })))
 const deviseDifferente = computed(() => devise.value !== null && devise.value !== props.deviseCompte)
+const racine = useTemplateRef<HTMLFormElement>('racine')
+const ORDRE_CHAMPS = ['periode', 'moyen', 'telephone'] as const
+
+// Après un refus : focus sur le premier champ invalide, sans second message (chaque erreur est liée à son champ).
+watch(() => props.signalErreur, async () => {
+  const champ = ORDRE_CHAMPS.find((nom) => props.erreurs[nom])
+  if (!champ) return
+  await nextTick()
+  const cible = champ === 'telephone'
+    ? racine.value?.querySelector<HTMLElement>('input[type="tel"]')
+    : racine.value?.querySelector<HTMLElement>(`[data-champ="${champ}"] [role="radio"]`)
+  cible?.focus()
+})
 const aideTelephone = 'Vous recevrez une demande de confirmation sur votre téléphone.'
 </script>
 
 <template>
-  <form class="flex flex-col gap-5" novalidate @submit.prevent="emit('payer')">
+  <form ref="racine" class="flex flex-col gap-5" novalidate @submit.prevent="emit('payer')">
     <URadioGroup
       v-if="devises.length > 1"
       :model-value="devise ?? undefined"

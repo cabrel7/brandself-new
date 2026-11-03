@@ -68,6 +68,7 @@ const resumeTexte = computed(() =>
       <StudioLimitePlanMessage
         v-if="ajout.affichee.value"
         class="mt-4"
+        prendre-le-focus
         ressource="temoignages"
         :limite="ajout.limite.value"
       />

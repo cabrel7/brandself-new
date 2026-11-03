@@ -82,6 +82,8 @@ export function usePaiementAbonnement(
   const paiement = ref<PaiementDTO | null>(null)
   const etape = ref<EtapePaiement>('saisie')
   const erreurs = ref<ErreursPaiement>({})
+  /** Incrémenté à chaque refus (contrôle local ou serveur) : le formulaire y répond en focalisant le premier champ invalide. */
+  const signalErreur = ref(0)
 
   const offre = computed(() => abonnement.value?.offre ?? null)
   /** Devise payable choisie, ou celle proposée par défaut par le serveur. */
@@ -277,7 +279,10 @@ export function usePaiementAbonnement(
   async function payer(): Promise<void> {
     if (etape.value !== 'saisie') return
     erreurs.value = {}
-    if (!controler() || !devise.value || !moyenChoisi.value) return
+    if (!controler() || !devise.value || !moyenChoisi.value) {
+      signalErreur.value += 1
+      return
+    }
 
     etape.value = 'envoi'
     try {
@@ -295,6 +300,7 @@ export function usePaiementAbonnement(
     } catch (e) {
       etape.value = 'saisie'
       await ranger(e)
+      signalErreur.value += 1
     }
   }
 
@@ -316,7 +322,7 @@ export function usePaiementAbonnement(
   }
 
   return {
-    periode, moyenId, telephone, paiement, etape, erreurs,
+    periode, moyenId, telephone, paiement, etape, erreurs, signalErreur,
     devise, deviseOffre, devisesProposees, prixPeriodes, prixChoisi, moyens, moyenChoisi,
     payer, reessayer, verifierEncore, viderErreur,
   }

@@ -63,6 +63,7 @@ const ajout = useLimiteAjout(computed(() => compteurs.value?.limitePlan))
       <StudioLimitePlanMessage
         v-if="ajout.affichee.value"
         class="mt-4"
+        prendre-le-focus
         ressource="services"
         :limite="ajout.limite.value"
       />
