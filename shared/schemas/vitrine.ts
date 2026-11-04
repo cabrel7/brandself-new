@@ -11,6 +11,7 @@ import {
   TITRES,
   VILLE_MAX,
 } from '../vitrine'
+import { SEO_DESCRIPTION_MAX, SEO_DESCRIPTION_MIN, SEO_TITRE_MAX, SEO_TITRE_MIN } from '../seo'
 import { schemaUsername } from './username'
 
 const EMAIL_MAX = 254
@@ -59,6 +60,18 @@ export const schemaVitrineUpdate = z
     telephone: champTelephone,
     whatsapp: champTelephone,
     palette: z.enum(PALETTES, 'Palette inconnue.'),
+    seoTitre: nullable(
+      z
+        .string()
+        .min(SEO_TITRE_MIN, `Le titre sur Google doit faire au moins ${SEO_TITRE_MIN} caractères.`)
+        .max(SEO_TITRE_MAX, `Le titre sur Google est limité à ${SEO_TITRE_MAX} caractères.`),
+    ),
+    seoDescription: nullable(
+      z
+        .string()
+        .min(SEO_DESCRIPTION_MIN, `La description sur Google doit faire au moins ${SEO_DESCRIPTION_MIN} caractères.`)
+        .max(SEO_DESCRIPTION_MAX, `La description sur Google est limitée à ${SEO_DESCRIPTION_MAX} caractères.`),
+    ),
   })
   .partial()
   .strict()
