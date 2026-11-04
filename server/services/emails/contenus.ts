@@ -7,6 +7,7 @@ import { formatDureeLongue } from '../../../shared/services'
 import { buildReservationIcs } from '../agenda-ics'
 import {
   TEXTES_NOTIFICATIONS,
+  buildAbonnementEmail,
   buildUtilisateurEmail,
   formatJour,
   formatJourComplet,
@@ -15,10 +16,10 @@ import {
   pied,
   singleLine,
 } from './notifications-contenus'
-import type { UtilisateurEmailContent } from './notifications-contenus'
+import type { AbonnementEmailContent, UtilisateurEmailContent } from './notifications-contenus'
 import type { EmailAttachment, EmailMessage } from './transport'
 
-export type { UtilisateurEmailContent } from './notifications-contenus'
+export type { AbonnementEmailContent, UtilisateurEmailContent } from './notifications-contenus'
 
 // Le rappel visiteur (S9) n'a ni pièce jointe ni statut ICS : il a son propre type de contenu.
 type ReservationEmailType = Exclude<Extract<TransactionalEmailType, `reservation_${string}`>, 'reservation_visiteur_rappel'>
@@ -76,7 +77,11 @@ export interface RappelVisiteurContent extends BaseEmailContent {
 // S7-bis : le contenu d'un email de message n'a pas de service (la page Contact n'en
 // mentionne pas) ; les réservations et demandes portent le leur. Le visiteur d'un
 // message peut être sans téléphone (facultatif).
-export type TransactionalEmailContent = RappelVisiteurContent | UtilisateurEmailContent | BaseTransactionalEmailContent
+export type TransactionalEmailContent =
+  | RappelVisiteurContent
+  | UtilisateurEmailContent
+  | AbonnementEmailContent
+  | BaseTransactionalEmailContent
 
 type BaseTransactionalEmailContent = BaseEmailContent & (
   | {
@@ -270,6 +275,9 @@ export function buildTransactionalEmail(content: TransactionalEmailContent): Ema
     case 'utilisateur_rappel_journee':
     case 'utilisateur_resume_hebdo':
       return buildUtilisateurEmail(content)
+    case 'abonnement_rappel':
+    case 'paiement_confirme':
+      return buildAbonnementEmail(content)
     case 'reservation_professionnel_nouvelle':
       return {
         to: content.professionnelEmail,

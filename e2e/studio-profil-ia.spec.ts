@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test'
 import type { Locator, Page } from '@playwright/test'
 import { AMELIORER_TEXTE_MIN } from '../shared/ia'
+import { donnerPlanPayant } from './helpers/abonnement'
 import { ouvrirStudio } from './helpers/hydratation'
 import {
   adresseUnique, creerUtilisateurFrais, creerVitrinePubliee, definirModeIaFaux, DESKTOP, fermerIa, lireBioVitrine,
@@ -70,6 +71,9 @@ test.describe.serial('Profil : améliorer avec l’IA (fournisseur d’IA faux)'
     utilisateur = await creerUtilisateurFrais(playwright, browser)
     page = utilisateur.page
     await creerVitrinePubliee(utilisateur.session, adresseUnique('s8profil'), TEXTE_ORIGINAL)
+    // Ce fichier porte sur le panneau de proposition, pas sur le quota (3 propositions de l'IA par mois au plan gratuit, S10 #124) :
+    // il en terminerait exactement 3, sans marge. Abonnement payant actif = propositions illimitées.
+    await donnerPlanPayant(utilisateur.session.userId)
   })
 
   test.beforeEach(async () => {

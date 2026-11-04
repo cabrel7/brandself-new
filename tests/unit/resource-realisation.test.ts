@@ -23,7 +23,7 @@ const ID_MEDIA = '5e6f7a8b-aaaa-4bbb-8ccc-ddddeeeeffff'
 const ID_GALERIE = ['ffffffff-0000-4000-8000-000000000003', '88888888-0000-4000-8000-000000000001', 'cccccccc-0000-4000-8000-000000000002']
 
 const CLES_STUDIO = [
-  'actif', 'annee', 'creeLe', 'description', 'enVedette', 'galerie', 'id', 'image', 'lieu', 'lien', 'modifieLe',
+  'actif', 'annee', 'creeLe', 'description', 'enVedette', 'galerie', 'id', 'image', 'lieu', 'lien', 'masqueParPlan', 'modifieLe',
   'ordre', 'role', 'slug', 'titre',
 ].sort()
 
@@ -33,8 +33,9 @@ const CLES_DETAIL = [...CLES_CARTE, 'galerie', 'lien', 'role', 'seo'].sort()
 
 const CLES_MEDIA = ['hauteur', 'id', 'largeur', 'srcset', 'url']
 
-function ligne(surcharges: Partial<RealisationRow> = {}): RealisationRow {
+function ligne(surcharges: Partial<RealisationRow & { masqueParPlan: boolean }> = {}): RealisationRow & { masqueParPlan: boolean } {
   return {
+    masqueParPlan: false,
     id: ID_REALISATION,
     vitrineId: ID_VITRINE,
     slug: 'unite-de-catheterisme-chu-de-douala',
@@ -185,10 +186,12 @@ describe('toRealisationStudioResource (U22)', () => {
 })
 
 describe('toRealisationsCompteursResource (U22)', () => {
-  it('should expose the four counters and nothing else', async () => {
+  it('should expose the four counters and the plan usage, nothing else (S10)', async () => {
     const { toRealisationsCompteursResource } = await ressource()
 
-    expect(toRealisationsCompteursResource({ total: 4, visibles: 3, enVedette: 2, vedetteMax: 3 })).toEqual({ total: 4, visibles: 3, enVedette: 2, vedetteMax: 3 })
+    const limitePlan = { limite: null, utilise: 4, atteinte: false }
+
+    expect(toRealisationsCompteursResource({ total: 4, visibles: 3, enVedette: 2, vedetteMax: 3, limitePlan })).toEqual({ total: 4, visibles: 3, enVedette: 2, vedetteMax: 3, limitePlan })
   })
 })
 

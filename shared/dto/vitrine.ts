@@ -58,6 +58,8 @@ export interface VitrinePubliqueDTO {
   palette: Palette
   fuseau: string
   seo: { titre: string, description: string }
+  /** S10 : badge « Créé avec Brandself » (plan gratuit). Le statut d'abonnement n'est jamais exposé publiquement. */
+  badgeBrandself: boolean
 }
 
 /** Nombre d'éléments visibles (`actif`) par liste, et présence d'un agenda public : navigation. */

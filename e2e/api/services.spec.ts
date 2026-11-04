@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { expect, test } from '@playwright/test'
 import { makePng } from '../../tests/support/images'
+import { donnerPlanPayant, retirerPlan } from '../helpers/abonnement'
 import { attendreErreur, fermerConnexions, lireErreur, seConnecter } from '../helpers/session'
 import type { Session } from '../helpers/session'
 
@@ -9,9 +10,12 @@ import type { Session } from '../helpers/session'
 // mise à jour, du plafond de vedettes, du réordonnancement et de l'isolation. Les routes sans session
 // (CA38) sont dans studio-auth.spec.ts.
 // Une session par fichier (limite d'envoi OTP) : describe.serial, un utilisateur, une vitrine.
+// S10 : le plan gratuit limite à 3 services (403 LIMITE_PLAN_ATTEINTE à la 4e création, avant le contrôle des vedettes) et
+// masque au public les éléments au-delà des 3 plus anciens. Chaque test repart donc du plan gratuit (`beforeEach`) ;
+// ceux qui portent sur 4 services ou plus se donnent un abonnement payant actif (`donnerPlanPayant`).
 
 const CLES_SERVICE_STUDIO = [
-  'actif', 'creeLe', 'description', 'dureeMin', 'enVedette', 'id', 'image', 'inclus', 'modifieLe', 'nbSeances',
+  'actif', 'creeLe', 'description', 'dureeMin', 'enVedette', 'id', 'image', 'inclus', 'masqueParPlan', 'modifieLe', 'nbSeances',
   'ordre', 'paiementInstructions', 'paiementMode', 'prixDevise', 'prixMontant', 'reservable', 'rythme', 'slug',
   'tarif', 'titre', 'type',
 ].sort()
@@ -43,7 +47,14 @@ interface ServiceStudio {
   reservable: boolean
   enVedette: boolean
   actif: boolean
+  masqueParPlan: boolean
   ordre: number
+}
+
+interface LimitePlan {
+  limite: number | null
+  utilise: number
+  atteinte: boolean
 }
 
 interface Compteurs {
@@ -51,6 +62,7 @@ interface Compteurs {
   visibles: number
   enVedette: number
   vedetteMax: number
+  limitePlan: LimitePlan
 }
 
 interface ReponseService {
@@ -95,6 +107,11 @@ test.describe.serial('services — API studio et publique (S3-CA39 à CA42)', ()
   test.afterAll(async () => {
     await session.api.dispose()
     await fermerConnexions()
+  })
+
+  // Chaque test repart du plan gratuit : l'ordre des tests ne doit jamais décider du quota applicable.
+  test.beforeEach(async () => {
+    await retirerPlan(session.userId)
   })
 
   async function creer(donnees: Record<string, unknown>): Promise<ReponseService> {
@@ -186,7 +203,7 @@ test.describe.serial('services — API studio et publique (S3-CA39 à CA42)', ()
         image: null,
       })
       expect(corps.service.id).toMatch(/^[0-9a-f-]{36}$/)
-      expect(corps.compteurs).toEqual({ total: 1, visibles: 1, enVedette: 1, vedetteMax: 3 })
+      expect(corps.compteurs).toEqual({ total: 1, visibles: 1, enVedette: 1, vedetteMax: 3, limitePlan: { limite: 3, utilise: 1, atteinte: false } })
     })
 
     test('CA40 GET /api/studio/services/:id and the list answer the same service', async () => {
@@ -197,7 +214,7 @@ test.describe.serial('services — API studio et publique (S3-CA39 à CA42)', ()
 
       expect(unitaire.service).toEqual(service)
       expect(liste.services).toEqual([service])
-      expect(liste.compteurs).toEqual({ total: 1, visibles: 1, enVedette: 1, vedetteMax: 3 })
+      expect(liste.compteurs).toMatchObject({ total: 1, visibles: 1, enVedette: 1, vedetteMax: 3 })
     })
 
     test('CA40 a devis without duration is accepted (201)', async () => {
@@ -318,6 +335,7 @@ test.describe.serial('services — API studio et publique (S3-CA39 à CA42)', ()
     })
 
     test('CA08 an explicit fourth vedette answers 409 VEDETTE_COMPLETE with the three current ones in data.enVedette', async () => {
+      await donnerPlanPayant(session.userId)
       const crees: ServiceStudio[] = []
       for (const titre of ['S1', 'S2', 'S3']) {
         crees.push((await creer({ titre, type: 'rdv', dureeMin: 30, tarif: 'gratuit' })).service)
@@ -335,6 +353,7 @@ test.describe.serial('services — API studio et publique (S3-CA39 à CA42)', ()
     })
 
     test('CA19 PUT enVedette true on a fourth service answers 409; once a vedette is withdrawn it answers 200', async () => {
+      await donnerPlanPayant(session.userId)
       const [s1, s2, , s4] = [
         (await creer({ titre: 'S1', type: 'rdv', dureeMin: 30, tarif: 'gratuit' })).service,
         (await creer({ titre: 'S2', type: 'rdv', dureeMin: 30, tarif: 'gratuit' })).service,
@@ -373,7 +392,8 @@ test.describe.serial('services — API studio et publique (S3-CA39 à CA42)', ()
       expect(reponse.status()).toBe(200)
       const corps = (await reponse.json()) as ReponseListe
       expect(corps.services.map((s) => [s.titre, s.ordre])).toEqual([['C', 0], ['A', 1], ['B', 2]])
-      expect(corps.compteurs).toEqual({ total: 3, visibles: 3, enVedette: 3, vedetteMax: 3 })
+      expect(corps.compteurs).toMatchObject({ total: 3, visibles: 3, enVedette: 3, vedetteMax: 3 })
+      expect(corps.compteurs.limitePlan).toEqual({ limite: 3, utilise: 3, atteinte: true })
     })
 
     test('CA22 two simultaneous POST of the same title give distinct slugs (bilan, bilan-2)', async () => {
@@ -390,6 +410,7 @@ test.describe.serial('services — API studio et publique (S3-CA39 à CA42)', ()
     })
 
     test('CA22 two simultaneous vedette updates: exactly one 200 and one 409', async () => {
+      await donnerPlanPayant(session.userId)
       await creer({ titre: 'S1', type: 'rdv', dureeMin: 30, tarif: 'gratuit' })
       await creer({ titre: 'S2', type: 'rdv', dureeMin: 30, tarif: 'gratuit' })
       const s3 = (await creer({ titre: 'S3', type: 'rdv', dureeMin: 30, tarif: 'gratuit', enVedette: false })).service
@@ -430,6 +451,41 @@ test.describe.serial('services — API studio et publique (S3-CA39 à CA42)', ()
     })
   })
 
+  test.describe('S10 : plan gratuit, limite de création et masquage public (#124, #125, #127)', () => {
+    test.beforeEach(viderLesServices)
+
+    test('the 4th creation answers 403 LIMITE_PLAN_ATTEINTE before the vedette check, with the quota in data, and persists nothing', async () => {
+      for (const titre of ['S1', 'S2', 'S3']) await creer({ titre, type: 'rdv', dureeMin: 30, tarif: 'gratuit' })
+
+      const reponse = await session.api.post('/api/studio/services', { data: { titre: 'S4', type: 'rdv', dureeMin: 30, tarif: 'gratuit', enVedette: true } })
+
+      const corps = await attendreErreur(reponse, 403, 'LIMITE_PLAN_ATTEINTE')
+      expect(corps.data).toMatchObject({ ressource: 'services', limite: 3, utilise: 3, plan: 'gratuit' })
+      expect((await lister()).services).toHaveLength(3)
+    })
+
+    test('beyond the limit only the 3 oldest services are public, the studio flags the others, and an active subscription brings them back', async ({ request }) => {
+      await donnerPlanPayant(session.userId)
+      for (const titre of ['S1', 'S2', 'S3', 'S4']) await creer({ titre, type: 'rdv', dureeMin: 30, tarif: 'gratuit' })
+      await retirerPlan(session.userId)
+
+      const publics = (await (await request.get(`/api/public/${username}/services`)).json()) as ReponsePublicListe
+      expect(publics.total).toBe(3)
+      expect(publics.services.map((s) => s.titre)).toEqual(['S1', 'S2', 'S3'])
+      await attendreErreur(await request.get(`/api/public/${username}/services/s4`), 404, 'SERVICE_INTROUVABLE')
+      const studio = await lister()
+      expect(studio.services.map((s) => [s.titre, s.masqueParPlan])).toEqual([['S1', false], ['S2', false], ['S3', false], ['S4', true]])
+      expect(studio.compteurs.limitePlan).toEqual({ limite: 3, utilise: 4, atteinte: true })
+
+      await donnerPlanPayant(session.userId)
+
+      const apres = (await (await request.get(`/api/public/${username}/services`)).json()) as ReponsePublicListe
+      expect(apres.total).toBe(4)
+      expect((await request.get(`/api/public/${username}/services/s4`)).status()).toBe(200)
+      expect((await lister()).services.every((s) => !s.masqueParPlan)).toBe(true)
+    })
+  })
+
   test.describe('lecture publique et parcours (CA41, CA42)', () => {
     test.beforeEach(viderLesServices)
 
@@ -454,6 +510,7 @@ test.describe.serial('services — API studio et publique (S3-CA39 à CA42)', ()
     })
 
     test('CA41 parcours: 4 creations, aLaUne 3, hide S1 (detail 404), reorder, the public order follows', async ({ request }) => {
+      await donnerPlanPayant(session.userId)
       const s1 = (await creer({ titre: 'S1', type: 'rdv', dureeMin: 30, tarif: 'gratuit' })).service
       const s2 = (await creer({ titre: 'S2', type: 'rdv', dureeMin: 30, tarif: 'gratuit' })).service
       const s3 = (await creer({ titre: 'S3', type: 'rdv', dureeMin: 30, tarif: 'gratuit' })).service
@@ -482,6 +539,7 @@ test.describe.serial('services — API studio et publique (S3-CA39 à CA42)', ()
     })
 
     test('CA35 the public detail answers the service, at most two others and the total; slug case is ignored', async ({ request }) => {
+      await donnerPlanPayant(session.userId)
       await creer(CONSULTATION)
       await creer({ titre: 'Bilan', type: 'rdv', dureeMin: 60, tarif: 'gratuit' })
       await creer({ titre: 'Suivi', type: 'rdv', dureeMin: 30, tarif: 'gratuit' })

@@ -32,6 +32,20 @@ const MEDIAS_DIR_TEST = path.join(tmpdir(), 'brandself-tests-medias')
 
 const SECRET_FACTICE = 'secret-de-test-au-moins-trente-deux-caracteres'
 
+// Essai RÉEL optionnel contre le bac à sable K-PAY (S10 CA25) : le projet n'existe QUE si `KPAY_SANDBOX=1`. Sans cette variable il n'est
+// pas enregistré, donc `pnpm test` (la gate, CI comprise) ne le voit, ne le compte et ne le saute jamais.
+const projetsSandbox = process.env.KPAY_SANDBOX === '1'
+  ? [{
+      extends: true as const,
+      test: {
+        name: 'sandbox',
+        include: ['tests/sandbox/**/*.test.ts'],
+        testTimeout: 240_000,
+        hookTimeout: 60_000,
+      },
+    }]
+  : []
+
 export default defineConfig({
   resolve: {
     alias: {
@@ -76,6 +90,7 @@ export default defineConfig({
           },
         },
       },
+      ...projetsSandbox,
     ],
   },
 })

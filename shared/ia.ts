@@ -1,3 +1,4 @@
+import type { PlanId } from './plans'
 import { SERVICE_TYPES } from './services'
 
 // S8 §3.1 : contrats et constantes de l'IA (pur, sans dépendance serveur).
@@ -23,6 +24,8 @@ export const MOTIFS_REPLI = [
   'file_indisponible',
   'limiteur_indisponible',
   'plafond_global',
+  // S10 : quota mensuel du plan atteint pendant l'onboarding (jamais de blocage, repli déterministe).
+  'quota_atteint',
 ] as const
 export type MotifRepli = (typeof MOTIFS_REPLI)[number]
 
@@ -38,6 +41,7 @@ export const MOTIFS_REPLI_TRANSITOIRES: readonly MotifRepli[] = [
   'file_indisponible',
   'limiteur_indisponible',
   'plafond_global',
+  'quota_atteint',
 ]
 
 /** Fournisseur résolu (`aucun` = repli déterministe, aucun appel). */
@@ -108,9 +112,8 @@ export const PROMPT_TEMPERATURE_MAX = 1
 export const PROMPT_MAX_TOKENS_MIN = 100
 export const PROMPT_MAX_TOKENS_MAX = 4000
 
-/** Plans connus pour le quota de générations (S8 : lecture seule). */
-export const IA_PLANS = ['gratuit', 'payant'] as const
-export type IaPlan = (typeof IA_PLANS)[number]
+/** Plan pris en compte pour le quota de générations : alias du plan unique (shared/plans.ts, S10). */
+export type IaPlan = PlanId
 
 const JETON_SIGNIFICATIF = /[\p{L}\p{N}]/u
 const SEPARATEUR_MOTS = /\s+/u

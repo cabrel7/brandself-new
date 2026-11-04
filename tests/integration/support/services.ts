@@ -6,6 +6,7 @@ import type { ServiceCreateRaw } from '../../../shared/schemas/service'
 import type { MediaRow, ServiceRow, UserRow, VitrineRow } from './fabriques'
 import { insertVitrineRow } from './fabriques'
 import { servicesService } from './modules'
+import { JOUR_MS, poserAbonnement } from './abonnements'
 
 // CONTRAT DE LA COUCHE SERVICE ATTENDU PAR LES TESTS S3 (phase RED -> à respecter en GREEN).
 //
@@ -69,8 +70,13 @@ export async function modifier(userId: string, id: string, patch: Record<string,
   return updateService(userId, id, schemaServiceUpdate.parse(patch), options)
 }
 
-/** Vitrine publiée prête à l'emploi (Dr Cabrel Nguesso, Cardiologue, Douala), insérée directement. */
+/**
+ * Vitrine publiée prête à l'emploi (Dr Cabrel Nguesso, Cardiologue, Douala), insérée directement.
+ * S10 : le propriétaire reçoit un abonnement PAYANT ACTIF. Les tests des services, réalisations, témoignages et liens créent
+ * plus de 3 éléments et ne portent pas sur les quotas (prouvés dans plans-quotas-*.test.ts) : sans cela le plan gratuit les bloquerait.
+ */
 export async function creerVitrinePubliee(user: UserRow, username = 'dr-test'): Promise<VitrineRow> {
+  await poserAbonnement(user.id, new Date(Date.now() + 45 * JOUR_MS))
   return insertVitrineRow(user.id, { username, publiee: true })
 }
 

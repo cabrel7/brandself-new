@@ -10,5 +10,8 @@ const schemaParams = z.object({ username: z.string() })
 export default defineApiHandler(async (event) => {
   const { username } = readParamsWith(event, schemaParams)
   const page = await getPublicVitrinePage(username)
-  return { vitrine: toVitrinePublicResource(page.vitrine), contenus: toContenusPublicsResource(page.contenus) }
+  return {
+    vitrine: toVitrinePublicResource(page.vitrine, page.badgeBrandself),
+    contenus: toContenusPublicsResource(page.contenus),
+  }
 })

@@ -24,6 +24,7 @@ import {
   insertScheduledEmailEvents,
 } from '../email-outbox'
 import type { DbTransaction } from '../email-outbox'
+import { planifierRappelsAbonnement } from './abonnements'
 import { dansFenetre, debutSemaineIso, journeeLocale, periodeResume } from './fenetres'
 import { plafondRelationnelAtteint } from './plafond'
 import type { LigneOutboxPlafond } from './plafond'
@@ -43,6 +44,9 @@ type Database = typeof db
 export interface PlanificationResultat {
   resumes: number
   rappelsJour: number
+  /** S10 : rappels d'échéance d'abonnement (J-7, J-3, J0) créés par ce passage. */
+  rappelsAbonnement: number
+  /** Fuseaux distincts invalides (préférences S9 et abonnements S10 confondus). */
   fuseauxInvalides: number
 }
 
@@ -273,10 +277,12 @@ export async function planifierNotifications(
     .from(users)
     .where(or(eq(users.email_hebdo, true), eq(users.email_rappel_jour, true)))
 
-  const resultat: PlanificationResultat = { resumes: 0, rappelsJour: 0, fuseauxInvalides: 0 }
+  const resultat: PlanificationResultat = { resumes: 0, rappelsJour: 0, rappelsAbonnement: 0, fuseauxInvalides: 0 }
+  // Ensemble : un même fuseau invalide, vu par les préférences ET par un abonnement, ne se compte qu'une fois.
+  const invalides = new Set<string>()
   for (const { fuseau } of fuseaux) {
     if (!isValidTimeZone(fuseau)) {
-      resultat.fuseauxInvalides += 1
+      invalides.add(fuseau)
       continue
     }
     const local = Temporal.Instant.fromEpochMilliseconds(now.getTime()).toZonedDateTimeISO(fuseau)
@@ -287,6 +293,11 @@ export async function planifierNotifications(
       resultat.rappelsJour += await planifierRappelsJour(effectives, fuseau, local, now)
     }
   }
+  // S10 #122 : rappels d'échéance, indépendants des préférences d'e-mail (transactionnels) : toujours balayés.
+  const abonnement = await planifierRappelsAbonnement(now, effectives.database)
+  resultat.rappelsAbonnement = abonnement.rappels
+  for (const fuseau of abonnement.fuseauxInvalides) invalides.add(fuseau)
+  resultat.fuseauxInvalides = invalides.size
   if (resultat.fuseauxInvalides > 0) {
     effectives.log(`[notifications] fuseau invalide ignoré (${resultat.fuseauxInvalides})`)
   }

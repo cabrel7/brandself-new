@@ -25,9 +25,11 @@ function toH3Error(event: H3Event, error: unknown): H3Error {
     return error
   }
   if (error instanceof DomainError) {
-    if (error instanceof TooManyRequestsError) {
-      // En-tête posé en chaîne (h3 type `Retry-After` en nombre, Node le renverrait tel quel).
-      event.node.res.setHeader('Retry-After', String(error.retryAfter))
+    // Dès qu'une erreur porte `retryAfter` (429, 503 du fournisseur de paiement…), l'en-tête est posé. En chaîne :
+    // h3 type `Retry-After` en nombre, Node le renverrait tel quel.
+    const retryAfter = error instanceof TooManyRequestsError ? error.retryAfter : error.data?.retryAfter
+    if (typeof retryAfter === 'number' && Number.isFinite(retryAfter)) {
+      event.node.res.setHeader('Retry-After', String(retryAfter))
     }
     const h3Error = createError({
       statusCode: error.status,

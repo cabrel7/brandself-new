@@ -13,6 +13,7 @@ import { hasValidUsernameFormat, normalizeUsername } from '../utils/username'
 import { enforceLimit } from './limiteur'
 import { deleteMediaIfUnreferenced } from './medias'
 import type { MediaRow } from './medias'
+import { getPlanPublic, sqlIdsVisibles } from './plan-visibilite'
 import { computeMissingForPublication, computeNextStep } from './vitrines-regles'
 
 export { computeMissingForPublication, computeNextStep } from './vitrines-regles'
@@ -308,21 +309,27 @@ export type ContenusPublics = { services: number, realisations: number, agenda: 
 export interface VitrinePage {
   vitrine: VitrineAvecPhoto
   contenus: ContenusPublics
+  /** S10 : badge « Créé avec Brandself » (plan gratuit). Jamais le statut d'abonnement lui-même. */
+  badgeBrandself: boolean
 }
 
 /**
- * Vitrine publiée plus les compteurs de contenus visibles. Exactement UNE requête de plus que
- * `getPublicVitrine` (les deux sous-comptes et le drapeau agenda sont dans un seul SELECT).
+ * Vitrine publiée plus les compteurs de contenus visibles. Deux requêtes de plus que `getPublicVitrine` : le plan
+ * du propriétaire, puis les deux sous-comptes et le drapeau agenda dans un seul SELECT.
+ * S10 : les compteurs et l'agenda ne comptent que les éléments que le plan laisse visibles (plan-visibilite.ts).
  * L'agenda est proposé dès qu'une disponibilité existe ET qu'au moins un service reservable
- * actif de type rdv/accompagnement : c'est la condition d'affichage de la section agenda.
+ * actif et visible de type rdv/accompagnement : c'est la condition d'affichage de la section agenda.
  */
-export async function getPublicVitrinePage(rawUsername: string): Promise<VitrinePage> {
+export async function getPublicVitrinePage(rawUsername: string, now: Date = new Date()): Promise<VitrinePage> {
   const vitrine = await getPublicVitrine(rawUsername)
   const vitrineId = vitrine.vitrine.id
+  const { limites, badge } = await getPlanPublic(vitrine.vitrine, now)
+  const servicesVisibles = sqlIdsVisibles(services, vitrineId, limites.services)
+  const realisationsVisibles = sqlIdsVisibles(realisations, vitrineId, limites.realisations)
   const { rows } = await db.execute<ContenusPublics>(sql`
     SELECT
-      (SELECT count(*) FROM ${services} WHERE ${services.vitrineId} = ${vitrineId} AND ${services.actif})::int AS services,
-      (SELECT count(*) FROM ${realisations} WHERE ${realisations.vitrineId} = ${vitrineId} AND ${realisations.actif})::int AS realisations,
+      (SELECT count(*) FROM ${services} WHERE ${services.vitrineId} = ${vitrineId} AND ${services.actif} AND ${servicesVisibles})::int AS services,
+      (SELECT count(*) FROM ${realisations} WHERE ${realisations.vitrineId} = ${vitrineId} AND ${realisations.actif} AND ${realisationsVisibles})::int AS realisations,
       (
         EXISTS (SELECT 1 FROM ${disponibilites} WHERE ${disponibilites.vitrineId} = ${vitrineId})
         AND EXISTS (
@@ -331,10 +338,11 @@ export async function getPublicVitrinePage(rawUsername: string): Promise<Vitrine
             AND ${services.actif}
             AND ${services.reservable}
             AND ${services.type} IN ('rdv', 'accompagnement')
+            AND ${servicesVisibles}
         )
       ) AS agenda
   `)
-  return { vitrine, contenus: rows[0] ?? { services: 0, realisations: 0, agenda: false } }
+  return { vitrine, contenus: rows[0] ?? { services: 0, realisations: 0, agenda: false }, badgeBrandself: badge }
 }
 
 export async function checkUsernameAvailability(userId: string, rawUsername: string): Promise<UsernameAvailability> {

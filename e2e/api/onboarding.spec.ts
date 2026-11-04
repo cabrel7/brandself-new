@@ -4,6 +4,7 @@ import type { APIResponse } from '@playwright/test'
 import { makePng } from '../../tests/support/images'
 import { GENERATION_STATUTS_TERMINAUX } from '../../shared/ia'
 import { IA_UTILISATEUR_LIMIT } from '../../shared/limites'
+import { donnerPlanPayant } from '../helpers/abonnement'
 import { attendreErreur, fermerConnexions, seConnecter } from '../helpers/session'
 import type { Session } from '../helpers/session'
 
@@ -307,6 +308,9 @@ test.describe.serial('limite de demandes IA (CA30)', () => {
   test.beforeAll(async ({ playwright }) => {
     session = await seConnecter(playwright)
     await session.api.post('/api/studio/vitrine', { data: { titre: null, prenom: 'Limite', nom: 'Test', metier: 'Avocat', username: `lim-${randomUUID().slice(0, 8)}` } })
+    // Cette limite est celle des requêtes par heure (429), pas le quota du plan : au plan gratuit, la 4e proposition de
+    // l'IA du mois serait refusée (403 LIMITE_PLAN_ATTEINTE, S10 #124) avant d'atteindre la 11e requête.
+    await donnerPlanPayant(session.userId)
   })
 
   test.afterAll(async () => {

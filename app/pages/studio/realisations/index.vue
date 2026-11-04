@@ -6,9 +6,12 @@ useSeoMeta({ title: 'Vos réalisations — Brandself' })
 
 const liste = useTemplateRef<HTMLElement>('liste')
 const {
-  realisations, resume, enChargement, enErreur, absente, vide, refresh,
+  realisations, resume, compteurs, enChargement, enErreur, absente, vide, refresh,
   message, annonce, occupes, basculerVisibilite, deplacer,
 } = useStudioRealisations(liste)
+
+// Limite du plan atteinte : « Ajouter » affiche le message de limite au lieu d'ouvrir le formulaire.
+const ajout = useLimiteAjout(computed(() => compteurs.value?.limitePlan))
 
 const resumeTexte = computed(() => resumeListeRealisations(resume.value.visibles, resume.value.enVedette, resume.value.vedetteMax))
 </script>
@@ -52,10 +55,22 @@ const resumeTexte = computed(() => resumeListeRealisations(resume.value.visibles
             {{ resumeTexte }}
           </p>
         </div>
-        <UButton label="Ajouter" to="/studio/realisations/nouveau" class="shrink-0" />
+        <UButton
+          label="Ajouter"
+          :to="ajout.atteinte.value ? undefined : '/studio/realisations/nouveau'"
+          class="shrink-0"
+          @click="ajout.tenter()"
+        />
       </header>
 
-      <p v-if="message" role="alert" class="message-erreur mt-4">
+      <StudioLimitePlanMessage
+        v-if="ajout.affichee.value"
+        class="mt-4"
+        prendre-le-focus
+        ressource="realisations"
+        :limite="ajout.limite.value"
+      />
+      <p v-else-if="message" role="alert" class="message-erreur mt-4">
         <UIcon name="i-ph-warning-circle" class="size-5 shrink-0" aria-hidden="true" />
         <span>{{ message }}</span>
       </p>

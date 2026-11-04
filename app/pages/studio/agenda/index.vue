@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { ABONNEMENT_FUSEAU_REPLI } from '#shared/plans'
+
 definePageMeta({ layout: 'studio', ssr: false })
 useSeoMeta({ title: 'Votre agenda — Brandself' })
 
@@ -18,6 +20,11 @@ const {
   annulerConfirmationActivite,
   confirmerActionActivite,
 } = useStudioAgenda()
+
+// Quota mensuel de réservations atteint : les visiteurs ne peuvent plus réserver jusqu'au mois suivant.
+const quotaReservations = useQuotaAtteint('reservations_mois')
+const { vitrine } = useStudioVitrine()
+const finQuota = computed(() => premierJourMoisSuivant(new Date(), vitrine.value?.fuseau ?? ABONNEMENT_FUSEAU_REPLI))
 
 function plurielDemandes(nombre: number): string {
   return nombre > 1 ? 'demandes' : 'demande'
@@ -72,6 +79,14 @@ function plurielDemandes(nombre: number): string {
           class="min-h-(--cible-tactile)"
         />
       </header>
+
+      <StudioLimitePlanMessage
+        v-if="quotaReservations.atteinte.value && !message"
+        class="mt-5"
+        ressource="reservations_mois"
+        :limite="quotaReservations.limite.value"
+        :date="finQuota"
+      />
 
       <UAlert
         v-if="message"

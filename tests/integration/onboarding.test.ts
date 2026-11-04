@@ -22,6 +22,7 @@ import { rejet } from './support/erreurs'
 import { fichiersDuMedia } from './support/disque'
 import { createUser, insertGeneration, insertMediaRow, insertProgression, insertVitrineRow } from './support/fabriques'
 import { insererDisponibilite } from './support/agenda'
+import { poserAbonnement } from './support/abonnements'
 import {
   creerProviderScripte,
   iaAmeliorer,
@@ -623,7 +624,7 @@ describe('generer (CA15 à CA18, CA26, CA29 à CA32)', () => {
     expect((await lireProgression(user.id))?.generationId).toBe(generation.id)
   })
 
-  it('should not block when the monthly quota is reached (S8 reads it only, CA32)', async () => {
+  it('should never block the sign-up when the monthly quota is reached : immediate `quota_atteint` fallback, no provider call (S10 CA88, replaces S8 CA32)', async () => {
     const { generer } = await onboardingService()
     const user = await createUser()
     await etape1(user.id)
@@ -631,7 +632,8 @@ describe('generer (CA15 à CA18, CA26, CA29 à CA32)', () => {
 
     const resultat = await generer(user.id)
 
-    expect((await lireGeneration(('generation' in resultat ? resultat.generation : resultat).id))?.statut).toBe('en_attente')
+    const generation = 'generation' in resultat ? resultat.generation : resultat
+    expect(await lireGeneration(generation.id)).toMatchObject({ statut: 'repli', motifRepli: 'quota_atteint' })
   })
 })
 
@@ -1010,6 +1012,8 @@ describe('ameliorer (CA46 à CA50)', () => {
 
   it('should share the 10-per-hour budget with generer: the 11th improvement is a 429', async () => {
     const { user } = await avecVitrine()
+    // Plan payant : le quota mensuel du plan gratuit (3) n'est pas l'objet de ce test, c'est le budget horaire de 10.
+    await poserAbonnement(user.id, new Date(Date.now() + 45 * 86_400_000))
     for (let i = 0; i < IA_UTILISATEUR_LIMIT.limit; i += 1) await lancer(user.id, { champ: 'bio', texte: `${TEXTE} Essai ${i}.` })
 
     const erreur = await rejet(lancer(user.id, { champ: 'bio', texte: `${TEXTE} Essai de trop.` }))
@@ -1257,5 +1261,25 @@ describe('purgeProgressionsAbandonnees : rétention des données personnelles (r
     await purgeProgressionsAbandonnees(MAINTENANT)
 
     expect(await lireGeneration(generation.id)).toBeDefined()
+  })
+})
+
+describe('terminer : quota de services du plan (S10 CA89)', () => {
+  it('should create at most the services the plan still allows and still publish the vitrine, never failing the sign-up', async () => {
+    const { terminer } = await onboardingService()
+    const { PLANS } = await import('../../server/config/plans')
+    const { user } = await preparer([true, true, true])
+    const avant = PLANS.gratuit.services
+    PLANS.gratuit.services = 2
+    try {
+      const resultat = await terminer(user.id, schemaOnboardingTerminer.parse({ username: 'dr-cabrel-quota', palette: 'sauge' }))
+
+      expect(resultat).toMatchObject({ creee: true })
+      const vitrine = (await lireVitrineDe(user.id))!
+      expect(vitrine.publieeLe).toBeInstanceOf(Date)
+      expect(await lireServicesDe(vitrine.id)).toHaveLength(2)
+    } finally {
+      PLANS.gratuit.services = avant
+    }
   })
 })

@@ -8,7 +8,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{ utiliser: [texte: string] }>()
 
-const { enCours, proposition, message, demander, fermer } = useAmeliorationIa()
+const { enCours, proposition, message, limiteAtteinte, demander, fermer } = useAmeliorationIa()
 
 const assezLong = computed(() => texteSuffisant(props.texte))
 const aide = computed(() => (assezLong.value ? AIDE_AMELIORATION : AIDE_AMELIORATION_TROP_COURT))
@@ -56,8 +56,14 @@ async function garder(): Promise<void> {
       @click="demander('bio', texte)"
     />
 
+    <StudioLimitePlanMessage
+      v-if="limiteAtteinte && !messageMasque"
+      alerte
+      :ressource="limiteAtteinte.ressource"
+      :limite="limiteAtteinte.limite"
+    />
     <p
-      v-if="messageVisible"
+      v-else-if="messageVisible"
       :role="messageVisible.type === 'erreur' ? 'alert' : 'status'"
       :class="messageVisible.type === 'erreur' ? 'message-erreur' : 'message-info'"
     >

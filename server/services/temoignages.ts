@@ -7,7 +7,9 @@ import { ConflictError, NotFoundError, UnprocessableError, ValidationError } fro
 import { db } from '../utils/db'
 import { PG_UNIQUE_VIOLATION, readPgError } from '../utils/pg-error'
 import { computeCompteurs, resolveEnVedette, pickAvailableSlug } from './listes-regles'
-import type { Compteurs } from './listes-regles'
+import { getLimiteStudio, getPlanPublic, marquerMasque, sqlIdsVisibles, vuePlanStudio } from './plan-visibilite'
+import type { CompteursAvecPlan } from './plan-visibilite'
+import { assertQuota } from './plans'
 import { lockVitrineId, requireVitrineId } from './vitrine-acces'
 import type { Executor } from './vitrine-acces'
 import { checkTemoignageCoherence, normalizeTemoignageState, slugFromAuteurTemoignage } from './temoignages-regles'
@@ -15,6 +17,18 @@ import { getPublicVitrine } from './vitrines'
 import type { VitrineRow } from './vitrines'
 
 export type TemoignageRow = typeof temoignages.$inferSelect
+/** Ligne du studio : `masqueParPlan` = actif mais au-delà de la limite du plan (S10 #127). */
+export type TemoignageStudioRow = TemoignageRow & { masqueParPlan: boolean }
+
+export interface TemoignageAvecCompteurs {
+  item: TemoignageStudioRow
+  compteurs: CompteursAvecPlan
+}
+
+export interface TemoignagesAvecCompteurs {
+  items: TemoignageStudioRow[]
+  compteurs: CompteursAvecPlan
+}
 
 const SLUG_UNIQUE = 'temoignages_vitrine_id_slug_unique'
 const ORDER = [asc(temoignages.ordre), asc(temoignages.createdAt), asc(temoignages.id)] as const
@@ -83,46 +97,57 @@ function vedetteComplete(vedettes: readonly TemoignageRow[]): ConflictError {
   })
 }
 
-export async function listOwnTemoignages(userId: string): Promise<{ items: TemoignageRow[]; compteurs: Compteurs }> {
-  const entries = await listRows(db, await requireVitrineId(userId))
+/**
+ * Vue du studio sur la liste COMPLÈTE de la vitrine : chaque ligne porte `masqueParPlan`, les compteurs portent
+ * `limitePlan` (usage = toutes les lignes, visibles ou non, comme le quota de création).
+ */
+function versStudio(rows: readonly TemoignageRow[], limite: number | null): TemoignagesAvecCompteurs {
+  const vue = vuePlanStudio(rows, limite)
   return {
-    items: entries,
-    compteurs: computeCompteurs(entries.map((ligne) => ({ actif: ligne.actif, enVedette: ligne.enVedette })), VEDETTE_MAX),
+    items: rows.map((ligne) => marquerMasque(ligne, vue.masques)),
+    compteurs: { ...computeCompteurs(rows, VEDETTE_MAX), limitePlan: vue.limitePlan },
   }
 }
 
-export async function getOwnTemoignage(userId: string, id: string): Promise<{ item: TemoignageRow; compteurs: Compteurs }> {
-  const entries = await listRows(db, await requireVitrineId(userId))
+/** Même vue, centrée sur le témoignage `cible` de `rows` (la liste complète après l'écriture). */
+function versStudioItem(rows: readonly TemoignageRow[], cible: TemoignageRow, limite: number | null): TemoignageAvecCompteurs {
+  const vue = vuePlanStudio(rows, limite)
+  return {
+    item: marquerMasque(cible, vue.masques),
+    compteurs: { ...computeCompteurs(rows, VEDETTE_MAX), limitePlan: vue.limitePlan },
+  }
+}
+
+export async function listOwnTemoignages(userId: string, now: Date = new Date()): Promise<TemoignagesAvecCompteurs> {
+  const vitrineId = await requireVitrineId(userId)
+  const [entries, limite] = await Promise.all([listRows(db, vitrineId), getLimiteStudio(userId, 'temoignages', now)])
+  return versStudio(entries, limite)
+}
+
+export async function getOwnTemoignage(userId: string, id: string, now: Date = new Date()): Promise<TemoignageAvecCompteurs> {
+  const vitrineId = await requireVitrineId(userId)
+  const [entries, limite] = await Promise.all([listRows(db, vitrineId), getLimiteStudio(userId, 'temoignages', now)])
   const ligne = entries.find((candidate) => candidate.id === id)
   if (!ligne) throw new NotFoundError('TEMOINAGE_INTROUVABLE')
-  return {
-    item: ligne,
-    compteurs: computeCompteurs(
-      entries.map((candidate) => ({ actif: candidate.actif, enVedette: candidate.enVedette })),
-      VEDETTE_MAX,
-    ),
-  }
+  return versStudioItem(entries, ligne, limite)
 }
 
-export async function getOwnTemoignageBySlug(userId: string, slug: string): Promise<{ item: TemoignageRow; compteurs: Compteurs }> {
+export async function getOwnTemoignageBySlug(userId: string, slug: string, now: Date = new Date()): Promise<TemoignageAvecCompteurs> {
   const vitrineId = await requireVitrineId(userId)
-  const [entries, ligne] = await Promise.all([
+  const [entries, ligne, limite] = await Promise.all([
     listRows(db, vitrineId),
     loadItemBySlug(db, vitrineId, slug),
+    getLimiteStudio(userId, 'temoignages', now),
   ])
   if (!ligne) throw new NotFoundError('TEMOINAGE_INTROUVABLE')
-  return {
-    item: ligne,
-    compteurs: computeCompteurs(
-      entries.map((candidate) => ({ actif: candidate.actif, enVedette: candidate.enVedette })),
-      VEDETTE_MAX,
-    ),
-  }
+  return versStudioItem(entries, ligne, limite)
 }
 
-async function insertTemoignage(userId: string, input: TemoignageCreateInput): Promise<{ item: TemoignageRow; compteurs: Compteurs }> {
+async function insertTemoignage(userId: string, input: TemoignageCreateInput, now: Date): Promise<TemoignageAvecCompteurs> {
   return db.transaction(async (tx) => {
     const vitrineId = await lockVitrineId(tx, userId)
+    // Quota sous le verrou vitrine : deux créations simultanées ne dépassent jamais la limite (CA80).
+    const { limite } = await assertQuota(tx, { userId, vitrineId }, 'temoignages', now)
     const rows = await listRows(tx, vitrineId)
 
     const etat = normalizeTemoignageState(EMPTY_STATE, pickState(input))
@@ -157,14 +182,18 @@ async function insertTemoignage(userId: string, input: TemoignageCreateInput): P
 
     const item = await loadItem(tx, vitrineId, cree.id)
     if (!item) throw new NotFoundError('TEMOINAGE_INTROUVABLE')
-    return { item, compteurs: computeCompteurs([...rows, item].map((ligne) => ({ actif: ligne.actif, enVedette: ligne.enVedette })), VEDETTE_MAX) }
+    return versStudioItem([...rows, item], item, limite)
   })
 }
 
-export async function createTemoignage(userId: string, input: TemoignageCreateInput): Promise<{ item: TemoignageRow; compteurs: Compteurs }> {
+export async function createTemoignage(
+  userId: string,
+  input: TemoignageCreateInput,
+  now: Date = new Date(),
+): Promise<TemoignageAvecCompteurs> {
   for (let attempt = 1; ; attempt += 1) {
     try {
-      return await insertTemoignage(userId, input)
+      return await insertTemoignage(userId, input, now)
     } catch (error) {
       const { code, constraint } = readPgError(error)
       if (code === PG_UNIQUE_VIOLATION && constraint === SLUG_UNIQUE && attempt < 2) continue
@@ -177,10 +206,12 @@ async function updateOwnTemoignage(
   userId: string,
   locator: TemoignageLocator,
   patch: TemoignageUpdateInput,
-): Promise<{ item: TemoignageRow; compteurs: Compteurs }> {
+  now: Date,
+): Promise<TemoignageAvecCompteurs> {
   const result = await db.transaction(async (tx) => {
     const vitrineId = await lockVitrineId(tx, userId)
     const rows = await listRows(tx, vitrineId)
+    const limite = await getLimiteStudio(userId, 'temoignages', now, tx)
     const current = rows.find((ligne) => matchesLocator(ligne, locator))
     if (!current) throw new NotFoundError('TEMOINAGE_INTROUVABLE')
 
@@ -208,11 +239,7 @@ async function updateOwnTemoignage(
 
     const item = await loadItem(tx, vitrineId, current.id)
     if (!item) throw new NotFoundError('TEMOINAGE_INTROUVABLE')
-    const compteurs = computeCompteurs(
-      rows.map((ligne) => (ligne.id === current.id ? item : ligne)).map((ligne) => ({ actif: ligne.actif, enVedette: ligne.enVedette })),
-      VEDETTE_MAX,
-    )
-    return { item, compteurs }
+    return versStudioItem(rows.map((ligne) => (ligne.id === current.id ? item : ligne)), item, limite)
   })
   return result
 }
@@ -221,16 +248,18 @@ export function updateTemoignage(
   userId: string,
   id: string,
   patch: TemoignageUpdateInput,
-): Promise<{ item: TemoignageRow; compteurs: Compteurs }> {
-  return updateOwnTemoignage(userId, { kind: 'id', value: id }, patch)
+  now: Date = new Date(),
+): Promise<TemoignageAvecCompteurs> {
+  return updateOwnTemoignage(userId, { kind: 'id', value: id }, patch, now)
 }
 
 export function updateTemoignageBySlug(
   userId: string,
   slug: string,
   patch: TemoignageUpdateInput,
-): Promise<{ item: TemoignageRow; compteurs: Compteurs }> {
-  return updateOwnTemoignage(userId, { kind: 'slug', value: slug }, patch)
+  now: Date = new Date(),
+): Promise<TemoignageAvecCompteurs> {
+  return updateOwnTemoignage(userId, { kind: 'slug', value: slug }, patch, now)
 }
 
 async function deleteOwnTemoignage(userId: string, locator: TemoignageLocator): Promise<void> {
@@ -253,7 +282,11 @@ export function deleteTemoignageBySlug(userId: string, slug: string): Promise<vo
 }
 
 /** `ids` doit être une permutation exacte de TOUS les témoignages de la vitrine. */
-export async function reorderTemoignages(userId: string, ids: readonly string[]): Promise<{ items: TemoignageRow[]; compteurs: Compteurs }> {
+export async function reorderTemoignages(
+  userId: string,
+  ids: readonly string[],
+  now: Date = new Date(),
+): Promise<TemoignagesAvecCompteurs> {
   return db.transaction(async (tx) => {
     const vitrineId = await lockVitrineId(tx, userId)
     const rows = await listRows(tx, vitrineId)
@@ -270,23 +303,29 @@ export async function reorderTemoignages(userId: string, ids: readonly string[])
       `)
     }
     const entries = await listRows(tx, vitrineId)
-    return {
-      items: entries,
-      compteurs: computeCompteurs(entries.map((ligne) => ({ actif: ligne.actif, enVedette: ligne.enVedette })), VEDETTE_MAX),
-    }
+    return versStudio(entries, await getLimiteStudio(userId, 'temoignages', now, tx))
   })
 }
 
-async function listVisible(vitrineId: string): Promise<TemoignageRow[]> {
+/** Témoignages actifs ET visibles au regard du plan (les `limite` plus anciens), dans l'ordre d'affichage. */
+async function listVisible(vitrineId: string, limite: number | null): Promise<TemoignageRow[]> {
   return selectTemoignages(db)
-    .where(and(eq(temoignages.vitrineId, vitrineId), eq(temoignages.actif, true)))
+    .where(and(
+      eq(temoignages.vitrineId, vitrineId),
+      eq(temoignages.actif, true),
+      sqlIdsVisibles(temoignages, vitrineId, limite),
+    ))
     .orderBy(...ORDER)
 }
 
 /** Témoignages visibles d'une vitrine publiée. Username invalide, inconnu ou non publié : 404. */
-export async function getPublicTemoignages(rawUsername: string): Promise<{ vitrine: VitrineRow; total: number; temoignages: TemoignageRow[] }> {
+export async function getPublicTemoignages(
+  rawUsername: string,
+  now: Date = new Date(),
+): Promise<{ vitrine: VitrineRow; total: number; temoignages: TemoignageRow[] }> {
   const { vitrine } = await getPublicVitrine(rawUsername)
-  const visibles = await listVisible(vitrine.id)
+  const { limites } = await getPlanPublic(vitrine, now)
+  const visibles = await listVisible(vitrine.id, limites.temoignages)
   return {
     vitrine,
     total: visibles.length,

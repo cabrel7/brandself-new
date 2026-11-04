@@ -55,6 +55,7 @@ function surTouche(event: KeyboardEvent): void {
           :class="service.actif ? 'text-encre' : 'text-texte-secondaire'"
         >{{ service.titre }}</span>
         <span class="text-(length:--fs-14) text-texte-secondaire">{{ meta }}</span>
+        <StudioMasqueParPlan v-if="service.masqueParPlan" />
         <UBadge
           v-if="enVedette"
           label="En vedette"

@@ -34,7 +34,7 @@ const contenus = usePublicContenus(props.vitrine.username)
       <slot />
     </main>
     <VitrinePied v-if="!piedMinimal" :vitrine="vitrine" :compact="piedCompact" />
-    <p v-else class="m-0 px-6 py-10 text-center text-(length:--fs-14) text-texte-secondaire">
+    <p v-else-if="vitrine.badgeBrandself" class="m-0 px-6 py-10 text-center text-(length:--fs-14) text-texte-secondaire">
       Créé avec Brandself
     </p>
   </div>

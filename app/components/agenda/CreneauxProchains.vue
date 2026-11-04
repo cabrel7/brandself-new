@@ -44,6 +44,8 @@ function lienReservation(debut: string) {
       </UButton>
     </div>
 
+    <AgendaSuspendue v-else-if="reponse?.suspendues" :username="username" />
+
     <div v-else-if="prochains.length" class="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3">
       <UButton
         v-for="creneau in prochains"

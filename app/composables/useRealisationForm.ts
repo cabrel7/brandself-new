@@ -1,3 +1,4 @@
+import type { LimiteAtteinte } from '~/composables/useLimitePlan'
 import type { MediaDTO, RealisationStudioDTO, RealisationsCompteursDTO } from '#shared/dto'
 import { anneeCourante, libelleVedetteRealisations } from '#shared/realisations'
 
@@ -156,6 +157,8 @@ export function useRealisationForm(options: OptionsRealisationForm) {
   const galerie = ref<MediaDTO[]>(realisation ? [...realisation.galerie] : [])
   const erreurs = ref<Erreurs>({})
   const erreurGenerale = ref('')
+  /** Création refusée : limite du plan atteinte (un seul message, à la place de l'erreur générale). */
+  const limiteAtteinte = ref<LimiteAtteinte | null>(null)
   const enregistrement = ref(false)
   const introuvable = ref(false)
 
@@ -208,7 +211,11 @@ export function useRealisationForm(options: OptionsRealisationForm) {
 
   function rangerErreur(e: unknown): void {
     const erreur = lireErreurApi(e)
-    if (erreur.code === 'VALIDATION') {
+    const limite = lireLimitePlan(e, 'realisations')
+    if (limite) {
+      limiteAtteinte.value = limite
+    }
+    else if (erreur.code === 'VALIDATION') {
       const parChamp: Erreurs = {}
       for (const [nom, messages] of Object.entries(erreur.champs)) {
         const cible = champRacine(nom)
@@ -241,6 +248,7 @@ export function useRealisationForm(options: OptionsRealisationForm) {
     if (enregistrement.value || !aDesModifications.value) return
     erreurs.value = {}
     erreurGenerale.value = ''
+    limiteAtteinte.value = null
     const { corps, erreurs: locales } = lireFormulaire(form, image.value, galerie.value)
     // Seul contrôle client de présence : le serveur fait foi pour le reste.
     if (!image.value) locales.imageMediaId = ERREUR_IMAGE_REQUISE
@@ -294,7 +302,7 @@ export function useRealisationForm(options: OptionsRealisationForm) {
   }
 
   return {
-    form, image, galerie, erreurs, erreurGenerale, enregistrement, introuvable, aDesModifications, viderErreur,
+    form, image, galerie, erreurs, erreurGenerale, limiteAtteinte, enregistrement, introuvable, aDesModifications, viderErreur,
     vedetteBloquee, aideVedette,
     choisirImage, majGalerie, enregistrer,
     suppressionOuverte, suppressionEnCours, erreurSuppression, supprimer,

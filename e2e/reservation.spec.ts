@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { expect, test } from '@playwright/test'
 import type { APIRequestContext, Locator, Page } from '@playwright/test'
+import { donnerPlanPayant, ID_UTILISATEUR_DEMO, retirerPlan } from './helpers/abonnement'
 import { attendreHydration } from './helpers/hydratation'
 import { BASE_URL, db, fermerConnexions } from './helpers/session'
 
@@ -236,6 +237,8 @@ async function nettoyerParEmails(table: 'reservations' | 'demandes', emails: Set
 test.afterEach(async () => {
   await nettoyerParEmails('reservations', emailsReservations)
   await nettoyerParEmails('demandes', emailsDemandes)
+  // dr-cabrel est GRATUIT (S10 #130) : un test qui lui donne un abonnement le temps de son exécution le perd ici, même en cas d'échec.
+  await retirerPlan(ID_UTILISATEUR_DEMO)
 })
 
 test.afterAll(async () => {
@@ -462,6 +465,10 @@ test('la nav publique mène vers /agenda et le GET /reserver sans paramètres re
 
 test('un atelier ou devis se demande depuis son détail et le formulaire envoie le slug public', async ({ page, request }) => {
   await page.setViewportSize(MOBILE)
+  // Le seul service « devis » de dr-cabrel (« Second avis ») est le 6e : au plan gratuit, seuls les 3 plus anciens sont publics
+  // (S10 #127). Ce parcours porte sur le formulaire de demande, pas sur le masquage : abonnement payant le temps du test
+  // (retiré par `afterEach`), le seed restant gratuit pour tous les autres.
+  await donnerPlanPayant(ID_UTILISATEUR_DEMO)
   const { services } = await lireServices(request)
   const service = services.find(item => item.reservable && item.type === 'atelier')
     ?? services.find(item => item.reservable && item.type === 'devis')

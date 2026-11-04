@@ -54,6 +54,22 @@ export const ERROR_MESSAGES: Record<ErrorCode, string> = {
   JETON_EXPIRE: 'Ce lien a expiré. Vous pouvez gérer vos e-mails depuis votre compte.',
   VITRINE_NON_PUBLIEE: 'Publiez votre vitrine avant de la partager.',
   ETAPE_INCONNUE: 'Cette étape n’existe pas.',
+  LIMITE_PLAN_ATTEINTE: 'Vous avez atteint la limite du plan gratuit.',
+  RESERVATIONS_INDISPONIBLES: 'Ce professionnel ne prend plus de nouvelle réservation en ligne ce mois-ci. Vous pouvez le contacter directement.',
+  PAIEMENT_INDISPONIBLE: 'Le paiement en ligne n’est pas disponible pour le moment.',
+  FOURNISSEUR_INDISPONIBLE: 'L’opérateur ne répond pas. Réessayez dans un instant.',
+  MOYEN_PAIEMENT_INVALIDE: 'Ce moyen de paiement n’est pas disponible.',
+  DEVISE_NON_PAYABLE: 'Cette devise n’est pas encore acceptée.',
+  TELEPHONE_INVALIDE: 'Ce numéro ne correspond pas à l’opérateur choisi.',
+  PAIEMENT_EN_COURS: 'Un paiement est déjà en cours. Validez-le sur votre téléphone.',
+  PAIEMENT_REFUSE: 'L’opérateur a refusé la demande. Vérifiez le numéro.',
+  PAIEMENT_INTROUVABLE: 'Ce paiement est introuvable.',
+  // Webhooks : corps minimal, aucun détail sur la cause (aucun oracle pour un appelant non authentifié).
+  SIGNATURE_INVALIDE: 'Signature invalide.',
+  FOURNISSEUR_INCONNU: 'Ressource introuvable.',
+  WEBHOOK_NON_CONFIGURE: 'Service indisponible.',
+  CORPS_TROP_GROS: 'Corps de requête trop volumineux.',
+  CORPS_ILLISIBLE: 'Corps de requête illisible.',
   TROP_DE_REQUETES: 'Trop de tentatives. Réessayez dans quelques instants.',
   LIMITEUR_INDISPONIBLE: 'Le formulaire est temporairement indisponible. Réessayez dans quelques instants.',
   ERREUR_INTERNE: 'Une erreur est survenue de notre côté. Réessayez dans un instant.',
@@ -128,6 +144,20 @@ export class PayloadTooLargeError extends DomainError {
 export class UnsupportedMediaTypeError extends DomainError {
   constructor() {
     super('TYPE_NON_SUPPORTE', ERROR_MESSAGES.TYPE_NON_SUPPORTE, 415)
+  }
+}
+
+/** 401 : appelant non authentifié par signature (webhooks). Le message reste minimal. */
+export class UnauthorizedError extends DomainError {
+  constructor(code: ErrorCode, data?: ErrorExtra) {
+    super(code, fromCode(code).message, 401, data)
+  }
+}
+
+/** 413 avec un code métier (le `PayloadTooLargeError` historique est réservé aux fichiers). */
+export class ContentTooLargeError extends DomainError {
+  constructor(code: ErrorCode, data?: ErrorExtra) {
+    super(code, fromCode(code).message, 413, data)
   }
 }
 

@@ -55,6 +55,7 @@ function surTouche(event: KeyboardEvent): void {
           :class="realisation.actif ? 'text-encre' : 'text-texte-secondaire'"
         >{{ realisation.titre }}</span>
         <span v-if="meta" class="text-(length:--fs-14) text-texte-secondaire">{{ meta }}</span>
+        <StudioMasqueParPlan v-if="realisation.masqueParPlan" />
         <UBadge
           v-if="enVedette"
           label="En vedette"

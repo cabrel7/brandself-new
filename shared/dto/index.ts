@@ -1,5 +1,18 @@
 export type { MediaDTO } from './media'
 export type {
+  QuotaDTO,
+  LimitePlanDTO,
+  PrixPeriodeDTO,
+  DeviseOffreDTO,
+  MoyenPaiementDTO,
+  OffreDTO,
+  PaiementDTO,
+  AbonnementDTO,
+  PlanTarifDTO,
+  TarifsDTO,
+  PaiementReponse,
+} from './abonnement'
+export type {
   VitrineStudioDTO,
   StudioResumeDTO,
   VitrinePubliqueDTO,

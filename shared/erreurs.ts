@@ -1,3 +1,5 @@
+import type { PlanId, RessourceQuota } from './plans'
+
 export const ERROR_CODES = [
   'VALIDATION',
   'FICHIER_MANQUANT',
@@ -46,6 +48,22 @@ export const ERROR_CODES = [
   'JETON_EXPIRE',
   'VITRINE_NON_PUBLIEE',
   'ETAPE_INCONNUE',
+  // S10 : plans, abonnements, paiement Mobile Money, webhooks.
+  'LIMITE_PLAN_ATTEINTE',
+  'RESERVATIONS_INDISPONIBLES',
+  'PAIEMENT_INDISPONIBLE',
+  'FOURNISSEUR_INDISPONIBLE',
+  'MOYEN_PAIEMENT_INVALIDE',
+  'DEVISE_NON_PAYABLE',
+  'TELEPHONE_INVALIDE',
+  'PAIEMENT_EN_COURS',
+  'PAIEMENT_REFUSE',
+  'PAIEMENT_INTROUVABLE',
+  'SIGNATURE_INVALIDE',
+  'FOURNISSEUR_INCONNU',
+  'WEBHOOK_NON_CONFIGURE',
+  'CORPS_TROP_GROS',
+  'CORPS_ILLISIBLE',
   'TROP_DE_REQUETES',
   'LIMITEUR_INDISPONIBLE',
   'ERREUR_INTERNE',
@@ -101,6 +119,21 @@ export const ERROR_STATUS: Record<ErrorCode, number> = {
   JETON_EXPIRE: 410,
   VITRINE_NON_PUBLIEE: 422,
   ETAPE_INCONNUE: 422,
+  LIMITE_PLAN_ATTEINTE: 403,
+  RESERVATIONS_INDISPONIBLES: 409,
+  PAIEMENT_INDISPONIBLE: 503,
+  FOURNISSEUR_INDISPONIBLE: 503,
+  MOYEN_PAIEMENT_INVALIDE: 422,
+  DEVISE_NON_PAYABLE: 422,
+  TELEPHONE_INVALIDE: 422,
+  PAIEMENT_EN_COURS: 409,
+  PAIEMENT_REFUSE: 422,
+  PAIEMENT_INTROUVABLE: 404,
+  SIGNATURE_INVALIDE: 401,
+  FOURNISSEUR_INCONNU: 404,
+  WEBHOOK_NON_CONFIGURE: 503,
+  CORPS_TROP_GROS: 413,
+  CORPS_ILLISIBLE: 400,
   TROP_DE_REQUETES: 429,
   LIMITEUR_INDISPONIBLE: 503,
   ERREUR_INTERNE: 500,
@@ -113,4 +146,11 @@ export interface ErrorData {
   retryAfter?: number
   /** VEDETTE_COMPLETE : éléments actuellement en vedette (ordre), à retirer pour en ajouter un autre. */
   enVedette?: { id: string, titre: string }[]
+  /** LIMITE_PLAN_ATTEINTE : ressource, limite du plan, usage actuel et plan effectif. */
+  ressource?: RessourceQuota
+  limite?: number
+  utilise?: number
+  plan?: PlanId
+  /** PAIEMENT_EN_COURS : paiement ouvert le plus récent, à suivre plutôt que d'en créer un autre. */
+  paiementId?: string
 }

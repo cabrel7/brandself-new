@@ -1,5 +1,6 @@
 import type { AmeliorationDTO, GenerationLanceeReponse } from '#shared/dto'
 import { AMELIORER_TEXTE_MIN } from '#shared/ia'
+import type { LimiteAtteinte } from '~/composables/useLimitePlan'
 import type { AmeliorerChamp } from '#shared/ia'
 
 export interface MessageAmelioration {
@@ -29,6 +30,8 @@ export function useAmeliorationIa() {
   const generationId = ref<string | null>(null)
   const lancement = ref(false)
   const erreurLancement = ref('')
+  /** Quota mensuel de propositions atteint : un seul message de limite, à la place des autres. */
+  const limiteAtteinte = ref<LimiteAtteinte | null>(null)
   const { generation, termine, enAttente, erreur, amorcer } = useGeneration(generationId)
 
   const enCours = computed(() => lancement.value || enAttente.value)
@@ -47,6 +50,7 @@ export function useAmeliorationIa() {
   })
 
   const message = computed<MessageAmelioration | null>(() => {
+    if (limiteAtteinte.value) return null
     if (erreurLancement.value) return { texte: erreurLancement.value, type: 'erreur' }
     if (erreur.value) return { texte: MESSAGE_AMELIORATION_ECHEC, type: 'erreur' }
     if (termine.value && proposition.value === null) return { texte: MESSAGE_AMELIORATION_REPLI, type: 'info' }
@@ -56,6 +60,7 @@ export function useAmeliorationIa() {
   function fermer(): void {
     generationId.value = null
     erreurLancement.value = ''
+    limiteAtteinte.value = null
   }
 
   async function demander(champ: AmeliorerChamp, texte: string): Promise<void> {
@@ -71,6 +76,11 @@ export function useAmeliorationIa() {
       generationId.value = reponse.generation.id
     } catch (e) {
       const echec = lireErreurApi(e)
+      const limite = lireLimitePlan(e, 'generations_ia_mois')
+      if (limite) {
+        limiteAtteinte.value = limite
+        return
+      }
       erreurLancement.value = echec.code === 'TROP_DE_REQUETES'
         ? messageTropDeDemandes(echec.retryAfter)
         : MESSAGE_AMELIORATION_ECHEC
@@ -79,5 +89,5 @@ export function useAmeliorationIa() {
     }
   }
 
-  return { enCours, proposition, message, demander, fermer }
+  return { enCours, proposition, message, limiteAtteinte, demander, fermer }
 }

@@ -389,7 +389,8 @@ describe('migration 0018 : CHECK des générations (CA02)', () => {
     await expect(generation({ statut, terminee_le: terminal ? new Date() : null })).resolves.toBeUndefined()
   })
 
-  it.each(MOTIFS_REPLI)('should accept the fallback reason %s (TypeScript list and CHECK stay in sync)', async (motif) => {
+  // `quota_atteint` est ajouté par la migration 0021 (S10) : sa CHECK est prouvée dans migration-0021.test.ts (CA08). Ici, la CHECK de 0018 seule.
+  it.each(MOTIFS_REPLI.filter((motif) => motif !== 'quota_atteint'))('should accept the fallback reason %s (TypeScript list and CHECK stay in sync)', async (motif) => {
     await apply(migration0018())
 
     await expect(generation({ statut: 'repli', motif_repli: motif, terminee_le: new Date() })).resolves.toBeUndefined()

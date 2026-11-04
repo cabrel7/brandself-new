@@ -2,6 +2,7 @@ import { Queue, Worker } from 'bullmq'
 import type { Job } from 'bullmq'
 import Redis from 'ioredis'
 import { env, resolveIaFournisseur } from '../shared/env'
+import { assertConfigPaiements } from '../server/config/paiements'
 import { IA_BASE_URL_DEFAUT, IA_CONCURRENCE_WORKER } from '../shared/ia'
 import type { OtpJobData } from '../shared/jobs'
 import {
@@ -11,6 +12,7 @@ import {
   FILE_IA,
   FILE_MAINTENANCE,
   FILE_MESSAGES_AUTH,
+  FILE_PAIEMENTS,
   FILE_SYSTEM,
   IA_JOB_LOCK_MS,
   IA_JOB_MAX_STALLED,
@@ -18,6 +20,7 @@ import {
   JOBS,
   MAINTENANCE_CONCURRENCE_WORKER,
   MESSAGES_AUTH_CONCURRENCE_WORKER,
+  PAIEMENTS_CONCURRENCE_WORKER,
   SYSTEM_CONCURRENCE_WORKER,
   iaJobDataSchema,
   transactionalEmailJobDataSchema,
@@ -25,6 +28,7 @@ import {
 import { EMAILS_DEBIT_FENETRE_MS, EMAILS_DEBIT_MAX, NOTIFICATIONS_PURGE_SCHEDULER_ID } from '../shared/notifications'
 import { planifierPurge } from '../server/jobs/ia'
 import { dispatchPendingTransactionalEmails } from '../server/jobs/email-outbox'
+import { planifierVerificationsPaiements } from '../server/jobs/paiements'
 import { planifierNotificationsRepetees, planifierPurgeNotifications } from '../server/jobs/notifications'
 import { processTransactionalEmail } from '../server/services/email-outbox'
 import { planifierNotifications } from '../server/services/notifications/planification'
@@ -32,10 +36,14 @@ import { purgeOutbox } from '../server/services/notifications/purge'
 import { executeGeneration, purgeGenerations } from '../server/services/ia/generations'
 import { createIaProvider } from '../server/services/ia/fournisseurs'
 import type { ExecutionDeps } from '../server/services/ia/types'
+import { verifierPaiementsDus } from '../server/services/abonnements'
 import { purgeProgressionsAbandonnees } from '../server/services/onboarding'
 import { senderOtpEmail, senderOtpSms } from '../server/services/otp/envoi'
 
 const OUTBOX_POLL_INTERVAL_MS = 5_000
+
+// S10 : même validation qu'au démarrage du serveur (en production, des prix `a_valider` empêchent de démarrer).
+assertConfigPaiements(env)
 
 function createConnection(): Redis {
   return new Redis(env.REDIS_URL, { maxRetriesPerRequest: null })
@@ -142,6 +150,22 @@ const workerEmailsLegacy = new Worker(
   },
 )
 
+// S10 : rapprochement des paiements (tick de 10 s) : expiration locale puis interrogation d'un lot borné, dans le
+// budget global d'appels du fournisseur. Seuls les bilans non nuls sont journalisés.
+const workerPaiements = new Worker(
+  FILE_PAIEMENTS,
+  async (job) => {
+    if (job.name !== JOBS.verifierPaiements) throw new Error(`Unknown job: ${job.name}`)
+    const bilan = await verifierPaiementsDus(new Date())
+    if (bilan.expires + bilan.reclames + bilan.appliques + bilan.erreurs > 0) {
+      console.info(
+        `[worker] paiements : ${bilan.expires} expiré(s), ${bilan.reclames} réclamé(s), ${bilan.appliques} appliqué(s), ${bilan.erreurs} erreur(s)`,
+      )
+    }
+  },
+  { connection: createConnection(), concurrency: PAIEMENTS_CONCURRENCE_WORKER },
+)
+
 // S8 : file `ia`. Le worker est le SEUL processus qui lit la clé du fournisseur (createIaProvider).
 // Le journal de démarrage donne le fournisseur résolu, jamais la clé.
 const fournisseurIa = resolveIaFournisseur(env)
@@ -187,8 +211,13 @@ for (const worker of [workerSystem, workerMaintenance, workerMessagesAuth, worke
   })
 }
 
+workerPaiements.on('failed', (job) => {
+  console.error(`[worker] job « ${job?.name} » #${job?.id} failed (JOB_FAILED)`)
+})
+
 const systemQueue = new Queue(FILE_SYSTEM, { connection: createConnection() })
 const maintenanceQueue = new Queue(FILE_MAINTENANCE, { connection: createConnection() })
+const paiementsQueue = new Queue(FILE_PAIEMENTS, { connection: createConnection() })
 
 // TRANSITION (une release) : les deux purges vivaient sur `ia` et `system`. On retire ces anciens
 // ordonnanceurs (et leur prochain job différé) avant de poser les nouveaux sur `maintenance`. Idempotent :
@@ -213,6 +242,10 @@ planifierNotificationsRepetees(systemQueue).catch(() => {
   console.error('[worker] notifications scheduling failed (NOTIFICATIONS_SCHEDULE_FAILED)')
 })
 
+planifierVerificationsPaiements(paiementsQueue).catch(() => {
+  console.error('[worker] payments scheduling failed (PAYMENTS_SCHEDULE_FAILED)')
+})
+
 let dispatchRunning = false
 async function dispatchOutbox(): Promise<void> {
   if (dispatchRunning) return
@@ -233,7 +266,7 @@ dispatchTimer.unref()
 void dispatchOutbox()
 
 console.info(
-  `[worker] started — queues « ${FILE_SYSTEM} », « ${FILE_MAINTENANCE} », « ${FILE_MESSAGES_AUTH} », « ${FILE_EMAILS_NOTIFICATIONS} », « ${FILE_IA} » and legacy « ${FILE_EMAILS_LEGACY} » (IA provider: ${fournisseurIa})`,
+  `[worker] started — queues « ${FILE_SYSTEM} », « ${FILE_MAINTENANCE} », « ${FILE_MESSAGES_AUTH} », « ${FILE_EMAILS_NOTIFICATIONS} », « ${FILE_IA} », « ${FILE_PAIEMENTS} » and legacy « ${FILE_EMAILS_LEGACY} » (IA provider: ${fournisseurIa})`,
 )
 
 async function stop(signal: string): Promise<void> {
@@ -247,6 +280,8 @@ async function stop(signal: string): Promise<void> {
       workerEmailsNotifications.close(),
       workerEmailsLegacy.close(),
       workerIa.close(),
+      workerPaiements.close(),
+      paiementsQueue.close(),
       emailDispatchQueue.close(),
       iaQueue.close(),
       systemQueue.close(),

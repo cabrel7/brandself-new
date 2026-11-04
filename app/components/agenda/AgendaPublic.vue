@@ -189,6 +189,8 @@ const libelleConfirmation = computed(() => {
       </UButton>
     </div>
 
+    <AgendaSuspendue v-else-if="reponse?.suspendues" :username="username" />
+
     <div v-else-if="!reponse?.creneaux.length" class="mt-6 flex items-start gap-3 text-texte-secondaire" role="status">
       <UIcon name="i-ph-calendar-x" class="mt-0.5 size-5 shrink-0 text-accent" aria-hidden="true" />
       <p>Aucun créneau n’est disponible pour ce service actuellement.</p>

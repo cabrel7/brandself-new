@@ -4,9 +4,12 @@ useSeoMeta({ title: 'Vos services — Brandself' })
 
 const liste = useTemplateRef<HTMLElement>('liste')
 const {
-  services, resume, enChargement, enErreur, absente, vide, refresh,
+  services, resume, compteurs, enChargement, enErreur, absente, vide, refresh,
   message, annonce, occupes, basculerVisibilite, deplacer,
 } = useStudioServices(liste)
+
+// Limite du plan atteinte : « Ajouter » affiche le message de limite au lieu d'ouvrir le formulaire.
+const ajout = useLimiteAjout(computed(() => compteurs.value?.limitePlan))
 </script>
 
 <template>
@@ -48,10 +51,23 @@ const {
             {{ resume.visibles }} {{ resume.visibles > 1 ? 'visibles' : 'visible' }} · {{ resume.enVedette }} en vedette sur {{ resume.vedetteMax }}
           </p>
         </div>
-        <UButton label="Ajouter" to="/studio/services/nouveau" icon="i-ph-plus" class="shrink-0" />
+        <UButton
+          label="Ajouter"
+          :to="ajout.atteinte.value ? undefined : '/studio/services/nouveau'"
+          icon="i-ph-plus"
+          class="shrink-0"
+          @click="ajout.tenter()"
+        />
       </header>
 
-      <p v-if="message" role="alert" class="message-erreur mt-4">
+      <StudioLimitePlanMessage
+        v-if="ajout.affichee.value"
+        class="mt-4"
+        prendre-le-focus
+        ressource="services"
+        :limite="ajout.limite.value"
+      />
+      <p v-else-if="message" role="alert" class="message-erreur mt-4">
         <UIcon name="i-ph-warning-circle" class="size-5 shrink-0" aria-hidden="true" />
         <span>{{ message }}</span>
       </p>

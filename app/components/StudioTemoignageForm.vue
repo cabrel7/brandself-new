@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import slugify from '@sindresorhus/slugify'
+import type { LimiteAtteinte } from '~/composables/useLimitePlan'
 import type { TemoignageStudioDTO, TemoignagesCompteursDTO } from '#shared/dto'
 import { schemaTemoignageCreate, schemaTemoignageUpdate } from '#shared/schemas/temoignage'
 import {
@@ -46,6 +47,8 @@ const form = reactive({
 
 const erreurs = ref<Erreurs>({})
 const erreurGenerale = ref('')
+/** Création refusée : limite du plan atteinte (un seul message, à la place de l'erreur générale). */
+const limiteAtteinte = ref<LimiteAtteinte | null>(null)
 const enregistrement = ref(false)
 const introuvable = ref(false)
 
@@ -164,7 +167,11 @@ function messageVedetteComplete(max: number, auteurs: string[]): string {
 
 function rangerErreur(e: unknown): void {
   const erreur = lireErreurApi(e)
-  if (erreur.code === 'VALIDATION') {
+  const limite = lireLimitePlan(e, 'temoignages')
+  if (limite) {
+    limiteAtteinte.value = limite
+  }
+  else if (erreur.code === 'VALIDATION') {
     const parChamp: Erreurs = {}
     for (const [nom, messages] of Object.entries(erreur.champs)) {
       const cible = champRacine(nom)
@@ -189,6 +196,7 @@ async function enregistrer(): Promise<void> {
   if (enregistrement.value || !aDesModifications.value) return
   erreurs.value = {}
   erreurGenerale.value = ''
+  limiteAtteinte.value = null
   const corps = enCreation.value ? corpsCreation() : corpsModification()
   if (!validerChamps(corps)) return
 
@@ -303,7 +311,13 @@ async function supprimer(): Promise<void> {
     </div>
 
     <div class="flex flex-col gap-3">
-      <p v-if="erreurGenerale" role="alert" class="message-erreur">
+      <StudioLimitePlanMessage
+        v-if="limiteAtteinte"
+        alerte
+        :ressource="limiteAtteinte.ressource"
+        :limite="limiteAtteinte.limite"
+      />
+      <p v-else-if="erreurGenerale" role="alert" class="message-erreur">
         <UIcon name="i-ph-warning-circle" class="size-5 shrink-0" aria-hidden="true" />
         <span>{{ erreurGenerale }}</span>
       </p>

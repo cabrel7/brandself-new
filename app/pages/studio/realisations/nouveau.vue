@@ -44,7 +44,12 @@ const { compteurs, enChargement, enErreur, absente, refresh } = useStudioRealisa
       <h1 class="m-0 text-(length:--fs-32) leading-tight font-bold text-encre">
         Nouvelle réalisation
       </h1>
-      <StudioRealisationForm :realisation="null" :compteurs="compteurs" />
+      <StudioLimitePlanMessage
+        v-if="compteurs.limitePlan.atteinte"
+        ressource="realisations"
+        :limite="compteurs.limitePlan.limite"
+      />
+      <StudioRealisationForm v-else :realisation="null" :compteurs="compteurs" />
     </div>
   </div>
 </template>

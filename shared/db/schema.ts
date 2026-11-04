@@ -599,19 +599,23 @@ export const emailsTransactionnels = pgTable(
         'message_professionnel_nouvelle',
         'reservation_visiteur_rappel',
         'utilisateur_resume_hebdo',
-        'utilisateur_rappel_journee'
+        'utilisateur_rappel_journee',
+        'abonnement_rappel',
+        'paiement_confirme'
       )`,
     ),
     check(
       'emails_transactionnels_entite_type_check',
-      sql`${table.entiteType} IN ('reservation', 'demande', 'message', 'utilisateur')`,
+      sql`${table.entiteType} IN ('reservation', 'demande', 'message', 'utilisateur', 'abonnement', 'paiement')`,
     ),
     check(
       'emails_transactionnels_entite_coherence_check',
       sql`(${table.entiteType} = 'reservation' AND ${table.type} LIKE 'reservation_%')
         OR (${table.entiteType} = 'demande' AND ${table.type} LIKE 'demande_%')
         OR (${table.entiteType} = 'message' AND ${table.type} LIKE 'message_%')
-        OR (${table.entiteType} = 'utilisateur' AND ${table.type} LIKE 'utilisateur_%')`,
+        OR (${table.entiteType} = 'utilisateur' AND ${table.type} LIKE 'utilisateur_%')
+        OR (${table.entiteType} = 'abonnement' AND ${table.type} LIKE 'abonnement_%')
+        OR (${table.entiteType} = 'paiement' AND ${table.type} LIKE 'paiement_%')`,
     ),
     check(
       'emails_transactionnels_statut_check',
@@ -648,7 +652,7 @@ export const emailsTransactionnels = pgTable(
     // Un e-mail récurrent ou replanifiable sans clé d'occurrence ne serait plus idempotent.
     check(
       'emails_transactionnels_occurrence_requise_check',
-      sql`${table.type} NOT IN ('reservation_visiteur_rappel','utilisateur_resume_hebdo','utilisateur_rappel_journee')
+      sql`${table.type} NOT IN ('reservation_visiteur_rappel','utilisateur_resume_hebdo','utilisateur_rappel_journee','abonnement_rappel')
         OR ${table.occurrence} <> ''`,
     ),
   ],
@@ -744,7 +748,7 @@ export const generationsIa = pgTable(
       'generations_ia_motif_check',
       sql`${table.motifRepli} IS NULL OR ${table.motifRepli} IN (
         'echec_fournisseur','delai_depasse','sortie_invalide','injection','sans_fournisseur',
-        'sans_prompt','file_indisponible','limiteur_indisponible','plafond_global')`,
+        'sans_prompt','file_indisponible','limiteur_indisponible','plafond_global','quota_atteint')`,
     ),
     check('generations_ia_motif_coherence_check', sql`(${table.statut} = 'repli') = (${table.motifRepli} IS NOT NULL)`),
     check(
@@ -824,6 +828,201 @@ export const progressionsInscription = pgTable(
     ),
   ],
 )
+
+// S10 (docs/specs/S10-abonnements.md §2, migration 0021) : un paiement = une tentative de règlement d'un
+// abonnement. `id` (UUID généré par l'application) est l'`externalId` envoyé au fournisseur. Pièce
+// comptable : `user_id` passe à NULL à la suppression du compte (ON DELETE SET NULL), la ligne survit.
+// `fournisseur` et `methode` ne sont PAS des énumérations en base (seulement un format) : ajouter un
+// fournisseur ou un moyen ne demande aucune migration. Le numéro du payeur n'est JAMAIS stocké :
+// `telephone_masque` (affichage, contient « • ») et `telephone_empreinte` (HMAC-SHA256, limite par numéro).
+// Montants en entiers de la plus petite unité de la devise ; snapshot des frais au moment de l'initiation.
+// L'état d'abonnement (actif, grâce, gratuit) n'est jamais stocké : il se calcule depuis `abonnements.expire_le`.
+// Les listes (statuts, supporteurs, formats) sont recopiées depuis shared/paiements.ts et shared/plans.ts :
+// garder synchronisées.
+export const paiements = pgTable(
+  'paiements',
+  {
+    id: text('id').primaryKey(),
+    userId: text('user_id').references(() => users.id, { onDelete: 'set null' }),
+    fournisseur: text('fournisseur').notNull(),
+    methode: text('methode').notNull(),
+    operateur: text('operateur'),
+    environnement: text('environnement').notNull(),
+    idFournisseur: text('id_fournisseur'),
+    referenceFournisseur: text('reference_fournisseur'),
+    statut: text('statut').notNull().default('cree'),
+    plan: text('plan').notNull(),
+    periodeMois: smallint('periode_mois').notNull(),
+    devise: text('devise').notNull(),
+    montantPlan: integer('montant_plan').notNull(),
+    montant: integer('montant').notNull(),
+    fraisTauxPb: integer('frais_taux_pb').notNull(),
+    fraisSupporteur: text('frais_supporteur').notNull(),
+    fraisEstimes: integer('frais_estimes').notNull(),
+    netEstime: integer('net_estime').notNull(),
+    fraisReels: integer('frais_reels'),
+    netReel: integer('net_reel'),
+    telephoneMasque: text('telephone_masque'),
+    telephoneEmpreinte: text('telephone_empreinte'),
+    codeEchec: text('code_echec'),
+    initiationIncertaine: boolean('initiation_incertaine').notNull().default(false),
+    expireAvant: timestamp('expire_avant', { withTimezone: true }).notNull(),
+    prochaineVerification: timestamp('prochaine_verification', { withTimezone: true }),
+    verifications: smallint('verifications').notNull().default(0),
+    appliqueLe: timestamp('applique_le', { withTimezone: true }),
+    abonnementExpireAvant: timestamp('abonnement_expire_avant', { withTimezone: true }),
+    abonnementExpireApres: timestamp('abonnement_expire_apres', { withTimezone: true }),
+    termineLe: timestamp('termine_le', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    // Un identifiant et une référence fournisseur n'existent qu'une fois par fournisseur (rapprochement du webhook).
+    uniqueIndex('paiements_fournisseur_id_unique')
+      .on(table.fournisseur, table.idFournisseur)
+      .where(sql`${table.idFournisseur} IS NOT NULL`),
+    uniqueIndex('paiements_fournisseur_reference_unique')
+      .on(table.fournisseur, table.referenceFournisseur)
+      .where(sql`${table.referenceFournisseur} IS NOT NULL`),
+    // Historique d'un utilisateur (carte Compte) et FK parcourue à la suppression du compte.
+    index('paiements_user_created_idx').on(table.userId, desc(table.createdAt)),
+    // Plafond de paiements ouverts par utilisateur (PAIEMENTS_OUVERTS_MAX) et relance.
+    index('paiements_ouverts_idx')
+      .on(table.userId)
+      .where(sql`${table.statut} IN ('cree','en_attente')`),
+    // Tick de rapprochement du worker : paiements dus (FOR UPDATE SKIP LOCKED) et expiration locale.
+    index('paiements_a_verifier_idx')
+      .on(table.prochaineVerification)
+      .where(sql`${table.statut} IN ('cree','en_attente')`),
+    // Limite d'initiations par numéro (empreinte) sur une fenêtre glissante.
+    index('paiements_telephone_idx')
+      .on(table.telephoneEmpreinte, table.createdAt)
+      .where(sql`${table.telephoneEmpreinte} IS NOT NULL`),
+    check('paiements_fournisseur_check', sql`${table.fournisseur} ~ '^[a-z0-9_-]{1,40}$'`),
+    check('paiements_methode_check', sql`${table.methode} ~ '^[a-z_]{1,30}$'`),
+    check('paiements_operateur_check', sql`${table.operateur} IS NULL OR ${table.operateur} ~ '^[A-Z0-9_]{2,40}$'`),
+    check('paiements_environnement_check', sql`${table.environnement} IN ('test','live')`),
+    check(
+      'paiements_statut_check',
+      sql`${table.statut} IN ('cree','en_attente','reussi','echoue','annule','expire','anomalie')`,
+    ),
+    check('paiements_plan_check', sql`${table.plan} ~ '^[a-z_]{1,30}$' AND ${table.plan} <> 'gratuit'`),
+    check('paiements_periode_check', sql`${table.periodeMois} BETWEEN 1 AND 36`),
+    check('paiements_devise_check', sql`${table.devise} ~ '^[A-Z]{3}$'`),
+    check(
+      'paiements_montants_check',
+      sql`${table.montantPlan} > 0 AND ${table.montant} >= ${table.montantPlan} AND ${table.montant} <= 1000000000
+        AND ${table.fraisEstimes} >= 0 AND ${table.netEstime} = ${table.montant} - ${table.fraisEstimes}
+        AND (${table.fraisReels} IS NULL OR ${table.fraisReels} >= 0) AND (${table.netReel} IS NULL OR ${table.netReel} >= 0)`,
+    ),
+    check('paiements_frais_taux_check', sql`${table.fraisTauxPb} BETWEEN 0 AND 5000`),
+    check('paiements_frais_supporteur_check', sql`${table.fraisSupporteur} IN ('marchand','client')`),
+    check(
+      'paiements_telephone_masque_check',
+      sql`${table.telephoneMasque} IS NULL
+        OR (char_length(${table.telephoneMasque}) <= 32 AND position('•' in ${table.telephoneMasque}) > 0)`,
+    ),
+    check(
+      'paiements_telephone_empreinte_check',
+      sql`${table.telephoneEmpreinte} IS NULL OR ${table.telephoneEmpreinte} ~ '^[0-9a-f]{64}$'`,
+    ),
+    check('paiements_code_echec_check', sql`${table.codeEchec} IS NULL OR ${table.codeEchec} ~ '^[A-Z0-9_]{1,64}$'`),
+    check(
+      'paiements_ids_check',
+      sql`(${table.idFournisseur} IS NULL OR char_length(${table.idFournisseur}) BETWEEN 1 AND 100)
+        AND (${table.referenceFournisseur} IS NULL OR char_length(${table.referenceFournisseur}) BETWEEN 1 AND 100)`,
+    ),
+    // `reussi` ⇔ appliqué à l'abonnement (une seule fois) ; un paiement ouvert n'a pas de date de fin.
+    check('paiements_applique_check', sql`(${table.statut} = 'reussi') = (${table.appliqueLe} IS NOT NULL)`),
+    check(
+      'paiements_terminal_check',
+      sql`(${table.statut} IN ('cree','en_attente')) = (${table.termineLe} IS NULL)`,
+    ),
+    // `en_attente` sans identifiant fournisseur n'est admis que si l'initiation est incertaine (délai, 409).
+    check(
+      'paiements_attente_id_check',
+      sql`${table.statut} <> 'en_attente' OR ${table.idFournisseur} IS NOT NULL OR ${table.initiationIncertaine}`,
+    ),
+    check('paiements_verifications_check', sql`${table.verifications} BETWEEN 0 AND 1000`),
+  ],
+)
+
+// S10 : une ligne par utilisateur (unique). `expire_le` est EXCLUSIF (minuit local suivant le dernier jour
+// payé). L'état actif / grâce / gratuit se calcule (resoudrePlanEffectif), il n'est jamais stocké. CASCADE :
+// l'abonnement disparaît avec le compte (les paiements, eux, survivent).
+export const abonnements = pgTable(
+  'abonnements',
+  {
+    id: text('id').primaryKey(),
+    userId: text('user_id')
+      .notNull()
+      .unique()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    plan: text('plan').notNull().default('payant'),
+    expireLe: timestamp('expire_le', { withTimezone: true }).notNull(),
+    premiereActivationLe: timestamp('premiere_activation_le', { withTimezone: true }).notNull(),
+    dernierPaiementId: text('dernier_paiement_id').references(() => paiements.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    // Planificateur des rappels J-7 / J-3 / J0 (balayage des échéances proches).
+    index('abonnements_expire_le_idx').on(table.expireLe),
+    // FK parcourue à la suppression d'un paiement (ON DELETE SET NULL).
+    index('abonnements_dernier_paiement_idx').on(table.dernierPaiementId),
+    check('abonnements_plan_check', sql`${table.plan} ~ '^[a-z_]{1,30}$' AND ${table.plan} <> 'gratuit'`),
+    check('abonnements_dates_check', sql`${table.premiereActivationLe} < ${table.expireLe}`),
+  ],
+)
+
+// S10 : journal des événements de paiement (webhook et interrogation). Il sert de déduplication
+// (unicité fournisseur + id_transaction + événement, insertion ON CONFLICT DO NOTHING dans la transaction
+// qui applique l'événement) et de piste d'audit. Aucun corps de requête, aucun numéro : des codes seulement.
+// `paiement_id` passe à NULL si le paiement est supprimé (ON DELETE SET NULL).
+export const evenementsPaiement = pgTable(
+  'evenements_paiement',
+  {
+    id: text('id').primaryKey(),
+    fournisseur: text('fournisseur').notNull(),
+    evenement: text('evenement').notNull(),
+    source: text('source').notNull(),
+    idTransaction: text('id_transaction').notNull(),
+    externalId: text('external_id'),
+    paiementId: text('paiement_id').references(() => paiements.id, { onDelete: 'set null' }),
+    statutFournisseur: text('statut_fournisseur'),
+    montant: integer('montant'),
+    traitement: text('traitement').notNull(),
+    motif: text('motif'),
+    horodatageFournisseur: timestamp('horodatage_fournisseur', { withTimezone: true }),
+    recuLe: timestamp('recu_le', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex('evenements_paiement_dedup_unique').on(table.fournisseur, table.idTransaction, table.evenement),
+    // FK parcourue à la suppression d'un paiement, et historique d'un paiement.
+    index('evenements_paiement_paiement_idx').on(table.paiementId),
+    check('evenements_paiement_fournisseur_check', sql`${table.fournisseur} ~ '^[a-z0-9_-]{1,40}$'`),
+    check('evenements_paiement_evenement_check', sql`${table.evenement} ~ '^[a-z_]{1,20}\\.[a-z_]{1,20}$'`),
+    check('evenements_paiement_source_check', sql`${table.source} IN ('webhook','interrogation')`),
+    check(
+      'evenements_paiement_ids_check',
+      sql`char_length(${table.idTransaction}) BETWEEN 1 AND 100
+        AND (${table.externalId} IS NULL OR char_length(${table.externalId}) <= 100)`,
+    ),
+    check(
+      'evenements_paiement_statut_check',
+      sql`${table.statutFournisseur} IS NULL OR ${table.statutFournisseur} ~ '^[A-Z_]{1,30}$'`,
+    ),
+    check('evenements_paiement_traitement_check', sql`${table.traitement} IN ('applique','ignore','anomalie')`),
+    check('evenements_paiement_motif_check', sql`${table.motif} IS NULL OR ${table.motif} ~ '^[A-Z0-9_]{1,64}$'`),
+  ],
+)
+
+export type Paiement = typeof paiements.$inferSelect
+export type NewPaiement = typeof paiements.$inferInsert
+export type Abonnement = typeof abonnements.$inferSelect
+export type NewAbonnement = typeof abonnements.$inferInsert
+export type EvenementPaiement = typeof evenementsPaiement.$inferSelect
+export type NewEvenementPaiement = typeof evenementsPaiement.$inferInsert
 
 export type PromptIa = typeof promptsIa.$inferSelect
 export type NewPromptIa = typeof promptsIa.$inferInsert

@@ -58,8 +58,12 @@ export function toContenusPublicsResource(contenus: ContenusPublics): ContenusPu
 /**
  * DTO public : liste blanche explicite. Ni id, ni userId, ni email du compte, ni téléphone du
  * compte, ni chemin disque, ni réglages internes — on ne spread jamais la ligne de base.
+ * S10 : `badgeBrandself` (plan gratuit) est le SEUL reflet public du plan ; le statut d'abonnement n'est jamais exposé.
  */
-export function toVitrinePublicResource({ vitrine, photo }: VitrineAvecPhoto): VitrinePubliqueDTO {
+export function toVitrinePublicResource(
+  { vitrine, photo }: VitrineAvecPhoto,
+  badgeBrandself: boolean,
+): VitrinePubliqueDTO {
   const titre = asTitre(vitrine.titre)
   const nomAffiche = displayName(titre, vitrine.prenom, vitrine.nom)
   const ville = vitrine.ville ?? ''
@@ -88,5 +92,6 @@ export function toVitrinePublicResource({ vitrine, photo }: VitrineAvecPhoto): V
       titre: vitrine.seoTitre ?? `${nomAffiche} — ${vitrine.metier} à ${ville}`,
       description: vitrine.seoDescription ?? vitrine.accroche ?? `${nomAffiche}, ${vitrine.metier} à ${ville}.`,
     },
+    badgeBrandself,
   }
 }

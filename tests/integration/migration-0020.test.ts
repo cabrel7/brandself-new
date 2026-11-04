@@ -15,6 +15,8 @@ import { NEXT_STEPS } from '../../shared/vitrine'
 // La ligne « DELETE FROM drizzle.__drizzle_migrations » du ROLLBACK n'est jamais exécutée (elle viserait le vrai
 // journal) : on vérifie seulement qu'elle cible le `when` de l'entrée idx 20 de meta/_journal.json.
 
+const TYPES_AJOUTES_PAR_0021: readonly string[] = ['abonnement_rappel', 'paiement_confirme']
+
 const MIGRATIONS_DIR = path.resolve(import.meta.dirname, '../../server/db/migrations')
 const SCHEMA = 'mig0020_test'
 const BREAKPOINT = '--> statement-breakpoint'
@@ -244,7 +246,8 @@ describe('migration 0020 : fichier, journal et synchronisation avec shared/', ()
   })
 
   it('recopie exactement TRANSACTIONAL_EMAIL_TYPES dans la CHECK des types', () => {
-    expect(valeursContrainte('emails_transactionnels_type_check')).toEqual([...TRANSACTIONAL_EMAIL_TYPES])
+    // Les types `abonnement_rappel` et `paiement_confirme` sont ajoutés par la migration 0021 (S10) : leur CHECK est prouvée dans migration-0021.test.ts.
+    expect(valeursContrainte('emails_transactionnels_type_check')).toEqual(TRANSACTIONAL_EMAIL_TYPES.filter((type) => !TYPES_AJOUTES_PAR_0021.includes(type)))
   })
 
   it('recopie exactement EMAIL_STATUTS et EMAIL_CATEGORIES dans leurs CHECK', () => {

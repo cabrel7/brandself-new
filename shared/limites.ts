@@ -36,3 +36,23 @@ export const DESABONNEMENT_ACTION_LIMIT: RateLimit = { limit: 20, windowS: 60 }
 export const DESABONNEMENT_OPERATIONS = ['apercu', 'action'] as const
 export type DesabonnementOperation = (typeof DESABONNEMENT_OPERATIONS)[number]
 export const DESABONNEMENT_CLE_PREFIXE = 'desabonnement:'
+
+// S10 (docs/specs/S10-abonnements.md §1 #110, #112, #117) : paiement. Toutes ces valeurs sont réglables (§11).
+/** Initiation d'un paiement, par utilisateur : 5 par 15 minutes, fail-closed (503 si Redis est indisponible). */
+export const PAIEMENT_INIT_LIMIT_UTILISATEUR: RateLimit = { limit: 5, windowS: 900 }
+/** Initiation vers un même numéro (empreinte HMAC), tous comptes confondus : protège un tiers du spam USSD. */
+export const PAIEMENT_INIT_LIMIT_NUMERO: RateLimit = { limit: 3, windowS: 900 }
+/** Lecture du statut d'un paiement par le navigateur (notre API, jamais le fournisseur). */
+export const PAIEMENT_SUIVI_LIMIT: RateLimit = { limit: 60, windowS: 60 }
+export const PAIEMENT_LIMITE_CLE_UTILISATEUR_PREFIXE = 'paiement-init:'
+export const PAIEMENT_LIMITE_CLE_NUMERO_PREFIXE = 'paiement-numero:'
+export const PAIEMENT_LIMITE_CLE_SUIVI_PREFIXE = 'paiement-suivi:'
+/** Paiements `cree` ou `en_attente` simultanés au plus, par utilisateur. */
+export const PAIEMENTS_OUVERTS_MAX = 2
+/** K-PAY plafonne à 100 requêtes par minute pour toute l'application : on s'en tient à 60 (initiation + vérification). */
+export const KPAY_APPELS_MAX_PAR_MINUTE = 60
+export const KPAY_APPELS_FENETRE_S = 60
+/** Clé Redis du compteur global d'appels K-PAY (fail-closed). */
+export const KPAY_APPELS_CLE = 'kpay:appels'
+/** Octets : taille maximale du corps d'un webhook (K-PAY envoie moins de 1 Ko). */
+export const WEBHOOK_CORPS_MAX_OCTETS = 16_384

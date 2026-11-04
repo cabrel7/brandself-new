@@ -148,6 +148,13 @@
       "when": 1793663851946,
       "tag": "0020_s9_notifications",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1793700141133,
+      "tag": "0021_s10_abonnements",
+      "breakpoints": true
     }
   ]
 }
