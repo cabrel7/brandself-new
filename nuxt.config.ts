@@ -75,8 +75,6 @@ export default defineNuxtConfig({
   },
   // S12 (#147) : l'image de partage est générée par sharp (variante `partage`), pas par nuxt-og-image.
   ogImage: { enabled: false },
-  // H9 : enregistrerait un service worker chez chaque visiteur.
-  skewProtection: { enabled: false },
   // La canonique est posée par server/middleware/canonique.ts (#146).
   seo: { redirectToCanonicalSiteUrl: false },
   robots: {

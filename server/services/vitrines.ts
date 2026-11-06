@@ -14,6 +14,7 @@ import { enforceLimit } from './limiteur'
 import { deleteMediaIfUnreferenced } from './medias'
 import type { MediaRow } from './medias'
 import { getPlanPublic, sqlIdsVisibles } from './plan-visibilite'
+import { getTotaux7J } from './statistiques'
 import { computeMissingForPublication, computeNextStep } from './vitrines-regles'
 
 export { computeMissingForPublication, computeNextStep } from './vitrines-regles'
@@ -30,6 +31,8 @@ export interface StudioSummary {
   compteurs: { services: number, realisations: number, temoignages: number, liens: number }
   prochaineEtape: NextStep | null
   manquants: PublicationField[]
+  /** S11 #185 : visites/clics/réservations des 7 derniers jours (accueil du studio). */
+  statistiques7j: { visites: number, clics: number, reservations: number }
 }
 
 export interface StudioView {
@@ -223,17 +226,19 @@ async function summarize(row: VitrineAvecPhoto): Promise<StudioSummary> {
   const { vitrine } = row
   const actifs = (table: typeof services | typeof realisations | typeof temoignages | typeof liens) =>
     db.$count(table, and(eq(table.vitrineId, vitrine.id), eq(table.actif, true)))
-  const [nbServices, nbRealisations, nbTemoignages, nbLiens, nbDisponibilites] = await Promise.all([
+  const [nbServices, nbRealisations, nbTemoignages, nbLiens, nbDisponibilites, statistiques7j] = await Promise.all([
     actifs(services),
     actifs(realisations),
     actifs(temoignages),
     actifs(liens),
     db.$count(disponibilites, eq(disponibilites.vitrineId, vitrine.id)),
+    getTotaux7J(vitrine.userId),
   ])
   return {
     compteurs: { services: nbServices, realisations: nbRealisations, temoignages: nbTemoignages, liens: nbLiens },
     prochaineEtape: stepOf(row, { services: nbServices, realisations: nbRealisations, disponibilites: nbDisponibilites }),
     manquants: computeMissingForPublication(vitrine),
+    statistiques7j,
   }
 }
 

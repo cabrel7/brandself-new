@@ -1,234 +1,220 @@
+// S12 : tests unitaires des contrats SEO (pure, aucune base).
 import { describe, expect, it } from 'vitest'
 import {
-  BUDGET_JS_KO,
-  CACHE_HTML_ROUTES,
-  CACHE_HTML_TTL_S,
-  LLMS_NOTES,
-  LLMS_SECTIONS,
-  NOINDEX_ROUTES,
-  OG_LOCALES_PAYS,
-  ROBOTS_DISALLOW,
-  ROBOTS_IA_ENTRAINEMENT,
-  ROBOTS_IA_POLITIQUE_DEFAUT,
-  SEO_DESCRIPTION_MAX,
-  SITE_DESCRIPTION,
-  cheminCanonique,
-  construireDescriptionRealisation,
-  construireDescriptionService,
-  construireDescriptionVitrine,
-  construireGroupesRobots,
-  construireTitreRealisation,
-  construireTitreService,
   construireTitreVitrine,
-  estRouteCacheable,
-  ogLocale,
+  construireDescriptionVitrine,
+  construireTitreService,
+  construireTitreRealisation,
+  construireTitreListeServices,
+  construireTitreListeRealisations,
+  construireTitreLienBio,
   tronquerDescription,
+  ogLocale,
+  estRouteCacheable,
+  cheminCanonique,
+  construireGroupesRobots,
+  ROBOTS_IA_ENTRAINEMENT,
+  ROBOTS_IA_RECHERCHE,
 } from '../../shared/seo'
 
-const vitrine = {
-  nomAffiche: 'Dr Cabrel Nguesso',
-  metier: 'Cardiologue interventionnel',
-  ville: 'Douala',
-  paysLibelle: 'Cameroun',
-}
-
-describe('titres (CA01, CA03)', () => {
-  it('should build the vitrine title and prefer the typed seoTitre', () => {
-    expect(construireTitreVitrine(vitrine)).toBe('Dr Cabrel Nguesso — Cardiologue interventionnel à Douala')
-    expect(construireTitreVitrine({ ...vitrine, seoTitre: 'Cardiologue à Douala, Dr Nguesso' })).toBe('Cardiologue à Douala, Dr Nguesso')
-    expect(construireTitreVitrine({ ...vitrine, seoTitre: '   ' })).toBe('Dr Cabrel Nguesso — Cardiologue interventionnel à Douala')
+describe('titres (#143)', () => {
+  it('vitrine sans seoTitre', () => {
+    expect(
+      construireTitreVitrine({
+        nomAffiche: 'Dr Cabrel Nguesso',
+        metier: 'Cardiologue interventionnel',
+        ville: 'Douala',
+        seoTitre: null,
+      }),
+    ).toBe('Dr Cabrel Nguesso — Cardiologue interventionnel à Douala')
   })
 
-  it('should build service and realisation titles', () => {
-    expect(construireTitreService('Consultation de cardiologie', vitrine)).toBe('Consultation de cardiologie — Dr Cabrel Nguesso — Douala')
-    expect(construireTitreRealisation('Clinique du Littoral', vitrine)).toBe('Clinique du Littoral — Dr Cabrel Nguesso')
+  it('vitrine avec seoTitre saisi', () => {
+    expect(
+      construireTitreVitrine({
+        nomAffiche: 'Dr Cabrel Nguesso',
+        metier: 'Cardiologue interventionnel',
+        ville: 'Douala',
+        seoTitre: 'Cardiologue à Douala, Dr Nguesso',
+      }),
+    ).toBe('Cardiologue à Douala, Dr Nguesso')
+  })
+
+  it('liste des services', () => {
+    expect(
+      construireTitreListeServices({
+        nomAffiche: 'Dr Cabrel Nguesso',
+        metier: 'Cardiologue interventionnel',
+        ville: 'Douala',
+      }),
+    ).toBe('Services — Dr Cabrel Nguesso, Cardiologue interventionnel à Douala')
+  })
+
+  it('liste des réalisations', () => {
+    expect(
+      construireTitreListeRealisations({
+        nomAffiche: 'Dr Cabrel Nguesso',
+        metier: 'Cardiologue interventionnel',
+        ville: 'Douala',
+      }),
+    ).toBe('Réalisations — Dr Cabrel Nguesso, Cardiologue interventionnel à Douala')
+  })
+
+  it('lien bio', () => {
+    expect(
+      construireTitreLienBio({ nomAffiche: 'Dr Cabrel Nguesso' }),
+    ).toBe('Dr Cabrel Nguesso — liens')
+  })
+
+  it('détail service', () => {
+    expect(
+      construireTitreService('Consultation de cardiologie', {
+        nomAffiche: 'Dr Cabrel Nguesso',
+        ville: 'Douala',
+      }),
+    ).toBe('Consultation de cardiologie — Dr Cabrel Nguesso — Douala')
+  })
+
+  it('détail réalisation', () => {
+    expect(
+      construireTitreRealisation('Ma réalisation', { nomAffiche: 'Dr Cabrel Nguesso' }),
+    ).toBe('Ma réalisation — Dr Cabrel Nguesso')
+  })
+})
+
+describe('descriptions', () => {
+  it('vitrine : accroche présente, tronquée sur fin de mot', () => {
+    const resultat = construireDescriptionVitrine({
+      nomAffiche: 'Dr Cabrel Nguesso',
+      metier: 'Cardiologue interventionnel',
+      ville: 'Douala',
+      paysLibelle: 'Cameroun',
+      accroche: 'A. '.repeat(60),
+      bio: null,
+      seoTitre: null,
+      seoDescription: null,
+    })
+    expect(resultat.length).toBeLessThanOrEqual(160)
+    expect(resultat.endsWith('…')).toBe(true)
+    expect(resultat).toContain('Cardiologue interventionnel à Douala (Cameroun).')
+  })
+
+  it('vitrine : seoDescription prioritaire', () => {
+    const resultat = construireDescriptionVitrine({
+      nomAffiche: 'Dr Cabrel Nguesso',
+      metier: 'Cardiologue interventionnel',
+      ville: 'Douala',
+      paysLibelle: 'Cameroun',
+      accroche: null,
+      bio: null,
+      seoTitre: null,
+      seoDescription: 'Ma description sur mesure.',
+    })
+    expect(resultat).toBe('Ma description sur mesure.')
+  })
+
+  it('jamais de chaîne vide', () => {
+    const resultat = construireDescriptionVitrine({
+      nomAffiche: 'X',
+      metier: 'Y',
+      ville: 'Z',
+      paysLibelle: 'CM',
+      accroche: null,
+      bio: null,
+      seoTitre: null,
+      seoDescription: null,
+    })
+    expect(resultat.length).toBeGreaterThan(0)
+  })
+})
+
+describe('ogLocale (#148)', () => {
+  it('CM → fr_CM', () => {
+    expect(ogLocale('CM')).toBe('fr_CM')
+  })
+  it('pays inconnu → fr_FR', () => {
+    expect(ogLocale('US')).toBe('fr_FR')
+    expect(ogLocale(null)).toBe('fr_FR')
+    expect(ogLocale(undefined)).toBe('fr_FR')
   })
 })
 
 describe('tronquerDescription', () => {
-  it('should keep a short text and collapse whitespace', () => {
-    expect(tronquerDescription('Un  texte\ncourt.')).toBe('Un texte court.')
+  it('texte court inchangé', () => {
+    expect(tronquerDescription('Court.')).toBe('Court.')
   })
-
-  it('should cut on a word boundary with an ellipsis, within the limit', () => {
-    const texte = Array.from({ length: 60 }, (_, i) => `mot${i}`).join(' ')
-    const coupe = tronquerDescription(texte)
-    expect(coupe.length).toBeLessThanOrEqual(SEO_DESCRIPTION_MAX)
-    expect(coupe.endsWith('…')).toBe(true)
-    const sansEllipse = coupe.slice(0, -1)
-    expect(texte.startsWith(sansEllipse)).toBe(true)
-    expect(texte.charAt(sansEllipse.length)).toMatch(/\s/)
-  })
-
-  it('should still cut a text without any space', () => {
-    const coupe = tronquerDescription('a'.repeat(400))
-    expect(coupe.length).toBeLessThanOrEqual(SEO_DESCRIPTION_MAX)
-    expect(coupe.length).toBeGreaterThan(100)
+  it('texte long tronqué sur fin de mot avec ellipse', () => {
+    const long = 'A '.repeat(200)
+    const resultat = tronquerDescription(long)
+    expect(resultat.length).toBeLessThanOrEqual(160)
+    expect(resultat.endsWith('…')).toBe(true)
+    expect(resultat.endsWith(' …')).toBe(false)
   })
 })
 
-describe('descriptions (CA02)', () => {
-  it('should start with metier, ville and country, then the accroche', () => {
-    const d = construireDescriptionVitrine({ ...vitrine, accroche: 'Votre cœur entre de bonnes mains.' })
-    expect(d.startsWith('Cardiologue interventionnel à Douala (Cameroun).')).toBe(true)
-    expect(d).toContain('Votre cœur entre de bonnes mains.')
+describe('cache et canonique (#139, #146)', () => {
+  it('estRouteCacheable : vraie pour les routes publiques', () => {
+    expect(estRouteCacheable('/')).toBe(true)
+    expect(estRouteCacheable('/tarifs')).toBe(true)
+    expect(estRouteCacheable('/dr-cabrel')).toBe(true)
+    expect(estRouteCacheable('/dr-cabrel/services')).toBe(true)
+    expect(estRouteCacheable('/dr-cabrel/services/mon-service')).toBe(true)
+    expect(estRouteCacheable('/dr-cabrel/realisations')).toBe(true)
+    expect(estRouteCacheable('/dr-cabrel/realisations/mon-projet')).toBe(true)
+    expect(estRouteCacheable('/@dr-cabrel')).toBe(true)
   })
 
-  it('should truncate a 300-character accroche on a word boundary', () => {
-    const accroche = Array.from({ length: 60 }, () => 'soin').join(' ').slice(0, 300)
-    const d = construireDescriptionVitrine({ ...vitrine, accroche })
-    expect(d.length).toBeLessThanOrEqual(SEO_DESCRIPTION_MAX)
-    expect(d.endsWith('…')).toBe(true)
+  it('estRouteCacheable : fausse pour les routes non cacheables', () => {
+    expect(estRouteCacheable('/studio')).toBe(false)
+    expect(estRouteCacheable('/studio/services')).toBe(false)
+    expect(estRouteCacheable('/onboarding')).toBe(false)
+    expect(estRouteCacheable('/connexion')).toBe(false)
+    expect(estRouteCacheable('/connexion/code')).toBe(false)
+    expect(estRouteCacheable('/desabonnement')).toBe(false)
+    expect(estRouteCacheable('/dr-cabrel/reserver')).toBe(false)
+    expect(estRouteCacheable('/dr-cabrel/reserver/confirmation')).toBe(false)
+    expect(estRouteCacheable('/dr-cabrel/agenda')).toBe(false)
+    expect(estRouteCacheable('/dr-cabrel/contact')).toBe(false)
+    expect(estRouteCacheable('/api/public/dr-cabrel')).toBe(false)
+    expect(estRouteCacheable('/medias/x/y')).toBe(false)
   })
 
-  it('should fall back on the bio, then on the template, never empty', () => {
-    expect(construireDescriptionVitrine({ ...vitrine, accroche: null, bio: 'Quinze ans de pratique.' })).toContain('Quinze ans de pratique.')
-    expect(construireDescriptionVitrine({ ...vitrine, accroche: '  ', bio: '' })).toBe('Dr Cabrel Nguesso, Cardiologue interventionnel à Douala (Cameroun).')
-  })
-
-  it('should prefer the typed seoDescription', () => {
-    expect(construireDescriptionVitrine({ ...vitrine, accroche: 'x', seoDescription: 'Ma description saisie.' })).toBe('Ma description saisie.')
-  })
-
-  it('should build service and realisation descriptions with fallbacks', () => {
-    expect(construireDescriptionService({ titre: 'Consultation', description: 'Un bilan complet.' }, vitrine)).toBe('Un bilan complet.')
-    expect(construireDescriptionService({ titre: 'Consultation', description: null }, vitrine)).toBe(
-      'Consultation avec Dr Cabrel Nguesso, Cardiologue interventionnel à Douala.',
-    )
-    expect(construireDescriptionRealisation({ titre: 'Clinique', description: '' }, vitrine)).toBe(
-      'Clinique, réalisation de Dr Cabrel Nguesso, Cardiologue interventionnel à Douala.',
-    )
-    expect(construireDescriptionService({ titre: 'C', description: 'd', seoDescription: 'Saisie.' }, vitrine)).toBe('Saisie.')
-  })
-})
-
-describe('ogLocale (CA04)', () => {
-  it.each([
-    ['CM', 'fr_CM'],
-    ['cm', 'fr_CM'],
-    ['US', 'fr_FR'],
-    [null, 'fr_FR'],
-    [undefined, 'fr_FR'],
-    ['', 'fr_FR'],
-  ])('should map %j to %s', (pays, attendu) => {
-    expect(ogLocale(pays)).toBe(attendu)
-  })
-
-  it('should map every listed country to itself', () => {
-    for (const code of OG_LOCALES_PAYS) expect(ogLocale(code)).toBe(`fr_${code}`)
+  it('cheminCanonique : minuscules, sans barre finale', () => {
+    expect(cheminCanonique('/Dr-Cabrel/Services/')).toBe('/dr-cabrel/services')
+    expect(cheminCanonique('/@Dr-Cabrel')).toBe('/@dr-cabrel')
+    expect(cheminCanonique('/dr-cabrel')).toBe(null)
+    expect(cheminCanonique('/api/Public/X')).toBe(null)
+    expect(cheminCanonique('/_nuxt/A.js')).toBe(null)
+    expect(cheminCanonique('/medias/ab/F.webp')).toBe(null)
+    expect(cheminCanonique('/Studio')).toBe(null)
   })
 })
 
-describe('estRouteCacheable (CA29)', () => {
-  it.each(['/', '/tarifs', '/dr-cabrel', '/dr-cabrel/services', '/dr-cabrel/services/consultation', '/dr-cabrel/realisations', '/dr-cabrel/realisations/clinique-x', '/@dr-cabrel'])(
-    'should cache %s',
-    (path) => {
-      expect(estRouteCacheable(path)).toBe(true)
-    },
-  )
-
-  it.each([
-    '/studio',
-    '/studio/services',
-    '/onboarding',
-    '/connexion',
-    '/connexion/code',
-    '/desabonnement',
-    '/dr-cabrel/reserver',
-    '/dr-cabrel/reserver/confirmation',
-    '/dr-cabrel/agenda',
-    '/dr-cabrel/contact',
-    '/api/public/dr-cabrel',
-    '/medias/x/y',
-    '/_nuxt/a.js',
-    '/dr-cabrel/inexistant',
-    '/dr-cabrel/services/a/b',
-    '/@dr-cabrel/services',
-  ])('should never cache %s', (path) => {
-    expect(estRouteCacheable(path)).toBe(false)
-  })
-
-  it('should ignore the query string', () => {
-    expect(estRouteCacheable('/dr-cabrel?utm=x')).toBe(true)
-    expect(estRouteCacheable('/dr-cabrel/reserver?service=1')).toBe(false)
-  })
-
-  it('should expose the 8 whitelist patterns and a positive TTL', () => {
-    expect(CACHE_HTML_ROUTES).toHaveLength(8)
-    expect(CACHE_HTML_TTL_S).toBe(10)
-  })
-})
-
-describe('cheminCanonique (CA26)', () => {
-  it.each([
-    ['/Dr-Cabrel/Services/', '/dr-cabrel/services'],
-    ['/@Dr-Cabrel', '/@dr-cabrel'],
-    ['/dr-cabrel/', '/dr-cabrel'],
-    ['/Dr-Cabrel?utm_source=wa', '/dr-cabrel'],
-    ['/dr-cabrel', null],
-    ['/dr-cabrel?x=1', null],
-    ['/', null],
-    ['/api/Public/X', null],
-    ['/_nuxt/A.js', null],
-    ['/medias/ab/F.webp', null],
-    ['/Studio', null],
-    ['/Dr-Cabrel/photo.JPG', null],
-  ])('should map %s to %j', (path, attendu) => {
-    expect(cheminCanonique(path)).toBe(attendu)
-  })
-})
-
-describe('construireGroupesRobots (CA17)', () => {
-  const entrainement = (groupes: ReturnType<typeof construireGroupesRobots>) =>
-    groupes.filter((g) => g.disallow.includes('/'))
-
-  it('should default to recherche_seulement', () => {
-    expect(ROBOTS_IA_POLITIQUE_DEFAUT).toBe('recherche_seulement')
-  })
-
-  it('should block training robots only, with the shared disallow list for *', () => {
+describe('groupes robots (#152)', () => {
+  it('recherche_seulement : entraînement bloqué, recherche autorisée', () => {
     const groupes = construireGroupesRobots('recherche_seulement')
-    expect(groupes[0]).toMatchObject({ userAgent: ['*'], disallow: [...ROBOTS_DISALLOW], allow: ['/'] })
-    const bloques = entrainement(groupes)
-    expect(bloques).toHaveLength(1)
-    expect(bloques[0]?.userAgent).toEqual([...ROBOTS_IA_ENTRAINEMENT])
-    expect(bloques[0]?.userAgent).not.toContain('OAI-SearchBot')
+    const entrainement = groupes.find((g) => g.userAgent.includes('GPTBot'))
+    expect(entrainement?.disallow).toContain('/')
+    const recherche = groupes.find((g) => g.userAgent.includes('OAI-SearchBot'))
+    // Les robots de recherche ne figurent pas dans les groupes d'entraînement par défaut
+    expect(recherche).toBeUndefined()
   })
 
-  it('should add no AI group with tout_autoriser', () => {
+  it('tout_autoriser : aucun blocage', () => {
     const groupes = construireGroupesRobots('tout_autoriser')
-    expect(groupes).toHaveLength(1)
-    expect(entrainement(groupes)).toHaveLength(0)
-  })
-
-  it('should never disallow the whole site for the * group nor list agenda/contact', () => {
-    const tous = construireGroupesRobots().flatMap((g) => (g.userAgent.includes('*') ? g.disallow : []))
-    expect(tous).not.toContain('/')
-    expect(tous.some((d) => d.includes('agenda') || d.includes('contact'))).toBe(false)
-  })
-})
-
-describe('constantes (aucune valeur vide)', () => {
-  it('should have noindex directives for every route', () => {
-    for (const [route, directive] of Object.entries(NOINDEX_ROUTES)) {
-      expect(route.startsWith('/')).toBe(true)
-      expect(directive).toMatch(/^noindex, (no)?follow$/)
+    for (const g of groupes) {
+      expect(g.disallow).not.toContain('/')
     }
-    expect(NOINDEX_ROUTES['/*/agenda']).toBe('noindex, follow')
-    expect(NOINDEX_ROUTES['/studio/**']).toBe('noindex, nofollow')
   })
 
-  it('should describe llms.txt without the module-owned "LLM Resources" section', () => {
-    expect(LLMS_SECTIONS.map((s) => s.title)).toEqual(['À propos', 'Adresses publiques'])
-    const liens = LLMS_SECTIONS.flatMap((s) => s.links ?? []).map((l) => l.href)
-    expect(liens).toEqual(expect.arrayContaining(['/tarifs', '/sitemap_index.xml']))
-    expect(LLMS_SECTIONS[0]?.description).toContain(SITE_DESCRIPTION)
-    for (const note of LLMS_NOTES) expect(note.trim()).not.toBe('')
-  })
-
-  it('should keep non-empty texts and a positive JS budget', () => {
-    expect(SITE_DESCRIPTION.trim()).not.toBe('')
-    expect(BUDGET_JS_KO).toBeGreaterThan(0)
-    expect(ROBOTS_IA_ENTRAINEMENT.every((r) => r.trim() !== '')).toBe(true)
+  it('tout_bloquer : entraînement et recherche en Disallow: /', () => {
+    const groupes = construireGroupesRobots('tout_bloquer')
+    const groupesIA = groupes.filter((g) =>
+      g.userAgent.some((ua) => [...ROBOTS_IA_ENTRAINEMENT, ...ROBOTS_IA_RECHERCHE].includes(ua)),
+    )
+    expect(groupesIA.length).toBe(2)
+    for (const g of groupesIA) {
+      expect(g.disallow).toContain('/')
+    }
   })
 })

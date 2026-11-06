@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import { and, eq, notExists, sql } from 'drizzle-orm'
+import { and, eq, isNotNull, notExists, sql } from 'drizzle-orm'
 import sharp from 'sharp'
 import { medias, progressionsInscription, realisationImages, realisations, services, vitrines } from '../../shared/db/schema'
 import { MEDIA_UPLOAD_LIMIT } from '../../shared/limites'
@@ -15,6 +15,7 @@ import { db } from '../utils/db'
 import {
   deleteMediaFiles,
   deleteUserMediaFiles,
+  getStorage,
   readMediaVariantFile,
   writeMediaVariant,
 } from '../utils/stockage'
@@ -220,3 +221,56 @@ export async function readMediaVariantByFilename(mediaId: string, filename: stri
 export async function deleteAllUserMediaFiles(userId: string): Promise<void> {
   await deleteUserMediaFiles(userId)
 }
+
+/** S12 (#147) : variante de partage 1200×630 JPEG pour Open Graph.
+ * Générée à la première demande, servie ensuite depuis le cache disque.
+ * Le média doit appartenir à une vitrine publiée, sinon 404 et rien n'est généré. */
+export async function getPartageVariant(mediaId: string, _vitrineId: string): Promise<{
+  url: string, largeur: number, hauteur: number, mime: string
+}> {
+  const [row] = await db
+    .select({ id: medias.id, userId: medias.userId })
+    .from(medias)
+    .where(eq(medias.id, mediaId))
+    .limit(1)
+  if (!row) throw new NotFoundError('MEDIA_INTROUVABLE')
+
+  // Vérifier que le média appartient à une vitrine publiée.
+  const [vitrine] = await db
+    .select({ id: vitrines.id })
+    .from(vitrines)
+    .where(and(eq(vitrines.photoMediaId, mediaId), isNotNull(vitrines.publieeLe)))
+    .limit(1)
+  if (!vitrine) throw new NotFoundError('MEDIA_INTROUVABLE')
+
+  const stockage = getStorage()
+  const partageKey = `${row.userId}:${mediaId}:partage.webp`
+  const existe = await stockage.getItem(partageKey)
+  if (existe) {
+    return { url: `/medias/${row.userId}/${mediaId}/partage.webp`, largeur: 1200, hauteur: 630, mime: 'image/jpeg' }
+  }
+
+  // Générer la variante à partir de la plus grande variante disponible (garde identique à `uploadMedia`).
+  const largeurSource = MEDIA_WIDTHS[MEDIA_WIDTHS.length - 1]
+  if (!largeurSource) throw new UnprocessableError('IMAGE_ILLISIBLE')
+  const sourceData = await readMediaVariant(mediaId, largeurSource)
+  const sharpInstance = sharp(sourceData, { limitInputPixels: MEDIA_MAX_PIXELS, failOn: 'error' })
+  const output = await sharpInstance
+    .resize(1200, 630, { fit: 'cover', position: 'north', withoutEnlargement: false })
+    .jpeg({ quality: 82 })
+    .toBuffer()
+
+  await stockage.setItemRaw(partageKey, output)
+
+  return { url: `/medias/${row.userId}/${mediaId}/partage.webp`, largeur: 1200, hauteur: 630, mime: 'image/jpeg' }
+}
+
+/** S12 : sert la variante de partage déjà générée. 404 si absente. */
+export async function servirPartageVariant(_userId: string, mediaId: string): Promise<Buffer> {
+  const stockage = getStorage()
+  const partageKey = `${_userId}:${mediaId}:partage.webp`
+  const data = await stockage.getItemRaw<Buffer | null>(partageKey)
+  if (!data) throw new NotFoundError('MEDIA_INTROUVABLE')
+  return data
+}
+

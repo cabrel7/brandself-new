@@ -24,6 +24,9 @@ export const IA_GLOBAL_LIMIT: RateLimit = { limit: 2000, windowS: 86400 }
 /** S8 — clés du limiteur (préfixe `limite:` ajouté par le limiteur). */
 export const IA_LIMITE_CLE_UTILISATEUR_PREFIXE = 'ia:'
 export const IA_LIMITE_CLE_GLOBALE = 'ia-global'
+/** S11 — enregistrement d'une vue publique, par IP, fail-open (la navigation n'est jamais interrompue). */
+export const VUE_PUBLIC_LIMIT: RateLimit = { limit: 60, windowS: 60 }
+export const VUE_LIMITE_CLE_PREFIXE = 'vue:'
 /** S8 — `terminer` (création de la vitrine) : même débit que la vérification d'adresse, compteur distinct, sans quota IA. */
 export const ONBOARDING_TERMINER_LIMIT: RateLimit = USERNAME_CHECK_LIMIT
 export const ONBOARDING_TERMINER_CLE_PREFIXE = 'onboarding-terminer:'

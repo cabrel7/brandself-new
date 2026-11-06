@@ -71,6 +71,9 @@ export const JOBS = {
   planifierNotifications: 'notifications-planifier',
   purgerNotifications: 'notifications-purger',
   verifierPaiements: 'paiements-verifier',
+  // S11 : agrégation et purge des statistiques (file `maintenance`).
+  agregerStatistiques: 'statistiques-agreger',
+  purgerStatistiques: 'statistiques-purger',
 } as const
 
 export type JobName = (typeof JOBS)[keyof typeof JOBS]

@@ -30,12 +30,14 @@ import { planifierPurge } from '../server/jobs/ia'
 import { dispatchPendingTransactionalEmails } from '../server/jobs/email-outbox'
 import { planifierVerificationsPaiements } from '../server/jobs/paiements'
 import { planifierNotificationsRepetees, planifierPurgeNotifications } from '../server/jobs/notifications'
+import { planifierAgregationStatistiques, planifierPurgeStatistiques } from '../server/jobs/statistiques'
 import { processTransactionalEmail } from '../server/services/email-outbox'
 import { planifierNotifications } from '../server/services/notifications/planification'
 import { purgeOutbox } from '../server/services/notifications/purge'
 import { executeGeneration, purgeGenerations } from '../server/services/ia/generations'
 import { createIaProvider } from '../server/services/ia/fournisseurs'
 import type { ExecutionDeps } from '../server/services/ia/types'
+import { agregerStatistiques, purgerStatistiques } from '../server/services/statistiques'
 import { verifierPaiementsDus } from '../server/services/abonnements'
 import { purgeProgressionsAbandonnees } from '../server/services/onboarding'
 import { senderOtpEmail, senderOtpSms } from '../server/services/otp/envoi'
@@ -85,6 +87,17 @@ const workerMaintenance = new Worker(
       // Même job quotidien : les inscriptions abandonnées (rétention des données personnelles, 90 jours).
       const abandonnees = await purgeProgressionsAbandonnees()
       console.info(`[worker] purge inscriptions : ${abandonnees} progression(s) abandonnée(s) supprimée(s)`)
+      return
+    }
+    // S11 : agrégation puis purge des statistiques (aucune donnée personnelle dans le journal).
+    if (job.name === JOBS.agregerStatistiques) {
+      await agregerStatistiques(new Date())
+      console.info('[worker] statistiques agrégées (STATISTIQUES_AGREGEES)')
+      return
+    }
+    if (job.name === JOBS.purgerStatistiques) {
+      await purgerStatistiques(new Date())
+      console.info('[worker] statistiques purgées (STATISTIQUES_PURGEES)')
       return
     }
     throw new Error(`Unknown job: ${job.name}`)
@@ -235,6 +248,14 @@ planifierPurge(maintenanceQueue).catch(() => {
 })
 planifierPurgeNotifications(maintenanceQueue).catch(() => {
   console.error('[worker] notifications purge scheduling failed (NOTIFICATIONS_PURGE_SCHEDULE_FAILED)')
+})
+// S11 : agrégation (11:00 UTC) et purge (05:00 UTC) des statistiques sur la même file ; sans cet
+// ordonnanceur, `statistiques_jour_*` n'est jamais écrit et la lecture hybride renvoie toujours zéro.
+planifierAgregationStatistiques(maintenanceQueue).catch(() => {
+  console.error('[worker] statistics aggregation scheduling failed (STATISTIQUES_AGREGATION_SCHEDULE_FAILED)')
+})
+planifierPurgeStatistiques(maintenanceQueue).catch(() => {
+  console.error('[worker] statistics purge scheduling failed (STATISTIQUES_PURGE_SCHEDULE_FAILED)')
 })
 
 // S9 : tick de planification sur la file `system`, idempotent au redémarrage.

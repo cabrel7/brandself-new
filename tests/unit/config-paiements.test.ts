@@ -97,6 +97,7 @@ describe('plans et grille de prix (#106)', () => {
       generationsIaParMois: 3,
       badge: true,
       statistiquesJours: 7,
+      statistiquesDetails: false,
     })
     expect(PLANS.payant).toEqual({
       services: null,
@@ -106,6 +107,7 @@ describe('plans et grille de prix (#106)', () => {
       generationsIaParMois: null,
       badge: false,
       statistiquesJours: 90,
+      statistiquesDetails: true,
     })
   })
 

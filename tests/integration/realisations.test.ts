@@ -1717,7 +1717,7 @@ describe('realisations — lecture publique (CA34 à CA40)', () => {
 
   describe('CA39 liste blanche des DTO publics', () => {
     const CLES_CARTE = ['annee', 'description', 'image', 'lieu', 'slug', 'titre']
-    const CLES_DETAIL = [...CLES_CARTE, 'galerie', 'lien', 'role', 'seo'].sort()
+    const CLES_DETAIL = [...CLES_CARTE, 'galerie', 'lien', 'modifieLe', 'role', 'seo'].sort()
     const DESCRIPTION_LONGUE = Array.from({ length: 60 }, (_, i) => `mot${i}`).join(' ')
 
     async function detailPublic(surcharges: Partial<typeof realisations.$inferInsert> = {}) {
@@ -1769,7 +1769,7 @@ describe('realisations — lecture publique (CA34 à CA40)', () => {
       const { dto } = await detailPublic()
 
       expect(Object.keys(dto).sort()).toEqual(CLES_DETAIL)
-      expect(Object.keys(dto.seo).sort()).toEqual(['description', 'titre'])
+      expect(Object.keys(dto.seo).sort()).toEqual(['description', 'image', 'titre'].sort())
     })
 
     it('CA39 should never leak an identifier, the owner, the order, the vedette flag, the dates or a storage path (the media ids of the images are public)', async () => {
@@ -1777,7 +1777,7 @@ describe('realisations — lecture publique (CA34 à CA40)', () => {
 
       const json = JSON.stringify(dto)
 
-      for (const secret of [ligne.id, vitrine.id, user.id, `${user.id}/${image}`, '"ordre"', '"actif"', '"enVedette"', '"vitrineId"', '"creeLe"', '"modifieLe"', '"createdAt"', '"updatedAt"', '"chemin"', '"imageMediaId"', '"userId"']) {
+      for (const secret of [ligne.id, vitrine.id, user.id, `${user.id}/${image}`, '"ordre"', '"actif"', '"enVedette"', '"vitrineId"', '"creeLe"', '"createdAt"', '"updatedAt"', '"chemin"', '"imageMediaId"', '"userId"']) {
         expect(json).not.toContain(secret)
       }
     })

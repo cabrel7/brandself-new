@@ -15,8 +15,11 @@
     "test": "vitest run",
     "test:unit": "vitest run --project unit",
     "test:integration": "vitest run --project integration",
-    "e2e": "playwright test",
-    "worker": "node --env-file=.env node_modules/tsx/dist/cli.mjs worker/index.ts",
+  "e2e": "playwright test",
+  "e2e:seo": "playwright test -c playwright.seo.config.ts",
+  "perf": "lhci autorun --config=lighthouserc.cjs",
+  "perf:local": "pnpm build && pnpm perf",
+  "worker": "node --env-file=.env node_modules/tsx/dist/cli.mjs worker/index.ts",
     "db:generate": "node --env-file=.env node_modules/drizzle-kit/bin.cjs generate",
     "db:migrate": "node --env-file=.env node_modules/drizzle-kit/bin.cjs migrate",
     "db:seed": "node --env-file=.env node_modules/tsx/dist/cli.mjs server/db/seed.ts",
@@ -68,7 +71,9 @@
     "tsx": "^4.23.15",
     "typescript": "^6.0.3",
     "vitest": "^5.0.5",
-    "vue-tsc": "^3.3.13"
+    "vue-tsc": "^3.3.13",
+    "@axe-core/playwright": "^4.8.0",
+    "@lhci/cli": "^0.12.0"
   },
   "overrides": {
     "unstorage": {

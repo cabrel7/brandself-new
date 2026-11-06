@@ -3,11 +3,27 @@ const SOUS_TITRE = 'Une question avant de réserver ? Écrivez-moi, je vous rép
 
 const route = useRoute()
 const username = String(route.params.username)
+const { public: { siteUrl = '' } } = useRuntimeConfig()
 const vitrine = await usePublicVitrine(username)
 
-useSeoMeta({
-  title: () => `Me contacter — ${vitrine.value.nomAffiche}`,
-  robots: 'noindex, nofollow',
+useSeoVitrine({
+  vitrine: {
+    username: vitrine.value.username,
+    nomAffiche: vitrine.value.nomAffiche,
+    metier: vitrine.value.metier,
+    ville: vitrine.value.ville,
+    pays: vitrine.value.pays,
+    paysLibelle: vitrine.value.paysLibelle,
+    titre: vitrine.value.titre,
+    seoTitre: vitrine.value.seo.titre,
+    seoDescription: vitrine.value.seo.description,
+    accroche: vitrine.value.accroche,
+    bio: vitrine.value.bio,
+    photo: vitrine.value.photo,
+    liens: [],
+  },
+  page: 'contact',
+  siteUrl,
 })
 </script>
 

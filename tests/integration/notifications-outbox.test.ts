@@ -636,9 +636,15 @@ describe('résumé hebdomadaire : revalidation à l’envoi (CA31, CA24)', () =>
     expect(tard.transport.sends).toHaveLength(0)
   })
 
-  it('should carry the one-click headers for email_hebdo and a plain-text body without visits nor clicks (CA27, CA45)', async () => {
+  it('should carry the one-click headers for email_hebdo and a plain-text body with the S11 counters (CA27, CA45, #186)', async () => {
     const { verifyUnsubscribeToken } = await import('../../server/services/desabonnement')
     const pro = await creerPro()
+    // Une réservation créée dans la période de W44 rend le résumé « actif » : les lignes visites/clics sont alors rendues.
+    await insererReservation(pro.vitrine.id, pro.service.id, {
+      debut: utc('2026-10-30T10:00:00.000Z'),
+      statut: 'confirmee',
+      createdAt: utc('2026-10-30T10:00:00.000Z'),
+    })
     const ligne = await ligneResume(pro.user.id)
 
     const { transport } = await traiter(ligne.id, utc('2026-11-02T07:05:00.000Z'))
@@ -647,7 +653,9 @@ describe('résumé hebdomadaire : revalidation à l’envoi (CA31, CA24)', () =>
     expect(message.headers?.['List-Unsubscribe-Post']).toBe('List-Unsubscribe=One-Click')
     const jeton = /jeton=([A-Za-z0-9_.-]+)/.exec(message.headers?.['List-Unsubscribe'] ?? '')?.[1] ?? ''
     expect(await verifyUnsubscribeToken(jeton, CREE_A)).toEqual({ userId: pro.user.id, preference: 'email_hebdo' })
-    expect(message.text).not.toMatch(/visites|clics/i)
+    // S11 #186 : les lignes visites/clics sont rendues dans le corps (0 sur une période sans trafic).
+    expect(message.text).toContain('• Visites : 0')
+    expect(message.text).toContain('• Clics sur vos liens : 0')
     expect(message.text).not.toMatch(/<[a-z][^>]*>/i)
   })
 })

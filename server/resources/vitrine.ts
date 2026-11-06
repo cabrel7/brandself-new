@@ -5,6 +5,7 @@ import { PAYS, TITRES, displayName } from '../../shared/vitrine'
 import type { Titre } from '../../shared/vitrine'
 import type { ContenusPublics, StudioSummary, VitrineAvecPhoto } from '../services/vitrines'
 import { toMediaResource } from './media'
+import { construireTitreVitrine, construireDescriptionVitrine } from '../../shared/seo'
 
 // Les colonnes sont du texte libre côté TypeScript (les CHECK de la base garantissent les valeurs) :
 // on les rétrécit ici plutôt que de caster.
@@ -46,7 +47,8 @@ export function toStudioResumeResource(resume: StudioSummary): StudioResumeDTO {
     compteurs: { ...resume.compteurs },
     prochaineEtape: resume.prochaineEtape,
     manquantsPourPublier: [...resume.manquants],
-    statistiques7j: { visites: 0, clics: 0, reservations: 0 },
+    // S11 #185 : totaux réels calculés par `getTotaux7J` (jamais de littéral 0 en dur).
+    statistiques7j: { ...resume.statistiques7j },
   }
 }
 
@@ -59,6 +61,7 @@ export function toContenusPublicsResource(contenus: ContenusPublics): ContenusPu
  * DTO public : liste blanche explicite. Ni id, ni userId, ni email du compte, ni téléphone du
  * compte, ni chemin disque, ni réglages internes — on ne spread jamais la ligne de base.
  * S10 : `badgeBrandself` (plan gratuit) est le SEUL reflet public du plan ; le statut d'abonnement n'est jamais exposé.
+ * S12 : `seo.image` (null → image par défaut OG_IMAGE_DEFAUT), `modifieLe` pour le sitemap.
  */
 export function toVitrinePublicResource(
   { vitrine, photo }: VitrineAvecPhoto,
@@ -68,6 +71,7 @@ export function toVitrinePublicResource(
   const nomAffiche = displayName(titre, vitrine.prenom, vitrine.nom)
   const ville = vitrine.ville ?? ''
   const pays = vitrine.pays ?? ''
+  const paysLibelle = PAYS.find((entree) => entree.code === pays)?.label ?? pays
   return {
     username: vitrine.username,
     titre,
@@ -77,7 +81,7 @@ export function toVitrinePublicResource(
     metier: vitrine.metier,
     ville,
     pays,
-    paysLibelle: PAYS.find((entree) => entree.code === pays)?.label ?? pays,
+    paysLibelle,
     accroche: vitrine.accroche,
     bio: vitrine.bio,
     photo: photo ? toMediaResource(photo) : null,
@@ -89,9 +93,25 @@ export function toVitrinePublicResource(
     palette: asPalette(vitrine.palette),
     fuseau: vitrine.fuseau,
     seo: {
-      titre: vitrine.seoTitre ?? `${nomAffiche} — ${vitrine.metier} à ${ville}`,
-      description: vitrine.seoDescription ?? vitrine.accroche ?? `${nomAffiche}, ${vitrine.metier} à ${ville}.`,
+      titre: construireTitreVitrine({
+        nomAffiche,
+        metier: vitrine.metier,
+        ville: ville,
+        seoTitre: vitrine.seoTitre,
+      }),
+      description: construireDescriptionVitrine({
+        nomAffiche,
+        metier: vitrine.metier,
+        ville: ville,
+        paysLibelle,
+        accroche: vitrine.accroche,
+        bio: vitrine.bio,
+        seoTitre: vitrine.seoTitre,
+        seoDescription: vitrine.seoDescription,
+      }),
+      image: null,
     },
+    modifieLe: vitrine.updatedAt.toISOString(),
     badgeBrandself,
   }
 }

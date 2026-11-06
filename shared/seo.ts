@@ -56,7 +56,7 @@ export const NOINDEX_LIEN_BIO: DirectiveRobots = 'noindex, follow'
 export const ROBOTS_DISALLOW = ['/studio', '/onboarding', '/connexion', '/desabonnement', '/api/'] as const
 export const ROBOTS_ALLOW = ['/'] as const
 export const ROBOTS_USER_AGENT_TOUS = '*'
-export const ROBOTS_IA_POLITIQUES = ['recherche_seulement', 'tout_autoriser'] as const
+export const ROBOTS_IA_POLITIQUES = ['recherche_seulement', 'tout_autoriser', 'tout_bloquer'] as const
 export type RobotsIaPolitique = (typeof ROBOTS_IA_POLITIQUES)[number]
 export const ROBOTS_IA_POLITIQUE_DEFAUT: RobotsIaPolitique = 'recherche_seulement'
 export const ROBOTS_IA_ENTRAINEMENT = [
@@ -68,6 +68,16 @@ export const ROBOTS_IA_ENTRAINEMENT = [
   'meta-externalagent',
   'Bytespider',
   'cohere-training-data-crawler',
+] as const
+export const ROBOTS_IA_RECHERCHE = [
+  'OAI-SearchBot',
+  'ChatGPT-User',
+  'PerplexityBot',
+  'Perplexity-User',
+  'Claude-SearchBot',
+  'Claude-User',
+  'DuckAssistBot',
+  'MistralAI-User',
 ] as const
 export const ROBOTS_SITEMAP_CHEMIN = '/sitemap_index.xml'
 
@@ -84,6 +94,12 @@ export function construireGroupesRobots(politique: RobotsIaPolitique = ROBOTS_IA
   ]
   if (politique === 'recherche_seulement') {
     groupes.push({ userAgent: [...ROBOTS_IA_ENTRAINEMENT], disallow: ['/'], allow: [] })
+  }
+  if (politique === 'tout_bloquer') {
+    groupes.push(
+      { userAgent: [...ROBOTS_IA_ENTRAINEMENT], disallow: ['/'], allow: [] },
+      { userAgent: [...ROBOTS_IA_RECHERCHE], disallow: ['/'], allow: [] },
+    )
   }
   return groupes
 }

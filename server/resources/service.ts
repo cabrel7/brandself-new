@@ -130,6 +130,8 @@ export function toServicePublicDetailResource(
         description === ''
           ? `${row.titre} avec ${nomAffiche}, ${vitrine.metier}${vitrine.ville ? ` à ${vitrine.ville}` : ''}.`
           : truncateForSeo(description),
+      image: null,
     },
+    modifieLe: row.updatedAt.toISOString(),
   }
 }

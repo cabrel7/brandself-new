@@ -34,7 +34,8 @@ export interface StudioResumeDTO {
   }
   prochaineEtape: NextStep | null
   manquantsPourPublier: PublicationField[]
-  statistiques7j: { visites: 0, clics: 0, reservations: 0 }
+  /** S11 #185 : totaux des 7 derniers jours, lus dans `statistiques_jour`/`vues`. */
+  statistiques7j: { visites: number, clics: number, reservations: number }
 }
 
 export interface VitrinePubliqueDTO {

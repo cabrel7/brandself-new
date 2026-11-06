@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
+import { Temporal } from '@js-temporal/polyfill'
 import { and, asc, eq, sql } from 'drizzle-orm'
-import { liens, vitrines } from '../../shared/db/schema'
+import { liens, statistiquesJour, vitrines } from '../../shared/db/schema'
 import { LISTE_SLUG_MAX } from '../../shared/listes'
 import {
   adresseDepuisMailtoUrl,
@@ -232,22 +233,39 @@ export async function getPublicLiens(rawUsername: string): Promise<{ vitrine: Vi
 }
 
 /**
- * Enregistre un clic sur un lien visible (trafic public). Un seul UPDATE atomique : incrémente
- * le total et le compteur de la semaine (remis à zéro au premier clic d'une nouvelle semaine).
- * Limité en débit par adresse IP ; une 429 ne bloque jamais la navigation (appel en arrière-plan).
+ * Enregistre un clic sur un lien visible (trafic public). Un seul transaction : la mise à jour de
+ * `liens` (total + semaine) et l'incrément de `statistiques_jour.clics` (#171) sont atomiques ;
+ * l'agrégation n'écrit jamais `clics`. Limité en débit par adresse IP ; une 429 ne bloque jamais
+ * la navigation (appel en arrière-plan).
  */
 export async function recordLienClic(rawUsername: string, slug: string, ip: string, reference: Date = new Date()): Promise<void> {
   await enforceLimit(`lien-clic:${ip}`, LIEN_CLIC_LIMIT.limit, LIEN_CLIC_LIMIT.windowS)
   const { vitrine } = await getPublicVitrine(rawUsername)
   const semaineDebut = getIsoWeekStartUtc(reference)
-  const result = await db.execute(sql`
-    UPDATE liens AS l SET
-      clics = l.clics + 1,
-      clics_semaine = CASE WHEN l.semaine_debut = ${semaineDebut}::date THEN l.clics_semaine + 1 ELSE 1 END,
-      semaine_debut = ${semaineDebut}::date,
-      updated_at = now()
-    FROM vitrines AS v
-    WHERE v.id = l.vitrine_id AND v.id = ${vitrine.id} AND l.slug = ${slug} AND l.actif
-  `)
-  if ((result.rowCount ?? 0) === 0) throw new NotFoundError('LIEN_INTROUVABLE')
+  // Jour civil dans le fuseau de la vitrine : la clé de l'agrégat est locale, pas UTC.
+  const local = Temporal.Instant.fromEpochMilliseconds(reference.getTime()).toZonedDateTimeISO(vitrine.fuseau ?? 'Africa/Douala')
+  const jour = local.toPlainDate().toString()
+
+  await db.transaction(async (tx) => {
+    const result = await tx.execute(sql`
+      UPDATE liens AS l SET
+        clics = l.clics + 1,
+        clics_semaine = CASE WHEN l.semaine_debut = ${semaineDebut}::date THEN l.clics_semaine + 1 ELSE 1 END,
+        semaine_debut = ${semaineDebut}::date,
+        updated_at = now()
+      FROM vitrines AS v
+      WHERE v.id = l.vitrine_id AND v.id = ${vitrine.id} AND l.slug = ${slug} AND l.actif
+    `)
+    if ((result.rowCount ?? 0) === 0) throw new NotFoundError('LIEN_INTROUVABLE')
+
+    // #171 : INSERT à la première ligne du jour, sinon incrément ; `visites`/`visiteurs_uniques`
+    // ne sont jamais touchés (l'agrégation les recalcule depuis `vues`).
+    await tx
+      .insert(statistiquesJour)
+      .values({ vitrineId: vitrine.id, jour, clics: 1 })
+      .onConflictDoUpdate({
+        target: [statistiquesJour.vitrineId, statistiquesJour.jour],
+        set: { clics: sql`${statistiquesJour.clics} + 1`, updatedAt: new Date() },
+      })
+  })
 }

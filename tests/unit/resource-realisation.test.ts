@@ -29,7 +29,7 @@ const CLES_STUDIO = [
 
 const CLES_CARTE = ['annee', 'description', 'image', 'lieu', 'slug', 'titre'].sort()
 
-const CLES_DETAIL = [...CLES_CARTE, 'galerie', 'lien', 'role', 'seo'].sort()
+const CLES_DETAIL = [...CLES_CARTE, 'galerie', 'lien', 'modifieLe', 'role', 'seo'].sort()
 
 const CLES_MEDIA = ['hauteur', 'id', 'largeur', 'srcset', 'url']
 
@@ -235,7 +235,7 @@ describe('toRealisationPublicDetailResource (U22)', () => {
     const dto = toRealisationPublicDetailResource(ligne(), media(), galerie(), vitrine())
 
     expect(Object.keys(dto).sort()).toEqual(CLES_DETAIL)
-    expect(Object.keys(dto.seo).sort()).toEqual(['description', 'titre'])
+    expect(Object.keys(dto.seo).sort()).toEqual(['description', 'image', 'titre'])
   })
 
   it('should never leak the owner, the vitrine contact details or internal fields (whitelist, no spread)', async () => {
@@ -243,7 +243,7 @@ describe('toRealisationPublicDetailResource (U22)', () => {
 
     const json = JSON.stringify(toRealisationPublicDetailResource(ligne(), media(), galerie(), vitrine()))
 
-    for (const secret of [ID_REALISATION, ID_VITRINE, ID_UTILISATEUR, 'prive@exemple.com', '+237600000000', '"ordre"', '"enVedette"', '"actif"', '"vitrineId"', '"createdAt"', '"creeLe"', '"modifieLe"', '"preavisHeures"', '"chemin"', '"imageMediaId"']) {
+    for (const secret of [ID_REALISATION, ID_VITRINE, ID_UTILISATEUR, 'prive@exemple.com', '+237600000000', '"ordre"', '"enVedette"', '"actif"', '"vitrineId"', '"createdAt"', '"creeLe"', '"preavisHeures"', '"chemin"', '"imageMediaId"']) {
       expect(json).not.toContain(secret)
     }
   })

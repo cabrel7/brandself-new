@@ -1,34 +1,35 @@
+<script setup lang="ts">
+const { public: { siteUrl = '' } } = useRuntimeConfig()
+
+useSeoMeta({
+  title: 'Brandself — votre vitrine en ligne',
+  description: 'Une vitrine en ligne pour les professionnels : être trouvé, être compris, être contacté ou réservé.',
+  ogTitle: 'Brandself — votre vitrine en ligne',
+  ogDescription: 'Une vitrine en ligne pour les professionnels : être trouvé, être compris, être contacté ou réservé.',
+  ogType: 'website',
+  ogUrl: siteUrl || undefined,
+  twitterCard: 'summary_large_image',
+})
+
+useSchemaOrg([
+  {
+    '@type': 'Organization',
+    name: 'Brandself',
+    url: siteUrl || undefined,
+    logo: '/og/brandself-logo.png',
+  },
+  {
+    '@type': 'WebSite',
+    name: 'Brandself',
+    url: siteUrl || undefined,
+  },
+])
+</script>
+
 <template>
-  <main class="accueil">
-    <h1>Brandself</h1>
-    <p>Votre vitrine en ligne.</p>
-    <p>
-      <NuxtLink to="/connexion">Se connecter</NuxtLink>
-    </p>
-  </main>
+  <section>
+    <Promesse />
+    <Fonctions />
+    <TarifsResume />
+  </section>
 </template>
-
-<style scoped>
-.accueil {
-  min-height: 100vh;
-  display: grid;
-  place-content: center;
-  gap: 0.75rem;
-  text-align: center;
-  padding: 1.5rem;
-}
-
-h1 {
-  font-family: var(--font-titre);
-  font-size: 2rem;
-  font-weight: 600;
-}
-
-p {
-  color: var(--texte-secondaire);
-}
-
-a {
-  color: var(--accent);
-}
-</style>
