@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { PALETTES } from '../../shared/palettes'
 import { schemaVitrineCreate, schemaVitrineUpdate } from '../../shared/schemas/vitrine'
+import { SEO_DESCRIPTION_MAX, SEO_DESCRIPTION_MIN, SEO_TITRE_MAX, SEO_TITRE_MIN } from '../../shared/seo'
 import { ACCROCHE_MAX, BIO_MAX, METIER_MAX, NOM_MAX, PAYS_CODES, PRENOM_MAX, VILLE_MAX } from '../../shared/vitrine'
 
 // U4 — schémas vitrine (création et mise à jour)
@@ -89,7 +90,6 @@ describe('schemaVitrineUpdate (U4)', () => {
     ['userId', 'u1'],
     ['id', 'v1'],
     ['publieeLe', '2026-01-01T00:00:00Z'],
-    ['seoTitre', 'Titre'],
     ['sectionsMasquees', ['services']],
   ])('should refuse the key %s (not editable through this route)', (cle, valeur) => {
     expect(schemaVitrineUpdate.safeParse({ ville: 'Douala', [cle]: valeur }).success).toBe(false)
@@ -167,6 +167,19 @@ describe('schemaVitrineUpdate (U4)', () => {
 
   it.each(['rose', 'Terracotta', '', null])('should refuse the palette %j', (palette) => {
     expect(schemaVitrineUpdate.safeParse({ palette }).success).toBe(false)
+  })
+
+  it.each([
+    ['seoTitre', SEO_TITRE_MIN, SEO_TITRE_MAX],
+    ['seoDescription', SEO_DESCRIPTION_MIN, SEO_DESCRIPTION_MAX],
+  ] as const)('should accept %s between %i and %i characters, refuse outside, and turn blank into null', (champ, min, max) => {
+    expect(schemaVitrineUpdate.safeParse({ [champ]: 'a'.repeat(min) }).success).toBe(true)
+    expect(schemaVitrineUpdate.safeParse({ [champ]: 'a'.repeat(max) }).success).toBe(true)
+    expect(schemaVitrineUpdate.safeParse({ [champ]: 'a'.repeat(min - 1) }).success).toBe(false)
+    expect(schemaVitrineUpdate.safeParse({ [champ]: 'a'.repeat(max + 1) }).success).toBe(false)
+    expect(schemaVitrineUpdate.safeParse({ [champ]: '' })).toMatchObject({ success: true, data: { [champ]: null } })
+    expect(schemaVitrineUpdate.safeParse({ [champ]: '   ' })).toMatchObject({ success: true, data: { [champ]: null } })
+    expect(schemaVitrineUpdate.safeParse({ [champ]: null })).toMatchObject({ success: true, data: { [champ]: null } })
   })
 
   it('should refuse values of the wrong type instead of coercing them', () => {

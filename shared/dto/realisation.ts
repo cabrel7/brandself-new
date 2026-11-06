@@ -1,5 +1,5 @@
 import type { LimitePlanDTO } from './abonnement'
-import type { MediaDTO } from './media'
+import type { MediaDTO, SeoPublicDTO } from './media'
 
 export interface RealisationStudioDTO {
   id: string
@@ -44,7 +44,9 @@ export interface RealisationPublicDetailDTO extends RealisationPublicCarteDTO {
   role: string | null
   lien: string | null
   galerie: MediaDTO[]
-  seo: { titre: string, description: string }
+  seo: SeoPublicDTO
+  /** ISO 8601 : `lastmod` et `og:updated_time`. */
+  modifieLe: string
 }
 
 export interface RealisationsStudioReponse {

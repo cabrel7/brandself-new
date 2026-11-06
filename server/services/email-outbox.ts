@@ -45,6 +45,7 @@ import type { EmailTransport } from './emails/transport'
 import { choisirSuggestion, compterActivite } from './notifications/activite'
 import { debutSemaineIso, journeeLocale, periodeResume } from './notifications/fenetres'
 import { analyserOccurrenceRappel, evaluerPertinence } from './notifications/pertinence'
+import { getCompteursResume } from './statistiques'
 
 const PROCESSING_LEASE_MS = 60_000
 const OUTBOX_BATCH_SIZE = 100
@@ -626,6 +627,8 @@ async function prepareResumeHebdo(row: EmailOutboxRow, now: Date): Promise<Prepa
   const bornes = { debut: instantVersDate(periode.debut), fin: instantVersDate(periode.fin) }
   const semaineSuivante = { debut: instantVersDate(lundi), fin: instantVersDate(finSemaineSuivante) }
   const compteurs = await compterActivite(faits.vitrineId, bornes, semaineSuivante)
+  // S11 #186 : visites et clics réels sur la période (lignes omises seulement si le suivi est absent).
+  const visiteurs = await getCompteursResume(faits.vitrineId, faits.fuseau, bornes)
   const avecActivite = compteurs.reservations + compteurs.demandes + compteurs.messages > 0
   // La suggestion n'est lue que si le résumé en a besoin (aucune activité).
   const suggestion = avecActivite ? { ...SUGGESTION_RESUME_DEFAUT } : await choisirSuggestion(faits.id)
@@ -642,8 +645,7 @@ async function prepareResumeHebdo(row: EmailOutboxRow, now: Date): Promise<Prepa
       siteUrl: env.NUXT_PUBLIC_SITE_URL,
       jetonDesabonnement: signUnsubscribeToken(faits.id, preference, now),
       periode: bornes,
-      // Ni visites ni clics avant S11 : `null` omet la ligne.
-      compteurs: { ...compteurs, visites: null, clics: null },
+      compteurs: { ...compteurs, ...visiteurs },
       suggestion,
     },
   }

@@ -83,6 +83,8 @@ export function toRealisationPublicDetailResource(
         description === ''
           ? `${row.titre}, une réalisation de ${nomAffiche}, ${vitrine.metier}${vitrine.ville ? ` à ${vitrine.ville}` : ''}.`
           : truncateForSeo(description),
+      image: null,
     },
+    modifieLe: row.updatedAt.toISOString(),
   }
 }

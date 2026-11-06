@@ -161,6 +161,21 @@ async function validerAdresse(): Promise<void> {
 
       <USeparator />
 
+      <section aria-labelledby="titre-google" class="flex flex-col gap-3">
+        <h2 id="titre-google" class="m-0 text-(length:--fs-20) font-semibold text-encre">
+          Sur Google
+        </h2>
+        <StudioSeoGoogle
+          :vitrine="vitrine"
+          :enregistrer="enregistrer"
+          :a-des-modifications="aDesModifications"
+          :erreurs="erreurs"
+          :vider-erreur="viderErreur"
+        />
+      </section>
+
+      <USeparator />
+
       <fieldset class="m-0 flex min-w-0 flex-col gap-4 border-0 p-0">
         <legend class="mb-4 p-0 font-(family-name:--font-titre) text-(length:--fs-20) font-semibold text-encre">
           Contact

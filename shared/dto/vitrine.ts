@@ -1,6 +1,6 @@
 import type { Palette } from '../palettes'
 import type { NextStep, PublicationField, Titre } from '../vitrine'
-import type { MediaDTO } from './media'
+import type { MediaDTO, SeoPublicDTO } from './media'
 
 export interface VitrineStudioDTO {
   username: string
@@ -34,7 +34,8 @@ export interface StudioResumeDTO {
   }
   prochaineEtape: NextStep | null
   manquantsPourPublier: PublicationField[]
-  statistiques7j: { visites: 0, clics: 0, reservations: 0 }
+  /** S11 #185 : totaux des 7 derniers jours, lus dans `statistiques_jour`/`vues`. */
+  statistiques7j: { visites: number, clics: number, reservations: number }
 }
 
 export interface VitrinePubliqueDTO {
@@ -57,7 +58,9 @@ export interface VitrinePubliqueDTO {
   }
   palette: Palette
   fuseau: string
-  seo: { titre: string, description: string }
+  seo: SeoPublicDTO
+  /** ISO 8601 : `lastmod` et `og:updated_time`. */
+  modifieLe: string
   /** S10 : badge « Créé avec Brandself » (plan gratuit). Le statut d'abonnement n'est jamais exposé publiquement. */
   badgeBrandself: boolean
 }

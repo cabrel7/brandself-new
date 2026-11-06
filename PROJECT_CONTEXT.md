@@ -36,6 +36,7 @@ Professionnels francophones qui vendent leur expertise : santé (médecins, psyc
 - Jamais « bloc », « module », « widget » dans l'interface.
 - Contenus : **service**, **réalisation**, **témoignage**, **lien**, **agenda**, **réservation**.
 - URL publique : `brandself.io/username`. Link-in-bio : `brandself.io/@username` (repli `/l/username` si le routage pose problème).
+- **Renommage programmé (S14, décisions #17/#18)** : les **usages** passeront à `jesuis.pro` (textes, URL, emails, images de marque, config externe), toujours **en minuscules avec le point**. **Aucun identifiant de code n'est renommé** (tables, colonnes, variables d'environnement, clés Redis, files BullMQ, cookies, fonctions, migrations). Tant que S14 n'est pas fait, les valeurs ci-dessus restent en vigueur.
 - Ton de tous les textes : **vouvoiement, chaleureux**, phrases courtes, aucun jargon (voir §9.4).
 
 ## 4. Le contenu : sections fixes, pas de blocs ✅
@@ -128,6 +129,7 @@ Une vitrine = **un profil + des listes**. Chaque liste a sa propre table simple.
 | Link-in-bio | oui | oui |
 | Badge « Créé avec Brandself » | oui | retiré |
 | Statistiques | basiques (7 jours) ⚠️ | complètes (90 jours, pages et sources) ⚠️ |
+| Assistants connectés via MCP (S16) | non | oui (capacité `mcp` lue par `PlanService`) |
 
 Prix du plan payant : **non décidé**, par devise (XAF, EUR, USD), en configuration, jamais en dur.
 
@@ -248,6 +250,8 @@ Règles : une donnée interrogeable = une colonne typée, jamais du JSON. Une im
 | UI | Tailwind + **`@nuxt/ui` comme base de composants** (décision #10, PROJECT_STATE.md), thémé sur les variables CSS des palettes ; composants `Bs*` = fines surcouches métier seulement quand `@nuxt/ui` ne couvre pas le besoin ; icônes Phosphor (`ph`) via le module d'icônes de `@nuxt/ui` (`@nuxt/icon`), jamais Lucide |
 | SEO | `@nuxtjs/seo` (sitemap, robots, image de partage, données structurées) ; `@nuxt/image` ; `@nuxt/fonts` |
 | Divers | VueUse, dayjs ou date-fns, `qrcode` |
+| Assistants (MCP, S16) | SDK TypeScript officiel du protocole, transport HTTP sur `/mcp` dans Nitro, OAuth 2.1 + PKCE, portées séparées (`vitrine:lecture`, `contenu:ecriture`, `reservations:lecture`, `messages:lecture`) ; livré désactivé (`MCP_ACTIF=false`) ; **aucune logique métier nouvelle** : chaque outil appelle les services existants |
+| Application installable (S15) | module PWA Nuxt (`@vite-pwa/nuxt` ou équivalent maintenu, choix à confirmer en S15) ; **studio uniquement** (`scope` et `start_url` sur `/studio/`) ; aucune donnée d'API en cache ; pas d'écriture hors ligne en v1 |
 | Tests | Vitest (unitaires), Playwright (bout en bout) |
 | Déploiement | VPS Ubuntu, Nginx, PM2 (un process Nuxt + un process worker) |
 
@@ -257,7 +261,7 @@ Règles : une donnée interrogeable = une colonne typée, jamais du JSON. Une im
 
 ## 13. Plus tard (pas dans la v1)
 
-Paiement en ligne des réservations par Brandself (v1.5) · boutique · blog (et blog central) · newsletter · affiliation et parrainage · badge vérifié · snapshots et révisions · domaine personnalisé · version bilingue · templates supplémentaires · assistant IA conversationnel · import LinkedIn/CV · analytics avancés · FAQ · chiffres clés · OTP par WhatsApp (selon décision) · autres types de contenu (bénévolat, langues, outils, awards, partenariats, presse, publications, mentorat) · invitation de témoignage par lien · WhatsApp pour les notifications · site marketing complet (maquette à produire).
+Paiement en ligne des réservations par Brandself (v1.5) · boutique · blog (et blog central) · newsletter · affiliation et parrainage · badge vérifié · snapshots et révisions · domaine personnalisé · version bilingue · templates supplémentaires · assistant IA conversationnel · import LinkedIn/CV · analytics avancés · FAQ · chiffres clés · OTP par WhatsApp (selon décision) · autres types de contenu (bénévolat, langues, outils, awards, partenariats, presse, publications, mentorat) · invitation de témoignage par lien · WhatsApp pour les notifications · site marketing complet (maquette à produire) · notifications push (possible une fois le studio installé en PWA — idée gardée en S15).
 
 ## 14. Abandonné
 

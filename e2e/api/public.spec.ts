@@ -7,7 +7,7 @@ import type { Session } from '../helpers/session'
 // CA13 (vitrine publique : liste blanche, aucune fuite) et CA33 (404 uniforme, message intact).
 
 const CLES_DTO_PUBLIC = [
-  'accroche', 'badgeBrandself', 'bio', 'contact', 'fuseau', 'metier', 'nom', 'nomAffiche', 'palette', 'pays',
+  'accroche', 'badgeBrandself', 'bio', 'contact', 'fuseau', 'metier', 'modifieLe', 'nom', 'nomAffiche', 'palette', 'pays',
   'paysLibelle', 'photo', 'prenom', 'seo', 'titre', 'username', 'ville',
 ].sort()
 
@@ -82,7 +82,7 @@ test.describe.serial('CA13 vitrine publiée', () => {
       pays: 'CM',
       paysLibelle: 'Cameroun',
       contact: { email: EMAIL_CONTACT, telephone: null, whatsapp: null },
-      seo: { titre: 'Dr Cabrel Nguesso — Cardiologue à Douala', description: 'Dr Cabrel Nguesso, Cardiologue à Douala.' },
+      seo: { titre: 'Dr Cabrel Nguesso — Cardiologue à Douala', description: 'Dr Cabrel Nguesso, Cardiologue à Douala (Cameroun).' },
     })
   })
 

@@ -4,6 +4,7 @@ on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:
 
 jobs:
   verification:
@@ -153,3 +154,83 @@ jobs:
           name: test-results
           path: test-results/
           if-no-files-found: ignore
+
+  seo-perf:
+    runs-on: ubuntu-latest
+    needs: [verification]
+    timeout-minutes: 30
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.base.ref == 'main'
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_USER: brandself
+          POSTGRES_PASSWORD: brandself
+          POSTGRES_DB: brandself_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U brandself -d brandself_test"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+      redis:
+        image: redis:8-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://brandself:brandself@localhost:5432/brandself_test
+      REDIS_URL: redis://localhost:6379/15
+      NUXT_BETTER_AUTH_SECRET: secret-de-test-au-moins-trente-deux-caracteres
+      EMAIL_EXPEDITEUR: Brandself <noreply@example.test>
+      NUXT_PUBLIC_SITE_URL: https://ci.example.test
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Créer .env de test
+        run: |
+          {
+            echo "DATABASE_URL=$DATABASE_URL"
+            echo "REDIS_URL=$REDIS_URL"
+            echo "NUXT_BETTER_AUTH_SECRET=$NUXT_BETTER_AUTH_SECRET"
+          } > .env
+
+      - run: pnpm db:migrate
+      - run: pnpm db:seed
+
+      - run: pnpm build
+
+      - name: Lancer le serveur de production
+        run: node .output/server/index.mjs &
+        env:
+          DATABASE_URL: ${{ env.DATABASE_URL }}
+          REDIS_URL: ${{ env.REDIS_URL }}
+          NUXT_BETTER_AUTH_SECRET: ${{ env.NUXT_BETTER_AUTH_SECRET }}
+          EMAIL_EXPEDITEUR: ${{ env.EMAIL_EXPEDITEUR }}
+          NUXT_PUBLIC_SITE_URL: ${{ env.NUXT_PUBLIC_SITE_URL }}
+        timeout-minutes: 1
+
+      - run: pnpm e2e:seo
+        env:
+          CI: 'true'
+
+      - run: pnpm perf
+        env:
+          CI: 'true'
+

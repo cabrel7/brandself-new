@@ -1,4 +1,10 @@
-export type { MediaDTO } from './media'
+export type { MediaDTO, ImagePartageDTO, SeoPublicDTO, SitemapUrlDTO } from './media'
+export type {
+  PageStatDTO,
+  SourceStatDTO,
+  JourStatDTO,
+  StatistiquesDTO,
+} from './statistiques'
 export type {
   QuotaDTO,
   LimitePlanDTO,

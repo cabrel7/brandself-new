@@ -1344,7 +1344,7 @@ describe('services — lecture publique (CA31 à CA37)', () => {
       'description', 'dureeMin', 'image', 'nbSeances', 'prixDevise', 'prixMontant', 'reservable',
       'rythme', 'slug', 'tarif', 'titre', 'type',
     ]
-    const CLES_DETAIL = [...CLES_CARTE, 'inclus', 'paiementInstructions', 'paiementMode', 'seo'].sort()
+    const CLES_DETAIL = [...CLES_CARTE, 'inclus', 'modifieLe', 'paiementInstructions', 'paiementMode', 'seo'].sort()
     const DESCRIPTION_LONGUE = Array.from({ length: 60 }, (_, i) => `mot${i}`).join(' ')
 
     async function detailPublic(surcharges: Partial<typeof services.$inferInsert> = {}, options = HORS_LIGNE) {
@@ -1382,7 +1382,7 @@ describe('services — lecture publique (CA31 à CA37)', () => {
       const { dto } = await detailPublic()
 
       expect(Object.keys(dto).sort()).toEqual(CLES_DETAIL)
-      expect(Object.keys(dto.seo).sort()).toEqual(['description', 'titre'])
+      expect(Object.keys(dto.seo).sort()).toEqual(['description', 'image', 'titre'].sort())
     })
 
     it('CA36 should never leak an identifier, the owner, the order, the vedette flag, the dates or a storage path', async () => {
@@ -1390,7 +1390,7 @@ describe('services — lecture publique (CA31 à CA37)', () => {
 
       const json = JSON.stringify(dto)
 
-      for (const secret of [ligne.id, vitrine.id, user.id, `${user.id}/${image}`, '"ordre"', '"actif"', '"enVedette"', '"vitrineId"', '"creeLe"', '"modifieLe"', '"createdAt"', '"chemin"', '"imageMediaId"']) {
+      for (const secret of [ligne.id, vitrine.id, user.id, `${user.id}/${image}`, '"ordre"', '"actif"', '"enVedette"', '"vitrineId"', '"creeLe"', '"createdAt"', '"chemin"', '"imageMediaId"']) {
         expect(json).not.toContain(secret)
       }
     })

@@ -15,6 +15,8 @@ export interface ConfigPlan {
   badge: boolean
   /** Jours d'historique des statistiques (application en S11). */
   statistiquesJours: number
+  /** S11 #176 : top pages et sources réservés au plan payant (`false` = `pages`/`sources` à `null`). */
+  statistiquesDetails: boolean
 }
 
 export const PLANS: Record<PlanId, ConfigPlan> = {
@@ -26,6 +28,7 @@ export const PLANS: Record<PlanId, ConfigPlan> = {
     generationsIaParMois: 3,
     badge: true,
     statistiquesJours: 7,
+    statistiquesDetails: false,
   },
   payant: {
     services: null,
@@ -35,6 +38,7 @@ export const PLANS: Record<PlanId, ConfigPlan> = {
     generationsIaParMois: null,
     badge: false,
     statistiquesJours: 90,
+    statistiquesDetails: true,
   },
 }
 

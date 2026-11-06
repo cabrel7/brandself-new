@@ -1,7 +1,7 @@
 import type { Devise } from '../compte'
 import type { PaiementMode, Rythme, ServiceType, Tarif } from '../services'
 import type { LimitePlanDTO } from './abonnement'
-import type { MediaDTO } from './media'
+import type { MediaDTO, SeoPublicDTO } from './media'
 
 /** Montants (`prixMontant`) en unité mineure de la devise (cf. shared/devises.ts). */
 export interface ServiceStudioDTO {
@@ -59,7 +59,9 @@ export interface ServicePublicDetailDTO extends ServicePublicCarteDTO {
   paiementMode: PaiementMode | null
   paiementInstructions: string | null
   inclus: string[]
-  seo: { titre: string, description: string }
+  seo: SeoPublicDTO
+  /** ISO 8601 : `lastmod` et `og:updated_time`. */
+  modifieLe: string
 }
 
 export interface ServicesStudioReponse {

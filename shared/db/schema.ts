@@ -12,6 +12,7 @@ import {
   time,
   timestamp,
   uniqueIndex,
+  primaryKey,
 } from 'drizzle-orm/pg-core'
 
 // Tables gérées par Better Auth (source des champs : @better-auth/core dist/db/schema).
@@ -1016,6 +1017,128 @@ export const evenementsPaiement = pgTable(
     check('evenements_paiement_motif_check', sql`${table.motif} IS NULL OR ${table.motif} ~ '^[A-Z0-9_]{1,64}$'`),
   ],
 )
+
+// S11 (docs/specs/S11-statistiques.md §2, migration 0022) : suivi des visites des vitrines publiques.
+// Jamais d'adresse IP brute : `empreinte` est un HMAC-SHA256 à sel journalier (le jour), vérifié par CHECK.
+// Lignes brutes purgées à 90 jours ; agrégats conservés 180 jours ; zéro JSON, aucune métadonnée libre.
+export const vues = pgTable(
+  'vues',
+  {
+    id: text('id').primaryKey().notNull(),
+    vitrineId: text('vitrine_id')
+      .notNull()
+      .references(() => vitrines.id, { onDelete: 'cascade', onUpdate: 'no action' }),
+    jour: date('jour').notNull(),
+    empreinte: text('empreinte').notNull(),
+    pageType: text('page_type').notNull(),
+    pageIdentifiant: text('page_identifiant').notNull().default(''),
+    source: text('source').notNull(),
+    appareil: text('appareil').notNull(),
+    pays: text('pays'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('vues_vitrine_id_jour_idx').on(table.vitrineId, table.jour),
+    index('vues_jour_idx').on(table.jour),
+    check('vues_empreinte_check', sql`${table.empreinte} ~ '^[a-f0-9]{64}$'`),
+    check(
+      'vues_page_type_check',
+      sql`${table.pageType} IN ('accueil','service','realisation','agenda','contact','reservation','autre')`,
+    ),
+    check(
+      'vues_page_identifiant_check',
+      sql`char_length(${table.pageIdentifiant}) <= 80 AND (${table.pageIdentifiant} = '' OR ${table.pageIdentifiant} ~ '^[a-z0-9]+(-[a-z0-9]+)*$')`,
+    ),
+    check(
+      'vues_source_check',
+      sql`${table.source} IN ('direct','interne','google','bing','duckduckgo','yahoo','facebook','instagram','linkedin','twitter','x','youtube','tiktok','whatsapp','telegram','pinterest','reddit','autre')`,
+    ),
+    check(
+      'vues_appareil_check',
+      sql`${table.appareil} IN ('mobile','tablette','ordinateur','inconnu')`,
+    ),
+    check('vues_pays_check', sql`${table.pays} IS NULL OR ${table.pays} ~ '^[A-Z]{2}$'`),
+  ],
+)
+
+export const statistiquesJour = pgTable(
+  'statistiques_jour',
+  {
+    vitrineId: text('vitrine_id')
+      .notNull()
+      .references(() => vitrines.id, { onDelete: 'cascade', onUpdate: 'no action' }),
+    jour: date('jour').notNull(),
+    visites: integer('visites').notNull().default(0),
+    visiteursUniques: integer('visiteurs_uniques').notNull().default(0),
+    clics: integer('clics').notNull().default(0),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    check('statistiques_jour_visites_check', sql`${table.visites} >= 0`),
+    check('statistiques_jour_visiteurs_uniques_check', sql`${table.visiteursUniques} >= 0`),
+    check('statistiques_jour_clics_check', sql`${table.clics} >= 0`),
+    primaryKey({ columns: [table.vitrineId, table.jour] }),
+  ],
+)
+
+export const statistiquesJourPages = pgTable(
+  'statistiques_jour_pages',
+  {
+    vitrineId: text('vitrine_id')
+      .notNull()
+      .references(() => vitrines.id, { onDelete: 'cascade', onUpdate: 'no action' }),
+    jour: date('jour').notNull(),
+    pageType: text('page_type').notNull(),
+    pageIdentifiant: text('page_identifiant').notNull().default(''),
+    visites: integer('visites').notNull().default(0),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.vitrineId, table.jour, table.pageType, table.pageIdentifiant],
+    }),
+    check(
+      'spj_page_type_check',
+      sql`${table.pageType} IN ('accueil','service','realisation','agenda','contact','reservation','autre')`,
+    ),
+    check(
+      'spj_page_identifiant_check',
+      sql`char_length(${table.pageIdentifiant}) <= 80 AND (${table.pageIdentifiant} = '' OR ${table.pageIdentifiant} ~ '^[a-z0-9]+(-[a-z0-9]+)*$')`,
+    ),
+  ],
+)
+
+export const statistiquesJourSources = pgTable(
+  'statistiques_jour_sources',
+  {
+    vitrineId: text('vitrine_id')
+      .notNull()
+      .references(() => vitrines.id, { onDelete: 'cascade', onUpdate: 'no action' }),
+    jour: date('jour').notNull(),
+    source: text('source').notNull(),
+    visites: integer('visites').notNull().default(0),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.vitrineId, table.jour, table.source] }),
+    check(
+      'sjs_source_check',
+      sql`${table.source} IN ('direct','interne','google','bing','duckduckgo','yahoo','facebook','instagram','linkedin','twitter','x','youtube','tiktok','whatsapp','telegram','pinterest','reddit','autre')`,
+    ),
+  ],
+)
+
+export type Vue = typeof vues.$inferSelect
+export type NewVue = typeof vues.$inferInsert
+export type StatistiquesJour = typeof statistiquesJour.$inferSelect
+export type NewStatistiquesJour = typeof statistiquesJour.$inferInsert
+export type StatistiquesJourPages = typeof statistiquesJourPages.$inferSelect
+export type NewStatistiquesJourPages = typeof statistiquesJourPages.$inferInsert
+export type StatistiquesJourSources = typeof statistiquesJourSources.$inferSelect
+export type NewStatistiquesJourSources = typeof statistiquesJourSources.$inferInsert
 
 export type Paiement = typeof paiements.$inferSelect
 export type NewPaiement = typeof paiements.$inferInsert

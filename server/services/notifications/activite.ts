@@ -7,8 +7,9 @@ import type { SuggestionResume } from '../emails/notifications-contenus'
 import { getNextStepForUser } from '../vitrines'
 
 // S9 (docs/specs/S9-notifications.md #87, §5.3, §5.4) : données du résumé hebdomadaire. Compteurs EXACTS et
-// vérifiables seulement (réservations, demandes, messages reçus, rendez-vous de la semaine qui commence) :
-// ni visites ni clics avant S11. Aucun contenu saisi par un visiteur n'est lu ici (minimisation, #100).
+// vérifiables seulement (réservations, demandes, messages reçus, rendez-vous de la semaine qui commence) ;
+// visites et clics sont ajoutés en aval par `getCompteursResume` (S11 #186). Aucun contenu saisi par un
+// visiteur n'est lu ici (minimisation, #100).
 
 export type Database = typeof db
 

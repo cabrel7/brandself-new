@@ -15,9 +15,13 @@ import {
   realisations,
   reservations,
   services,
+  statistiquesJour,
+  statistiquesJourPages,
+  statistiquesJourSources,
   temoignages,
   users,
   vitrines,
+  vues,
 } from '../../shared/db/schema'
 import { IA_TYPES } from '../../shared/ia'
 import { GALERIE_MAX } from '../../shared/realisations'
@@ -582,6 +586,180 @@ async function assurerVarianteDemo(variante: VarianteDemo, maintenant: Date): Pr
   console.info(`[seed] ${variante.username} : abonnement ${variante.cle}, ${SERVICES_VARIANTE} services à jour`)
 }
 
+// S11 (#187, CA25) : statistiques de démonstration de `dr-cabrel`. À chaque run, purge complète
+// (vues + agrégats) puis régénération déterministe de 30 jours locaux — même motif que les
+// purges du seed S9/S10. PRNG mulberry32 à graine fixe : deux runs consécutifs identiques.
+
+/** PRNG mulberry32 : déterministe, sans dépendance, graine fixe. */
+function mulberry32(graine: number): () => number {
+  let etat = graine >>> 0
+  return () => {
+    etat = (etat + 0x6d2b79f5) >>> 0
+    let t = etat
+    t = Math.imul(t ^ (t >>> 15), t | 1)
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61)
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+  }
+}
+
+/** Empreinte factice en 64 hexadécimaux (conforme à `vues_empreinte_check`, jamais d'IP en clair). */
+function empreinteDemo(prng: () => number): string {
+  let hex = ''
+  for (let bloc = 0; bloc < 8; bloc++) {
+    hex += Math.floor(prng() * 0x100000000).toString(16).padStart(8, '0')
+  }
+  return hex
+}
+
+/** Tirage pondéré : `poids` décrit la fréquence relative de chaque valeur. */
+function tirer<T>(prng: () => number, entrees: readonly { valeur: T, poids: number }[]): T {
+  const total = entrees.reduce((somme, entree) => somme + entree.poids, 0)
+  let reste = prng() * total
+  for (const entree of entrees) {
+    reste -= entree.poids
+    if (reste < 0) return entree.valeur
+  }
+  const dernier = entrees[entrees.length - 1]
+  if (!dernier) throw new Error('TIRAGE_VIDE')
+  return dernier.valeur
+}
+
+/** Jour civil `YYYY-MM-DD` décalé de `decalage` jours (fuseau fixe du seed, sans transition d'heure). */
+function jourSeed(iso: string, decalage: number): string {
+  const parties = iso.split('-').map(Number)
+  const annee = parties[0] ?? 1970
+  const mois = parties[1] ?? 1
+  const jour = parties[2] ?? 1
+  return new Date(Date.UTC(annee, mois - 1, jour) + decalage * 86_400_000).toISOString().slice(0, 10)
+}
+
+const SEED_JOURS_STATISTIQUES = 30
+const SEED_FUSEAU_STATISTIQUES = 'Africa/Douala'
+
+interface AgrégatJourDemo {
+  visites: number
+  visiteursUniques: number
+  clics: number
+  /** `pageType|pageIdentifiant` → visites. */
+  pages: Map<string, number>
+  /** `source` → visites. */
+  sources: Map<string, number>
+}
+
+/** Régénère `vues` + `statistiques_jour*` de `dr-cabrel` (spec S11 §5.4). */
+async function regenererStatistiquesDemo(): Promise<void> {
+  await db.delete(statistiquesJourPages).where(eq(statistiquesJourPages.vitrineId, ID_VITRINE))
+  await db.delete(statistiquesJourSources).where(eq(statistiquesJourSources.vitrineId, ID_VITRINE))
+  await db.delete(statistiquesJour).where(eq(statistiquesJour.vitrineId, ID_VITRINE))
+  await db.delete(vues).where(eq(vues.vitrineId, ID_VITRINE))
+
+  const prng = mulberry32(0x5eed_11)
+
+  const slugsService = servicesDemo.map((service) => service.slug)
+  const slugsRealisation = realisationsDemo.map((realisation) => realisation.slug)
+
+  // Répartition des pages (spec §5.4) : accueil 45 %, listes 20 %, services 15 %,
+  // réalisations 10 %, agenda/contact/réservation 10 %.
+  const pages = [
+    { valeur: { type: 'accueil', identifiants: [''] as readonly string[] }, poids: 45 },
+    { valeur: { type: 'service', identifiants: [''] }, poids: 10 },
+    { valeur: { type: 'realisation', identifiants: [''] }, poids: 10 },
+    { valeur: { type: 'service', identifiants: slugsService }, poids: 15 },
+    { valeur: { type: 'realisation', identifiants: slugsRealisation }, poids: 10 },
+    { valeur: { type: 'agenda', identifiants: [''] }, poids: 3 },
+    { valeur: { type: 'contact', identifiants: [''] }, poids: 3 },
+    { valeur: { type: 'reservation', identifiants: [''] }, poids: 4 },
+  ]
+  const sources = [
+    { valeur: 'direct', poids: 40 },
+    { valeur: 'google', poids: 25 },
+    { valeur: 'interne', poids: 10 },
+    { valeur: 'facebook', poids: 10 },
+    { valeur: 'whatsapp', poids: 5 },
+    { valeur: 'autre', poids: 10 },
+  ]
+  const appareils = [
+    { valeur: 'mobile', poids: 70 },
+    { valeur: 'ordinateur', poids: 25 },
+    { valeur: 'tablette', poids: 5 },
+  ]
+  const paysAutres = ['FR', 'NG', 'US', 'CA']
+
+  const aujourdHui = new Date().toLocaleDateString('sv-SE', { timeZone: SEED_FUSEAU_STATISTIQUES })
+  const lignesVues: (typeof vues.$inferInsert)[] = []
+  const agrégats = new Map<string, AgrégatJourDemo>()
+
+  for (let decalage = -(SEED_JOURS_STATISTIQUES - 1); decalage <= 0; decalage++) {
+    const jour = jourSeed(aujourdHui, decalage)
+    const jourSemaine = new Date(`${jour}T12:00:00.000Z`).getUTCDay()
+    let visites = 8 + Math.floor(prng() * 21) // 8 à 28 par jour
+    if (jourSemaine === 0 || jourSemaine === 6) visites = Math.round(visites / 2)
+
+    const nbVisiteurs = Math.max(1, Math.round(visites * (0.6 + prng() * 0.25)))
+    const empreintes = Array.from({ length: nbVisiteurs }, () => empreinteDemo(prng))
+
+    const agregat: AgrégatJourDemo = { visites: 0, visiteursUniques: 0, clics: 0, pages: new Map(), sources: new Map() }
+    const empreintesVues = new Set<string>()
+
+    for (let numero = 0; numero < visites; numero++) {
+      const page = tirer(prng, pages)
+      const pageIdentifiant = page.identifiants[Math.floor(prng() * page.identifiants.length)] ?? ''
+      const source = tirer(prng, sources)
+      const appareil = tirer(prng, appareils)
+      const tiragePays = prng() * 100
+      const pays = tiragePays < 70 ? 'CM' : tiragePays < 90 ? null : paysAutres[Math.floor(prng() * paysAutres.length)] ?? 'FR'
+      const empreinte = empreintes[Math.floor(prng() * empreintes.length)] ?? empreinteDemo(prng)
+
+      lignesVues.push({
+        id: `seed-vue-${jour}-${numero}`,
+        vitrineId: ID_VITRINE,
+        jour,
+        empreinte,
+        pageType: page.type,
+        pageIdentifiant,
+        source,
+        appareil,
+        pays,
+        createdAt: new Date(`${jour}T12:00:00.000Z`),
+      })
+      empreintesVues.add(empreinte)
+
+      const clePage = `${page.type}|${pageIdentifiant}`
+      agregat.pages.set(clePage, (agregat.pages.get(clePage) ?? 0) + 1)
+      agregat.sources.set(source, (agregat.sources.get(source) ?? 0) + 1)
+      agregat.visites += 1
+    }
+
+    // Clics agrégés : 5 à 15 % des visites du jour (ordre de grandeur de la maquette).
+    agregat.visiteursUniques = empreintesVues.size
+    agregat.clics = Math.round(agregat.visites * (0.05 + prng() * 0.1))
+    agrégats.set(jour, agregat)
+  }
+
+  for (let index = 0; index < lignesVues.length; index += 200) {
+    await db.insert(vues).values(lignesVues.slice(index, index + 200))
+  }
+
+  for (const [jour, agregat] of agrégats) {
+    await db.insert(statistiquesJour).values({
+      vitrineId: ID_VITRINE,
+      jour,
+      visites: agregat.visites,
+      visiteursUniques: agregat.visiteursUniques,
+      clics: agregat.clics,
+    })
+    const lignesPages = [...agregat.pages].map(([cle, visites]) => {
+      const [pageType, pageIdentifiant] = cle.split('|')
+      return { vitrineId: ID_VITRINE, jour, pageType: pageType ?? 'autre', pageIdentifiant: pageIdentifiant ?? '', visites }
+    })
+    if (lignesPages.length > 0) await db.insert(statistiquesJourPages).values(lignesPages)
+    const lignesSources = [...agregat.sources].map(([source, visites]) => ({ vitrineId: ID_VITRINE, jour, source, visites }))
+    if (lignesSources.length > 0) await db.insert(statistiquesJourSources).values(lignesSources)
+  }
+
+  console.info(`[seed] statistiques de dr-cabrel régénérées (${SEED_JOURS_STATISTIQUES} jours, ${lignesVues.length} vues)`)
+}
+
 async function main(): Promise<void> {
   // Données de démonstration (comptes, abonnements fictifs) : jamais en production.
   if (env.NODE_ENV === 'production') throw new Error('Le seed est interdit en production (NODE_ENV=production).')
@@ -641,6 +819,43 @@ async function main(): Promise<void> {
       .set({ ...vitrineDemo, updatedAt: new Date() })
       .where(eq(vitrines.id, ID_VITRINE))
     console.info('[seed] vitrine dr-cabrel mise à jour')
+  }
+
+  // Vitrine non publiée (S12 CA20 : exclue du sitemap). Un compte par vitrine :
+  // `vitrines.user_id` est unique, elle ne peut pas partager celui de dr-cabrel.
+  const ID_BROUILLON = 'seed-vitrine-brouillon-x'
+  const ID_UTILISATEUR_BROUILLON = 'seed-brouillon-x'
+  const vitrineBrouillonExistante = await db.query.vitrines.findFirst({
+    where: eq(vitrines.id, ID_BROUILLON),
+  })
+  if (!vitrineBrouillonExistante) {
+    await db
+      .insert(users)
+      .values({
+        id: ID_UTILISATEUR_BROUILLON,
+        name: 'Brouillon X',
+        email: 'brouillon-x@brandself.test',
+        emailVerified: false,
+        nom: 'Brouillon X',
+        locale: 'fr',
+        devise: 'XAF',
+        fuseau: 'Africa/Douala',
+      })
+      .onConflictDoNothing({ target: users.id })
+    await db.insert(vitrines).values({
+      id: ID_BROUILLON,
+      userId: ID_UTILISATEUR_BROUILLON,
+      username: 'brouillon-x',
+      // `titre` porte la civilité (contrainte `vitrines_titre_check`) : vide sur ce brouillon.
+      titre: null,
+      prenom: 'Brouillon',
+      nom: 'X',
+      metier: 'Métier brouillon',
+      ville: 'Douala',
+      pays: 'CM',
+      publieeLe: null,
+    })
+    console.info('[seed] vitrine brouillon-x créée (non publiée)')
   }
 
   // Les anciens services de démonstration (ids non UUID, slugs en collision avec l'unicité par vitrine)
@@ -785,6 +1000,9 @@ async function main(): Promise<void> {
       .onConflictDoUpdate({ target: liens.id, set: { ...ligne, updatedAt: new Date() } })
   }
   console.info(`[seed] ${liensDemo.length} liens à jour`)
+
+  // S11 (#187, CA25) : statistiques de démonstration régénérées à chaque run (purge + graine fixe).
+  await regenererStatistiquesDemo()
 
   // S10 (#130) : `dr-cabrel` reste GRATUIT (un abonnement laissé par un essai précédent est retiré).
   const abonnementsRetires = await db.delete(abonnements).where(eq(abonnements.userId, ID_UTILISATEUR)).returning({ id: abonnements.id })

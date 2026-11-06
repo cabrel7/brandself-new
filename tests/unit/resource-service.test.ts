@@ -31,7 +31,7 @@ const CLES_CARTE = [
   'tarif', 'titre', 'type',
 ].sort()
 
-const CLES_DETAIL = [...CLES_CARTE, 'inclus', 'paiementInstructions', 'paiementMode', 'seo'].sort()
+const CLES_DETAIL = [...CLES_CARTE, 'inclus', 'modifieLe', 'paiementInstructions', 'paiementMode', 'seo'].sort()
 
 function ligne(surcharges: Partial<ServiceRow & { masqueParPlan: boolean }> = {}): ServiceRow & { masqueParPlan: boolean } {
   return {
@@ -242,7 +242,7 @@ describe('toServicePublicDetailResource (U17)', () => {
     const dto = toServicePublicDetailResource(ligne(), media(), vitrine(), HORS_LIGNE)
 
     expect(Object.keys(dto).sort()).toEqual(CLES_DETAIL)
-    expect(Object.keys(dto.seo).sort()).toEqual(['description', 'titre'])
+    expect(Object.keys(dto.seo).sort()).toEqual(['description', 'image', 'titre'])
   })
 
   it('should never leak the owner, the vitrine contact details or internal fields (whitelist, no spread)', async () => {

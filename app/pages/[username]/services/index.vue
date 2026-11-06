@@ -1,6 +1,7 @@
 <script setup lang="ts">
 const route = useRoute()
 const username = String(route.params.username)
+const { public: { siteUrl = '' } } = useRuntimeConfig()
 
 const [vitrine, { reponse, erreur }] = await Promise.all([usePublicVitrine(username), usePublicServices(username)])
 
@@ -8,11 +9,25 @@ if (erreur.value) throw erreurPagePublique(erreur.value)
 // Une page n'existe que si elle a du contenu : sans service visible, 404.
 if (!reponse.value || reponse.value.total === 0) throw erreurPagePublique({ statusCode: 404 })
 
-const titre = computed(() => `Services — ${vitrine.value.nomAffiche}`)
-const description = computed(
-  () => `Les services de ${vitrine.value.nomAffiche}, ${vitrine.value.metier} à ${vitrine.value.ville}.`,
-)
-useSeoMeta({ title: titre, description, ogTitle: titre, ogDescription: description })
+useSeoVitrine({
+  vitrine: {
+    username: vitrine.value.username,
+    nomAffiche: vitrine.value.nomAffiche,
+    metier: vitrine.value.metier,
+    ville: vitrine.value.ville,
+    pays: vitrine.value.pays,
+    paysLibelle: vitrine.value.paysLibelle,
+    titre: vitrine.value.titre,
+    seoTitre: vitrine.value.seo.titre,
+    seoDescription: vitrine.value.seo.description,
+    accroche: vitrine.value.accroche,
+    bio: vitrine.value.bio,
+    photo: vitrine.value.photo,
+    liens: [],
+  },
+  page: 'services',
+  siteUrl,
+})
 
 const services = computed(() => reponse.value?.services ?? [])
 const fil = computed(() => [{ label: 'Accueil', to: `/${vitrine.value.username}` }, { label: 'Services' }])

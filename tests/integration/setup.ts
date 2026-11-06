@@ -34,7 +34,7 @@ beforeAll(() => {
 
 // Chaque test part d'un état vide : tables (CASCADE depuis users), compteurs de limitation, disque.
 beforeEach(async () => {
-  await db.execute(sql`TRUNCATE TABLE users, verifications, emails_transactionnels RESTART IDENTITY CASCADE`)
+  await db.execute(sql`TRUNCATE TABLE users, verifications, emails_transactionnels, vitrines, services, realisations RESTART IDENTITY CASCADE`)
   await supprimerCles(`${PREFIXE_LIMITES}*`)
   await supprimerCles(`${PREFIXE_BUDGET_KPAY}*`)
   fauxKpay.reinitialiser()

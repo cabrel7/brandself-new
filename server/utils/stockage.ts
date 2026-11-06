@@ -39,6 +39,8 @@ function getStorage(): Storage {
   return storage
 }
 
+export { getStorage }
+
 function directory(userId: string, mediaId?: string): string {
   assertSafeId(userId, 'utilisateur')
   if (mediaId === undefined) {

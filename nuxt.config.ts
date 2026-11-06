@@ -1,10 +1,26 @@
 // https://nuxt.com/docs/api/configuration/nuxt-config
 import tailwindcss from '@tailwindcss/vite'
-import { loadDrapeauxPublics } from './shared/env'
+import { loadDrapeauxPublics, loadSiteConfig } from './shared/env'
+import {
+  LLMS_NOTES,
+  LLMS_SECTIONS,
+  NOINDEX_ROUTES,
+  ROBOTS_IA_POLITIQUE_DEFAUT,
+  SITE_DESCRIPTION,
+  SITEMAP_CACHE_S,
+  SITEMAP_URLS_PAR_CARTE,
+  construireGroupesRobots,
+} from './shared/seo'
 
 // Validation de l'environnement dès le chargement de la configuration :
 // `pnpm dev` / `pnpm build` échouent immédiatement si une variable manque.
-const { googleActif, boiteOtpDev, paiementEnLigne } =loadDrapeauxPublics(process.env, process.argv)
+const { googleActif, boiteOtpDev, paiementEnLigne } = loadDrapeauxPublics(process.env, process.argv)
+const siteConfig = loadSiteConfig(process.env, process.argv)
+
+// S12 (#149) : une directive par route, appliquée en meta et en `X-Robots-Tag` (routeRules.robots).
+const reglesNoindex = Object.fromEntries(
+  Object.entries(NOINDEX_ROUTES).map(([route, directive]) => [route, { robots: directive }]),
+)
 
 export default defineNuxtConfig({
   // `nuxt-phosphor-icons` (doublon de @nuxt/icon, aucun usage, auto-import
@@ -47,9 +63,48 @@ export default defineNuxtConfig({
       paiementEnLigne,
     },
   },
+  // `indexable` volontairement absent : une valeur explicite l'emporterait sur `env` et sur
+  // NUXT_PUBLIC_SITE_ENV au runtime. Sans lui, indexable <=> env === 'production' (staging = noindex).
   site: {
+    url: siteConfig.url,
     name: 'Brandself',
+    description: SITE_DESCRIPTION,
+    defaultLocale: 'fr',
+    trailingSlash: false,
+    ...(siteConfig.env ? { env: siteConfig.env } : {}),
   },
+  // S12 (#147) : l'image de partage est générée par sharp (variante `partage`), pas par nuxt-og-image.
+  ogImage: { enabled: false },
+  // La canonique est posée par server/middleware/canonique.ts (#146).
+  seo: { redirectToCanonicalSiteUrl: false },
+  robots: {
+    // Le groupe `*` (Disallow ROBOTS_DISALLOW, Allow /) vient de construireGroupesRobots : pas de `disallow`
+    // de premier niveau, qui créerait un second groupe `*` en double.
+    groups: construireGroupesRobots(ROBOTS_IA_POLITIQUE_DEFAUT),
+  },
+  sitemap: {
+    sitemaps: {
+      pages: { includeAppSources: false, urls: ['/', '/tarifs'] },
+      vitrines: { sources: ['/api/__sitemap__/vitrines'], chunks: SITEMAP_URLS_PAR_CARTE },
+    },
+    cacheMaxAgeSeconds: SITEMAP_CACHE_S,
+    autoLastmod: false,
+  },
+  aiReady: {
+    llmsTxt: { pages: false, sections: [...LLMS_SECTIONS], notes: [...LLMS_NOTES] },
+    llmsFullTxt: false,
+    contentNegotiation: false,
+    botNegotiation: false,
+    sitemapMd: false,
+    agentSkills: false,
+    mcpServerCard: false,
+    apiCatalog: false,
+    database: false,
+    describedby: true,
+    llmsTxtCacheSeconds: 3600,
+    contentSignal: { aiTrain: false, search: true, aiInput: true, contentUsage: false },
+  },
+  schemaOrg: { identity: 'Organization' },
   app: {
     head: {
       htmlAttrs: { lang: 'fr' },
@@ -58,8 +113,10 @@ export default defineNuxtConfig({
   },
   fonts: {
     families: [
-      { name: 'Fraunces', provider: 'google', weights: [400, 500, 600, 700] },
-      { name: 'Figtree', provider: 'google', weights: [400, 500, 600] },
+      // S12 (#159) : graisses réellement utilisées (600/700 titres, 500 initiales décoratives ; 400 jamais).
+      // `styles` non précisé = normal + italique (témoignage à la une). Préchargement : titres seulement.
+      { name: 'Fraunces', provider: 'google', weights: [500, 600, 700], subsets: ['latin'], preload: true },
+      { name: 'Figtree', provider: 'google', weights: [400, 500, 600], subsets: ['latin'], preload: false },
     ],
   },
   auth: {
@@ -71,6 +128,7 @@ export default defineNuxtConfig({
     },
   },
   routeRules: {
+    ...reglesNoindex,
     // Studio et onboarding : espace connecté, rendu client uniquement (aucun contenu privé côté serveur).
     '/studio': { ssr: false },
     '/studio/**': { ssr: false, auth: { only: 'user', redirectTo: '/connexion' } },
@@ -80,7 +138,7 @@ export default defineNuxtConfig({
     // S9 (#89) : page de désabonnement, ouverte depuis un e-mail sans session (aucune règle `auth`), rendue
     // côté serveur. Le jeton est dans l'URL : jamais indexée, jamais en cache, aucun Referer sortant.
     '/desabonnement': {
-      robots: false,
+      robots: NOINDEX_ROUTES['/desabonnement'],
       headers: { 'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer' },
     },
   },

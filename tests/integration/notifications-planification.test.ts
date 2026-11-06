@@ -310,7 +310,7 @@ describe('résumé hebdomadaire : la période et le contenu (CA26, CA27, CA28, C
     await insererMessage(pro.vitrine.id, utc('2026-11-01T23:00:00.000Z'))
   }
 
-  it('should count 3 reservations, 1 request and 2 messages created in the local week, and exclude Monday 00:30 local (CA26, CA27)', async () => {
+  it('should count 3 reservations, 1 request and 2 messages created in the local week, and exclude Monday 00:30 local (CA26, CA27, #186)', async () => {
     const pro = await creerPro({ prenom: 'Cabrel' })
     await peuplerSemaine(pro)
     // Bruit : l'activité d'une autre vitrine ne doit jamais être comptée.
@@ -329,7 +329,9 @@ describe('résumé hebdomadaire : la période et le contenu (CA26, CA27, CA28, C
     expect(transport.dernier.text).toMatch(/Réservations reçues : 3\b/)
     expect(transport.dernier.text).toMatch(/Demandes reçues : 1\b/)
     expect(transport.dernier.text).toMatch(/Messages reçus : 2\b/)
-    expect(transport.dernier.text).not.toMatch(/Visites|Clics/i)
+    // S11 #186 : les lignes visites/clics sont rendues (zéro sans données de suivi).
+    expect(transport.dernier.text).toContain('• Visites : 0')
+    expect(transport.dernier.text).toContain('• Clics sur vos liens : 0')
     expect(transport.dernier.text).toContain('26 octobre')
     expect(transport.dernier.text).toContain('1er novembre')
   })

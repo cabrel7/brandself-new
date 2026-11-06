@@ -72,6 +72,7 @@ export const ERROR_MESSAGES: Record<ErrorCode, string> = {
   CORPS_ILLISIBLE: 'Corps de requête illisible.',
   TROP_DE_REQUETES: 'Trop de tentatives. Réessayez dans quelques instants.',
   LIMITEUR_INDISPONIBLE: 'Le formulaire est temporairement indisponible. Réessayez dans quelques instants.',
+  STATISTIQUES_PERIODE_INTERDITE: 'Cette période de statistiques n’est pas incluse dans votre plan.',
   ERREUR_INTERNE: 'Une erreur est survenue de notre côté. Réessayez dans un instant.',
 }
 

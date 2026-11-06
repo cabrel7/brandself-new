@@ -1,4 +1,4 @@
-import { sql } from 'drizzle-orm'
+import { and, eq, or, sql } from 'drizzle-orm'
 import type { SQL } from 'drizzle-orm'
 import type { realisations, services, temoignages } from '../../shared/db/schema'
 import type { LimitePlanDTO } from '../../shared/dto/abonnement'
@@ -62,6 +62,33 @@ export function sqlIdsVisibles(table: TableMasquable, vitrineId: string, limite:
 /** Compteurs d'une liste du studio, plus l'usage au regard de la limite du plan (`limitePlan`). */
 export interface CompteursAvecPlan extends Compteurs {
   limitePlan: LimitePlanDTO
+}
+
+/** Condition SQL « élément visible » pour un lot de vitrines, avec une limite différente par vitrine.
+ * Chaque vitrine garde ses N plus anciens éléments actifs (`created_at, id` croissants).
+ * `limite: null` = illimité (tous les éléments actifs de la vitrine).
+ */
+export function sqlVisiblesParLot(
+  table: TableMasquable,
+  limites: ReadonlyArray<{ vitrineId: string, limite: number | null }>,
+): SQL {
+  if (limites.length === 0) return sql`false`
+  const conditions = limites.map(({ vitrineId, limite }) => {
+    const base = and(eq(table.vitrineId, vitrineId), table.actif)
+    if (limite === null) return base
+    return and(
+      base,
+      sql`${table.id} IN (
+        SELECT ${table.id} FROM ${table}
+        WHERE ${table.vitrineId} = ${vitrineId} AND ${table.actif}
+        ORDER BY ${table.createdAt}, ${table.id}
+        LIMIT ${limite}
+      )`,
+    )
+  })
+  // `or()` renvoie `undefined` sans argument ; le lot est jamais vide ici (garde l.75), le repli
+  // « rien de visible » ne se déclenche donc jamais.
+  return or(...conditions) ?? sql`false`
 }
 
 export interface VuePlanStudio {

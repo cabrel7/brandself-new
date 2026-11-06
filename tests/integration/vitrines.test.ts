@@ -513,7 +513,7 @@ describe('vitrines — publication (CA10 à CA13)', () => {
     const EMAIL_COMPTE = 'compte-prive@exemple.com'
     const TELEPHONE_COMPTE = '+237600000001'
     const CLES_ATTENDUES = [
-      'accroche', 'badgeBrandself', 'bio', 'contact', 'fuseau', 'metier', 'nom', 'nomAffiche', 'palette', 'paysLibelle',
+      'accroche', 'badgeBrandself', 'bio', 'contact', 'fuseau', 'metier', 'modifieLe', 'nom', 'nomAffiche', 'palette', 'paysLibelle',
       'pays', 'photo', 'prenom', 'seo', 'titre', 'username', 'ville',
     ].sort()
 
@@ -555,7 +555,7 @@ describe('vitrines — publication (CA10 à CA13)', () => {
         fuseau: 'Africa/Douala',
         seo: {
           titre: 'Dr Cabrel Nguesso — Cardiologue à Douala',
-          description: 'Dr Cabrel Nguesso, Cardiologue à Douala.',
+          description: 'Dr Cabrel Nguesso, Cardiologue à Douala (Cameroun).',
         },
         contact: { email: 'contact@cabinet.cm', telephone: '+237699000000', whatsapp: null },
       })
@@ -576,7 +576,7 @@ describe('vitrines — publication (CA10 à CA13)', () => {
       }
     })
 
-    it('CA13 should use the accroche as seo description and the stored seo overrides when present', async () => {
+    it('CA13 should compose the seo description from métier, ville, pays and accroche, and honour the stored overrides (S12 #144)', async () => {
       const { updateVitrine, getPublicVitrine } = await vitrinesService()
       const { toVitrinePublicResource } = await ressourceVitrine()
       const { user, vitrine } = await publierAvecPhoto()
@@ -586,8 +586,8 @@ describe('vitrines — publication (CA10 à CA13)', () => {
       await db.update(vitrines).set({ seoTitre: 'Titre SEO sur mesure', seoDescription: 'Description SEO sur mesure' }).where(eq(vitrines.id, vitrine.id))
       const avecSurcharge = toVitrinePublicResource(await getPublicVitrine('dr-test'))
 
-      expect(avecAccroche.seo.description).toBe('Votre cœur entre de bonnes mains')
-      expect(avecSurcharge.seo).toEqual({ titre: 'Titre SEO sur mesure', description: 'Description SEO sur mesure' })
+      expect(avecAccroche.seo.description).toBe('Cardiologue à Douala (Cameroun). Votre cœur entre de bonnes mains')
+      expect(avecSurcharge.seo).toEqual({ titre: 'Titre SEO sur mesure', description: 'Description SEO sur mesure', image: null })
     })
 
     it('CA13 should return a null photo when the vitrine has none', async () => {
@@ -831,7 +831,7 @@ describe('vitrines — résumé du studio (CA17)', () => {
 
 describe('vitrines — compteurs de navigation publique (S4-CA41)', () => {
   const CLES_DTO_PUBLIC = [
-    'accroche', 'badgeBrandself', 'bio', 'contact', 'fuseau', 'metier', 'nom', 'nomAffiche', 'palette', 'pays',
+    'accroche', 'badgeBrandself', 'bio', 'contact', 'fuseau', 'metier', 'modifieLe', 'nom', 'nomAffiche', 'palette', 'pays',
     'paysLibelle', 'photo', 'prenom', 'seo', 'titre', 'username', 'ville',
   ].sort()
 

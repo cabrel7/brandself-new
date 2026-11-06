@@ -6,6 +6,7 @@ import { SERVICE_ACTIONS, SERVICE_TYPE_PASTILLES } from '#shared/services'
 const route = useRoute()
 const username = String(route.params.username)
 const slug = String(route.params.slug)
+const { public: { siteUrl = '' } } = useRuntimeConfig()
 
 const [vitrine, reponse] = await Promise.all([usePublicVitrine(username), usePublicService(username, slug)])
 
@@ -47,24 +48,50 @@ const {
 })
 const agendaEnErreur = computed(() => Boolean(agendaErreur.value))
 
-useSeoMeta({
-  title: () => service.value.seo.titre,
-  description: () => service.value.seo.description,
-  ogTitle: () => service.value.seo.titre,
-  ogDescription: () => service.value.seo.description,
-})
-
-useSchemaOrg([
-  defineService({
-    name: () => service.value.titre,
-    description: () => service.value.seo.description,
-    provider: { '@type': 'Person', 'name': vitrine.value.nomAffiche },
-    areaServed: vitrine.value.ville,
+useSeoVitrine({
+  vitrine: {
+    username: vitrine.value.username,
+    nomAffiche: vitrine.value.nomAffiche,
+    metier: vitrine.value.metier,
+    ville: vitrine.value.ville,
+    pays: vitrine.value.pays,
+    paysLibelle: vitrine.value.paysLibelle,
+    titre: vitrine.value.titre,
+    seoTitre: vitrine.value.seo.titre,
+    seoDescription: vitrine.value.seo.description,
+    accroche: vitrine.value.accroche,
+    bio: vitrine.value.bio,
+    photo: vitrine.value.photo,
+    liens: [],
+  },
+  page: 'service',
+  titre: service.value.seo.titre,
+  description: service.value.seo.description,
+  image: null,
+  siteUrl,
+  schema: {
+    '@type': 'Service',
+    name: service.value.titre,
+    description: service.value.seo.description,
+    serviceType: service.value.type,
+    provider: { '@id': `${siteUrl}/${vitrine.value.username}#personne` },
+    areaServed: [{ '@type': 'City', name: vitrine.value.ville ?? '' }],
     ...(service.value.tarif === 'payant' && service.value.prixMontant !== null && service.value.prixDevise !== null
-      ? { offers: { price: toMajorUnits(service.value.prixMontant, service.value.prixDevise), priceCurrency: service.value.prixDevise } }
+      ? {
+          offers: {
+            '@type': 'Offer',
+            price: Number(toMajorUnits(service.value.prixMontant, service.value.prixDevise)),
+            priceCurrency: service.value.prixDevise,
+          },
+        }
       : {}),
-  }),
-])
+  },
+  fil: [
+    { name: 'Accueil', item: `/${vitrine.value.username}` },
+    { name: 'Services', item: `/${vitrine.value.username}/services` },
+    { name: service.value.titre, item: `${siteUrl}/${vitrine.value.username}/services/${slug}` },
+  ],
+})
 </script>
 
 <template>

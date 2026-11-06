@@ -29,11 +29,17 @@ function baseUrlValide(valeur: string, hotesHttp: readonly string[]): boolean {
   return url.protocol === 'http:' && hotesHttp.includes(url.hostname)
 }
 
+/** Environnements reconnus par nuxt-site-config ; seul `production` est indexable (S12 #137). */
+const SITE_ENVIRONNEMENTS = ['production', 'staging', 'development'] as const
+
 const baseUrlIaValide = (valeur: string): boolean => baseUrlValide(valeur, IA_HOTES_HTTP_AUTORISES)
 const baseUrlKpayValide = (valeur: string): boolean => baseUrlValide(valeur, KPAY_HOTES_HTTP_AUTORISES)
 
 /** Variable texte facultative : vide ou espaces = absente, sinon rognée. */
 const rognerOuAbsent = (valeur: unknown): unknown => videVautAbsent(typeof valeur === 'string' ? valeur.trim() : valeur)
+
+const schemaSiteUrl = z.preprocess(videVautAbsent, z.url('doit être une URL valide').optional())
+const schemaSiteEnv = z.preprocess(rognerOuAbsent, z.enum(SITE_ENVIRONNEMENTS).optional())
 
 // `PAIEMENT_EN_LIGNE=` (chaîne vide, ex. copié depuis .env.example) vaut « absent » : défaut faux.
 const schemaPaiementEnLigne = z.preprocess(videVautAbsent, z.stringbool().default(false))
@@ -56,7 +62,10 @@ const schemaEnv = z
     EMAIL_EXPEDITEUR: z.preprocess(videVautAbsent, z.string().trim().min(3).optional()),
     // S9 (#91) : URL publique du site (liens absolus des e-mails ; le worker n'a pas runtimeConfig).
     // Absente hors production = http://localhost:3000. Obligatoire et en https en production.
-    NUXT_PUBLIC_SITE_URL: z.preprocess(videVautAbsent, z.url('doit être une URL valide').optional()),
+    NUXT_PUBLIC_SITE_URL: schemaSiteUrl,
+    // S12 (#137) : environnement du site vu par les moteurs. Lu nativement par nuxt-site-config au runtime ;
+    // `staging` = préproduction (noindex partout). Jamais obligatoire : absent = déduit de NODE_ENV.
+    NUXT_PUBLIC_SITE_ENV: schemaSiteEnv,
     // Paiement en ligne (K-PAY) : faux en v1, seul le règlement sur place est proposé (PROJECT_CONTEXT §4.1).
     PAIEMENT_EN_LIGNE: schemaPaiementEnLigne,
     // IA (S8). Lues par le worker seul : jamais dans runtimeConfig ni dans les drapeaux publics.
@@ -283,6 +292,32 @@ export function loadDrapeauxPublics(
     boiteOtpDev: valide.NODE_ENV !== 'production',
     paiementEnLigne: valide.PAIEMENT_EN_LIGNE,
   }
+}
+
+export interface SiteConfig {
+  /** URL publique, sans barre finale (défaut local hors production). */
+  url: string
+  /** Surcharge d'environnement ; absent = nuxt-site-config déduit de NODE_ENV. */
+  env: (typeof SITE_ENVIRONNEMENTS)[number] | undefined
+}
+
+/**
+ * Configuration `site` pour nuxt.config.ts (S12 #137). Même règle que `loadDrapeauxPublics` :
+ * strict pour dev/build, tolérant pour `nuxt prepare` / `nuxt typecheck` (valeurs invalides ignorées).
+ */
+export function loadSiteConfig(
+  source: Record<string, string | undefined>,
+  argv: readonly string[],
+): SiteConfig {
+  if (argv.some((arg) => COMMANDES_SANS_ENV.includes(arg))) {
+    const url = schemaSiteUrl.safeParse(source.NUXT_PUBLIC_SITE_URL).data
+    return {
+      url: (url ?? SITE_URL_DEV_DEFAUT).replace(/\/+$/, ''),
+      env: schemaSiteEnv.safeParse(source.NUXT_PUBLIC_SITE_ENV).data,
+    }
+  }
+  const valide = loadEnv(source)
+  return { url: valide.NUXT_PUBLIC_SITE_URL, env: valide.NUXT_PUBLIC_SITE_ENV }
 }
 
 // Chargement paresseux : importer ce module (ex. depuis nuxt.config.ts) ne doit
