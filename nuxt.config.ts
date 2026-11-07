@@ -1,6 +1,7 @@
 // https://nuxt.com/docs/api/configuration/nuxt-config
 import tailwindcss from '@tailwindcss/vite'
 import { loadDrapeauxPublics, loadSiteConfig } from './shared/env'
+import { MARQUE } from './shared/brand'
 import {
   LLMS_NOTES,
   LLMS_SECTIONS,
@@ -67,7 +68,7 @@ export default defineNuxtConfig({
   // NUXT_PUBLIC_SITE_ENV au runtime. Sans lui, indexable <=> env === 'production' (staging = noindex).
   site: {
     url: siteConfig.url,
-    name: 'Brandself',
+    name: MARQUE.nom,
     description: SITE_DESCRIPTION,
     defaultLocale: 'fr',
     trailingSlash: false,
@@ -108,7 +109,15 @@ export default defineNuxtConfig({
   app: {
     head: {
       htmlAttrs: { lang: 'fr' },
-      title: 'Brandself',
+      // S14 : aucun titre par défaut. Le gabarit `%s | siteName` (nuxt-seo-utils) porte la marque ;
+      // un `title` ici la ferait apparaître deux fois sur les pages sans titre propre.
+      // S14 (#18) : icônes dans public/brand/. nuxt-seo-utils n'auto-injecte que les
+      // fichiers posés à la racine de public/ ; déclarés ici, ces liens remplacent son injection.
+      link: [
+        { rel: 'icon', type: 'image/svg+xml', href: '/brand/favicon.svg', sizes: 'any' },
+        { rel: 'icon', href: '/favicon.ico' },
+        { rel: 'apple-touch-icon', type: 'image/png', href: '/brand/apple-touch-icon.png', sizes: '180x180' },
+      ],
     },
   },
   fonts: {

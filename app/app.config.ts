@@ -1,4 +1,4 @@
-// Thème @nuxt/ui de Brandself.
+// Thème @nuxt/ui de jesuis.pro.
 //
 // Les couleurs ne passent PAS par `ui.colors` : cette clé n'accepte que des noms
 // de palettes Tailwind, alors que nos couleurs sont les variables CSS des

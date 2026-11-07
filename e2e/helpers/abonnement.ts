@@ -24,7 +24,7 @@ const SECRET_WEBHOOK_MIN = 16
 /** Compte de la vitrine de démonstration `dr-cabrel` (server/db/seed.ts) : GRATUIT, ses 3 plus anciens services sont publics. */
 export const ID_UTILISATEUR_DEMO = 'seed-dr-cabrel'
 export const ANCRE_ABONNEMENT = '#abonnement'
-export const MESSAGE_BADGE = 'Créé avec Brandself'
+export const MESSAGE_BADGE = 'Créé avec jesuis.pro'
 export const BOUTON_VOIR_ABONNEMENT = 'Voir l’abonnement'
 export const MENTION_SANS_RENOUVELLEMENT = 'Votre abonnement ne se renouvelle pas automatiquement.'
 

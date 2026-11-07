@@ -1,6 +1,6 @@
 <script setup lang="ts">
 definePageMeta({ layout: 'studio', ssr: false })
-useSeoMeta({ title: 'Nouveau témoignage — Brandself' })
+useSeoMeta({ title: 'Nouveau témoignage' })
 
 // Les compteurs (plafond de vedettes) viennent de la liste du studio.
 const { compteurs, enChargement, enErreur, absente, refresh } = useStudioTemoignages()

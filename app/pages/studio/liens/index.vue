@@ -1,6 +1,6 @@
 <script setup lang="ts">
 definePageMeta({ layout: 'studio', ssr: false })
-useSeoMeta({ title: 'Vos liens — Brandself' })
+useSeoMeta({ title: 'Vos liens' })
 
 const liste = useTemplateRef<HTMLElement>('liste')
 const {
@@ -88,7 +88,7 @@ async function telechargerQrcode(): Promise<void> {
     objectUrl = URL.createObjectURL(fichier)
     ancre = document.createElement('a')
     ancre.href = objectUrl
-    ancre.download = `qr-code-brandself-${username.value}.svg`
+    ancre.download = `qr-code-jesuis.pro-${username.value}.svg`
     document.body.appendChild(ancre)
     ancre.click()
     await annoncerAction('QR code téléchargé.')

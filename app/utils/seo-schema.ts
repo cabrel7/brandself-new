@@ -1,5 +1,7 @@
 // S12 (#154, #155) : graphe schema.org pour les pages publiques. Pures, sans Vue, URL absolues.
 
+import { MARQUE } from '#shared/brand'
+
 export interface SeoNoeudPersonne {
   '@type': 'Person'
   '@id': string
@@ -190,14 +192,14 @@ export function noeudFil(items: { name: string, item: string }[]): SeoNoeudFil {
 export function noeudOrganisation(siteUrl: string, logo: string | null): SeoNoeudOrganisation {
   return {
     '@type': 'Organization',
-    name: 'Brandself',
+    name: MARQUE.nom,
     url: siteUrl,
     logo,
   }
 }
 
 export function noeudWebSite(siteUrl: string): SeoNoeudWebSite {
-  return { '@type': 'WebSite', name: 'Brandself', url: siteUrl }
+  return { '@type': 'WebSite', name: MARQUE.nom, url: siteUrl }
 }
 
 export function noeudWebPage(personneId: string, url: string): SeoNoeudWebPage {

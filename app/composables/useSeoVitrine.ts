@@ -3,7 +3,8 @@
 import { useSeoMeta, useHead, useSchemaOrg } from '#imports'
 import type { SeoNoeudService, SeoNoeudWebPage } from '~/utils/seo-schema'
 import type { SeoPublicDTO } from '#shared/dto/media'
-import { ogLocale, construireTitreVitrine, construireDescriptionVitrine } from '#shared/seo'
+import { MARQUE } from '#shared/brand'
+import { ogLocale, construireTitreVitrine, construireDescriptionVitrine, OG_IMAGE_DEFAUT, OG_IMAGE_LARGEUR, OG_IMAGE_HAUTEUR } from '#shared/seo'
 
 export interface UseSeoVitrineOptions {
   vitrine: {
@@ -61,13 +62,13 @@ function descriptionPage(options: UseSeoVitrineOptions): string {
   })
 }
 
-/** Image de partage : surcharge, sinon image de la vitrine, sinon défaut. */
-function imagePartage(options: UseSeoVitrineOptions): { url: string, largeur: number, hauteur: number, alt: string } | null {
+/** Image de partage : surcharge, sinon image de la vitrine, sinon image de la marque (S14 #18). */
+function imagePartage(options: UseSeoVitrineOptions): { url: string, largeur: number, hauteur: number, alt: string } {
   if (options.image) return options.image
   if (options.vitrine.photo?.url) {
-    return { url: options.vitrine.photo.url, largeur: 1200, hauteur: 630, alt: options.vitrine.nomAffiche }
+    return { url: options.vitrine.photo.url, largeur: OG_IMAGE_LARGEUR, hauteur: OG_IMAGE_HAUTEUR, alt: options.vitrine.nomAffiche }
   }
-  return null
+  return { url: OG_IMAGE_DEFAUT, largeur: OG_IMAGE_LARGEUR, hauteur: OG_IMAGE_HAUTEUR, alt: MARQUE.nom }
 }
 
 export function useSeoVitrine(options: UseSeoVitrineOptions): void {
@@ -88,11 +89,11 @@ export function useSeoVitrine(options: UseSeoVitrineOptions): void {
     ogLocale: ogLocale(vitrine.pays),
     ogSiteName: vitrine.nomAffiche,
     ogUrl: canonique,
-    ogImage: image ? [{ url: image.url, width: image.largeur, height: image.hauteur, alt: image.alt }] : undefined,
+    ogImage: [{ url: image.url, width: image.largeur, height: image.hauteur, alt: image.alt }],
     twitterCard: 'summary_large_image',
     twitterTitle: titre,
     twitterDescription: description,
-    twitterImage: image ? image.url : undefined,
+    twitterImage: image.url,
   })
 
   // Données structurées

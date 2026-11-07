@@ -305,7 +305,7 @@ test.describe.serial('abonnement, limites du plan gratuit, tarifs et badge (S10 
     }
   })
 
-  test('badge « Créé avec Brandself » et masquage public : présents en gratuit, absents en payant et en grâce, les éléments reviennent', async () => {
+  test('badge « Créé avec jesuis.pro » et masquage public : présents en gratuit, absents en payant et en grâce, les éléments reviennent', async () => {
     await donnerPlanPayant(session.userId)
     await creerService('Service 4')
     await retirerPlan(session.userId)

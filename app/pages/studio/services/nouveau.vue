@@ -2,7 +2,7 @@
 import type { Devise } from '#shared/compte'
 
 definePageMeta({ layout: 'studio' })
-useSeoMeta({ title: 'Nouveau service — Brandself' })
+useSeoMeta({ title: 'Nouveau service' })
 
 const DEVISE_REPLI: Devise = 'XAF'
 

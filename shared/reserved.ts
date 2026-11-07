@@ -20,6 +20,8 @@ export const RESERVED_USERNAMES = [
   'medias',
   'compte',
   'brandself',
+  'jesuis',
+  'jesuispro',
   'support',
   'blog',
   'mentions-legales',

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 definePageMeta({ layout: 'studio', ssr: false })
-useSeoMeta({ title: 'Modifier le témoignage — Brandself' })
+useSeoMeta({ title: 'Modifier le témoignage' })
 
 const route = useRoute()
 const slug = String(route.params.slug)

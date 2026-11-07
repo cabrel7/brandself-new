@@ -153,7 +153,7 @@ export const MOYENS_PAIEMENT: readonly MoyenPaiementConfig[] = [
 export interface ConfigFrais {
   /** Points de base (500 = 5,00 %), entier de 0 à `FRAIS_TAUX_PB_MAX`. */
   tauxPointsBase: number
-  /** `marchand` : Brandself absorbe les frais ; `client` : le montant demandé est majoré. */
+  /** `marchand` : jesuis.pro absorbe les frais ; `client` : le montant demandé est majoré. */
   supporteur: FraisSupporteur
 }
 

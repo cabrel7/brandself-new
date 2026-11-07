@@ -3,7 +3,7 @@ import type { MediaDTO } from '#shared/dto'
 import { ACCROCHE_MAX, BIO_MAX, METIER_MAX, NOM_MAX, PAYS, PRENOM_MAX, TITRES, TITRE_LABELS, VILLE_MAX } from '#shared/vitrine'
 
 definePageMeta({ layout: 'studio' })
-useSeoMeta({ title: 'Votre profil — Brandself' })
+useSeoMeta({ title: 'Votre profil' })
 
 const TITRE_ITEMS = [
   { label: 'Sans titre', value: AUCUN_TITRE },

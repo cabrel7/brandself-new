@@ -1,6 +1,6 @@
 <script setup lang="ts">
 definePageMeta({ layout: 'studio', ssr: false })
-useSeoMeta({ title: 'Vos disponibilités — Brandself' })
+useSeoMeta({ title: 'Vos disponibilités' })
 
 const {
   enChargement,

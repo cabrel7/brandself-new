@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { NavigationMenuItem } from '@nuxt/ui'
+import { MARQUE } from '#shared/brand'
 
 const { entrees, estActive, estEcranEnfant } = useStudioNav()
 const { vitrine } = useStudioVitrine()
@@ -28,7 +29,7 @@ const initiales = computed(() => {
         to="/studio"
         class="font-(family-name:--font-titre) text-(length:--fs-20) font-semibold text-encre no-underline"
       >
-        Brandself
+        {{ MARQUE.nom }}
       </NuxtLink>
       <NuxtLink
         to="/studio/compte"
@@ -44,7 +45,7 @@ const initiales = computed(() => {
         to="/studio"
         class="font-(family-name:--font-titre) text-(length:--fs-24) font-semibold text-encre no-underline"
       >
-        Brandself
+        {{ MARQUE.nom }}
       </NuxtLink>
       <UNavigationMenu
         :items="items"

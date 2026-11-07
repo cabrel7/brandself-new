@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { MARQUE } from '#shared/brand'
+
 type Channel = 'email' | 'telephone'
 
 interface StoredIdentifier {
@@ -166,7 +168,7 @@ async function continueWithGoogle(): Promise<void> {
 <template>
   <div class="grid min-h-screen lg:grid-cols-[45fr_55fr]">
     <aside class="hidden flex-col justify-between gap-8 bg-accent-doux p-12 lg:flex">
-      <p class="font-(family-name:--font-titre) text-(length:--fs-24) font-bold">Brandself</p>
+      <p class="font-(family-name:--font-titre) text-(length:--fs-24) font-bold">{{ MARQUE.nom }}</p>
       <p class="font-(family-name:--font-titre) text-(length:--fs-48) leading-[1.15] font-bold">
         Votre vitrine professionnelle, prête en quelques minutes.
       </p>
@@ -180,7 +182,7 @@ async function continueWithGoogle(): Promise<void> {
     </aside>
 
     <main class="mx-auto flex w-full max-w-120 flex-col gap-4 px-6 pt-8 pb-12 lg:justify-center lg:py-12">
-      <p class="font-(family-name:--font-titre) text-(length:--fs-24) font-bold lg:hidden">Brandself</p>
+      <p class="font-(family-name:--font-titre) text-(length:--fs-24) font-bold lg:hidden">{{ MARQUE.nom }}</p>
 
       <h1 class="font-(family-name:--font-titre) text-(length:--fs-32) leading-[1.15] font-bold">
         Bienvenue
@@ -200,7 +202,7 @@ async function continueWithGoogle(): Promise<void> {
         <template #leading>
           <!-- Les quatre couleurs du « G » sont celles de la marque Google :
                elles sont imposées par ses règles d'utilisation, ce ne sont pas
-               des couleurs de la palette Brandself. -->
+               des couleurs de la palette jesuis.pro. -->
           <span
             class="inline-flex size-8 items-center justify-center rounded-full border border-default bg-default"
             aria-hidden="true"
@@ -304,7 +306,7 @@ async function continueWithGoogle(): Promise<void> {
 
         <p class="text-sm text-muted">
           En continuant, vous acceptez les conditions d'utilisation et la politique de
-          confidentialité de Brandself.
+          confidentialité de {{ MARQUE.nom }}.
         </p>
       </form>
     </main>

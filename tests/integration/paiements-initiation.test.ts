@@ -87,7 +87,7 @@ describe('initiation réussie (CA27, CA28)', () => {
       phoneNumber: NUMERO_INTERNATIONAL,
       externalId: paiement.id,
       currency: 'XAF',
-      description: 'Brandself — abonnement 1 mois',
+      description: 'jesuis.pro — abonnement 1 mois',
     })
   })
 

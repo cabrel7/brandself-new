@@ -1,5 +1,6 @@
 // S12 : SEO, GEO et performance. Module PUR (aucun import Nuxt/Nitro, aucun secret) :
 // importé par nuxt.config.ts, le serveur, l'application et les tests.
+import { MARQUE } from './brand'
 import { isReserved } from './reserved'
 
 // ---------------------------------------------------------------------------
@@ -10,12 +11,9 @@ export const SEO_TITRE_MIN = 30
 export const SEO_TITRE_MAX = 70
 export const SEO_DESCRIPTION_MIN = 50
 export const SEO_DESCRIPTION_MAX = 160
-export const SITE_NOM = 'Brandself'
 export const SITE_DESCRIPTION =
   'Une vitrine en ligne pour les professionnels : être trouvé, être compris, être contacté ou réservé.'
 export const SEPARATEUR_TITRE = ' — '
-export const TITRE_TEMPLATE_BRANDSELF = '%s · Brandself'
-export const TITRE_ACCUEIL_BRANDSELF = 'Brandself — votre vitrine en ligne'
 export const ELLIPSE = '…'
 export const PAYS_DEFAUT_LOCALE = 'FR'
 
@@ -119,8 +117,8 @@ export const SITEMAP_LOT_VITRINES = 500
 export const OG_IMAGE_LARGEUR = 1200
 export const OG_IMAGE_HAUTEUR = 630
 export const OG_IMAGE_QUALITE = 82
-export const OG_IMAGE_DEFAUT = '/og/brandself-partage.jpg'
-export const OG_LOGO = '/og/brandself-logo.png'
+export const OG_IMAGE_DEFAUT = '/brand/partage.jpg'
+export const OG_LOGO = '/brand/icone.png'
 export const OG_LOCALES_PAYS = [
   'CM', 'FR', 'SN', 'CI', 'BE', 'CH', 'CA', 'GA', 'CG', 'CD', 'BJ', 'TG', 'BF', 'ML', 'NE', 'TD', 'RW', 'MG',
 ] as const
@@ -172,7 +170,7 @@ export const LLMS_SECTIONS: LlmsSection[] = [
       'Forme des adresses : /{adresse}, /{adresse}/services, /{adresse}/services/{service}, /{adresse}/realisations, /{adresse}/realisations/{realisation}.',
     ],
     links: [
-      { title: 'Tarifs', href: '/tarifs', description: 'Les offres et les prix de Brandself.' },
+      { title: 'Tarifs', href: '/tarifs', description: `Les offres et les prix de ${MARQUE.nom}.` },
       { title: 'Plan du site', href: ROBOTS_SITEMAP_CHEMIN, description: 'Toutes les vitrines publiées.' },
     ],
   },

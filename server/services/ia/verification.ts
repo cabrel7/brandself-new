@@ -1,4 +1,5 @@
 import { ACCROCHE_MAX, BIO_MAX, TITRE_LABELS } from '../../../shared/vitrine'
+import { MARQUE } from '../../../shared/brand'
 import { PRESENTATION_MOTS_MAX, countWords } from '../../../shared/ia'
 import type { IaType } from '../../../shared/ia'
 import { schemaPropositionOnboarding, schemaTexteAmeliore } from '../../../shared/schemas/ia'
@@ -13,7 +14,7 @@ export type CodeRejetSortie = 'sortie_invalide' | 'faits_inventes'
 export type ResultatValidation<T> = { ok: true, valeur: T } | { ok: false, code: CodeRejetSortie }
 
 /** Noms propres tolérés même absents des données (la marque et le canal de contact). */
-const NOMS_PROPRES_AUTORISES = ['Brandself', 'WhatsApp']
+const NOMS_PROPRES_AUTORISES = [MARQUE.nom, 'WhatsApp']
 
 /** Faits sensibles : refusés s'ils ne figurent pas dans les sources (formes normalisées, sans accent). */
 const TERMES_SENSIBLES = [

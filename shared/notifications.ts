@@ -1,3 +1,5 @@
+import { MARQUE } from './brand'
+
 // S9 (docs/specs/S9-notifications.md §3.1) : contrats et paramètres des notifications.
 // Pur : aucune dépendance serveur. TOUTES les valeurs réglables vivent ici (futur panel admin,
 // spec §11) : aucun littéral dans les services, les jobs ou les composants.
@@ -87,7 +89,7 @@ export const LIST_UNSUBSCRIBE_ONE_CLICK = 'One-Click'
 
 // --- Configuration d'envoi : valeurs de repli HORS production (validées dans shared/env.ts) ---
 
-export const EMAIL_EXPEDITEUR_DEV_DEFAUT = 'Brandself <onboarding@resend.dev>'
+export const EMAIL_EXPEDITEUR_DEV_DEFAUT = MARQUE.emailExpediteurDev
 export const SITE_URL_DEV_DEFAUT = 'http://localhost:3000'
 
 // --- Préférences, catégories, statuts, codes ---

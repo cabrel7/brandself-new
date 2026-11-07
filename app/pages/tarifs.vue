@@ -1,8 +1,9 @@
 <script setup lang="ts">
+import { MARQUE } from '#shared/brand'
 import { PERIODES_MOIS } from '#shared/plans'
 
 useSeoMeta({
-  title: 'Tarifs — Brandself',
+  title: 'Tarifs',
   description: 'Un plan gratuit pour commencer, un plan payant quand votre vitrine reçoit des rendez-vous. Paiement par Mobile Money, sans renouvellement automatique.',
 })
 
@@ -115,7 +116,7 @@ const moyensTexte = computed(() => moyensLibelles.value.join(' ou '))
 
     <footer class="border-t border-bordure">
       <div class="mx-auto flex w-full max-w-6xl items-center justify-between gap-4 px-6 py-6 text-(length:--fs-14) text-texte-secondaire">
-        <p class="m-0">Brandself</p>
+        <p class="m-0">{{ MARQUE.nom }}</p>
         <p class="m-0">Douala, Cameroun</p>
       </div>
     </footer>

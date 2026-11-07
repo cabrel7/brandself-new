@@ -1,3 +1,4 @@
+import { MARQUE } from '../../../shared/brand'
 import {
   DESABONNEMENT_API_CHEMIN,
   DESABONNEMENT_PAGE_CHEMIN,
@@ -32,7 +33,7 @@ const JOURS_ISO = ['lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi', 
 
 /** Textes réglables (vouvoiement chaleureux). Les gabarits à trous sont des fonctions. */
 export const TEXTES_NOTIFICATIONS = {
-  signatureMarque: 'Brandself',
+  signatureMarque: MARQUE.signature,
   bonjourSansNom: 'Bonjour,',
   pied: {
     journee: "Vous recevez cet e-mail parce que vous avez des rendez-vous aujourd'hui.",
@@ -61,8 +62,8 @@ export const TEXTES_NOTIFICATIONS = {
       jours === 0 ? "Votre abonnement se termine aujourd'hui" : `Votre abonnement se termine dans ${jours} ${jours > 1 ? 'jours' : 'jour'}`,
     intro: (jours: AbonnementRappelJours, date: string) =>
       jours === 0
-        ? `Aujourd'hui est le dernier jour de votre abonnement Brandself (jusqu'au ${date} inclus).`
-        : `Votre abonnement Brandself est actif jusqu'au ${date} inclus.`,
+        ? `Aujourd'hui est le dernier jour de votre abonnement ${MARQUE.nom} (jusqu'au ${date} inclus).`
+        : `Votre abonnement ${MARQUE.nom} est actif jusqu'au ${date} inclus.`,
     sansRenouvellementAuto: "Il ne se renouvelle pas automatiquement : rien n'est prélevé sans votre accord.",
     invitation: 'Pour le prolonger, renouvelez-le depuis votre studio :',
     action: 'Renouveler mon abonnement',
@@ -88,7 +89,7 @@ export const TEXTES_NOTIFICATIONS = {
     echeance: (date: string) => `Nouvelle échéance : jusqu'au ${date} inclus`,
     pasUneFacture: "Ce récapitulatif n'est pas une facture.",
     cloture: 'À bientôt,',
-    pied: "Vous recevez cet e-mail parce qu'un paiement a été effectué pour votre abonnement Brandself. C'est un message de service : il ne peut pas être désactivé.",
+    pied: `Vous recevez cet e-mail parce qu'un paiement a été effectué pour votre abonnement ${MARQUE.nom}. C'est un message de service : il ne peut pas être désactivé.`,
   },
 } as const
 
@@ -171,7 +172,7 @@ export interface AbonnementRappelContent extends AbonnementEmailBase {
 
 export interface PaiementConfirmeContent extends AbonnementEmailBase {
   type: 'paiement_confirme'
-  /** Identifiant du paiement chez Brandself. */
+  /** Identifiant du paiement chez jesuis.pro. */
   reference: string
   /** Référence de l'opérateur, si elle est connue. */
   referenceFournisseur: string | null

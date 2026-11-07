@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { VitrinePubliqueDTO } from '#shared/dto'
+import { MARQUE } from '#shared/brand'
 
 const props = defineProps<{
   vitrine: VitrinePubliqueDTO
@@ -7,7 +8,7 @@ const props = defineProps<{
   barreBasse?: boolean
   /** Page de liens autonome (maquette Link-in-bio) : sans barre de navigation. */
   sansNav?: boolean
-  /** Page de liens autonome : simple mention « Créé avec Brandself », sans bloc contact. */
+  /** Page de liens autonome : simple mention « Créé avec jesuis.pro », sans bloc contact. */
   piedMinimal?: boolean
   /** Pages Agenda et Contact : pied réduit à une ligne, sans doublon des coordonnées. */
   piedCompact?: boolean
@@ -35,7 +36,7 @@ const contenus = usePublicContenus(props.vitrine.username)
     </main>
     <VitrinePied v-if="!piedMinimal" :vitrine="vitrine" :compact="piedCompact" />
     <p v-else-if="vitrine.badgeBrandself" class="m-0 px-6 py-10 text-center text-(length:--fs-14) text-texte-secondaire">
-      Créé avec Brandself
+      Créé avec {{ MARQUE.nom }}
     </p>
   </div>
 </template>

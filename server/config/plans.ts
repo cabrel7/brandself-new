@@ -11,7 +11,7 @@ export interface ConfigPlan {
   temoignages: number | null
   reservationsParMois: number | null
   generationsIaParMois: number | null
-  /** Badge « Créé avec Brandself » sur la vitrine publique. */
+  /** Badge « Créé avec jesuis.pro » sur la vitrine publique. */
   badge: boolean
   /** Jours d'historique des statistiques (application en S11). */
   statistiquesJours: number

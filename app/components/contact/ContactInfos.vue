@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import type { VitrinePubliqueDTO } from '#shared/dto'
+import { MARQUE } from '#shared/brand'
 import { lienWhatsapp } from '~/composables/usePublicService'
 
 const props = defineProps<{ vitrine: VitrinePubliqueDTO }>()
 
-const ACCROCHE_WHATSAPP = 'Bonjour, je vous contacte depuis votre vitrine Brandself.'
+const ACCROCHE_WHATSAPP = `Bonjour, je vous contacte depuis votre vitrine ${MARQUE.nom}.`
 
 const liens = computed(() => ({
   email: props.vitrine.contact.email,

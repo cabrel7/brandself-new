@@ -1,6 +1,6 @@
 <script setup lang="ts">
 definePageMeta({ layout: 'studio', ssr: false })
-useSeoMeta({ title: 'Modifier le lien — Brandself' })
+useSeoMeta({ title: 'Modifier le lien' })
 
 const route = useRoute()
 const id = String(route.params.id)

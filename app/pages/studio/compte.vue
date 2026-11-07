@@ -3,7 +3,7 @@ import { ACCOUNT_DELETION_PHRASE } from '#shared/compte'
 import type { Devise, Locale } from '#shared/compte'
 
 definePageMeta({ layout: 'studio' })
-useSeoMeta({ title: 'Mon compte — Brandself' })
+useSeoMeta({ title: 'Mon compte' })
 
 const {
   moi, enChargement, enErreur, refresh, enregistrement, mettreAJour,

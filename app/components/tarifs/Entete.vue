@@ -1,3 +1,7 @@
+<script setup lang="ts">
+import { MARQUE } from '#shared/brand'
+</script>
+
 <template>
   <header class="border-b border-bordure">
     <div class="mx-auto flex min-h-20 w-full max-w-6xl items-center justify-between gap-4 px-6">
@@ -5,7 +9,7 @@
         to="/"
         class="font-(family-name:--font-titre) text-(length:--fs-24) font-bold text-encre no-underline"
       >
-        Brandself
+        {{ MARQUE.nom }}
       </NuxtLink>
       <nav aria-label="Accès au compte" class="flex items-center gap-3">
         <UButton label="Se connecter" to="/connexion" variant="outline" size="lg" class="hidden sm:inline-flex" />

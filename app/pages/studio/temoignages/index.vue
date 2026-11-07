@@ -2,7 +2,7 @@
 import { resumeListeTemoignages } from '#shared/temoignages'
 
 definePageMeta({ layout: 'studio', ssr: false })
-useSeoMeta({ title: 'Vos témoignages — Brandself' })
+useSeoMeta({ title: 'Vos témoignages' })
 
 const liste = useTemplateRef<HTMLElement>('liste')
 const {

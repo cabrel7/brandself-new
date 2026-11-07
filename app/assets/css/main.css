@@ -102,7 +102,7 @@
   --color-sur-accent: var(--sur-accent);
 }
 
-/* Pont @nuxt/ui -> palettes Brandself. Les variables `--ui-*` (définies par
+/* Pont @nuxt/ui -> palettes jesuis.pro. Les variables `--ui-*` (définies par
    @nuxt/ui dans @layer theme) sont redéfinies ici, hors couche : elles
    l'emportent toujours. Aucune couleur en dur : tout suit les variables de la
    palette active. Pas de mode sombre en v1 (colorMode désactivé).

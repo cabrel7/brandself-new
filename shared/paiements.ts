@@ -56,7 +56,7 @@ export const CODES_ANOMALIE = [
 ] as const
 export type CodeAnomalie = (typeof CODES_ANOMALIE)[number]
 
-/** Codes d'échec posés par Brandself (les autres viennent du fournisseur, `failureReason`). */
+/** Codes d'échec posés par jesuis.pro (les autres viennent du fournisseur, `failureReason`). */
 export const CODE_ECHEC_REQUETE_REFUSEE = 'REQUETE_REFUSEE'
 export const CODE_ECHEC_EXPIRE = 'EXPIRE'
 export const CODE_ECHEC_DEFAUT = 'DEFAUT'

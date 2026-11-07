@@ -1,4 +1,4 @@
-# Brandself
+# jesuis.pro
 
 Vitrine en ligne pour professionnels : être trouvé sur Google, être compris, être contacté ou réservé. Nuxt fullstack, PostgreSQL, Redis. Voir `PROJECT_CONTEXT.md` pour le produit.
 

@@ -3,7 +3,7 @@ import type { SujetMessage } from '#shared/message'
 import { SUJET_LIBELLES } from '#shared/message'
 
 definePageMeta({ layout: 'studio', ssr: false })
-useSeoMeta({ title: 'Messages — Brandself' })
+useSeoMeta({ title: 'Messages' })
 
 const {
   messages,

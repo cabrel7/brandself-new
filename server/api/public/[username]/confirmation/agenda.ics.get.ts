@@ -26,7 +26,7 @@ export default defineApiHandler(async (event) => {
   })
   setResponseHeaders(event, {
     'Content-Type': 'text/calendar; charset=utf-8',
-    'Content-Disposition': 'attachment; filename="reservation-brandself.ics"',
+    'Content-Disposition': 'attachment; filename="reservation-jesuis.pro.ics"',
   })
   return ics
 })

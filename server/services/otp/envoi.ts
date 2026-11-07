@@ -1,4 +1,5 @@
 import { env } from '../../../shared/env'
+import { MARQUE } from '../../../shared/brand'
 
 export type OtpChannel = 'email' | 'sms' | 'whatsapp'
 
@@ -31,10 +32,10 @@ export class SenderOtpEmail implements OtpSender {
       const { Resend } = await import('resend')
       const resend = new Resend(env.RESEND_API_KEY)
       const result = await resend.emails.send({
-        from: 'Brandself <onboarding@resend.dev>',
+        from: env.EMAIL_EXPEDITEUR,
         to: identifier,
-        subject: 'Votre code de connexion Brandself',
-        text: `Bonjour,\n\nVotre code de connexion : ${code}\n\nIl est valable 10 minutes. Si vous n'êtes pas à l'origine de cette demande, ignorez ce message.\n\nÀ tout de suite,\nBrandself`,
+        subject: `Votre code de connexion ${MARQUE.nom}`,
+        text: `Bonjour,\n\nVotre code de connexion : ${code}\n\nIl est valable 10 minutes. Si vous n'êtes pas à l'origine de cette demande, ignorez ce message.\n\nÀ tout de suite,\n${MARQUE.nom}`,
       })
       if (result.error) {
         throw new Error(`Resend : ${result.error.message}`)

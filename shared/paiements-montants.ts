@@ -16,7 +16,7 @@ export interface MontantsPaiement {
   montant: number
   /** Frais estimés, arrondis au supérieur. */
   frais: number
-  /** Net estimé encaissé par Brandself : `montant − frais`. */
+  /** Net estimé encaissé par jesuis.pro : `montant − frais`. */
   net: number
 }
 
@@ -30,7 +30,7 @@ export function ceilDiv(numerateur: number, denominateur: number): number {
 
 /**
  * Montant à encaisser, frais et net estimés (#107).
- * - `marchand` : le payeur paie le prix du plan ; les frais sont absorbés par Brandself.
+ * - `marchand` : le payeur paie le prix du plan ; les frais sont absorbés par jesuis.pro.
  * - `client` : montant majoré `⌈prix × 10000 / (10000 − taux)⌉`, de sorte que le net soit au moins le prix.
  * Frais estimés `⌈montant × taux / 10000⌉` (au supérieur : estimation prudente du coût).
  */

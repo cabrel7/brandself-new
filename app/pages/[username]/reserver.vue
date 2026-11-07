@@ -2,6 +2,7 @@
 import { z } from 'zod'
 import type { CreneauDTO, ServicePublicReponse } from '#shared/dto'
 import { libellePrix, SERVICE_SLUG_REGEX } from '#shared/services'
+import { MARQUE } from '#shared/brand'
 
 const route = useRoute()
 const username = String(route.params.username)
@@ -172,7 +173,7 @@ useSeoMeta({
     <footer class="border-t border-bordure">
       <div class="mx-auto flex w-full max-w-6xl flex-col gap-2 px-6 py-8 text-(length:--fs-14) text-texte-secondaire sm:flex-row sm:items-center sm:justify-between">
         <p>{{ vitrine.nomAffiche }} · {{ vitrine.ville }}</p>
-        <p v-if="vitrine.badgeBrandself">Créé avec Brandself</p>
+        <p v-if="vitrine.badgeBrandself">Créé avec {{ MARQUE.nom }}</p>
       </div>
     </footer>
   </div>

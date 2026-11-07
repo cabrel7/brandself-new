@@ -2,7 +2,7 @@
 import { ABONNEMENT_FUSEAU_REPLI } from '#shared/plans'
 
 definePageMeta({ layout: 'studio', ssr: false })
-useSeoMeta({ title: 'Votre agenda — Brandself' })
+useSeoMeta({ title: 'Votre agenda' })
 
 const {
   enChargement,

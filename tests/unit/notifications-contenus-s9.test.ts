@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { buildTransactionalEmail } from '../../server/services/emails/contenus'
+import { MARQUE } from '../../shared/brand'
 import { LIST_UNSUBSCRIBE_POST_VALEUR, RAPPEL_JOURNEE_MAX_LIGNES, SUGGESTION_RESUME_DEFAUT } from '../../shared/notifications'
 import { PROCHAINES_ETAPES } from '../../shared/prochaine-etape'
 import { displayName } from '../../shared/vitrine'
@@ -189,7 +190,7 @@ describe('reservation_visiteur_rappel (§5.1, CA08, CA15)', () => {
     expect(corps).toContain(`Un empêchement ? Prévenez ${NOM_PRO} dès que possible depuis sa vitrine :`)
     expect(corps).toContain(`${SITE}/dr-cabrel`)
     expect(corps).toContain('À bientôt,')
-    expect(corps).toContain('Brandself')
+    expect(corps).toContain(MARQUE.signature)
     expect(corps).toContain(`Vous recevez ce rappel parce que vous l'avez demandé en réservant sur la vitrine de ${NOM_PRO}. C'est le seul rappel prévu pour ce rendez-vous.`)
     expectPied(rappel())
   })
@@ -419,7 +420,7 @@ describe('utilisateur_resume_hebdo avec activité (§5.3, CA26, CA27, CA45)', ()
 
     expect(corps).toContain(`Retrouvez tout dans votre studio : ${SITE}/studio`)
     expect(corps).toContain('Bonne semaine,')
-    expect(corps).toContain('Brandself')
+    expect(corps).toContain(MARQUE.signature)
     expect(corps).toContain("Vous recevez ce résumé chaque lundi parce qu'il est activé dans votre compte.")
     expect(corps).toContain(`Ne plus recevoir cet e-mail, en un clic : ${SITE}/desabonnement?jeton=${JETON}`)
     expect(corps).toContain(`Gérer vos e-mails : ${SITE}/studio/compte`)

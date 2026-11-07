@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { ReservationConfirmationDTO } from '#shared/dto'
 import { formatPrix } from '#shared/devises'
+import { MARQUE } from '#shared/brand'
 
 const route = useRoute()
 const username = String(route.params.username)
@@ -107,13 +108,13 @@ useSeoMeta({ title: 'Votre demande est envoyée', robots: 'noindex, nofollow' })
           :fuseau="vitrine.fuseau"
         />
 
-        <UButton :to="lienIcs" external download="reservation-brandself.ics" variant="outline" icon="i-ph-calendar-plus" block>
+        <UButton :to="lienIcs" external download="reservation-jesuis.pro.ics" variant="outline" icon="i-ph-calendar-plus" block>
           Ajouter à mon agenda
         </UButton>
         <UButton :to="`/${vitrine.username}`" variant="link" block>Retour à la vitrine</UButton>
       </div>
     </main>
 
-    <p v-if="vitrine.badgeBrandself" class="px-6 py-8 text-center text-(length:--fs-14) text-texte-secondaire">Créé avec Brandself</p>
+    <p v-if="vitrine.badgeBrandself" class="px-6 py-8 text-center text-(length:--fs-14) text-texte-secondaire">Créé avec {{ MARQUE.nom }}</p>
   </div>
 </template>

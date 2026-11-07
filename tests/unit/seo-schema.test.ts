@@ -1,5 +1,6 @@
 // S12 : tests unitaires du schéma schema.org (pure, sans Vue).
 import { describe, expect, it } from 'vitest'
+import { MARQUE } from '../../shared/brand'
 import {
   noeudPersonne,
   noeudService,
@@ -203,11 +204,11 @@ describe('noeudOrganisation et WebSite (#155)', () => {
   const siteUrl = 'https://brandself.io'
 
   it('Organisation', () => {
-    const node = noeudOrganisation(siteUrl, '/og/brandself-logo.png')
+    const node = noeudOrganisation(siteUrl, '/brand/icone.png')
     expect(node['@type']).toBe('Organization')
-    expect(node.name).toBe('Brandself')
+    expect(node.name).toBe(MARQUE.nom)
     expect(node.url).toBe(siteUrl)
-    expect(node.logo).toBe('/og/brandself-logo.png')
+    expect(node.logo).toBe('/brand/icone.png')
   })
 
   it('Organisation sans logo', () => {
@@ -218,7 +219,7 @@ describe('noeudOrganisation et WebSite (#155)', () => {
   it('WebSite', () => {
     const node = noeudWebSite(siteUrl)
     expect(node['@type']).toBe('WebSite')
-    expect(node.name).toBe('Brandself')
+    expect(node.name).toBe(MARQUE.nom)
     expect(node.url).toBe(siteUrl)
   })
 })

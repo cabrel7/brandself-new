@@ -24,7 +24,7 @@ export interface PlanPublic {
   plan: PlanId
   etat: EtatAbonnement
   limites: ConfigPlan
-  /** Badge « Créé avec Brandself » (vrai au plan gratuit uniquement). Le statut d'abonnement n'est jamais exposé. */
+  /** Badge « Créé avec jesuis.pro » (vrai au plan gratuit uniquement). Le statut d'abonnement n'est jamais exposé. */
   badge: boolean
 }
 

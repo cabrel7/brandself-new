@@ -1,6 +1,6 @@
 <script setup lang="ts">
 definePageMeta({ layout: 'studio' })
-useSeoMeta({ title: 'Votre vitrine — Brandself' })
+useSeoMeta({ title: 'Votre vitrine' })
 
 const {
   vitrine, resume, enChargement, enErreur, absente, refresh, publicationEnCours, changerPublication,

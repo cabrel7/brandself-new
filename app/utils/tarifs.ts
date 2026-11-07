@@ -1,5 +1,6 @@
 import type { PlanTarifDTO } from '#shared/dto'
 import type { RessourceQuota } from '#shared/plans'
+import { MARQUE } from '#shared/brand'
 import { accorder } from './pluriel'
 
 // S10 : lignes de la page publique /tarifs, lues dans les limites renvoyées par l'API (jamais écrites en dur).
@@ -32,6 +33,6 @@ export function lignesPlan(plan: PlanTarifDTO): string[] {
     ia === null ? 'Propositions de l’IA illimitées' : `${nombre(ia, 'proposition', 'propositions')} de l’IA par mois`,
     'Page de liens incluse',
     `Statistiques des ${plan.statistiquesJours} derniers jours`,
-    plan.badge ? 'Badge « Créé avec Brandself » sur votre vitrine' : 'Sans badge Brandself',
+    plan.badge ? `Badge « Créé avec ${MARQUE.nom} » sur votre vitrine` : `Sans badge ${MARQUE.nom}`,
   ]
 }

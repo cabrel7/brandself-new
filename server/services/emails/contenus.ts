@@ -219,7 +219,7 @@ function visitorReservationEmail(
       ...reservationRecap(content),
       '',
       'À bientôt,',
-      'Brandself',
+      TEXTES_NOTIFICATIONS.signatureMarque,
     ].join('\n'),
     attachments: [reservationAttachment(content)],
   }
@@ -295,7 +295,7 @@ export function buildTransactionalEmail(content: TransactionalEmailContent): Ema
           '',
           'Connectez-vous à votre studio pour la confirmer.',
           '',
-          'Brandself',
+          TEXTES_NOTIFICATIONS.signatureMarque,
         ].join('\n'),
         attachments: [],
       }
@@ -341,7 +341,7 @@ export function buildTransactionalEmail(content: TransactionalEmailContent): Ema
           '',
           'Répondez directement au visiteur lorsque vous êtes disponible.',
           '',
-          'Brandself',
+          TEXTES_NOTIFICATIONS.signatureMarque,
         ].join('\n'),
         attachments: [],
       }
@@ -359,7 +359,7 @@ export function buildTransactionalEmail(content: TransactionalEmailContent): Ema
           'Vous recevrez sa réponse directement.',
           '',
           'À bientôt,',
-          'Brandself',
+          TEXTES_NOTIFICATIONS.signatureMarque,
         ].join('\n'),
         attachments: [],
       }
@@ -390,7 +390,7 @@ function messageProfessionnelEmail(
       '',
       'Vous pouvez répondre directement à votre visiteur depuis votre messagerie.',
       '',
-      'Brandself',
+      TEXTES_NOTIFICATIONS.signatureMarque,
     ].join('\n'),
     attachments: [],
   }

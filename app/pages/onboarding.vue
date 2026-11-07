@@ -15,7 +15,7 @@ onMounted(charger)
 
 useSeoMeta({
   title: computed(() =>
-    // Le gabarit de titre de l'application ajoute déjà « | Brandself ».
+    // Le gabarit de titre de l'application ajoute déjà « | jesuis.pro ».
     `${ONBOARDING_ETAPES[etape.value]} — Étape ${etape.value} sur ${ONBOARDING_ETAPES_TOTAL}`,
   ),
   robots: 'noindex',

@@ -61,7 +61,7 @@ export interface VitrinePubliqueDTO {
   seo: SeoPublicDTO
   /** ISO 8601 : `lastmod` et `og:updated_time`. */
   modifieLe: string
-  /** S10 : badge « Créé avec Brandself » (plan gratuit). Le statut d'abonnement n'est jamais exposé publiquement. */
+  /** S10 : badge « Créé avec jesuis.pro » (plan gratuit). Le statut d'abonnement n'est jamais exposé publiquement. */
   badgeBrandself: boolean
 }
 

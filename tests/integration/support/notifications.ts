@@ -4,6 +4,7 @@ import { Socket } from 'node:net'
 import { createEvent } from 'h3'
 import type { H3Event } from 'h3'
 import { and, asc, eq, sql } from 'drizzle-orm'
+import { TEMP_EMAIL_DOMAIN } from '../../../shared/compte'
 import {
   demandes,
   emailsTransactionnels,
@@ -150,7 +151,7 @@ export interface Pro {
   service: ServiceRow
 }
 
-const DOMAINE_TEMPORAIRE = 'telephone.brandself.local'
+const DOMAINE_TEMPORAIRE = TEMP_EMAIL_DOMAIN
 
 /** Professionnel complet : compte, vitrine (publiée par défaut), un service actif réservable. */
 export async function creerPro(options: ProOptions = {}): Promise<Pro> {

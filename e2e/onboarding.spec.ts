@@ -29,7 +29,7 @@ const DELAI_SAISIE_REALISTE_MS = 60
 const SANS_DELAI = 0
 const DUREE_MAX_PARCOURS_MS = 10 * 60 * 1000
 const CIBLE_TACTILE_MIN_PX = 44
-const HOTE_VITRINES = 'brandself.io'
+const HOTE_VITRINES = 'jesuis.pro'
 const NB_ACCROCHES = 3
 const NB_SERVICES = 3
 const MOTS_INTERDITS = /\b(espaces?|blocs?|modules?|widgets?|sections?)\b/i
@@ -70,8 +70,8 @@ async function attendreActif(bouton: Locator): Promise<void> {
 }
 
 function titreDocument(etape: OnboardingEtape): string {
-  // Le gabarit de titre de l'application ajoute « | Brandself ».
-  return `${ONBOARDING_ETAPES[etape]} — Étape ${etape} sur ${ONBOARDING_ETAPES_TOTAL} | Brandself`
+  // Le gabarit de titre de l'application ajoute « | jesuis.pro ».
+  return `${ONBOARDING_ETAPES[etape]} — Étape ${etape} sur ${ONBOARDING_ETAPES_TOTAL} | jesuis.pro`
 }
 
 /** Écran d'inscription guidée (/onboarding) : un seul objet pour les quatre étapes. */

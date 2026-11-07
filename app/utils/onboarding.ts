@@ -1,3 +1,4 @@
+import { MARQUE } from '#shared/brand'
 import type { PropositionOnboardingDTO } from '#shared/dto'
 import type { OnboardingEtape } from '#shared/onboarding'
 import { metaStudio } from '#shared/services'
@@ -7,7 +8,7 @@ import type { Titre } from '#shared/vitrine'
 /** Valeur du sélecteur pour « pas de titre » (le serveur attend `null`). */
 export const TITRE_AUCUN = 'aucun'
 
-export const HOTE_VITRINES = 'brandself.io'
+export const HOTE_VITRINES = MARQUE.domaine
 
 const SECONDES_PAR_MINUTE = 60
 

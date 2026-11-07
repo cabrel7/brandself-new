@@ -314,7 +314,7 @@ export type ContenusPublics = { services: number, realisations: number, agenda: 
 export interface VitrinePage {
   vitrine: VitrineAvecPhoto
   contenus: ContenusPublics
-  /** S10 : badge « Créé avec Brandself » (plan gratuit). Jamais le statut d'abonnement lui-même. */
+  /** S10 : badge « Créé avec jesuis.pro » (plan gratuit). Jamais le statut d'abonnement lui-même. */
   badgeBrandself: boolean
 }
 

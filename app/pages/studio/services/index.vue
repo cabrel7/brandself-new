@@ -1,6 +1,6 @@
 <script setup lang="ts">
 definePageMeta({ layout: 'studio' })
-useSeoMeta({ title: 'Vos services — Brandself' })
+useSeoMeta({ title: 'Vos services' })
 
 const liste = useTemplateRef<HTMLElement>('liste')
 const {

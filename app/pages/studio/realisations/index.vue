@@ -2,7 +2,7 @@
 import { resumeListeRealisations } from '#shared/realisations'
 
 definePageMeta({ layout: 'studio' })
-useSeoMeta({ title: 'Vos réalisations — Brandself' })
+useSeoMeta({ title: 'Vos réalisations' })
 
 const liste = useTemplateRef<HTMLElement>('liste')
 const {

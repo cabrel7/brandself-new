@@ -1,6 +1,6 @@
 <script setup lang="ts">
 definePageMeta({ layout: 'studio', ssr: false })
-useSeoMeta({ title: 'Nouveau lien — Brandself' })
+useSeoMeta({ title: 'Nouveau lien' })
 
 const { enChargement, enErreur, absente, refresh } = useStudioLiens()
 

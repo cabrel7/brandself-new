@@ -3,7 +3,7 @@
 # Usage : ./deploy/verifier-cache.sh https://preprod.brandself.io
 set -euo pipefail
 
-SITE="${1:-https://preprod.brandself.io}"
+SITE="${1:-https://preprod.jesuis.pro}"
 PAGE="$SITE/dr-cabrel"
 
 echo "=== Vérification du microcache nginx ==="

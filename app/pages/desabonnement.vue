@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { MARQUE } from '#shared/brand'
+
 definePageMeta({ ssr: false })
 useSeoMeta({ title: 'Se désabonner', robots: 'noindex, nofollow' })
 // Le jeton est dans l'adresse : aucune page liée ne doit le recevoir en référent.
@@ -20,7 +22,7 @@ const { ready: squeletteVisible } = useTimeout(200, { controls: true })
 
 <template>
   <main class="mx-auto flex w-full max-w-120 flex-col gap-4 px-6 pt-8 pb-12">
-    <p class="m-0 font-(family-name:--font-titre) text-(length:--fs-24) font-bold">Brandself</p>
+    <p class="m-0 font-(family-name:--font-titre) text-(length:--fs-24) font-bold">{{ MARQUE.nom }}</p>
 
     <div v-if="etat === 'chargement'" role="status" aria-busy="true" aria-label="Vérification de votre lien">
       <div v-if="squeletteVisible" class="flex flex-col gap-4 pt-8" aria-hidden="true">

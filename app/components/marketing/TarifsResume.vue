@@ -1,5 +1,7 @@
 // S12 (#166) : résumé des tarifs de la page d'accueil marketing.
 <script setup lang="ts">
+import { MARQUE } from '#shared/brand'
+
 const { tarifs, erreur } = await useTarifs()
 </script>
 
@@ -19,7 +21,7 @@ const { tarifs, erreur } = await useTarifs()
           <li>Jusqu’à 3 services, 3 réalisations, 3 témoignages</li>
           <li>Jusqu’à 10 réservations par mois</li>
           <li>3 générations IA par mois</li>
-          <li>Badge « Créé avec Brandself »</li>
+          <li>Badge « Créé avec {{ MARQUE.nom }} »</li>
         </ul>
       </div>
       <div class="p-6 rounded-(--rayon) border border-bordure bg-surface ring-1 ring-accent">

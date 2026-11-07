@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { VitrinePubliqueDTO } from '#shared/dto'
+import { MARQUE } from '#shared/brand'
 
 defineProps<{
   vitrine: VitrinePubliqueDTO
@@ -15,7 +16,7 @@ defineProps<{
       class="mx-auto flex w-full max-w-6xl flex-wrap items-center justify-between gap-x-4 gap-y-1 px-6 py-6 text-(length:--fs-14) text-texte-secondaire"
     >
       <p class="m-0">{{ vitrine.nomAffiche }} · {{ vitrine.ville }}</p>
-      <p v-if="vitrine.badgeBrandself" class="m-0">Créé avec Brandself</p>
+      <p v-if="vitrine.badgeBrandself" class="m-0">Créé avec {{ MARQUE.nom }}</p>
     </div>
     <div v-else class="mx-auto flex w-full max-w-6xl flex-col gap-6 px-6 py-8 md:flex-row md:items-end md:justify-between">
       <div class="flex flex-col gap-1">
@@ -42,7 +43,7 @@ defineProps<{
           {{ vitrine.contact.telephone }}
         </a>
       </div>
-      <p v-if="vitrine.badgeBrandself" class="text-(length:--fs-14) text-texte-secondaire">Créé avec Brandself</p>
+      <p v-if="vitrine.badgeBrandself" class="text-(length:--fs-14) text-texte-secondaire">Créé avec {{ MARQUE.nom }}</p>
     </div>
   </footer>
 </template>
