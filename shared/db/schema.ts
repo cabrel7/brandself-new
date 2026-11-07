@@ -780,6 +780,35 @@ export const generationsIa = pgTable(
 // L'étape de reprise n'est PAS stockée, elle se déduit des données (computeEtapeReprise). Seule la liste
 // des 3 services proposés est en JSON (brouillon, jamais interrogé). Photo = ligne `medias` (règle 4).
 // Les bornes (60, 80, 160, 2000, titres, pays) sont recopiées depuis shared/vitrine.ts : garder synchronisées.
+// S15 : statistiques d'installation PWA pour le super admin de la plateforme.
+// Evenements : proposee / installee / refusee, origine studio ou marketing.
+// Pas de donnee personnelle, pas de lien vers une vitrine (plateforme, pas pro).
+export const pwaInstallEvents = pgTable('pwa_install_events', {
+  id: text('id').primaryKey(),
+  type: text('type').notNull(),
+  origine: text('origine').notNull(),
+  deviceType: text('device_type').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  check(
+    'pwa_install_events_type_check',
+    sql`${table.type} IN ('proposee','installee','refusee')`,
+  ),
+  check(
+    'pwa_install_events_origine_check',
+    sql`${table.origine} IN ('studio','marketing')`,
+  ),
+  check(
+    'pwa_install_events_device_type_check',
+    sql`${table.deviceType} IN ('mobile','tablette','ordinateur','inconnu')`,
+  ),
+  index('pwa_install_events_type_origine_idx').on(table.type, table.origine),
+  index('pwa_install_events_created_at_idx').on(table.createdAt),
+])
+
+export type PwaInstallEvent = typeof pwaInstallEvents.$inferSelect
+export type NewPwaInstallEvent = typeof pwaInstallEvents.$inferInsert
+
 export const progressionsInscription = pgTable(
   'progressions_inscription',
   {

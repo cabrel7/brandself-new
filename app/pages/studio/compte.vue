@@ -9,6 +9,8 @@ const {
   moi, enChargement, enErreur, refresh, enregistrement, mettreAJour,
   erreurInformations, confirmationInformations, erreurEmails, confirmationEmails,
 } = useMoi()
+const { installer: installerApplication, dejaInstalle: dejaInstalleApp, deviceType: deviceTypeApp } = usePwaInstall()
+const { enregistrerEvenement: enregistrerEvenementStats } = usePwaStats()
 const preferences = usePreferencesEmail(moi, mettreAJour)
 const appareils = useAppareils()
 const deconnexion = useDeconnexion()
@@ -51,6 +53,11 @@ function annulerSuppression(): void {
   suppressionOuverte.value = false
   saisie.value = ''
   suppression.erreur.value = ''
+}
+
+async function installerCompteApp(): Promise<void> {
+  await installerApplication()
+  await enregistrerEvenementStats('installee', 'studio', deviceTypeApp)
 }
 </script>
 
@@ -159,6 +166,26 @@ function annulerSuppression(): void {
         </p>
         <p v-else class="m-0 min-h-6 text-(length:--fs-14) text-texte-secondaire" role="status">
           {{ confirmationEmails }}
+        </p>
+      </section>
+
+      <section aria-labelledby="titre-application" class="flex flex-col gap-3">
+        <h2 id="titre-application" class="m-0 text-(length:--fs-20) font-semibold text-encre">
+          Application
+        </h2>
+        <p class="m-0 text-base text-texte-secondaire">
+          Installez jesuis.pro sur votre téléphone pour retrouver votre studio en un geste, sans retenir l'adresse.
+        </p>
+        <UButton
+          v-if="!dejaInstalleApp"
+          label="Installer l'application"
+          variant="outline"
+          block
+          :loading="enregistrement"
+          @click="installerCompteApp"
+        />
+        <p v-else class="m-0 text-(length:--fs-14) text-texte-secondaire">
+          L'application est déjà installée sur cet appareil.
         </p>
       </section>
 

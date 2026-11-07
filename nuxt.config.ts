@@ -114,6 +114,7 @@ export default defineNuxtConfig({
       // S14 (#18) : icônes dans public/brand/. nuxt-seo-utils n'auto-injecte que les
       // fichiers posés à la racine de public/ ; déclarés ici, ces liens remplacent son injection.
       link: [
+        { rel: 'manifest', href: '/manifest.json' },
         { rel: 'icon', type: 'image/svg+xml', href: '/brand/favicon.svg', sizes: 'any' },
         { rel: 'icon', href: '/favicon.ico' },
         { rel: 'apple-touch-icon', type: 'image/png', href: '/brand/apple-touch-icon.png', sizes: '180x180' },

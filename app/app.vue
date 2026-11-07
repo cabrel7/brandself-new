@@ -7,6 +7,7 @@ import { fr } from '@nuxt/ui/locale'
     <NuxtRouteAnnouncer />
     <NuxtLayout>
       <NuxtPage />
+      <InstallPrompt />
     </NuxtLayout>
   </UApp>
 </template>
