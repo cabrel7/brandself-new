@@ -15,11 +15,11 @@
     "test": "vitest run",
     "test:unit": "vitest run --project unit",
     "test:integration": "vitest run --project integration",
-  "e2e": "playwright test",
-  "e2e:seo": "playwright test -c playwright.seo.config.ts",
-  "perf": "lhci autorun --config=lighthouserc.cjs",
-  "perf:local": "pnpm build && pnpm perf",
-  "worker": "node --env-file=.env node_modules/tsx/dist/cli.mjs worker/index.ts",
+    "e2e": "playwright test",
+    "e2e:seo": "playwright test -c playwright.seo.config.ts",
+    "perf": "lhci autorun --config=lighthouserc.cjs",
+    "perf:local": "pnpm build && pnpm perf",
+    "worker": "node --env-file=.env node_modules/tsx/dist/cli.mjs worker/index.ts",
     "db:generate": "node --env-file=.env node_modules/drizzle-kit/bin.cjs generate",
     "db:migrate": "node --env-file=.env node_modules/drizzle-kit/bin.cjs migrate",
     "db:seed": "node --env-file=.env node_modules/tsx/dist/cli.mjs server/db/seed.ts",
@@ -27,6 +27,7 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.3.0",
+    "@better-auth/mcp": "^1.7.18",
     "@js-temporal/polyfill": "^0.5.1",
     "@nuxt/fonts": "1.1.0",
     "@nuxt/icon": "2.6.0",
@@ -57,7 +58,9 @@
     "zod": "^4.6.7"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.8.0",
     "@iconify-json/ph": "^1.2.2",
+    "@lhci/cli": "^0.12.0",
     "@nuxt/eslint": "^1.17.0",
     "@nuxt/ui": "^4.12.0",
     "@playwright/test": "^1.62.0",
@@ -71,9 +74,7 @@
     "tsx": "^4.23.15",
     "typescript": "^6.0.3",
     "vitest": "^5.0.5",
-    "vue-tsc": "^3.3.13",
-    "@axe-core/playwright": "^4.8.0",
-    "@lhci/cli": "^0.12.0"
+    "vue-tsc": "^3.3.13"
   },
   "overrides": {
     "unstorage": {

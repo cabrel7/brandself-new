@@ -214,12 +214,16 @@ export const services = pgTable(
     enVedette: boolean('en_vedette').notNull().default(false),
     ordre: integer('ordre').notNull().default(0),
     actif: boolean('actif').notNull().default(true),
+    // S16 : origine du contenu — 'utilisateur' (studio) ou 'assistant' (MCP). Un contenu créé par
+    // un assistant est brouillon (actif = false) et ne peut pas être publié via le MCP.
+    source: text('source').notNull().default('utilisateur'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
     // Unicité PAR vitrine ; sert aussi les recherches par vitrine_id (préfixe de l'index).
     uniqueIndex('services_vitrine_id_slug_unique').on(table.vitrineId, table.slug),
+    check('services_source_check', sql`${table.source} IN ('utilisateur','assistant')`),
     index('services_image_media_id_idx').on(table.imageMediaId),
     check('services_type_check', sql`${table.type} IN ('rdv','accompagnement','atelier','devis')`),
     check('services_tarif_check', sql`${table.tarif} IN ('gratuit','payant','devis')`),
@@ -289,12 +293,16 @@ export const realisations = pgTable(
     enVedette: boolean('en_vedette').notNull().default(false),
     ordre: integer('ordre').notNull().default(0),
     actif: boolean('actif').notNull().default(true),
+    // S16 : origine du contenu — 'utilisateur' (studio) ou 'assistant' (MCP). Une réalisation créée
+    // par un assistant sans image principale est brouillon et ne peut pas être activée.
+    source: text('source').notNull().default('utilisateur'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
     // Unicité PAR vitrine ; sert aussi les recherches par vitrine_id (préfixe de l'index).
     uniqueIndex('realisations_vitrine_id_slug_unique').on(table.vitrineId, table.slug),
+    check('realisations_source_check', sql`${table.source} IN ('utilisateur','assistant')`),
     index('realisations_image_media_id_idx').on(table.imageMediaId),
     check(
       'realisations_slug_format_check',
@@ -856,8 +864,73 @@ export const progressionsInscription = pgTable(
       sql`${table.propositionValideeLe} IS NULL
         OR (${table.accroche} IS NOT NULL AND ${table.presentation} IS NOT NULL AND ${table.servicesProposes} IS NOT NULL)`,
     ),
-  ],
+  ]
 )
+
+// S16 : journal des appels d'assistant MCP. Utilisateur, assistant (ID du client MCP), outil,
+// résumé des arguments, résultat, avant/après (modifications uniquement), date. Le JSON est admis
+// ici uniquement ; aucune autre table n'utilise du JSON pour des données métier.
+export const journalAssistant = pgTable('journal_assistant', {
+  id: text('id').primaryKey(),
+  userId: text('user_id')
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  assistantId: text('assistant_id').notNull(),
+  outil: text('outil').notNull(),
+  argumentsResume: jsonb('arguments_resume').notNull(),
+  resultat: jsonb('resultat'),
+  avant: jsonb('avant'),
+  apres: jsonb('apres'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  index('journal_assistant_user_id_idx').on(table.userId),
+  index('journal_assistant_created_at_idx').on(table.createdAt),
+])
+
+// S16 : clients OAuth 2.1 du serveur MCP. Chaque assistant connecté possède un client avec son
+// identifiant, son secret, ses portées autorisées et son URI de redirection.
+export const mcpClients = pgTable('mcp_clients', {
+  id: text('id').primaryKey(),
+  userId: text('user_id')
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  clientId: text('client_id').notNull().unique(),
+  clientSecret: text('client_secret').notNull(),
+  nom: text('nom').notNull(),
+  redirectUri: text('redirect_uri').notNull(),
+  scopes: text('scopes').array().notNull().default(['vitrine:lecture']),
+  actif: boolean('actif').notNull().default(true),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  index('mcp_clients_user_id_idx').on(table.userId),
+  index('mcp_clients_client_id_idx').on(table.clientId),
+])
+
+// S16 : jetons d'accès et de rafraîchissement émis aux assistants connectés. Révocables, à durée
+// de vie courte avec renouvellement via refresh token.
+export const mcpTokens = pgTable('mcp_tokens', {
+  id: text('id').primaryKey(),
+  clientId: text('client_id')
+    .notNull()
+    .references(() => mcpClients.id, { onDelete: 'cascade' }),
+  userId: text('user_id')
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  accessToken: text('access_token').notNull().unique(),
+  refreshToken: text('refresh_token').notNull().unique(),
+  accessTokenExpiresAt: timestamp('access_token_expires_at', { withTimezone: true }).notNull(),
+  refreshTokenExpiresAt: timestamp('refresh_token_expires_at', { withTimezone: true }).notNull(),
+  scopes: text('scopes').array().notNull().default([]),
+  revoke: boolean('revoke').notNull().default(false),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  index('mcp_tokens_client_id_idx').on(table.clientId),
+  index('mcp_tokens_user_id_idx').on(table.userId),
+  index('mcp_tokens_access_token_idx').on(table.accessToken),
+  index('mcp_tokens_refresh_token_idx').on(table.refreshToken),
+])
 
 // S10 (docs/specs/S10-abonnements.md §2, migration 0021) : un paiement = une tentative de règlement d'un
 // abonnement. `id` (UUID généré par l'application) est l'`externalId` envoyé au fournisseur. Pièce
@@ -1182,3 +1255,9 @@ export type GenerationIa = typeof generationsIa.$inferSelect
 export type NewGenerationIa = typeof generationsIa.$inferInsert
 export type ProgressionInscription = typeof progressionsInscription.$inferSelect
 export type NewProgressionInscription = typeof progressionsInscription.$inferInsert
+export type JournalAssistant = typeof journalAssistant.$inferSelect
+export type NewJournalAssistant = typeof journalAssistant.$inferInsert
+export type McpClient = typeof mcpClients.$inferSelect
+export type NewMcpClient = typeof mcpClients.$inferInsert
+export type McpToken = typeof mcpTokens.$inferSelect
+export type NewMcpToken = typeof mcpTokens.$inferInsert

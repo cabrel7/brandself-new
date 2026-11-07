@@ -232,7 +232,8 @@ async function insertRealisation(
 
     const etat = normalizeRealisationState(EMPTY_STATE, pickState(input))
     assertCoherent(etat)
-    await requireOwnedMedias(tx, userId, [input.imageMediaId, ...input.galerie])
+    const medias = [input.imageMediaId, ...input.galerie].filter((id): id is string => id !== null && id !== undefined)
+    await requireOwnedMedias(tx, userId, medias)
 
     const vedettes = rows.filter((ligne) => ligne.enVedette)
     const enVedette = resolveEnVedette({

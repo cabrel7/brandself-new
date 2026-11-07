@@ -73,6 +73,11 @@ export const ERROR_MESSAGES: Record<ErrorCode, string> = {
   TROP_DE_REQUETES: 'Trop de tentatives. Réessayez dans quelques instants.',
   LIMITEUR_INDISPONIBLE: 'Le formulaire est temporairement indisponible. Réessayez dans quelques instants.',
   STATISTIQUES_PERIODE_INTERDITE: 'Cette période de statistiques n’est pas incluse dans votre plan.',
+  // S16 : serveur MCP (plan payant).
+  MCP_INACTIF: 'Le serveur MCP est désactivé.',
+  AUTHENTIFICATION_REQUISE: 'Authentification requise.',
+  PLAN_PAYANT_REQUIS: 'Réservé au plan payant.',
+  PORTÉE_INSUFFISANTE: 'Portée insuffisante pour cet outil.',
   ERREUR_INTERNE: 'Une erreur est survenue de notre côté. Réessayez dans un instant.',
 }
 

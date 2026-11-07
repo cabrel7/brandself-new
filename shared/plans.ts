@@ -80,6 +80,15 @@ export const LIMITE_MESSAGES: Record<RessourceQuota, { titre: string, texte: str
 
 export const LIMITE_ACTION = { libelle: 'Voir l’abonnement', chemin: ABONNEMENT_CHEMIN } as const
 
+/** Capacités réservées au plan payant (S16 : `mcp` = accès serveur MCP). */
+export const CAPACITES_PAYANTES = ['mcp'] as const
+export type CapacitePayante = (typeof CAPACITES_PAYANTES)[number]
+
+/** Une capacité est-elle réservée au plan payant ? */
+export function estCapacitePayante(capacite: string): capacite is CapacitePayante {
+  return (CAPACITES_PAYANTES as readonly string[]).includes(capacite)
+}
+
 /** Remplace `{limite}` (et `{date}` si fournie) ; sans effet sur un texte qui n'en contient pas. */
 export function interpolerLimite(texte: string, valeurs: { limite: number, date?: string }): string {
   const avecLimite = texte.replaceAll(LIMITE_MARQUEUR, String(valeurs.limite))

@@ -94,6 +94,7 @@ Dans toute l'interface, les textes, les commentaires et les noms visibles : **vi
 | `@axe-core/playwright` | Tests d'accessibilité (axe) sur le build de production pour S12 (WCAG 2A/2AA, 0 violation critical/serious) |
 | `@lhci/cli` | Lighthouse CI pour le sprint S12 : budgets LCP ≤ 2500 ms, CLS ≤ 0,1, TBT ≤ 300 ms, scores SEO ≥ 0,95, accessibilité ≥ 0,95, sur le build de production |
 | `openai` (SDK officiel) | second adaptateur de `IaProvider` (S8) : parle l'API « compatible OpenAI » que Gemini, Groq, Mistral, DeepSeek, OpenRouter et Ollama exposent aussi ; adresse par `IA_BASE_URL` (HTTPS), modèle obligatoire par `IA_MODELE` |
+| `@better-auth/mcp` | plugin Better Auth MCP, authentification OAuth 2.1 pour le serveur MCP (S16) |
 
 ## 9. Documents
 

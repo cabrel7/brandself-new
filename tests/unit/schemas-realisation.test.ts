@@ -127,16 +127,18 @@ describe('schemaRealisationCreate (U18)', () => {
   })
 
   describe('imageMediaId (S4-CA07)', () => {
-    it('should refuse a missing image with the message "Ajoutez une image principale."', () => {
+    it('should accept a missing image (realisation created as draft without main image)', () => {
       const resultat = schemaRealisationCreate.safeParse({ titre: 'Sans image' })
 
-      expect(problemes(resultat)).toEqual([{ chemin: 'imageMediaId', message: 'Ajoutez une image principale.' }])
+      expect(resultat.success).toBe(true)
+      expect(resultat.data.imageMediaId).toBeNull()
     })
 
-    it('should refuse an explicit null image with the very same message (it can not be removed)', () => {
+    it('should accept an explicit null image', () => {
       const resultat = schemaRealisationCreate.safeParse({ titre: 'Sans image', imageMediaId: null })
 
-      expect(problemes(resultat)).toEqual([{ chemin: 'imageMediaId', message: 'Ajoutez une image principale.' }])
+      expect(resultat.success).toBe(true)
+      expect(resultat.data.imageMediaId).toBeNull()
     })
 
     it.each([['abc'], [''], [42], [true], ['3f2b8c1e-9d4a-4e7b-8a61'], [{}]])('should refuse %j as an invalid image', (imageMediaId) => {
@@ -290,8 +292,8 @@ describe('schemaRealisationCreate (U18)', () => {
       expect(schemaRealisationCreate.safeParse(corps).success).toBe(false)
     })
 
-    it('should report the title and the image together for an empty body', () => {
-      expect(champsEnErreur(schemaRealisationCreate.safeParse({})).sort()).toEqual(['imageMediaId', 'titre'])
+    it('should report the title together (image is optional for creation)', () => {
+      expect(champsEnErreur(schemaRealisationCreate.safeParse({})).sort()).toEqual(['titre'])
     })
   })
 })
