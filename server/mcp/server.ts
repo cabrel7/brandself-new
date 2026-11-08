@@ -1,5 +1,6 @@
 // S16 : point d'entrée du serveur MCP (transport HTTP, route /mcp).
-// Protocole MCP 2026-07-28 sur Streamable HTTP : méthodes tools/list et tools/call.
+// Protocole MCP sur JSON-RPC/HTTP : méthodes tools/list et tools/cal.
+// Les schémas Zod des outils sont définis dans server/mcp/tools.ts et validés ici.
 // Aucune logique métier ici : chaque outil délègue aux services existants.
 
 import type { H3Event } from 'h3'
@@ -16,7 +17,8 @@ import {
 } from './auth'
 import { limiterRequête, limiterCréation } from './rate-limit'
 import { journaliserAppel } from './journal'
-import type { ContexteMcp, ReponseJsonRpc } from './types'
+import type { ContexteMcp } from './types'
+import { env } from '../../shared/env'
 
 import { executer as executerObtenirVitrine } from './tools/obtenir-vitrine'
 import { executer as executerListerServices } from './tools/lister-services'
@@ -28,19 +30,7 @@ import { executer as executerModifierRealisation } from './tools/modifier-realis
 import { executer as executerListerReservations } from './tools/lister-reservations'
 import { executer as executerListerMessages } from './tools/lister-messages'
 
-const HANDLERS: Record<NomOutilMcp, (args: unknown, contexte: ContexteMcp, options: { cleIdempotence?: string, detailAutorise?: boolean }) => Promise<unknown>> = {
-  obtenir_vitrine: executerObtenirVitrine,
-  lister_services: executerListerServices,
-  creer_service: executerCreerService,
-  modifier_service: executerModifierService,
-  lister_realisations: executerListerRealisations,
-  creer_realisation: executerCreerRealisation,
-  modifier_realisation: executerModifierRealisation,
-  lister_reservations: executerListerReservations,
-  lister_messages: executerListerMessages,
-}
-
-const MCP_ACTIF = (typeof process !== 'undefined' && process.env.MCP_ACTIF) === 'true'
+const MCP_ACTIF = env.MCP_ACTIF
 
 const JSONRPC_PARSE_ERROR = { code: -32700, message: 'Erreur d’analyse du corps JSON-RPC.' }
 const JSONRPC_INVALID_REQUEST = { code: -32600, message: 'Requête JSON-RPC invalide.' }
@@ -54,11 +44,11 @@ const schemaJsonRpc = z.object({
   params: z.record(z.string(), z.any()).optional(),
 })
 
-function reponseSucces(id: string | number | null, result: unknown): ReponseJsonRpc {
+function reponseSucces(id: string | number | null, result: unknown) {
   return { jsonrpc: '2.0', id, result }
 }
 
-function reponseErreur(id: string | number | null, error: { code: number, message: string }): ReponseJsonRpc {
+function reponseErreur(id: string | number | null, error: { code: number, message: string }) {
   return { jsonrpc: '2.0', id, error }
 }
 
@@ -82,7 +72,7 @@ function resumerArguments(nom: string, args: unknown): unknown {
   return resume
 }
 
-function listerOutils(): unknown {
+function listerOutils() {
   return {
     outils: OUTILS_MCP.map((outil) => ({
       nom: outil.nom,
@@ -146,6 +136,18 @@ async function executerOutil(
     })
     throw error
   }
+}
+
+const HANDLERS: Record<NomOutilMcp, (args: unknown, contexte: ContexteMcp, options: { cleIdempotence?: string, detailAutorise?: boolean }) => Promise<unknown>> = {
+  obtenir_vitrine: executerObtenirVitrine,
+  lister_services: executerListerServices,
+  creer_service: executerCreerService,
+  modifier_service: executerModifierService,
+  lister_realisations: executerListerRealisations,
+  creer_realisation: executerCreerRealisation,
+  modifier_realisation: executerModifierRealisation,
+  lister_reservations: executerListerReservations,
+  lister_messages: executerListerMessages,
 }
 
 export async function gererRequeteMcp(event: H3Event): Promise<unknown> {

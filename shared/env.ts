@@ -111,6 +111,9 @@ const schemaEnv = z
     ),
     // Autorise une clé kpay_test_ en production (préproduction uniquement). Défaut faux.
     KPAY_MODE_TEST_AUTORISE: schemaBooleenFaux,
+    // Serveur MCP (S16) : désactivé par défaut. Activé pour une liste de comptes pilotes,
+    // puis pour tous les comptes payants.
+    MCP_ACTIF: schemaBooleenFaux,
   })
   .superRefine((env, ctx) => {
     if (env.IA_FOURNISSEUR === 'openai' && !env.IA_MODELE) {
