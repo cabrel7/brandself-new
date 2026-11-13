@@ -2,6 +2,8 @@ import { defineConfig } from '@playwright/test'
 
 export default defineConfig({
   testDir: './e2e',
+  // SEO et accessibilité s'exécutent sur le build de production (playwright.seo.config.ts, job `seo-perf`).
+  testIgnore: ['seo/**', 'a11y/**'],
   globalSetup: './e2e/global-setup.ts',
   timeout: 120_000,
   expect: {

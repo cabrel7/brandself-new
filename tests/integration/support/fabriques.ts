@@ -248,7 +248,7 @@ export async function insertPromptIa(surcharges: Partial<typeof promptsIa.$infer
 }
 
 /** Version active d'un prompt, telle que la migration 0018 l'a insérée. */
-export async function activePromptRow(type: 'onboarding_vitrine' | 'ameliorer_texte'): Promise<PromptIaRow> {
+export async function activePromptRow(type: 'onboarding_vitrine' | 'ameliorer_texte' | 'seo_vitrine'): Promise<PromptIaRow> {
   const [ligne] = await db.select().from(promptsIa).where(and(eq(promptsIa.type, type), eq(promptsIa.actif, true)))
   if (!ligne) throw new Error(`Aucun prompt actif pour ${type} : la migration 0018 doit les insérer.`)
   return ligne
