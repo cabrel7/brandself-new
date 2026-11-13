@@ -20,6 +20,8 @@ const qrcodeConteneur = useTemplateRef<HTMLElement>('qrcodeConteneur')
 const annonceAction = ref('')
 
 const urlPageLiens = computed(() => (username.value ? `${window.location.origin}/@${username.value}` : ''))
+/** Affichage sans protocole (comme la maquette) ; la copie et le partage gardent l’adresse complète. */
+const adresseAffichee = computed(() => urlPageLiens.value.replace(/^https?:\/\//, ''))
 
 async function rafraichirPage(): Promise<void> {
   await Promise.all([refresh(), refreshVitrine()])
@@ -131,32 +133,33 @@ async function telechargerQrcode(): Promise<void> {
             {{ (compteurs?.total ?? 0) }} {{ (compteurs?.total ?? 0) > 1 ? 'liens' : 'lien' }} · {{ (compteurs?.visibles ?? 0) }} visibles
           </p>
         </div>
-        <UButton label="Ajouter" to="/studio/liens/nouveau" icon="i-ph-plus" size="lg" class="shrink-0" />
+        <StudioBoutonAjouter to="/studio/liens/nouveau" />
       </header>
 
       <section class="mt-6 rounded-(--rayon) border border-bordure bg-surface p-5 md:p-8">
         <h2 class="m-0 text-(length:--fs-14) font-bold tracking-wider text-accent-texte uppercase">Votre page de liens</h2>
-        <div class="mt-3 flex items-center gap-2 rounded-(--rayon-interne) border border-bordure bg-champ px-4 py-3">
-          <span class="min-w-0 truncate font-semibold text-encre">{{ urlPageLiens }}</span>
+        <div class="md:mt-3 md:flex md:items-center md:gap-3">
+        <div class="mt-3 flex min-h-12 items-center gap-2 rounded-(--rayon-interne) border border-bordure bg-champ py-1 ps-4 pe-1 md:mt-0 md:min-w-0 md:flex-1">
+          <span class="min-w-0 flex-1 truncate font-semibold text-encre" :title="urlPageLiens">{{ adresseAffichee }}</span>
           <UButton
             v-if="urlPageLiens"
             icon="i-ph-copy"
             variant="ghost"
             color="neutral"
             size="lg"
-            class="ms-auto min-h-(--cible-tactile) size-(--cible-tactile) shrink-0 p-0 justify-center"
+            class="min-h-(--cible-tactile) size-(--cible-tactile) shrink-0 justify-center p-0"
             aria-label="Copier l’adresse de votre page de liens"
             @click="copierUrl"
           />
         </div>
-        <div class="mt-3 grid grid-cols-2 gap-3">
+        <div class="mt-3 grid grid-cols-2 gap-3 md:mt-0 md:flex md:shrink-0">
           <UButton
             label="Partager"
             variant="outline"
             color="primary"
             size="lg"
             :disabled="!urlPageLiens"
-            class="min-h-(--cible-tactile) justify-center"
+            class="min-h-(--cible-tactile) justify-center md:px-6"
             @click="partager"
           />
           <UButton
@@ -165,9 +168,10 @@ async function telechargerQrcode(): Promise<void> {
             variant="outline"
             color="primary"
             size="lg"
-            class="min-h-(--cible-tactile) justify-center"
+            class="min-h-(--cible-tactile) justify-center md:px-6"
             @click="qrcodeOuverte = true"
           />
+        </div>
         </div>
         <p class="m-0 mt-4 text-(length:--fs-14) text-texte-secondaire">
           {{ (compteurs?.clicsSemaine ?? 0) }} clics cette semaine
@@ -193,7 +197,7 @@ async function telechargerQrcode(): Promise<void> {
         <span>{{ message }}</span>
       </p>
 
-      <div v-if="enChargement" role="status" class="mt-4 flex flex-col gap-4">
+      <div v-if="enChargement" role="status" class="mt-4 flex flex-col gap-4 md:grid md:grid-cols-2">
         <span class="sr-only">Chargement de vos liens</span>
         <USkeleton v-for="n in 4" :key="n" class="h-20 w-full" aria-hidden="true" />
       </div>
@@ -208,7 +212,7 @@ async function telechargerQrcode(): Promise<void> {
         action-to="/studio/liens/nouveau"
       />
 
-      <ul v-else ref="liste" class="m-0 mt-4 list-none border-t border-bordure p-0">
+      <ul v-else ref="liste" class="m-0 mt-4 list-none border-t border-bordure p-0 md:grid md:grid-cols-2 md:gap-x-8">
         <StudioLienLigne
           v-for="lien in liens"
           :key="lien.id"

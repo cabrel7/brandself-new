@@ -322,4 +322,16 @@ describe('recordLienClic → statistiques_jour (S11 #171 / CA22)', () => {
     expect(agregat!.clics).toBe(1)
     expect(agregat!.visites).toBe(1)
   })
+
+  it('un clic du jour courant est compté tout de suite dans les totaux (pas seulement le lendemain)', async () => {
+    await nettoyerVues()
+    const { vitrine } = await vitrinePubliee('dr-clics-jour')
+    const lien = await insertLien(vitrine.id, { slug: 'lien-jour', actif: true })
+
+    // Clic le jour même de la lecture : `maintenant` = 2026-03-15, fuseau de la vitrine inclus.
+    await recordLienClic(vitrine.username, lien.slug, '203.0.113.60', maintenant)
+
+    const stats = await getStatistiques(vitrine.userId, 7, maintenant)
+    expect(stats.totaux.clics).toBe(1)
+  })
 })

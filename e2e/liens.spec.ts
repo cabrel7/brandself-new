@@ -44,7 +44,10 @@ test.describe('page publique de liens — dr-cabrel (vitrine de démonstration, 
     await expect(page.getByRole('heading', { level: 1, name: 'Dr Cabrel Nguesso' })).toBeVisible()
     await expect(page.getByRole('link', { name: 'Écrire sur WhatsApp' })).toHaveAttribute('href', 'https://wa.me/237699000001')
     await expect(page.getByRole('link', { name: 'Mon parcours sur LinkedIn' })).toHaveAttribute('href', 'https://www.linkedin.com/in/dr-cabrel-nguesso')
-    await expect(page.getByText('Créé avec jesuis.pro')).toBeVisible()
+    const badge = page.getByRole('link', { name: 'Propulsé par jesuis.pro (nouvel onglet)' })
+    await expect(badge).toBeVisible()
+    await expect(badge).toHaveAttribute('href', 'https://jesuis.pro')
+    await expect(badge).toHaveAttribute('target', '_blank')
     await sansDebordementHorizontal(page)
   })
 

@@ -12,6 +12,13 @@ describe('schemaVuePublic (POST /vue)', () => {
   it('accepte origine null', () => {
     expect(schemaVuePublic.parse({ chemin: '/', origine: null })).toEqual({ chemin: '/', origine: null })
   })
+  it('accepte la page de liens /@username (route @[username])', () => {
+    expect(schemaVuePublic.parse({ chemin: '/@dr-cabrel' })).toEqual({ chemin: '/@dr-cabrel', origine: undefined })
+  })
+  it('refuse un @ ailleurs qu’en tête du premier segment', () => {
+    expect(() => schemaVuePublic.parse({ chemin: '/dr-cabrel/@x' })).toThrow(z.ZodError)
+    expect(() => schemaVuePublic.parse({ chemin: '/a@b' })).toThrow(z.ZodError)
+  })
   it('refuse un chemin ne commençant pas par /', () => {
     expect(() => schemaVuePublic.parse({ chemin: 'dr-cabrel' })).toThrow(z.ZodError)
   })

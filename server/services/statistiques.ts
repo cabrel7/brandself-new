@@ -1,6 +1,6 @@
 // S11 : service de statistiques de la vitrine.
 // Règle : aucune logique métier dans une route ; cette couche est appelée par les routes et les jobs.
-import { and, count, countDistinct, eq, gte, lt, sql } from 'drizzle-orm'
+import { and, count, countDistinct, eq, gte, lt, lte, sql } from 'drizzle-orm'
 import {
   reservations,
   statistiquesJour,
@@ -210,14 +210,15 @@ export async function getStatistiques(
   const debutEpoch = Temporal.ZonedDateTime.from(`${debutDate}T00:00:00[${fuseau}]`).epochMilliseconds
   const finEpoch = Temporal.ZonedDateTime.from(`${finDate}T00:00:00[${fuseau}]`).epochMilliseconds + 86_400_000
 
-  // Clics sur toute la fenêtre (toujours dans l'agrégat).
+  // Clics sur toute la fenêtre, aujourd'hui INCLUS (toujours dans l'agrégat, incrémenté en direct :
+  // `lt(finDate)` excluait le jour courant, donc les clics du jour n'apparaissaient que le lendemain).
   const lignesClics = await db
     .select({ jour: statistiquesJour.jour, clics: statistiquesJour.clics })
     .from(statistiquesJour)
     .where(and(
       eq(statistiquesJour.vitrineId, vitrine.id),
       gte(statistiquesJour.jour, debutDate),
-      lt(statistiquesJour.jour, finDate),
+      lte(statistiquesJour.jour, finDate),
     ))
   const clicsParJour = new Map<string, number>()
   for (const ligne of lignesClics) clicsParJour.set(dateIso(ligne.jour), Number(ligne.clics))

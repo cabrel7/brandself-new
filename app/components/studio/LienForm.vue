@@ -190,7 +190,8 @@ async function enregistrer(): Promise<void> {
 </script>
 
 <template>
-  <form class="flex flex-col gap-5" novalidate @submit.prevent="enregistrer">
+  <form class="grid gap-5 lg:grid-cols-2 lg:items-start lg:gap-x-10" novalidate @submit.prevent="enregistrer">
+    <div class="flex flex-col gap-5">
 
     <UFormField
       label="Type de lien"
@@ -259,6 +260,9 @@ async function enregistrer(): Promise<void> {
       />
     </UFormField>
 
+    </div>
+
+    <div class="flex flex-col gap-5">
     <section class="flex flex-col gap-3 rounded-(--rayon) bg-surface p-4">
       <h2 class="m-0 font-(family-name:--font-texte) text-(length:--fs-14) font-semibold tracking-wider text-texte-secondaire uppercase">
         Aperçu sur votre page de liens
@@ -303,6 +307,7 @@ async function enregistrer(): Promise<void> {
         class="mt-3"
         @click="emit('suppression')"
       />
+    </div>
     </div>
   </form>
 </template>
