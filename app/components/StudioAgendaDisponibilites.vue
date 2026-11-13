@@ -1,111 +1,126 @@
 <script setup lang="ts">
+import type { AppliquerJour } from '~/composables/useFeuilleJourDisponibilites'
 import type {
-  ChampPlageAgenda,
   ChampReglageAgenda,
   ErreursDisponibilitesAgenda,
   JourAgendaEdition,
   ReglagesAgendaEdition,
 } from '~/composables/useStudioDisponibilites'
+import { nomLigneJour, plagesRestantesPourJour, resumeJour } from '~/composables/useStudioDisponibilites'
 
-defineProps<{
+const props = defineProps<{
   jours: JourAgendaEdition[]
   reglages: ReglagesAgendaEdition
   fuseauItems: Array<{ label: string, value: string }>
   pasItems: Array<{ label: string, value: number }>
   erreurs: ErreursDisponibilitesAgenda
+  /** Aucune plage dans la semaine : propose la semaine type. */
+  aucunePlage: boolean
+  appliquer: AppliquerJour
 }>()
 
 const emit = defineEmits<{
-  ajouter: [jourSemaine: number]
-  basculer: [jourSemaine: number, ouvert: boolean]
-  supprimer: [cle: string]
-  modifierPlage: [cle: string, champ: ChampPlageAgenda, valeur: string]
+  semaineType: []
   modifierReglage: [champ: ChampReglageAgenda, valeur: string | number]
 }>()
+
+const numeroEdite = ref<number | null>(null)
+const feuilleOuverte = ref(false)
+const liste = useTemplateRef<HTMLElement>('liste')
+let declencheur: HTMLElement | null = null
+
+const lignes = computed(() => props.jours.map((jour) => {
+  const resume = resumeJour(jour.plages)
+  const enErreur = jour.plages.some((plage) => Boolean(props.erreurs.plages[plage.cle]))
+  return {
+    numero: jour.numero,
+    libelle: jour.libelle,
+    resume,
+    ferme: jour.plages.length === 0,
+    enErreur,
+    nom: nomLigneJour(jour.libelle, jour.plages),
+  }
+}))
+
+const jourEdite = computed(() => props.jours.find((jour) => jour.numero === numeroEdite.value) ?? null)
+const autresJours = computed(() => props.jours
+  .filter((jour) => jour.numero !== numeroEdite.value)
+  .map(({ numero, libelle }) => ({ numero, libelle })))
+const limiteJourEdite = computed(() => (numeroEdite.value === null ? 0 : plagesRestantesPourJour(props.jours, numeroEdite.value)))
+
+function ouvrirFeuille(numero: number, evenement: Event): void {
+  declencheur = evenement.currentTarget instanceof HTMLElement ? evenement.currentTarget : null
+  numeroEdite.value = numero
+  feuilleOuverte.value = true
+}
+
+/** La « Semaine type » disparaît une fois appliquée : le focus passe à la première ligne. */
+async function choisirSemaineType(): Promise<void> {
+  emit('semaineType')
+  await nextTick()
+  liste.value?.querySelector<HTMLElement>('button')?.focus()
+}
+
+/** La feuille rend le focus à la ligne d'origine une fois refermée. */
+function rendreLeFocus(): void {
+  declencheur?.focus()
+}
 </script>
 
 <template>
-  <section aria-label="Disponibilités hebdomadaires" class="rounded-(--rayon) border border-bordure bg-surface p-4 md:p-6">
-    <div>
-      <div v-for="jour in jours" :key="jour.numero" class="border-b border-bordure py-4">
-        <div class="flex min-h-(--cible-tactile) items-center justify-between gap-3">
-          <h3 class="m-0 text-base font-semibold text-encre">
-            {{ jour.libelle }}
-          </h3>
-          <USwitch
-            :model-value="jour.plages.length > 0"
-            :aria-label="`${jour.libelle} : jour ouvert`"
-            @update:model-value="emit('basculer', jour.numero, Boolean($event))"
-          />
-        </div>
-
-        <p v-if="jour.plages.length === 0" class="m-0 mt-1 text-(length:--fs-14) text-texte-secondaire">
-          Fermé
-        </p>
-
-        <div v-else class="mt-2 flex flex-col gap-3">
-          <div
-            v-for="plage in jour.plages"
-            :key="plage.cle"
-            class="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_var(--cible-tactile)] items-start gap-2"
-          >
-            <UFormField
-              label="Début"
-              :name="`debut-${plage.cle}`"
-              :error="erreurs.plages[plage.cle]?.debut"
-            >
-              <UInput
-                :id="`debut-${plage.cle}`"
-                type="time"
-                :model-value="plage.debut"
-                class="w-full"
-                :aria-invalid="Boolean(erreurs.plages[plage.cle]?.debut)"
-                @update:model-value="emit('modifierPlage', plage.cle, 'debut', String($event))"
-              />
-            </UFormField>
-            <UFormField
-              label="Fin"
-              :name="`fin-${plage.cle}`"
-              :error="erreurs.plages[plage.cle]?.fin"
-            >
-              <UInput
-                :id="`fin-${plage.cle}`"
-                type="time"
-                :model-value="plage.fin"
-                class="w-full"
-                :aria-invalid="Boolean(erreurs.plages[plage.cle]?.fin)"
-                @update:model-value="emit('modifierPlage', plage.cle, 'fin', String($event))"
-              />
-            </UFormField>
-            <UButton
-              icon="i-ph-x"
-              variant="ghost"
-              color="neutral"
-              size="lg"
-              class="mt-7 size-(--cible-tactile) justify-center p-0"
-              :aria-label="`Supprimer la plage de ${plage.debut} à ${plage.fin}`"
-              @click="emit('supprimer', plage.cle)"
-            />
-          </div>
-        </div>
-
-        <UButton
-          v-if="jour.plages.length > 0"
-          label="Ajouter une plage"
-          icon="i-ph-plus"
-          variant="ghost"
-          color="neutral"
-          size="sm"
-          class="mt-2 -ml-2 min-h-(--cible-tactile) text-accent-texte"
-          :aria-label="`Ajouter une plage le ${jour.libelle.toLowerCase()}`"
-          @click="emit('ajouter', jour.numero)"
-        />
-      </div>
+  <section aria-label="Disponibilités hebdomadaires" class="overflow-hidden rounded-(--rayon) border border-bordure bg-surface">
+    <div v-if="aucunePlage" class="border-b border-bordure px-4 py-3 md:px-6">
+      <UButton
+        label="Semaine type : lundi à vendredi, 9h–17h"
+        icon="i-ph-calendar-check"
+        variant="soft"
+        size="lg"
+        block
+        class="min-h-(--cible-tactile)"
+        @click="choisirSemaineType"
+      />
     </div>
 
-    <details class="group border-b border-bordure">
+    <ul ref="liste" class="m-0 list-none p-0">
+      <li v-for="ligne in lignes" :key="ligne.numero" class="border-b border-bordure">
+        <button
+          type="button"
+          class="flex min-h-14 w-full items-center justify-between gap-3 px-4 py-3 text-left transition-colors hover:bg-accent-doux active:bg-accent-doux focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent md:px-6"
+          :aria-label="ligne.nom"
+          :aria-describedby="ligne.enErreur ? `erreur-jour-${ligne.numero}` : undefined"
+          @click="ouvrirFeuille(ligne.numero, $event)"
+        >
+          <span class="w-24 shrink-0 text-base font-semibold text-encre sm:w-32">{{ ligne.libelle }}</span>
+          <span
+            class="min-w-0 flex-1 text-base"
+            :class="ligne.ferme ? 'text-texte-secondaire' : 'text-encre'"
+          >{{ ligne.resume }}</span>
+          <span
+            v-if="ligne.enErreur"
+            :id="`erreur-jour-${ligne.numero}`"
+            class="flex shrink-0 items-center gap-1 text-(length:--fs-14) font-medium text-erreur"
+          >
+            <UIcon name="i-ph-warning-circle" class="size-4" aria-hidden="true" />
+            À corriger
+          </span>
+          <UIcon name="i-ph-caret-right" class="size-5 shrink-0 text-texte-secondaire" aria-hidden="true" />
+        </button>
+      </li>
+    </ul>
+
+    <StudioAgendaFeuilleJour
+      v-if="jourEdite"
+      v-model:open="feuilleOuverte"
+      :jour="jourEdite"
+      :autres-jours="autresJours"
+      :limite="limiteJourEdite"
+      :appliquer="appliquer"
+      @fermee="rendreLeFocus"
+    />
+
+    <details class="group">
       <summary
-        class="flex min-h-14 cursor-pointer list-none items-center justify-between gap-3 py-2 font-semibold text-encre [&::-webkit-details-marker]:hidden"
+        class="flex min-h-14 cursor-pointer list-none items-center justify-between gap-3 px-4 py-2 font-semibold text-encre transition-colors hover:bg-accent-doux active:bg-accent-doux focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent md:px-6 [&::-webkit-details-marker]:hidden"
       >
         Réglages avancés
         <UIcon
@@ -114,7 +129,7 @@ const emit = defineEmits<{
           aria-hidden="true"
         />
       </summary>
-      <div class="grid gap-4 pb-5 sm:grid-cols-2 xl:grid-cols-1">
+      <div class="grid gap-4 px-4 pb-5 md:px-6 sm:grid-cols-2 xl:grid-cols-1">
         <UFormField label="Fuseau horaire" name="fuseau">
           <USelect
             :model-value="reglages.fuseau"

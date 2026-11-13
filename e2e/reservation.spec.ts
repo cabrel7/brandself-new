@@ -267,7 +267,7 @@ test('le même début ISO issu de GET créneaux relie l’accueil, le détail et
   expect(debutsDetail).toContain(debutAccueil)
 
   await page.goto(urlReservation(service.slug, debutAccueil))
-  await expect(page.getByRole('heading', { level: 1, name: 'Plus qu’une étape pour réserver' })).toBeVisible()
+  await expect(page.getByRole('heading', { level: 1, name: /^Réserver avec / })).toBeVisible()
   await expect(page.getByText(
     `${formaterDateLongue(debutAccueil, reponse.fuseau)}, ${formaterHeure(debutAccueil, reponse.fuseau)}`,
     { exact: true },
@@ -376,7 +376,7 @@ test('un visiteur passe par /agenda, choisit service, jour et heure, confirme vi
   const telechargementPromise = page.waitForEvent('download')
   await page.getByRole('link', { name: 'Ajouter à mon agenda' }).click()
   const telechargement = await telechargementPromise
-  expect(telechargement.suggestedFilename()).toBe('reservation-brandself.ics')
+  expect(telechargement.suggestedFilename()).toBe('reservation-jesuis.pro.ics')
   expect(await telechargement.failure()).toBeNull()
 })
 
@@ -443,7 +443,7 @@ test('la nav publique mène vers /agenda et le GET /reserver sans paramètres re
   // L'accueil reste gelé : le bloc agenda y reste visible ; seul le lien de nav change.
   await expect(page.getByRole('region', { name: 'Réservez votre rendez-vous' })).toBeVisible()
 
-  const navigation = page.getByRole('navigation', { name: 'Vitrine' })
+  const navigation = page.getByRole('navigation', { name: 'Navigation principale' })
   const lienAgenda = navigation.getByRole('link', { name: 'Agenda', exact: true })
   await expect(lienAgenda).toHaveAttribute('href', `/${USERNAME_DEMO}/agenda`)
   await lienAgenda.click()

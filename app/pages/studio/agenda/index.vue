@@ -32,7 +32,7 @@ function plurielDemandes(nombre: number): string {
 </script>
 
 <template>
-  <div class="xl:relative xl:left-1/2 xl:w-[calc(100vw-3rem)] xl:max-w-7xl xl:-translate-x-1/2">
+  <div>
     <div v-if="enChargement" role="status" aria-label="Chargement de votre agenda">
       <div class="flex flex-col gap-3" aria-hidden="true">
         <USkeleton class="h-10 w-48" />

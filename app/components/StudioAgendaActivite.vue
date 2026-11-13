@@ -145,7 +145,7 @@ const groupes = computed<GroupeActivites[]>(() => {
           <h3 class="m-0 text-(length:--fs-14) font-semibold tracking-widest text-texte-secondaire uppercase">
             {{ groupe.jourGroupe }}
           </h3>
-          <ul class="m-0 mt-2 list-none space-y-4 p-0">
+          <ul class="m-0 mt-2 grid list-none gap-4 p-0 md:grid-cols-2">
             <li
               v-for="activite in groupe.activites"
               :key="activite.cle"

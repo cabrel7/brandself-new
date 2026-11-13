@@ -8,6 +8,7 @@ import type { DemandeStatut, ReservationStatut } from '#shared/agenda'
 import type { MessageStudioAgenda } from '~/composables/useStudioDisponibilites'
 import { TOUJOURS_FRAIS as OPTIONS_FRAIS } from '~/composables/useStudioDisponibilites'
 import { useStudioVitrine } from '~/composables/useStudioVitrine'
+import { CLE_AGENDA_A_TRAITER } from '~/composables/useStudioAgendaATraiter'
 
 interface ActionReponse<T extends string> {
   item: { id: string, statut: T }
@@ -343,6 +344,7 @@ export function useStudioAgenda() {
           ...(action === 'confirmer' ? {} : { body: {} }),
         })
         reservation.statut = reponse.item.statut
+        void refreshNuxtData(CLE_AGENDA_A_TRAITER)
         afficherMessage('succes', action === 'confirmer'
           ? 'La réservation est confirmée.'
           : action === 'annuler'
@@ -380,6 +382,7 @@ export function useStudioAgenda() {
           body: { statut: statutCible },
         })
         demande.statut = reponse.item.statut
+        void refreshNuxtData(CLE_AGENDA_A_TRAITER)
         afficherMessage('succes', statutCible === 'en_cours' ? 'La demande est en cours.' : statutCible === 'traitee' ? 'La demande est traitée.' : 'La demande est refusée.')
       }
       catch {

@@ -1,16 +1,21 @@
 import { randomUUID } from 'node:crypto'
-import { and, asc, eq } from 'drizzle-orm'
-import { disponibilites, indisponibilites, vitrines } from '../../shared/db/schema'
+import { and, asc, count, eq, gte, inArray, lt, or } from 'drizzle-orm'
+import type { ReservationStatut } from '../../shared/agenda'
+import { INDISPONIBILITE_PLAGE_MAX_JOURS } from '../../shared/agenda'
+import { disponibilites, indisponibilites, reservations, vitrines } from '../../shared/db/schema'
+import { ABONNEMENT_FUSEAU_REPLI } from '../../shared/plans'
 import type { DisponibiliteInput, IndisponibiliteCreateInput } from '../../shared/schemas/agenda'
-import { ConflictError, NotFoundError, UnprocessableError } from '../exceptions/http'
-import { PG_UNIQUE_VIOLATION, readPgError } from '../utils/pg-error'
+import { ConflictError, NotFoundError, UnprocessableError, ValidationError } from '../exceptions/http'
 import { db } from '../utils/db'
+import { bornesJourLocal, dateEstPassee, etendrePlage } from './agenda-regles'
 import { lockVitrineId, requireVitrineId } from './vitrine-acces'
 
 export type DisponibiliteRow = typeof disponibilites.$inferSelect
 export type IndisponibiliteRow = typeof indisponibilites.$inferSelect
 
-const INDISPONIBILITE_DATE_UNIQUE = 'indisponibilites_vitrine_id_date_unique'
+/** Réservations qui occupent encore un créneau : seules celles-ci comptent comme « concernées » par une fermeture. */
+const STATUTS_RESERVATION_ACTIFS = ['en_attente', 'confirmee'] as const satisfies readonly ReservationStatut[]
+const FUSEAU_REPLI = ABONNEMENT_FUSEAU_REPLI
 
 export interface AgendaSettingsPatch {
   pasCreneauMin?: 15 | 30 | 60
@@ -127,25 +132,93 @@ export async function listOwnIndisponibilites(userId: string): Promise<{ items: 
   return { items }
 }
 
+export interface IndisponibiliteDateResult { type: 'date', item: IndisponibiliteRow, reservationsConcernees: number }
+export interface IndisponibilitePlageResult {
+  type: 'plage'
+  items: IndisponibiliteRow[]
+  creees: number
+  ignorees: number
+  reservationsConcernees: number
+}
+export type IndisponibiliteCreateResult = IndisponibiliteDateResult | IndisponibilitePlageResult
+type IndisponibiliteDateInput = Extract<IndisponibiliteCreateInput, { date: string }>
+type IndisponibilitePlageInput = Extract<IndisponibiliteCreateInput, { debut: string }>
+
+/**
+ * Réservations de LA vitrine encore actives (en attente ou confirmées) dont le début tombe dans l'un des jours
+ * locaux donnés (bornes [00:00, 24:00) du fuseau de la vitrine). Simple comptage : rien n'est annulé ni bloqué.
+ */
+async function compterReservationsConcernees(vitrineId: string, dates: readonly string[], fuseau: string): Promise<number> {
+  if (dates.length === 0) return 0
+  const jours = dates.map((date) => {
+    const { debut, fin } = bornesJourLocal(date, fuseau)
+    return and(gte(reservations.debut, debut), lt(reservations.debut, fin))
+  })
+  const [ligne] = await db
+    .select({ total: count() })
+    .from(reservations)
+    .where(and(
+      eq(reservations.vitrineId, vitrineId),
+      inArray(reservations.statut, [...STATUTS_RESERVATION_ACTIFS]),
+      or(...jours),
+    ))
+  return ligne?.total ?? 0
+}
+
+/**
+ * Ferme une date ou une plage. Règles serveur (l'interface n'est qu'un confort) : aucune date passée dans le fuseau
+ * de la vitrine, plage de 60 jours au plus. Une ligne par jour, toutes insérées dans une seule transaction ; pour une
+ * plage les dates déjà fermées sont ignorées (comptées), pour une date unique elle lève INDISPONIBILITE_EXISTANTE.
+ */
+export async function createIndisponibilite(userId: string, input: IndisponibiliteDateInput, now?: Date): Promise<IndisponibiliteDateResult>
+export async function createIndisponibilite(userId: string, input: IndisponibilitePlageInput, now?: Date): Promise<IndisponibilitePlageResult>
+export async function createIndisponibilite(userId: string, input: IndisponibiliteCreateInput, now?: Date): Promise<IndisponibiliteCreateResult>
 export async function createIndisponibilite(
   userId: string,
   input: IndisponibiliteCreateInput,
-): Promise<{ item: IndisponibiliteRow }> {
-  const vitrineId = await requireVitrineId(userId)
-  try {
-    const [item] = await db
+  now: Date = new Date(),
+): Promise<IndisponibiliteCreateResult> {
+  const plage = 'debut' in input
+  const debut = plage ? input.debut : input.date
+  const dates = plage ? datesDeLaPlage(input.debut, input.fin) : [input.date]
+
+  const { vitrine, creees } = await db.transaction(async (tx) => {
+    const [verrouillee] = await tx
+      .select({ id: vitrines.id, fuseau: vitrines.fuseau })
+      .from(vitrines)
+      .where(eq(vitrines.userId, userId))
+      .for('update')
+    if (!verrouillee) throw new NotFoundError('VITRINE_INTROUVABLE')
+    if (dateEstPassee(debut, now, verrouillee.fuseau || FUSEAU_REPLI)) throw new UnprocessableError('INDISPONIBILITE_DATE_PASSEE')
+
+    const inserees = await tx
       .insert(indisponibilites)
-      .values({ id: randomUUID(), vitrineId, date: input.date, raison: input.raison })
+      .values(dates.map((date) => ({ id: randomUUID(), vitrineId: verrouillee.id, date, raison: input.raison })))
+      .onConflictDoNothing({ target: [indisponibilites.vitrineId, indisponibilites.date] })
       .returning()
-    if (!item) throw new Error('Insertion de l’indisponibilité sans résultat.')
-    return { item }
+    return { vitrine: verrouillee, creees: inserees.sort((a, b) => a.date.localeCompare(b.date)) }
+  })
+
+  const reservationsConcernees = await compterReservationsConcernees(
+    vitrine.id,
+    creees.map((item) => item.date),
+    vitrine.fuseau || FUSEAU_REPLI,
+  )
+  if (!plage) {
+    const [item] = creees
+    if (!item) throw new ConflictError('INDISPONIBILITE_EXISTANTE')
+    return { type: 'date', item, reservationsConcernees }
   }
-  catch (error) {
-    const { code, constraint } = readPgError(error)
-    if (code === PG_UNIQUE_VIOLATION && constraint === INDISPONIBILITE_DATE_UNIQUE) {
-      throw new ConflictError('INDISPONIBILITE_EXISTANTE')
-    }
-    throw error
+  return { type: 'plage', items: creees, creees: creees.length, ignorees: dates.length - creees.length, reservationsConcernees }
+}
+
+function datesDeLaPlage(debut: string, fin: string): string[] {
+  try {
+    return etendrePlage(debut, fin, INDISPONIBILITE_PLAGE_MAX_JOURS)
+  }
+  catch {
+    // Les routes valident déjà le schéma ; ce garde protège les autres appelants (outils, scripts).
+    throw new ValidationError({ fin: ['La plage est invalide ou dépasse la durée maximale.'] })
   }
 }
 
