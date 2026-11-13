@@ -145,6 +145,14 @@ export const vitrines = pgTable(
     palette: text('palette').notNull().default('terracotta'),
     seoTitre: text('seo_titre'),
     seoDescription: text('seo_description'),
+    // Migration 0027 : proposition SEO générée par l'IA, stockée à part des champs saisis (seo_titre/seo_description
+    // restent la saisie manuelle et gagnent toujours). `seo_ia_signature` = empreinte SHA-256 (hex) des données
+    // d'entrée qui ont produit la proposition ; `seo_ia_genere_le` = date de génération. Les quatre colonnes sont
+    // soit toutes NULL, soit signature + date renseignées (titre et description pouvant manquer isolément).
+    seoIaTitre: text('seo_ia_titre'),
+    seoIaDescription: text('seo_ia_description'),
+    seoIaSignature: text('seo_ia_signature'),
+    seoIaGenereLe: timestamp('seo_ia_genere_le', { withTimezone: true }),
     sectionsMasquees: text('sections_masquees').array().notNull().default([]),
     // S9 (migration 0020) : étapes de « prochaine étape » ignorées pour toujours (sous-ensemble de NEXT_STEPS) et
     // date du premier partage de la vitrine (le canal n'est pas stocké : minimisation).
@@ -179,6 +187,23 @@ export const vitrines = pgTable(
     check(
       'vitrines_etapes_ignorees_check',
       sql`${table.etapesIgnorees} <@ ARRAY['photo','service','disponibilites','realisation','partager']::text[]`,
+    ),
+    // Migration 0027 : bornes de la proposition SEO IA (titre 10-50, description 50-160, signature SHA-256 hex).
+    check(
+      'vitrines_seo_ia_titre_check',
+      sql`${table.seoIaTitre} IS NULL OR char_length(${table.seoIaTitre}) BETWEEN 10 AND 50`,
+    ),
+    check(
+      'vitrines_seo_ia_description_check',
+      sql`${table.seoIaDescription} IS NULL OR char_length(${table.seoIaDescription}) BETWEEN 50 AND 160`,
+    ),
+    check(
+      'vitrines_seo_ia_signature_check',
+      sql`${table.seoIaSignature} IS NULL OR ${table.seoIaSignature} ~ '^[0-9a-f]{64}$'`,
+    ),
+    check(
+      'vitrines_seo_ia_coherence_check',
+      sql`(${table.seoIaSignature} IS NULL) = (${table.seoIaGenereLe} IS NULL) AND (${table.seoIaSignature} IS NOT NULL OR (${table.seoIaTitre} IS NULL AND ${table.seoIaDescription} IS NULL))`,
     ),
   ],
 )
@@ -692,7 +717,10 @@ export const promptsIa = pgTable(
     uniqueIndex('prompts_ia_type_actif_unique')
       .on(table.type)
       .where(sql`${table.actif}`),
-    check('prompts_ia_type_check', sql`${table.type} IN ('onboarding_vitrine','ameliorer_texte')`),
+    check(
+      'prompts_ia_type_check',
+      sql`${table.type} IN ('onboarding_vitrine','ameliorer_texte','seo_vitrine')`,
+    ),
     check('prompts_ia_version_check', sql`${table.version} >= 1`),
     check('prompts_ia_systeme_check', sql`char_length(${table.systeme}) BETWEEN 1 AND 20000`),
     check('prompts_ia_gabarit_check', sql`char_length(${table.gabarit}) BETWEEN 1 AND 5000`),
@@ -748,7 +776,10 @@ export const generationsIa = pgTable(
     index('generations_ia_a_purger_idx')
       .on(table.createdAt)
       .where(sql`${table.entree} IS NOT NULL OR ${table.sortie} IS NOT NULL`),
-    check('generations_ia_type_check', sql`${table.type} IN ('onboarding_vitrine','ameliorer_texte')`),
+    check(
+      'generations_ia_type_check',
+      sql`${table.type} IN ('onboarding_vitrine','ameliorer_texte','seo_vitrine')`,
+    ),
     check(
       'generations_ia_statut_check',
       sql`${table.statut} IN ('en_attente','en_cours','terminee','repli','expiree')`,
@@ -887,50 +918,208 @@ export const journalAssistant = pgTable('journal_assistant', {
   index('journal_assistant_created_at_idx').on(table.createdAt),
 ])
 
-// S16 : clients OAuth 2.1 du serveur MCP. Chaque assistant connecté possède un client avec son
-// identifiant, son secret, ses portées autorisées et son URI de redirection.
-export const mcpClients = pgTable('mcp_clients', {
-  id: text('id').primaryKey(),
-  userId: text('user_id')
-    .notNull()
-    .references(() => users.id, { onDelete: 'cascade' }),
-  clientId: text('client_id').notNull().unique(),
-  clientSecret: text('client_secret').notNull(),
-  nom: text('nom').notNull(),
-  redirectUri: text('redirect_uri').notNull(),
-  scopes: text('scopes').array().notNull().default(['vitrine:lecture']),
-  actif: boolean('actif').notNull().default(true),
-  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
-}, (table) => [
-  index('mcp_clients_user_id_idx').on(table.userId),
-  index('mcp_clients_client_id_idx').on(table.clientId),
-])
+// S16 : les tables maison mcp_clients / mcp_tokens ont été supprimées (migration 0026) : l'OAuth du
+// serveur MCP est porté par les tables Better Auth ci-dessous (oauth_clients, oauth_*_tokens, ...).
 
-// S16 : jetons d'accès et de rafraîchissement émis aux assistants connectés. Révocables, à durée
-// de vie courte avec renouvellement via refresh token.
-export const mcpTokens = pgTable('mcp_tokens', {
+// ─── Better Auth : plugins jwt() et mcp() (@better-auth/oauth-provider 1.7.18) ───────────────────────────
+// Source des champs : node_modules/better-auth/dist/plugins/jwt/schema.mjs et
+// @better-auth/oauth-provider dist/authorize-*.mjs (const `schema`, région src/schema.ts).
+// Les PROPRIÉTÉS des colonnes sont les noms de champs du plugin (camelCase, exigé par l'adaptateur
+// Drizzle) ; les colonnes SQL sont en snake_case. Avec `usePlural: true`, l'adaptateur cherche la clé
+// d'export `${modèle}s` : oauthClient -> oauthClients, ... et jwks -> `jwkss` (la table SQL reste `jwks`).
+// Ne PAS renommer ces clés d'export sans changer la configuration de l'adaptateur.
+// Isolation : pas de tenant ici, le périmètre est l'utilisateur (`user_id` -> users.id ON DELETE CASCADE).
+
+// Clés de signature des jetons (plugin jwt). `private_key` est chiffrée par Better Auth (clé BETTER_AUTH_SECRET).
+export const jwkss = pgTable('jwks', {
   id: text('id').primaryKey(),
-  clientId: text('client_id')
-    .notNull()
-    .references(() => mcpClients.id, { onDelete: 'cascade' }),
-  userId: text('user_id')
-    .notNull()
-    .references(() => users.id, { onDelete: 'cascade' }),
-  accessToken: text('access_token').notNull().unique(),
-  refreshToken: text('refresh_token').notNull().unique(),
-  accessTokenExpiresAt: timestamp('access_token_expires_at', { withTimezone: true }).notNull(),
-  refreshTokenExpiresAt: timestamp('refresh_token_expires_at', { withTimezone: true }).notNull(),
-  scopes: text('scopes').array().notNull().default([]),
-  revoke: boolean('revoke').notNull().default(false),
+  publicKey: text('public_key').notNull(),
+  privateKey: text('private_key').notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
-}, (table) => [
-  index('mcp_tokens_client_id_idx').on(table.clientId),
-  index('mcp_tokens_user_id_idx').on(table.userId),
-  index('mcp_tokens_access_token_idx').on(table.accessToken),
-  index('mcp_tokens_refresh_token_idx').on(table.refreshToken),
-])
+  expiresAt: timestamp('expires_at', { withTimezone: true }),
+  alg: text('alg'),
+  crv: text('crv'),
+})
+
+// Clients OAuth (assistants). `client_id` est la clé référencée par les jetons, consentements et liaisons.
+export const oauthClients = pgTable(
+  'oauth_clients',
+  {
+    id: text('id').primaryKey(),
+    clientId: text('client_id').notNull().unique(),
+    clientSecret: text('client_secret'),
+    clientDiscoveryId: text('client_discovery_id'),
+    disabled: boolean('disabled').default(false),
+    skipConsent: boolean('skip_consent'),
+    enableEndSession: boolean('enable_end_session'),
+    subjectType: text('subject_type'),
+    scopes: text('scopes').array(),
+    clientCredentialsScopes: text('client_credentials_scopes').array().default([]),
+    userId: text('user_id').references(() => users.id, { onDelete: 'cascade' }),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
+    name: text('name'),
+    uri: text('uri'),
+    icon: text('icon'),
+    contacts: text('contacts').array(),
+    tos: text('tos'),
+    policy: text('policy'),
+    softwareId: text('software_id'),
+    softwareVersion: text('software_version'),
+    softwareStatement: text('software_statement'),
+    redirectUris: text('redirect_uris').array().notNull(),
+    postLogoutRedirectUris: text('post_logout_redirect_uris').array(),
+    backchannelLogoutUri: text('backchannel_logout_uri'),
+    backchannelLogoutSessionRequired: boolean('backchannel_logout_session_required'),
+    tokenEndpointAuthMethod: text('token_endpoint_auth_method'),
+    applicationType: text('application_type'),
+    jwks: text('jwks'),
+    jwksUri: text('jwks_uri'),
+    grantTypes: text('grant_types').array(),
+    responseTypes: text('response_types').array(),
+    requirePKCE: boolean('require_pkce'),
+    dpopBoundAccessTokens: boolean('dpop_bound_access_tokens').default(false),
+    referenceId: text('reference_id'),
+    // Métadonnées libres du plugin : le JSON est admis ici car il est imposé par Better Auth (réglages).
+    metadata: jsonb('metadata'),
+  },
+  (table) => [index('oauth_clients_user_id_idx').on(table.userId)],
+)
+
+// Ressource protégée dont le serveur d'autorisation émet des jetons (ici : le serveur MCP).
+export const oauthResources = pgTable('oauth_resources', {
+  id: text('id').primaryKey(),
+  identifier: text('identifier').notNull().unique(),
+  name: text('name').notNull(),
+  accessTokenTtl: integer('access_token_ttl'),
+  refreshTokenTtl: integer('refresh_token_ttl'),
+  signingAlgorithm: text('signing_algorithm'),
+  signingKeyId: text('signing_key_id'),
+  allowedScopes: text('allowed_scopes').array(),
+  customClaims: jsonb('custom_claims'),
+  dpopBoundAccessTokensRequired: boolean('dpop_bound_access_tokens_required').default(false),
+  disabled: boolean('disabled').default(false),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
+  policyVersion: integer('policy_version').default(1),
+  metadata: jsonb('metadata'),
+})
+
+// Liaison client <-> ressource : unicité (client_id, resource_id) exigée par le plugin (idempotence).
+export const oauthClientResources = pgTable(
+  'oauth_client_resources',
+  {
+    id: text('id').primaryKey(),
+    clientId: text('client_id')
+      .notNull()
+      .references(() => oauthClients.clientId, { onDelete: 'cascade' }),
+    resourceId: text('resource_id')
+      .notNull()
+      .references(() => oauthResources.identifier, { onDelete: 'cascade' }),
+    metadata: jsonb('metadata'),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
+  },
+  (table) => [
+    uniqueIndex('oauth_client_resources_client_id_resource_id_unique').on(table.clientId, table.resourceId),
+    index('oauth_client_resources_resource_id_idx').on(table.resourceId),
+  ],
+)
+
+// Jeton de rafraîchissement opaque (haché par défaut), lié à une session.
+export const oauthRefreshTokens = pgTable(
+  'oauth_refresh_tokens',
+  {
+    id: text('id').primaryKey(),
+    token: text('token').notNull().unique(),
+    clientId: text('client_id')
+      .notNull()
+      .references(() => oauthClients.clientId, { onDelete: 'cascade' }),
+    sessionId: text('session_id').references(() => sessions.id, { onDelete: 'set null' }),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    referenceId: text('reference_id'),
+    authorizationCodeId: text('authorization_code_id'),
+    resources: text('resources').array(),
+    requestedUserInfoClaims: text('requested_user_info_claims').array(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    revoked: timestamp('revoked', { withTimezone: true }),
+    rotatedAt: timestamp('rotated_at', { withTimezone: true }),
+    rotationReplayResponse: text('rotation_replay_response'),
+    rotationReplayExpiresAt: timestamp('rotation_replay_expires_at', { withTimezone: true }),
+    authTime: timestamp('auth_time', { withTimezone: true }),
+    confirmation: jsonb('confirmation'),
+    scopes: text('scopes').array().notNull(),
+  },
+  (table) => [
+    index('oauth_refresh_tokens_client_id_idx').on(table.clientId),
+    index('oauth_refresh_tokens_session_id_idx').on(table.sessionId),
+    index('oauth_refresh_tokens_user_id_idx').on(table.userId),
+    index('oauth_refresh_tokens_authorization_code_id_idx').on(table.authorizationCodeId),
+  ],
+)
+
+// Jeton d'accès opaque (émis quand aucun `resource` n'est demandé ; sinon JWT sans ligne ici).
+export const oauthAccessTokens = pgTable(
+  'oauth_access_tokens',
+  {
+    id: text('id').primaryKey(),
+    token: text('token').unique(),
+    clientId: text('client_id')
+      .notNull()
+      .references(() => oauthClients.clientId, { onDelete: 'cascade' }),
+    sessionId: text('session_id').references(() => sessions.id, { onDelete: 'set null' }),
+    userId: text('user_id').references(() => users.id, { onDelete: 'cascade' }),
+    referenceId: text('reference_id'),
+    authorizationCodeId: text('authorization_code_id'),
+    resources: text('resources').array(),
+    requestedUserInfoClaims: text('requested_user_info_claims').array(),
+    refreshId: text('refresh_id').references(() => oauthRefreshTokens.id, { onDelete: 'cascade' }),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    revoked: timestamp('revoked', { withTimezone: true }),
+    confirmation: jsonb('confirmation'),
+    scopes: text('scopes').array().notNull(),
+  },
+  (table) => [
+    index('oauth_access_tokens_client_id_idx').on(table.clientId),
+    index('oauth_access_tokens_session_id_idx').on(table.sessionId),
+    index('oauth_access_tokens_user_id_idx').on(table.userId),
+    index('oauth_access_tokens_authorization_code_id_idx').on(table.authorizationCodeId),
+    index('oauth_access_tokens_refresh_id_idx').on(table.refreshId),
+  ],
+)
+
+// Consentement donné par un utilisateur à un client pour des portées données.
+export const oauthConsents = pgTable(
+  'oauth_consents',
+  {
+    id: text('id').primaryKey(),
+    clientId: text('client_id')
+      .notNull()
+      .references(() => oauthClients.clientId, { onDelete: 'cascade' }),
+    userId: text('user_id').references(() => users.id, { onDelete: 'cascade' }),
+    referenceId: text('reference_id'),
+    resources: text('resources').array(),
+    requestedUserInfoClaims: text('requested_user_info_claims').array(),
+    scopes: text('scopes').array().notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('oauth_consents_client_id_idx').on(table.clientId),
+    index('oauth_consents_user_id_idx').on(table.userId),
+  ],
+)
+
+// Usage unique des `jti` d'assertions client (private_key_jwt) : la clé primaire fait foi (anti-rejeu).
+// Le plugin ne purge pas les lignes expirées (TODO amont) : `expires_at` servira à un nettoyage ultérieur
+// (pas d'index tant qu'aucune requête de purge n'existe).
+export const oauthClientAssertions = pgTable('oauth_client_assertions', {
+  id: text('id').primaryKey(),
+  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+})
 
 // S10 (docs/specs/S10-abonnements.md §2, migration 0021) : un paiement = une tentative de règlement d'un
 // abonnement. `id` (UUID généré par l'application) est l'`externalId` envoyé au fournisseur. Pièce
@@ -1257,7 +1446,3 @@ export type ProgressionInscription = typeof progressionsInscription.$inferSelect
 export type NewProgressionInscription = typeof progressionsInscription.$inferInsert
 export type JournalAssistant = typeof journalAssistant.$inferSelect
 export type NewJournalAssistant = typeof journalAssistant.$inferInsert
-export type McpClient = typeof mcpClients.$inferSelect
-export type NewMcpClient = typeof mcpClients.$inferInsert
-export type McpToken = typeof mcpTokens.$inferSelect
-export type NewMcpToken = typeof mcpTokens.$inferInsert

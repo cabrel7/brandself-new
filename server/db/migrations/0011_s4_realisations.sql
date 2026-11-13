@@ -72,12 +72,7 @@ ALTER TABLE realisations
   ADD CONSTRAINT realisations_annee_check CHECK (annee IS NULL OR annee BETWEEN 1900 AND 2100),
   ADD CONSTRAINT realisations_lien_check CHECK (lien IS NULL OR (char_length(lien) <= 500 AND lien ~* '^https?://')),
   ADD CONSTRAINT realisations_ordre_check CHECK (ordre >= 0),
-  ADD CONSTRAINT realisations_vedette_actif_check CHECK (NOT en_vedette OR actif),
-  ADD CONSTRAINT realisations_source_check CHECK (source IN ('utilisateur','assistant'));
---> statement-breakpoint
-
--- S16 : origine de création (utilisateur ou assistant).
-ALTER TABLE realisations ADD COLUMN source text NOT NULL DEFAULT 'utilisateur';
+  ADD CONSTRAINT realisations_vedette_actif_check CHECK (NOT en_vedette OR actif);
 --> statement-breakpoint
 
 -- 5. Galerie : 6 images au plus, garanti par ordre ∈ [0,5] + unicité (realisation_id, ordre), sans trigger.
@@ -111,9 +106,7 @@ CREATE INDEX realisation_images_media_id_idx ON realisation_images (media_id);
 -- ALTER TABLE realisations
 --   DROP CONSTRAINT realisations_vedette_actif_check, DROP CONSTRAINT realisations_ordre_check,
 --   DROP CONSTRAINT realisations_lien_check, DROP CONSTRAINT realisations_annee_check,
---   DROP CONSTRAINT realisations_slug_format_check,
---   DROP CONSTRAINT realisations_source_check;
--- ALTER TABLE realisations DROP COLUMN source;
+--   DROP CONSTRAINT realisations_slug_format_check;
 -- DROP INDEX realisations_image_media_id_idx;
 -- ALTER TABLE realisations DROP CONSTRAINT realisations_image_media_id_medias_id_fk;
 -- DROP INDEX realisations_vitrine_id_slug_unique;

@@ -308,7 +308,7 @@ interface LienDemo {
 
 const liensDemo: readonly LienDemo[] = [
   {
-    id: 'f4a1b2c3-5678-90ab-cdef-123456789021',
+    id: 'f4a1b2c3-5678-4a90-8def-123456789021',
     slug: 'ecrire-sur-whatsapp',
     libelle: 'Écrire sur WhatsApp',
     url: 'https://wa.me/237699000001',
@@ -317,7 +317,7 @@ const liensDemo: readonly LienDemo[] = [
     actif: true,
   },
   {
-    id: 'f4a1b2c3-5678-90ab-cdef-123456789022',
+    id: 'f4a1b2c3-5678-4a90-8def-123456789022',
     slug: 'mon-parcours-sur-linkedin',
     libelle: 'Mon parcours sur LinkedIn',
     url: 'https://www.linkedin.com/in/dr-cabrel-nguesso',
@@ -326,7 +326,7 @@ const liensDemo: readonly LienDemo[] = [
     actif: true,
   },
   {
-    id: 'f4a1b2c3-5678-90ab-cdef-123456789023',
+    id: 'f4a1b2c3-5678-4a90-8def-123456789023',
     slug: 'me-contacter-par-courriel',
     libelle: 'Me contacter par courriel',
     url: 'mailto:contact@dr-cabrel.test',
@@ -335,7 +335,7 @@ const liensDemo: readonly LienDemo[] = [
     actif: true,
   },
   {
-    id: 'f4a1b2c3-5678-90ab-cdef-123456789024',
+    id: 'f4a1b2c3-5678-4a90-8def-123456789024',
     slug: 'site-de-l-hopital',
     libelle: 'Site de l’hôpital',
     url: 'https://hopital-central-douala.test',

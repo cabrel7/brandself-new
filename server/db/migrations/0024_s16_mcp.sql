@@ -15,9 +15,27 @@
 --
 -- Les listes de valeurs (source) sont recopiées en dur ; leur source côté application est
 -- shared/plans.ts (CAPACITES_PAYANTES) et le code des handlers MCP (server/mcp/). Garder synchronisées.
+--
+-- ROLLBACK (à jouer APRES le rollback de 0026 et 0025 ; destructif : perd le journal et les valeurs `source`) :
+--   DROP TABLE IF EXISTS mcp_tokens, mcp_clients;   -- absentes si 0026 est appliquée
+--   DROP TABLE journal_assistant;
+--   ALTER TABLE realisations DROP CONSTRAINT IF EXISTS realisations_source_check, DROP COLUMN IF EXISTS source;
+--   ALTER TABLE services DROP CONSTRAINT IF EXISTS services_source_check, DROP COLUMN IF EXISTS source;
+--   DELETE FROM drizzle.__drizzle_migrations WHERE created_at = 1794117212506;  -- seulement si on rejoue 0024
 
-ALTER TABLE services ADD COLUMN source text NOT NULL DEFAULT 'utilisateur';
-ALTER TABLE realisations ADD COLUMN source text NOT NULL DEFAULT 'utilisateur';
+-- DDL idempotent : une base qui a déjà reçu `source` (et/ou realisations_source_check) par une ancienne
+-- version de 0011 ou de 0024 doit pouvoir rejouer cette migration sans erreur.
+-- ADD COLUMN avec défaut constant : métadonnée seule (PG >= 11), aucune réécriture de table.
+ALTER TABLE services ADD COLUMN IF NOT EXISTS source text NOT NULL DEFAULT 'utilisateur';
+ALTER TABLE realisations ADD COLUMN IF NOT EXISTS source text NOT NULL DEFAULT 'utilisateur';
+
+-- Contraintes CHECK des colonnes source (elles étaient, à tort, dans 0011 pour realisations et
+-- absentes pour services ; 0011 ayant déjà été appliqué partout, le S16 les place ici).
+-- DROP IF EXISTS puis ADD : même nom, même définition, quelle que soit l'histoire de la base.
+ALTER TABLE services DROP CONSTRAINT IF EXISTS services_source_check;
+ALTER TABLE services ADD CONSTRAINT services_source_check CHECK (source IN ('utilisateur','assistant'));
+ALTER TABLE realisations DROP CONSTRAINT IF EXISTS realisations_source_check;
+ALTER TABLE realisations ADD CONSTRAINT realisations_source_check CHECK (source IN ('utilisateur','assistant'));
 
 CREATE TABLE journal_assistant (
   id text PRIMARY KEY NOT NULL,

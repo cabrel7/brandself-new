@@ -1,0 +1,41 @@
+-- S16 : suppression des tables maison mcp_clients / mcp_tokens (créées par 0024), doublons de l'OAuth
+-- Better Auth (oauth_clients, oauth_access_tokens, oauth_refresh_tokens, oauth_consents : migration 0025).
+-- Vérifié avant écriture : aucune lecture/écriture applicative (server/, shared/ hors schéma, app/, tests/,
+-- worker/, scripts/, e2e/) ; 0 ligne en base de dev. DESTRUCTIF : toute ligne existante est perdue
+-- (re-vérifier `SELECT count(*)` sur les deux tables avant de jouer en production).
+-- `journal_assistant` et les colonnes `source` (services, realisations) sont CONSERVÉS.
+--
+-- ROLLBACK (recrée les tables vides, à l'identique de 0024 ; les données supprimées ne sont pas restaurées) :
+--   CREATE TABLE mcp_clients (
+--     id text PRIMARY KEY NOT NULL,
+--     user_id text NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+--     client_id text NOT NULL UNIQUE,
+--     client_secret text NOT NULL,
+--     nom text NOT NULL,
+--     redirect_uri text NOT NULL,
+--     scopes text[] NOT NULL DEFAULT ARRAY['vitrine:lecture']::text[],
+--     actif boolean NOT NULL DEFAULT true,
+--     created_at timestamp with time zone DEFAULT now() NOT NULL,
+--     updated_at timestamp with time zone DEFAULT now() NOT NULL
+--   );
+--   CREATE INDEX mcp_clients_user_id_idx ON mcp_clients(user_id);
+--   CREATE INDEX mcp_clients_client_id_idx ON mcp_clients(client_id);
+--   CREATE TABLE mcp_tokens (
+--     id text PRIMARY KEY NOT NULL,
+--     client_id text NOT NULL REFERENCES mcp_clients(id) ON DELETE CASCADE,
+--     user_id text NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+--     access_token text NOT NULL UNIQUE,
+--     refresh_token text NOT NULL UNIQUE,
+--     access_token_expires_at timestamp with time zone NOT NULL,
+--     refresh_token_expires_at timestamp with time zone NOT NULL,
+--     scopes text[] NOT NULL DEFAULT ARRAY[]::text[],
+--     revoke boolean NOT NULL DEFAULT false,
+--     created_at timestamp with time zone DEFAULT now() NOT NULL,
+--     updated_at timestamp with time zone DEFAULT now() NOT NULL
+--   );
+--   CREATE INDEX mcp_tokens_client_id_idx ON mcp_tokens(client_id);
+--   CREATE INDEX mcp_tokens_user_id_idx ON mcp_tokens(user_id);
+--   CREATE INDEX mcp_tokens_access_token_idx ON mcp_tokens(access_token);
+--   CREATE INDEX mcp_tokens_refresh_token_idx ON mcp_tokens(refresh_token);
+DROP TABLE "mcp_tokens";--> statement-breakpoint
+DROP TABLE "mcp_clients";
