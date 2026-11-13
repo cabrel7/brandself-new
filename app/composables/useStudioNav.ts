@@ -16,6 +16,7 @@ export const ENTREES_NAV: readonly EntreeNav[] = [
 const ECRANS_ENFANTS: readonly string[] = [
   '/studio/profil',
   '/studio/compte',
+  '/studio/assistants',
   // S7-bis : disponibilités détaillées (retour « ← Agenda ») et messages (retour « ← Vitrine »).
   '/studio/agenda/disponibilites',
   '/studio/messages',

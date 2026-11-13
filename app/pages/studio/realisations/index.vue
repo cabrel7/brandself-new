@@ -55,10 +55,8 @@ const resumeTexte = computed(() => resumeListeRealisations(resume.value.visibles
             {{ resumeTexte }}
           </p>
         </div>
-        <UButton
-          label="Ajouter"
+        <StudioBoutonAjouter
           :to="ajout.atteinte.value ? undefined : '/studio/realisations/nouveau'"
-          class="shrink-0"
           @click="ajout.tenter()"
         />
       </header>
@@ -86,7 +84,7 @@ const resumeTexte = computed(() => resumeListeRealisations(resume.value.visibles
         </div>
       </div>
 
-      <ul v-else ref="liste" class="m-0 mt-4 list-none border-t border-bordure p-0">
+      <ul v-else ref="liste" class="m-0 mt-4 list-none border-t border-bordure p-0 md:grid md:grid-cols-2 md:gap-x-8">
         <StudioRealisationLigne
           v-for="realisation in realisations"
           :key="realisation.id"

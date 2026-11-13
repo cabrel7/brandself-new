@@ -38,6 +38,27 @@
   --hauteur-controle: 3.5rem;
   --cible-tactile: 2.75rem;
   --transition: 150ms ease-out;
+
+  /* Couleurs de marque des plateformes (pastille des liens de la page /@username).
+     Indépendantes de la palette. Blanc (--sur-marque) sur chaque couleur >= 3:1
+     (icône, élément d'interface) : WhatsApp 4,1 · LinkedIn 5,6 · Instagram 4,9 ·
+     Facebook 4,2 · YouTube 5,0 · TikTok/X 21 · Telegram 3,9. Teintes de marque
+     légèrement assombries (WhatsApp, Telegram) pour tenir ce ratio. */
+  --marque-whatsapp: #128C7E;
+  --marque-linkedin: #0A66C2;
+  --marque-instagram: #C13584;
+  --marque-facebook: #1877F2;
+  --marque-youtube: #E00000;
+  --marque-tiktok: #010101;
+  --marque-x: #000000;
+  --marque-telegram: #0088CC;
+  /* Point du logotype « jesuis.pro » (#C1512A, mesuré dans les SVG de marque). Jamais surchargé par une palette de vitrine. */
+  --marque-jesuispro: #C1512A;
+  --sur-marque: #FFFFFF;
+
+  /* Photo de la page /@username : arche 144 x 176 px. */
+  --photo-arche-largeur: 9rem;
+  --photo-arche-hauteur: 11rem;
 }
 
 /* Palettes de vitrine (PROJECT_CONTEXT.md §9.2). Un attribut `data-palette`
@@ -189,6 +210,31 @@ h3 {
   color: var(--texte-secondaire);
   font-size: var(--fs-16);
   line-height: 1.5;
+}
+
+/* ---------- Gabarit du studio ---------- */
+
+/* Largeur de contenu UNIQUE du studio : la barre du haut et le contenu des
+   pages (app/layouts/studio.vue) l'utilisent tous deux, donc leurs bords
+   restent alignés à chaque point de rupture. 390 px : pleine largeur, marge
+   de 1 rem · 768 px : marge de 1,5 rem, plafond 64 rem · 1280 px : 72 rem. */
+.studio-conteneur {
+  width: 100%;
+  margin-inline: auto;
+  padding-inline: 1rem;
+  max-width: 64rem;
+}
+
+@media (min-width: 48rem) {
+  .studio-conteneur {
+    padding-inline: 1.5rem;
+  }
+}
+
+@media (min-width: 80rem) {
+  .studio-conteneur {
+    max-width: 72rem;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

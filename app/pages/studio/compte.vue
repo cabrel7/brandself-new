@@ -9,7 +9,7 @@ const {
   moi, enChargement, enErreur, refresh, enregistrement, mettreAJour,
   erreurInformations, confirmationInformations, erreurEmails, confirmationEmails,
 } = useMoi()
-const { installer: installerApplication, dejaInstalle: dejaInstalleApp, deviceType: deviceTypeApp } = usePwaInstall()
+const { installer: installerApplication, dejaInstalle: dejaInstalleApp, appareil: appareilApp } = usePwaInstall()
 const { enregistrerEvenement: enregistrerEvenementStats } = usePwaStats()
 const preferences = usePreferencesEmail(moi, mettreAJour)
 const appareils = useAppareils()
@@ -56,8 +56,9 @@ function annulerSuppression(): void {
 }
 
 async function installerCompteApp(): Promise<void> {
-  await installerApplication()
-  await enregistrerEvenementStats('installee', 'studio', deviceTypeApp)
+  if (await installerApplication() === 'acceptee') {
+    await enregistrerEvenementStats('installee', 'studio', appareilApp)
+  }
 }
 </script>
 
@@ -81,8 +82,11 @@ async function installerCompteApp(): Promise<void> {
       :actions="[{ label: 'Réessayer', size: 'xl', onClick: () => refresh() }]"
     />
 
-    <div v-else class="mt-2 flex flex-col gap-8">
-      <h1 class="m-0 text-(length:--fs-32) leading-tight font-semibold text-encre">
+    <!-- PC : deux colonnes en flux (CSS columns), pas une grille en rangées : en rangées, chaque rangée prend
+         la hauteur de sa section la plus haute et laisse de grands vides sous les plus courtes. L'ordre de lecture
+         et l'ordre mobile restent ceux du DOM ; le titre s'étend sur les deux colonnes. -->
+    <div v-else class="mt-2 flex flex-col gap-8 md:block md:columns-2 md:gap-x-10 md:*:mb-8 md:*:break-inside-avoid">
+      <h1 class="m-0 text-(length:--fs-32) leading-tight font-semibold text-encre md:[column-span:all]">
         Mon compte
       </h1>
 
@@ -171,22 +175,37 @@ async function installerCompteApp(): Promise<void> {
 
       <section aria-labelledby="titre-application" class="flex flex-col gap-3">
         <h2 id="titre-application" class="m-0 text-(length:--fs-20) font-semibold text-encre">
-          Application
+          Application et assistants
         </h2>
-        <p class="m-0 text-base text-texte-secondaire">
-          Installez jesuis.pro sur votre téléphone pour retrouver votre studio en un geste, sans retenir l'adresse.
-        </p>
-        <UButton
-          v-if="!dejaInstalleApp"
-          label="Installer l'application"
-          variant="outline"
-          block
-          :loading="enregistrement"
-          @click="installerCompteApp"
-        />
-        <p v-else class="m-0 text-(length:--fs-14) text-texte-secondaire">
-          L'application est déjà installée sur cet appareil.
-        </p>
+        <div class="border-y border-bordure">
+          <div class="flex min-h-14 items-center justify-between gap-3 py-3">
+            <span class="flex min-w-0 items-center gap-3">
+              <span class="flex size-10 shrink-0 items-center justify-center rounded-(--rayon-interne) border border-bordure bg-surface">
+                <img src="/brand/icone.png" alt="" class="size-6" aria-hidden="true">
+              </span>
+              <span class="min-w-0 text-base text-encre">Installer l’application</span>
+            </span>
+            <UButton
+              v-if="!dejaInstalleApp"
+              label="Installer"
+              variant="outline"
+              size="lg"
+              :loading="enregistrement"
+              @click="installerCompteApp"
+            />
+            <UIcon v-else name="i-ph-check" class="size-5 shrink-0 text-accent-texte" aria-hidden="true" />
+          </div>
+          <p v-if="dejaInstalleApp" class="m-0 pb-3 text-(length:--fs-14) text-texte-secondaire">
+            L’application est déjà installée sur cet appareil.
+          </p>
+          <NuxtLink
+            to="/studio/assistants"
+            class="flex min-h-14 cursor-pointer items-center justify-between gap-3 border-t border-bordure bg-transparent px-1 text-left text-base text-encre no-underline transition-colors hover:bg-surface"
+          >
+            <span>Assistants</span>
+            <UIcon name="i-ph-caret-right" class="size-5 shrink-0 text-accent-texte" aria-hidden="true" />
+          </NuxtLink>
+        </div>
       </section>
 
       <section aria-labelledby="titre-securite" class="flex flex-col gap-3">

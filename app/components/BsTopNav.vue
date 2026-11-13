@@ -2,21 +2,20 @@
 import type { NavigationMenuItem } from '@nuxt/ui'
 import { MARQUE } from '#shared/brand'
 
+// Le logo est l'unique contenu du lien : le lien porte un nom accessible explicite.
+const LIBELLE_LIEN_ACCUEIL = `${MARQUE.nom}, accueil du studio`
+
 const { entrees, estActive, estEcranEnfant } = useStudioNav()
-const { vitrine } = useStudioVitrine()
+const { nombre, affichage, libelleAccessible } = useStudioAgendaATraiter()
 
 const items = computed<NavigationMenuItem[]>(() =>
   entrees.map((entree) => ({
     label: entree.label,
     to: entree.to,
     active: estActive(entree.to),
+    slot: entree.to === CHEMIN_AGENDA ? 'agenda' : undefined,
   })),
 )
-
-const initiales = computed(() => {
-  if (!vitrine.value) return ''
-  return `${vitrine.value.prenom.charAt(0)}${vitrine.value.nom.charAt(0)}`.toUpperCase()
-})
 </script>
 
 <template>
@@ -24,42 +23,42 @@ const initiales = computed(() => {
     class="sticky top-0 z-10 border-b border-bordure bg-fond"
     :class="{ 'max-md:hidden': estEcranEnfant }"
   >
-    <div class="mx-auto flex h-14 items-center justify-between px-4 md:hidden">
+    <div class="studio-conteneur flex h-14 items-center justify-between md:hidden">
       <NuxtLink
         to="/studio"
-        class="font-(family-name:--font-titre) text-(length:--fs-20) font-semibold text-encre no-underline"
+        :aria-label="LIBELLE_LIEN_ACCUEIL"
+        class="inline-flex min-h-(--cible-tactile) items-center"
       >
-        {{ MARQUE.nom }}
+        <BsLogo variante="wordmark" class="h-8" />
       </NuxtLink>
-      <NuxtLink
-        to="/studio/compte"
-        aria-label="Votre compte"
-        class="inline-flex size-11 items-center justify-center rounded-full"
-      >
-        <UAvatar :text="initiales || undefined" icon="i-ph-user" size="lg" aria-hidden="true" />
-      </NuxtLink>
+      <StudioMenuCompte />
     </div>
 
-    <div class="mx-auto hidden h-16 max-w-5xl items-center justify-between gap-6 px-6 md:flex">
+    <div class="studio-conteneur hidden h-16 items-center justify-between gap-6 md:flex">
       <NuxtLink
         to="/studio"
-        class="font-(family-name:--font-titre) text-(length:--fs-24) font-semibold text-encre no-underline"
+        :aria-label="LIBELLE_LIEN_ACCUEIL"
+        class="inline-flex min-h-(--cible-tactile) items-center"
       >
-        {{ MARQUE.nom }}
+        <BsLogo variante="horizontal" class="h-10" />
       </NuxtLink>
       <UNavigationMenu
         :items="items"
         orientation="horizontal"
         aria-label="Navigation du studio"
         :ui="{ link: 'min-h-(--cible-tactile) items-center text-base' }"
-      />
-      <NuxtLink
-        to="/studio/compte"
-        aria-label="Votre compte"
-        class="inline-flex size-11 items-center justify-center rounded-full"
       >
-        <UAvatar :text="initiales || undefined" icon="i-ph-user" size="lg" aria-hidden="true" />
-      </NuxtLink>
+        <template #agenda-trailing>
+          <template v-if="nombre > 0">
+            <span
+              class="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-accent px-1.5 text-(length:--fs-12) leading-5 font-semibold text-sur-accent"
+              aria-hidden="true"
+            >{{ affichage }}</span>
+            <span class="sr-only">, {{ libelleAccessible }}</span>
+          </template>
+        </template>
+      </UNavigationMenu>
+      <StudioMenuCompte />
     </div>
   </header>
 </template>

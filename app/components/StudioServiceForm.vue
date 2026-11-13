@@ -44,7 +44,8 @@ const aidePrix = computed(() =>
 </script>
 
 <template>
-  <form class="flex flex-col gap-6" novalidate @submit.prevent="enregistrer">
+  <form class="grid gap-6 lg:grid-cols-2 lg:items-start lg:gap-x-10" novalidate @submit.prevent="enregistrer">
+    <div class="flex flex-col gap-6">
     <UFormField name="imageMediaId">
       <template #label>
         Photo <StudioMentionFacultative feminin />
@@ -115,7 +116,9 @@ const aidePrix = computed(() =>
       </template>
       <UInput v-model="form.dureeMin" inputmode="numeric" @update:model-value="viderErreur('dureeMin')" />
     </UFormField>
+    </div>
 
+    <div class="flex flex-col gap-6">
     <div class="flex flex-col gap-2">
       <URadioGroup
         v-model="form.tarif"
@@ -258,6 +261,7 @@ const aidePrix = computed(() =>
         block
         @click="suppressionOuverte = true"
       />
+    </div>
     </div>
 
     <UModal

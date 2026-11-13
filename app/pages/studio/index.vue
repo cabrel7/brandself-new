@@ -47,27 +47,24 @@ watch(partageOuvert, async (ouvert) => {
 
 const manquants = computed(() => resume.value?.manquantsPourPublier ?? [])
 
-function compteur(nombre: number): string {
-  return nombre === 0 ? 'À ajouter' : String(nombre)
-}
-
 function pluriel(nombre: number, singulier: string, pluralise: string): string {
   return nombre > 1 ? pluralise : singulier
 }
 
 const lignes = computed(() => [
   { label: 'Profil', to: '/studio/profil', valeur: manquants.value.length === 0 ? 'Complet' : 'À compléter', recent: false },
-  { label: 'Services', to: '/studio/services', valeur: compteur(resume.value?.compteurs.services ?? 0), recent: false },
-  { label: 'Réalisations', to: '/studio/realisations', valeur: compteur(resume.value?.compteurs.realisations ?? 0), recent: false },
-  { label: 'Témoignages', to: '/studio/temoignages', valeur: compteur(resume.value?.compteurs.temoignages ?? 0), recent: false },
-  { label: 'Agenda', to: '/studio/agenda', valeur: etatAgenda.value, recent: false },
+  {
+    label: 'Témoignages',
+    to: '/studio/temoignages',
+    valeur: (resume.value?.compteurs.temoignages ?? 0) === 0 ? 'À ajouter' : String(resume.value?.compteurs.temoignages),
+    recent: false,
+  },
   {
     label: 'Messages',
     to: '/studio/messages',
     valeur: messagesNonLus.value > 0 ? `${messagesNonLus.value} ${pluriel(messagesNonLus.value, 'non lu', 'non lus')}` : 'Tout est lu',
     recent: messagesNonLus.value > 0,
   },
-  { label: 'Liens', to: '/studio/liens', valeur: compteur(resume.value?.compteurs.liens ?? 0), recent: false },
 ])
 
 const statistiques = computed(() => {
@@ -83,7 +80,6 @@ const statistiques = computed(() => {
 // Un seul message de publication à la fois.
 const messagePublication = ref('')
 const profilIncomplet = ref(false)
-const confirmerDepublication = ref(false)
 
 async function publier(): Promise<void> {
   messagePublication.value = ''
@@ -93,14 +89,6 @@ async function publier(): Promise<void> {
     messagePublication.value = resultat.message
     profilIncomplet.value = resultat.manquants.length > 0
   }
-}
-
-async function depublier(): Promise<void> {
-  messagePublication.value = ''
-  profilIncomplet.value = false
-  const resultat = await changerPublication('depublier')
-  if (resultat.ok) confirmerDepublication.value = false
-  else messagePublication.value = resultat.message
 }
 </script>
 
@@ -131,30 +119,98 @@ async function depublier(): Promise<void> {
       :actions="[{ label: 'Réessayer', size: 'xl', onClick: () => refresh() }]"
     />
 
-    <div v-else class="flex flex-col gap-8">
-      <header class="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
+    <div v-else class="flex flex-col gap-8 md:grid md:grid-cols-2 md:items-start md:gap-x-10">
+      <header class="flex flex-wrap items-center justify-between gap-x-4 gap-y-3 md:col-span-2">
         <div class="min-w-0">
           <h1 class="m-0 text-(length:--fs-24) leading-tight font-semibold text-encre md:text-(length:--fs-32)">
             Bonjour {{ vitrine.prenom }}
           </h1>
-          <p class="m-0 break-all text-base text-texte-secondaire">
-            {{ affichee }}
+          <p class="m-0 flex items-center gap-2 text-base text-texte-secondaire">
+            <span class="inline-flex shrink-0 items-center" :title="vitrine.publiee ? 'En ligne' : 'Brouillon'">
+              <span
+                class="size-2.5 rounded-full"
+                :class="vitrine.publiee ? 'bg-accent' : 'bg-texte-secondaire'"
+                aria-hidden="true"
+              />
+              <span class="sr-only">{{ vitrine.publiee ? 'En ligne' : 'Brouillon' }}</span>
+            </span>
+            <span class="min-w-0 break-all">{{ affichee }}</span>
+          </p>
+          <p v-if="!vitrine.publiee" class="m-0 mt-1 text-(length:--fs-14) text-texte-secondaire">
+            <template v-if="manquants.length > 0">
+              Pour publier, complétez votre profil : {{ libelleChampsManquants(manquants) }}.
+            </template>
+            <template v-else>
+              Votre vitrine n’est visible que par vous. Publiez-la quand vous êtes prêt.
+            </template>
           </p>
         </div>
-        <UBadge color="neutral" variant="outline" size="lg">
-          <span
-            class="size-2 rounded-full"
-            :class="vitrine.publiee ? 'bg-accent' : 'bg-texte-secondaire'"
-            aria-hidden="true"
-          />
-          {{ vitrine.publiee ? 'Publiée' : 'Brouillon' }}
-        </UBadge>
+
+        <div class="flex flex-wrap items-center gap-2">
+          <UButton
+            :to="`/${vitrine.username}`"
+            target="_blank"
+            icon="i-ph-arrow-square-out"
+            variant="outline"
+            color="neutral"
+            size="lg"
+            aria-label="Voir ma vitrine"
+            class="min-h-(--cible-tactile) min-w-(--cible-tactile) justify-center"
+          >
+            <span class="hidden sm:inline">Voir</span>
+          </UButton>
+          <UButton
+            icon="i-ph-share-network"
+            variant="outline"
+            color="neutral"
+            size="lg"
+            aria-label="Partager ma vitrine"
+            aria-haspopup="dialog"
+            class="min-h-(--cible-tactile) min-w-(--cible-tactile) justify-center"
+            @click="partageOuvert = true"
+          >
+            <span class="hidden sm:inline">Partager</span>
+          </UButton>
+          <template v-if="!vitrine.publiee">
+            <UButton
+              v-if="manquants.length > 0"
+              label="Compléter mon profil"
+              to="/studio/profil"
+              size="lg"
+              class="min-h-(--cible-tactile) justify-center"
+            />
+            <UButton
+              v-else
+              label="Publier ma vitrine"
+              size="lg"
+              class="min-h-(--cible-tactile) justify-center"
+              :loading="publicationEnCours"
+              :disabled="publicationEnCours"
+              @click="publier"
+            />
+          </template>
+        </div>
       </header>
 
-      <section aria-label="Statistiques des 7 derniers jours">
+      <div v-if="messagePublication" class="flex flex-col items-start gap-1 md:col-span-2">
+        <p role="alert" class="message-erreur">
+          <UIcon name="i-ph-warning-circle" class="size-5 shrink-0" aria-hidden="true" />
+          <span>{{ messagePublication }}</span>
+        </p>
+        <UButton
+          v-if="profilIncomplet"
+          label="Compléter mon profil"
+          to="/studio/profil"
+          size="lg"
+          variant="link"
+          class="min-h-(--cible-tactile)"
+        />
+      </div>
+
+      <section aria-label="Statistiques des 7 derniers jours" class="md:col-span-2">
         <BsCard>
-          <dl class="m-0 grid grid-cols-3 gap-4">
-            <div v-for="stat in statistiques" :key="stat.label" class="flex flex-col-reverse">
+          <dl class="m-0 grid grid-cols-3 divide-x divide-bordure">
+            <div v-for="stat in statistiques" :key="stat.label" class="flex min-w-0 flex-col-reverse items-center px-2 text-center">
               <dt class="text-base text-texte-secondaire">
                 {{ stat.label }}
               </dt>
@@ -163,7 +219,7 @@ async function depublier(): Promise<void> {
               </dd>
             </div>
           </dl>
-          <p class="m-0 text-(length:--fs-14) text-texte-secondaire">
+          <p class="m-0 text-center text-(length:--fs-14) text-texte-secondaire">
             7 derniers jours
           </p>
         </BsCard>
@@ -234,68 +290,6 @@ async function depublier(): Promise<void> {
             </NuxtLink>
           </li>
         </ul>
-      </section>
-
-      <section aria-labelledby="titre-publication" class="flex flex-col gap-3">
-        <h2 id="titre-publication" class="m-0 text-(length:--fs-20) font-semibold text-encre">
-          Publication
-        </h2>
-
-        <p v-if="messagePublication" role="alert" class="message-erreur">
-          <UIcon name="i-ph-warning-circle" class="size-5 shrink-0" aria-hidden="true" />
-          <span>{{ messagePublication }}</span>
-        </p>
-        <UButton
-          v-if="messagePublication && profilIncomplet"
-          label="Compléter mon profil"
-          to="/studio/profil"
-          size="lg"
-          variant="link"
-          class="self-start"
-        />
-
-        <template v-if="vitrine.publiee">
-          <p class="m-0 text-base text-texte-secondaire">
-            Votre vitrine est en ligne et visible de tous.
-          </p>
-          <p v-if="confirmerDepublication" class="m-0 text-base text-encre">
-            Elle ne sera plus visible tant que vous ne l’aurez pas publiée de nouveau.
-          </p>
-          <div v-if="confirmerDepublication" class="flex flex-col gap-2 sm:flex-row">
-            <UButton label="Dépublier ma vitrine" color="error" class="min-h-(--cible-tactile)" :loading="publicationEnCours" @click="depublier" />
-            <UButton label="Annuler" variant="outline" color="neutral" class="min-h-(--cible-tactile)" :disabled="publicationEnCours" @click="confirmerDepublication = false" />
-          </div>
-          <div v-else class="flex flex-col gap-2 sm:flex-row">
-            <UButton label="Voir ma vitrine" :to="`/${vitrine.username}`" target="_blank" variant="outline" class="min-h-(--cible-tactile)" />
-            <UButton label="Partager ma vitrine" icon="i-ph-share-network" variant="outline" aria-haspopup="dialog" class="min-h-(--cible-tactile)" @click="partageOuvert = true" />
-            <UButton label="Dépublier" variant="ghost" color="neutral" class="min-h-(--cible-tactile)" @click="confirmerDepublication = true" />
-          </div>
-        </template>
-
-        <template v-else>
-          <p v-if="manquants.length > 0" class="m-0 text-base text-texte-secondaire">
-            Pour publier, complétez votre profil : {{ libelleChampsManquants(manquants) }}.
-          </p>
-          <p v-else class="m-0 text-base text-texte-secondaire">
-            Votre vitrine n’est visible que par vous. Publiez-la quand vous êtes prêt.
-          </p>
-          <div class="flex flex-col gap-2 sm:flex-row">
-            <UButton
-              v-if="manquants.length > 0"
-              label="Compléter mon profil"
-              to="/studio/profil"
-              variant="outline"
-              class="min-h-(--cible-tactile)"
-            />
-            <UButton
-              v-else
-              label="Publier ma vitrine"
-              class="min-h-(--cible-tactile)"
-              :loading="publicationEnCours"
-              @click="publier"
-            />
-          </div>
-        </template>
       </section>
     </div>
   </div>

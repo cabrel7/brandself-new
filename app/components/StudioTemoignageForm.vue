@@ -248,7 +248,8 @@ async function supprimer(): Promise<void> {
     :actions="[{ label: 'Retour aux témoignages', to: '/studio/temoignages', size: 'xl' }]"
   />
 
-  <form v-else class="flex flex-col gap-6" novalidate @submit.prevent="enregistrer">
+  <form v-else class="grid gap-6 lg:grid-cols-2 lg:items-start lg:gap-x-10" novalidate @submit.prevent="enregistrer">
+    <div class="flex flex-col gap-6">
     <UFormField label="Auteur" name="auteur" required :error="erreurs.auteur">
       <UInput
         v-model="form.auteur"
@@ -284,7 +285,9 @@ async function supprimer(): Promise<void> {
         {{ form.texte.length }} sur {{ TEMOINAGE_TEXTE_MAX }} caractères.
       </p>
     </UFormField>
+    </div>
 
+    <div class="flex flex-col gap-6">
     <div class="flex flex-col border-y border-bordure">
       <div class="border-b border-bordure py-4">
         <USwitch
@@ -348,6 +351,7 @@ async function supprimer(): Promise<void> {
         block
         @click="suppressionOuverte = true"
       />
+    </div>
     </div>
 
     <UModal

@@ -193,5 +193,15 @@ export default defineAppConfig({
         },
       ],
     },
+
+    // Feuille bas de page (nouveau style) : décollée des bords (8 px), coins arrondis
+    // aux quatre angles au rayon interne — plus doux que la feuille collée d'avant.
+    // Au-delà du mobile, la modale reste centrée (comportement par défaut de @nuxt/ui).
+    modal: {
+      slots: {
+        content:
+          'max-sm:inset-x-2 max-sm:top-auto max-sm:bottom-2 max-sm:translate-x-0 max-sm:translate-y-0 max-sm:w-auto max-sm:max-w-none max-sm:max-h-[calc(100dvh-1.5rem)] max-sm:rounded-(--rayon-interne)',
+      },
+    },
   },
 })
