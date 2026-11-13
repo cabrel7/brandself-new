@@ -1,4 +1,5 @@
 import { Resend } from 'resend'
+import { z } from 'zod'
 import { env } from '../../../shared/env'
 
 const EMAIL_TIMEOUT_MS = 10_000
@@ -14,6 +15,10 @@ export interface EmailMessage {
   to: string
   subject: string
   text: string
+  /** Version HTML (décision #26) ; `text` reste toujours envoyé en alternative. */
+  html?: string
+  /** Adresse de réponse (validée, sans saut de ligne) ; émise par le SDK en `reply_to`. */
+  replyTo?: string
   attachments: EmailAttachment[]
   /** En-têtes SMTP supplémentaires (S9 : `List-Unsubscribe` et `List-Unsubscribe-Post`, RFC 8058). */
   headers?: Record<string, string>
@@ -30,6 +35,19 @@ export class EmailTransportError extends Error {
     super(code)
     this.name = 'EmailTransportError'
     this.code = code
+  }
+}
+
+const LINE_BREAK = /[\r\n]/
+const replyToSchema = z.email()
+
+/** Garde-fous exécutés AVANT tout appel HTTP (injection d'en-têtes). Aucune valeur refusée n'est reprise dans l'erreur. */
+function assertSafeMessage(message: EmailMessage): void {
+  if (message.replyTo !== undefined && (LINE_BREAK.test(message.replyTo) || !replyToSchema.safeParse(message.replyTo).success)) {
+    throw new EmailTransportError('REPLY_TO_INVALIDE')
+  }
+  for (const [name, value] of Object.entries(message.headers ?? {})) {
+    if (LINE_BREAK.test(name) || LINE_BREAK.test(value)) throw new EmailTransportError('EN_TETE_INVALIDE')
   }
 }
 
@@ -51,6 +69,7 @@ export class ResendEmailTransport implements EmailTransport {
 
   async send(message: EmailMessage, idempotencyKey: string): Promise<void> {
     if (!this.apiKey) throw new EmailTransportError('RESEND_NON_CONFIGURE')
+    assertSafeMessage(message)
 
     try {
       const resend = new Resend(this.apiKey, this.baseUrl ? { baseUrl: this.baseUrl } : undefined)
@@ -59,6 +78,8 @@ export class ResendEmailTransport implements EmailTransport {
         to: message.to,
         subject: message.subject,
         text: message.text,
+        ...(message.html ? { html: message.html } : {}),
+        ...(message.replyTo ? { replyTo: message.replyTo } : {}),
         attachments: message.attachments,
         ...(message.headers ? { headers: message.headers } : {}),
       }, {

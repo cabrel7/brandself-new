@@ -1,0 +1,15 @@
+to: visiteur@exemple.test
+subject: Votre code de connexion jesuis.pro
+headers:
+  (aucun)
+attachments:
+  (aucun)
+--- text ---
+Bonjour,
+
+Votre code de connexion : 123456
+
+Il est valable 10 minutes. Si vous n'êtes pas à l'origine de cette demande, ignorez ce message.
+
+À tout de suite,
+jesuis.pro

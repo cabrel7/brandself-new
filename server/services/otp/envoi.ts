@@ -1,5 +1,8 @@
+import { randomUUID } from 'node:crypto'
 import { env } from '../../../shared/env'
-import { MARQUE } from '../../../shared/brand'
+import { buildOtpEmail } from '../emails/otp-contenu'
+import { EmailTransportError, transactionalEmailTransport } from '../emails/transport'
+import type { EmailTransport } from '../emails/transport'
 
 export type OtpChannel = 'email' | 'sms' | 'whatsapp'
 
@@ -9,10 +12,11 @@ export type OtpChannel = 'email' | 'sms' | 'whatsapp'
 // Strictement inactif en production (le dépôt et la lecture sont refusés).
 export const BOITE_OTP_PREFIXE = 'otp:boite:'
 export const BOITE_OTP_DUREE_SECONDES = 600
+const SECONDES_PAR_MINUTE = 60
 
 export interface OtpSender {
   readonly canal: OtpChannel
-  send(identifier: string, code: string): Promise<void>
+  send(identifier: string, code: string, idempotencyKey?: string): Promise<void>
 }
 
 async function deposerDansLaBoite(identifier: string, code: string): Promise<void> {
@@ -23,25 +27,39 @@ async function deposerDansLaBoite(identifier: string, code: string): Promise<voi
   await redis.set(`${BOITE_OTP_PREFIXE}${identifier}`, code, 'EX', BOITE_OTP_DUREE_SECONDES)
 }
 
+export const ERREUR_OTP_EMAIL_ECHEC = 'OTP_EMAIL_ECHEC'
+export const ERREUR_OTP_SMS_NON_CONFIGURE = 'OTP_SMS_NON_CONFIGURE'
+
+/** Seul le code d'erreur sort d'ici : ni l'adresse ni le code (le message finit dans `failedReason` BullMQ/Redis). */
+function erreurSansDonnee(error: unknown): EmailTransportError {
+  return error instanceof EmailTransportError ? new EmailTransportError(error.code) : new EmailTransportError(ERREUR_OTP_EMAIL_ECHEC)
+}
+
 export class SenderOtpEmail implements OtpSender {
   readonly canal = 'email' as const
 
-  async send(identifier: string, code: string): Promise<void> {
+  /** Un transport injecté est TOUJOURS utilisé ; `null` = mode console / boîte de développement (aucune clé Resend). */
+  constructor(private readonly transport: EmailTransport | null) {}
+
+  async send(identifier: string, code: string, idempotencyKey: string = `otp-email:${randomUUID()}`): Promise<void> {
+    const message = buildOtpEmail({
+      destinataire: identifier,
+      code,
+      dureeMinutes: BOITE_OTP_DUREE_SECONDES / SECONDES_PAR_MINUTE,
+      siteUrl: env.NUXT_PUBLIC_SITE_URL,
+    })
     await deposerDansLaBoite(identifier, code)
-    if (env.RESEND_API_KEY && env.NODE_ENV === 'production') {
-      const { Resend } = await import('resend')
-      const resend = new Resend(env.RESEND_API_KEY)
-      const result = await resend.emails.send({
-        from: env.EMAIL_EXPEDITEUR,
-        to: identifier,
-        subject: `Votre code de connexion ${MARQUE.nom}`,
-        text: `Bonjour,\n\nVotre code de connexion : ${code}\n\nIl est valable 10 minutes. Si vous n'êtes pas à l'origine de cette demande, ignorez ce message.\n\nÀ tout de suite,\n${MARQUE.nom}`,
-      })
-      if (result.error) {
-        throw new Error(`Resend : ${result.error.message}`)
+    if (this.transport) {
+      try {
+        await this.transport.send(message, idempotencyKey)
+      }
+      catch (error) {
+        throw erreurSansDonnee(error)
       }
       return
     }
+    // Sans transport en production, le code ne doit jamais être écrit dans un journal.
+    if (env.NODE_ENV === 'production') throw new EmailTransportError('RESEND_NON_CONFIGURE')
     console.info(`[otp:email] code pour ${identifier} : ${code}`)
   }
 }
@@ -50,6 +68,8 @@ export class SenderOtpSms implements OtpSender {
   readonly canal = 'sms' as const
 
   async send(identifier: string, code: string): Promise<void> {
+    // Aucun fournisseur SMS : en production, ni le code ni le numéro ne doivent finir dans un journal.
+    if (env.NODE_ENV === 'production') throw new Error(ERREUR_OTP_SMS_NON_CONFIGURE)
     await deposerDansLaBoite(identifier, code)
     console.info(`[otp:sms] code pour ${identifier} : ${code}`)
   }
@@ -63,5 +83,5 @@ export class SenderOtpWhatsapp implements OtpSender {
   }
 }
 
-export const senderOtpEmail = new SenderOtpEmail()
+export const senderOtpEmail = new SenderOtpEmail(env.RESEND_API_KEY && env.NODE_ENV === 'production' ? transactionalEmailTransport : null)
 export const senderOtpSms = new SenderOtpSms()

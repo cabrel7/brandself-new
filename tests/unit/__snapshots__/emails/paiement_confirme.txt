@@ -1,0 +1,233 @@
+==========
+type: paiement_confirme | cas: reçu complet | fuseau: Africa/Douala
+==========
+to: cabrel.pro@exemple.test
+subject: Votre paiement est confirmé
+headers:
+  (aucun)
+attachments:
+  (aucun)
+--- text ---
+Bonjour Cabrel,
+
+Merci, nous avons bien reçu votre paiement. Votre abonnement est actif jusqu'au 31 juillet 2026 inclus.
+
+Montant : 4 800 000 FCFA
+Période : 3 mois
+Moyen de paiement : MTN MoMo
+Numéro : +237 6•• ••• •89
+Référence : 55555555-5555-4555-8555-555555555555
+Référence de l'opérateur : KPAY-REF-001
+Nouvelle échéance : jusqu'au 31 juillet 2026 inclus
+
+Ce récapitulatif n'est pas une facture.
+
+À bientôt,
+jesuis.pro
+
+—
+Vous recevez cet e-mail parce qu'un paiement a été effectué pour votre abonnement jesuis.pro. C'est un message de service : il ne peut pas être désactivé.
+
+==========
+type: paiement_confirme | cas: reçu minimal (moyen, numéro, référence opérateur et échéance absents) | fuseau: Africa/Douala
+==========
+to: cabrel.pro@exemple.test
+subject: Votre paiement est confirmé
+headers:
+  (aucun)
+attachments:
+  (aucun)
+--- text ---
+Bonjour Cabrel,
+
+Merci, nous avons bien reçu votre paiement.
+
+Montant : 4 800 000 FCFA
+Période : 3 mois
+Moyen de paiement : Paiement en ligne
+Référence : 55555555-5555-4555-8555-555555555555
+
+Ce récapitulatif n'est pas une facture.
+
+À bientôt,
+jesuis.pro
+
+—
+Vous recevez cet e-mail parce qu'un paiement a été effectué pour votre abonnement jesuis.pro. C'est un message de service : il ne peut pas être désactivé.
+
+==========
+type: paiement_confirme | cas: devise USD (centimes) | fuseau: Africa/Douala
+==========
+to: cabrel.pro@exemple.test
+subject: Votre paiement est confirmé
+headers:
+  (aucun)
+attachments:
+  (aucun)
+--- text ---
+Bonjour Cabrel,
+
+Merci, nous avons bien reçu votre paiement. Votre abonnement est actif jusqu'au 31 juillet 2026 inclus.
+
+Montant : 25,50 USD
+Période : 1 mois
+Moyen de paiement : MTN MoMo
+Numéro : +237 6•• ••• •89
+Référence : 55555555-5555-4555-8555-555555555555
+Référence de l'opérateur : KPAY-REF-001
+Nouvelle échéance : jusqu'au 31 juillet 2026 inclus
+
+Ce récapitulatif n'est pas une facture.
+
+À bientôt,
+jesuis.pro
+
+—
+Vous recevez cet e-mail parce qu'un paiement a été effectué pour votre abonnement jesuis.pro. C'est un message de service : il ne peut pas être désactivé.
+
+==========
+type: paiement_confirme | cas: devise inconnue (exposant 2 par défaut, code ISO affiché) | fuseau: Africa/Douala
+==========
+to: cabrel.pro@exemple.test
+subject: Votre paiement est confirmé
+headers:
+  (aucun)
+attachments:
+  (aucun)
+--- text ---
+Bonjour Cabrel,
+
+Merci, nous avons bien reçu votre paiement. Votre abonnement est actif jusqu'au 31 juillet 2026 inclus.
+
+Montant : 1 234,56 CHF
+Période : 12 mois
+Moyen de paiement : MTN MoMo
+Numéro : +237 6•• ••• •89
+Référence : 55555555-5555-4555-8555-555555555555
+Référence de l'opérateur : KPAY-REF-001
+Nouvelle échéance : jusqu'au 31 juillet 2026 inclus
+
+Ce récapitulatif n'est pas une facture.
+
+À bientôt,
+jesuis.pro
+
+—
+Vous recevez cet e-mail parce qu'un paiement a été effectué pour votre abonnement jesuis.pro. C'est un message de service : il ne peut pas être désactivé.
+
+==========
+type: paiement_confirme | cas: reçu complet | fuseau: Europe/Paris
+==========
+to: cabrel.pro@exemple.test
+subject: Votre paiement est confirmé
+headers:
+  (aucun)
+attachments:
+  (aucun)
+--- text ---
+Bonjour Cabrel,
+
+Merci, nous avons bien reçu votre paiement. Votre abonnement est actif jusqu'au 1er août 2026 inclus.
+
+Montant : 4 800 000 FCFA
+Période : 3 mois
+Moyen de paiement : MTN MoMo
+Numéro : +237 6•• ••• •89
+Référence : 55555555-5555-4555-8555-555555555555
+Référence de l'opérateur : KPAY-REF-001
+Nouvelle échéance : jusqu'au 1er août 2026 inclus
+
+Ce récapitulatif n'est pas une facture.
+
+À bientôt,
+jesuis.pro
+
+—
+Vous recevez cet e-mail parce qu'un paiement a été effectué pour votre abonnement jesuis.pro. C'est un message de service : il ne peut pas être désactivé.
+
+==========
+type: paiement_confirme | cas: reçu minimal (moyen, numéro, référence opérateur et échéance absents) | fuseau: Europe/Paris
+==========
+to: cabrel.pro@exemple.test
+subject: Votre paiement est confirmé
+headers:
+  (aucun)
+attachments:
+  (aucun)
+--- text ---
+Bonjour Cabrel,
+
+Merci, nous avons bien reçu votre paiement.
+
+Montant : 4 800 000 FCFA
+Période : 3 mois
+Moyen de paiement : Paiement en ligne
+Référence : 55555555-5555-4555-8555-555555555555
+
+Ce récapitulatif n'est pas une facture.
+
+À bientôt,
+jesuis.pro
+
+—
+Vous recevez cet e-mail parce qu'un paiement a été effectué pour votre abonnement jesuis.pro. C'est un message de service : il ne peut pas être désactivé.
+
+==========
+type: paiement_confirme | cas: devise USD (centimes) | fuseau: Europe/Paris
+==========
+to: cabrel.pro@exemple.test
+subject: Votre paiement est confirmé
+headers:
+  (aucun)
+attachments:
+  (aucun)
+--- text ---
+Bonjour Cabrel,
+
+Merci, nous avons bien reçu votre paiement. Votre abonnement est actif jusqu'au 1er août 2026 inclus.
+
+Montant : 25,50 USD
+Période : 1 mois
+Moyen de paiement : MTN MoMo
+Numéro : +237 6•• ••• •89
+Référence : 55555555-5555-4555-8555-555555555555
+Référence de l'opérateur : KPAY-REF-001
+Nouvelle échéance : jusqu'au 1er août 2026 inclus
+
+Ce récapitulatif n'est pas une facture.
+
+À bientôt,
+jesuis.pro
+
+—
+Vous recevez cet e-mail parce qu'un paiement a été effectué pour votre abonnement jesuis.pro. C'est un message de service : il ne peut pas être désactivé.
+
+==========
+type: paiement_confirme | cas: devise inconnue (exposant 2 par défaut, code ISO affiché) | fuseau: Europe/Paris
+==========
+to: cabrel.pro@exemple.test
+subject: Votre paiement est confirmé
+headers:
+  (aucun)
+attachments:
+  (aucun)
+--- text ---
+Bonjour Cabrel,
+
+Merci, nous avons bien reçu votre paiement. Votre abonnement est actif jusqu'au 1er août 2026 inclus.
+
+Montant : 1 234,56 CHF
+Période : 12 mois
+Moyen de paiement : MTN MoMo
+Numéro : +237 6•• ••• •89
+Référence : 55555555-5555-4555-8555-555555555555
+Référence de l'opérateur : KPAY-REF-001
+Nouvelle échéance : jusqu'au 1er août 2026 inclus
+
+Ce récapitulatif n'est pas une facture.
+
+À bientôt,
+jesuis.pro
+
+—
+Vous recevez cet e-mail parce qu'un paiement a été effectué pour votre abonnement jesuis.pro. C'est un message de service : il ne peut pas être désactivé.

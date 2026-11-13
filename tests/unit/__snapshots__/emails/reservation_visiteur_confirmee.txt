@@ -1,0 +1,299 @@
+==========
+type: reservation_visiteur_confirmee | cas: payant XAF sur place avec instructions | fuseau: Africa/Douala
+==========
+to: marie.ndzi@exemple.test
+subject: Votre réservation est confirmée
+headers:
+  (aucun)
+attachments:
+  reservation.ics | text/calendar; charset=utf-8; method=REQUEST
+--- text ---
+Bonjour,
+
+Votre réservation est confirmée. Nous vous attendons avec plaisir.
+
+Service : Consultation de cardiologie
+Professionnel : Dr Cabrel Nguesso
+Date : mardi 14 juillet 2026 à 23:30
+Durée : 45 minutes
+Lieu : Douala
+Tarif : 15<NNBSP>000 XAF
+Règlement : sur place
+Instructions : Orange Money au 699 00 00 11
+
+À bientôt,
+Dr Cabrel Nguesso
+Cardiologue
+https://jesuis.pro/dr-cabrel
+
+—
+Vous recevez cet e-mail à la suite de votre réservation sur la vitrine de Dr Cabrel Nguesso.
+Envoyé via jesuis.pro
+
+==========
+type: reservation_visiteur_confirmee | cas: gratuit sans durée ni ville | fuseau: Africa/Douala
+==========
+to: marie.ndzi@exemple.test
+subject: Votre réservation est confirmée
+headers:
+  (aucun)
+attachments:
+  reservation.ics | text/calendar; charset=utf-8; method=REQUEST
+--- text ---
+Bonjour,
+
+Votre réservation est confirmée. Nous vous attendons avec plaisir.
+
+Service : Consultation de cardiologie
+Professionnel : Dr Cabrel Nguesso
+Date : mardi 14 juillet 2026 à 23:30
+Tarif : Gratuit
+
+À bientôt,
+Dr Cabrel Nguesso
+Cardiologue
+https://jesuis.pro/dr-cabrel
+
+—
+Vous recevez cet e-mail à la suite de votre réservation sur la vitrine de Dr Cabrel Nguesso.
+Envoyé via jesuis.pro
+
+==========
+type: reservation_visiteur_confirmee | cas: sur devis, durée 90 min | fuseau: Africa/Douala
+==========
+to: marie.ndzi@exemple.test
+subject: Votre réservation est confirmée
+headers:
+  (aucun)
+attachments:
+  reservation.ics | text/calendar; charset=utf-8; method=REQUEST
+--- text ---
+Bonjour,
+
+Votre réservation est confirmée. Nous vous attendons avec plaisir.
+
+Service : Consultation de cardiologie
+Professionnel : Dr Cabrel Nguesso
+Date : mardi 14 juillet 2026 à 23:30
+Durée : 90 minutes
+Lieu : Paris
+Tarif : Sur devis
+
+À bientôt,
+Dr Cabrel Nguesso
+Cardiologue
+https://jesuis.pro/dr-cabrel
+
+—
+Vous recevez cet e-mail à la suite de votre réservation sur la vitrine de Dr Cabrel Nguesso.
+Envoyé via jesuis.pro
+
+==========
+type: reservation_visiteur_confirmee | cas: payant USD en centimes | fuseau: Africa/Douala
+==========
+to: marie.ndzi@exemple.test
+subject: Votre réservation est confirmée
+headers:
+  (aucun)
+attachments:
+  reservation.ics | text/calendar; charset=utf-8; method=REQUEST
+--- text ---
+Bonjour,
+
+Votre réservation est confirmée. Nous vous attendons avec plaisir.
+
+Service : Consultation de cardiologie
+Professionnel : Dr Cabrel Nguesso
+Date : mardi 14 juillet 2026 à 23:30
+Durée : 60 minutes
+Lieu : Douala
+Tarif : 25,5 USD
+
+À bientôt,
+Dr Cabrel Nguesso
+Cardiologue
+https://jesuis.pro/dr-cabrel
+
+—
+Vous recevez cet e-mail à la suite de votre réservation sur la vitrine de Dr Cabrel Nguesso.
+Envoyé via jesuis.pro
+
+==========
+type: reservation_visiteur_confirmee | cas: payant sans montant | fuseau: Africa/Douala
+==========
+to: marie.ndzi@exemple.test
+subject: Votre réservation est confirmée
+headers:
+  (aucun)
+attachments:
+  reservation.ics | text/calendar; charset=utf-8; method=REQUEST
+--- text ---
+Bonjour,
+
+Votre réservation est confirmée. Nous vous attendons avec plaisir.
+
+Service : Consultation de cardiologie
+Professionnel : Dr Cabrel Nguesso
+Date : mardi 14 juillet 2026 à 23:30
+Durée : 45 minutes
+Lieu : Douala
+Tarif : Payant
+
+À bientôt,
+Dr Cabrel Nguesso
+Cardiologue
+https://jesuis.pro/dr-cabrel
+
+—
+Vous recevez cet e-mail à la suite de votre réservation sur la vitrine de Dr Cabrel Nguesso.
+Envoyé via jesuis.pro
+
+==========
+type: reservation_visiteur_confirmee | cas: payant XAF sur place avec instructions | fuseau: Europe/Paris
+==========
+to: marie.ndzi@exemple.test
+subject: Votre réservation est confirmée
+headers:
+  (aucun)
+attachments:
+  reservation.ics | text/calendar; charset=utf-8; method=REQUEST
+--- text ---
+Bonjour,
+
+Votre réservation est confirmée. Nous vous attendons avec plaisir.
+
+Service : Consultation de cardiologie
+Professionnel : Dr Cabrel Nguesso
+Date : mercredi 15 juillet 2026 à 00:30
+Durée : 45 minutes
+Lieu : Douala
+Tarif : 15<NNBSP>000 XAF
+Règlement : sur place
+Instructions : Orange Money au 699 00 00 11
+
+À bientôt,
+Dr Cabrel Nguesso
+Cardiologue
+https://jesuis.pro/dr-cabrel
+
+—
+Vous recevez cet e-mail à la suite de votre réservation sur la vitrine de Dr Cabrel Nguesso.
+Envoyé via jesuis.pro
+
+==========
+type: reservation_visiteur_confirmee | cas: gratuit sans durée ni ville | fuseau: Europe/Paris
+==========
+to: marie.ndzi@exemple.test
+subject: Votre réservation est confirmée
+headers:
+  (aucun)
+attachments:
+  reservation.ics | text/calendar; charset=utf-8; method=REQUEST
+--- text ---
+Bonjour,
+
+Votre réservation est confirmée. Nous vous attendons avec plaisir.
+
+Service : Consultation de cardiologie
+Professionnel : Dr Cabrel Nguesso
+Date : mercredi 15 juillet 2026 à 00:30
+Tarif : Gratuit
+
+À bientôt,
+Dr Cabrel Nguesso
+Cardiologue
+https://jesuis.pro/dr-cabrel
+
+—
+Vous recevez cet e-mail à la suite de votre réservation sur la vitrine de Dr Cabrel Nguesso.
+Envoyé via jesuis.pro
+
+==========
+type: reservation_visiteur_confirmee | cas: sur devis, durée 90 min | fuseau: Europe/Paris
+==========
+to: marie.ndzi@exemple.test
+subject: Votre réservation est confirmée
+headers:
+  (aucun)
+attachments:
+  reservation.ics | text/calendar; charset=utf-8; method=REQUEST
+--- text ---
+Bonjour,
+
+Votre réservation est confirmée. Nous vous attendons avec plaisir.
+
+Service : Consultation de cardiologie
+Professionnel : Dr Cabrel Nguesso
+Date : mercredi 15 juillet 2026 à 00:30
+Durée : 90 minutes
+Lieu : Paris
+Tarif : Sur devis
+
+À bientôt,
+Dr Cabrel Nguesso
+Cardiologue
+https://jesuis.pro/dr-cabrel
+
+—
+Vous recevez cet e-mail à la suite de votre réservation sur la vitrine de Dr Cabrel Nguesso.
+Envoyé via jesuis.pro
+
+==========
+type: reservation_visiteur_confirmee | cas: payant USD en centimes | fuseau: Europe/Paris
+==========
+to: marie.ndzi@exemple.test
+subject: Votre réservation est confirmée
+headers:
+  (aucun)
+attachments:
+  reservation.ics | text/calendar; charset=utf-8; method=REQUEST
+--- text ---
+Bonjour,
+
+Votre réservation est confirmée. Nous vous attendons avec plaisir.
+
+Service : Consultation de cardiologie
+Professionnel : Dr Cabrel Nguesso
+Date : mercredi 15 juillet 2026 à 00:30
+Durée : 60 minutes
+Lieu : Paris
+Tarif : 25,5 USD
+
+À bientôt,
+Dr Cabrel Nguesso
+Cardiologue
+https://jesuis.pro/dr-cabrel
+
+—
+Vous recevez cet e-mail à la suite de votre réservation sur la vitrine de Dr Cabrel Nguesso.
+Envoyé via jesuis.pro
+
+==========
+type: reservation_visiteur_confirmee | cas: payant sans montant | fuseau: Europe/Paris
+==========
+to: marie.ndzi@exemple.test
+subject: Votre réservation est confirmée
+headers:
+  (aucun)
+attachments:
+  reservation.ics | text/calendar; charset=utf-8; method=REQUEST
+--- text ---
+Bonjour,
+
+Votre réservation est confirmée. Nous vous attendons avec plaisir.
+
+Service : Consultation de cardiologie
+Professionnel : Dr Cabrel Nguesso
+Date : mercredi 15 juillet 2026 à 00:30
+Durée : 45 minutes
+Lieu : Douala
+Tarif : Payant
+
+À bientôt,
+Dr Cabrel Nguesso
+Cardiologue
+https://jesuis.pro/dr-cabrel
+
+—
+Vous recevez cet e-mail à la suite de votre réservation sur la vitrine de Dr Cabrel Nguesso.
+Envoyé via jesuis.pro
