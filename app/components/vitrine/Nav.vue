@@ -64,7 +64,6 @@ const liens = computed(() => {
           v-model:open="menuOuvert"
           side="top"
           description="Pages de la vitrine"
-          :close="{ 'aria-label': 'Fermer le menu' }"
           :ui="{ content: 'bg-fond text-encre', wrapper: 'min-w-0 flex-1', title: 'line-clamp-2 font-(family-name:--font-titre) text-(length:--fs-20) font-bold text-encre', description: 'sr-only', close: 'shrink-0' }"
         >
           <button
