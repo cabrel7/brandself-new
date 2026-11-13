@@ -16,7 +16,7 @@ import type { Session } from '../helpers/session'
 
 const CLES_STUDIO = [
   'actif', 'annee', 'creeLe', 'description', 'enVedette', 'galerie', 'id', 'image', 'lieu', 'lien', 'masqueParPlan', 'modifieLe',
-  'ordre', 'role', 'slug', 'titre',
+  'ordre', 'role', 'slug', 'source', 'titre',
 ].sort()
 const CLES_CARTE_PUBLIQUE = ['annee', 'description', 'image', 'lieu', 'slug', 'titre'].sort()
 const CLES_DETAIL_PUBLIC = [...CLES_CARTE_PUBLIQUE, 'galerie', 'lien', 'role', 'seo'].sort()
@@ -47,6 +47,7 @@ interface RealisationStudio {
   enVedette: boolean
   actif: boolean
   masqueParPlan: boolean
+  source: 'utilisateur' | 'assistant'
   ordre: number
 }
 
@@ -216,6 +217,7 @@ test.describe.serial('réalisations — API studio et publique (S4-CA44 à CA46)
         enVedette: true,
         actif: true,
         ordre: 0,
+        source: 'utilisateur',
         galerie: [],
       })
       expect(Object.keys(corps.realisation.image ?? {}).sort()).toEqual(CLES_MEDIA)

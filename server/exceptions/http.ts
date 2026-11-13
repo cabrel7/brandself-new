@@ -32,6 +32,7 @@ export const ERROR_MESSAGES: Record<ErrorCode, string> = {
   DISPONIBILITES_INVALIDES: 'Ces disponibilités se chevauchent ou sont invalides.',
   INDISPONIBILITE_INTROUVABLE: 'Cette indisponibilité est introuvable.',
   INDISPONIBILITE_EXISTANTE: 'Cette date est déjà indisponible.',
+  INDISPONIBILITE_DATE_PASSEE: 'Cette date est déjà passée. Choisissez une date à venir.',
   RESERVATION_INTROUVABLE: 'Cette réservation est introuvable.',
   MESSAGE_INTROUVABLE: 'Ce message est introuvable.',
   CRENEAU_INDISPONIBLE: 'Ce créneau n’est pas disponible.',
@@ -78,6 +79,8 @@ export const ERROR_MESSAGES: Record<ErrorCode, string> = {
   AUTHENTIFICATION_REQUISE: 'Authentification requise.',
   PLAN_PAYANT_REQUIS: 'Réservé au plan payant.',
   PORTÉE_INSUFFISANTE: 'Portée insuffisante pour cet outil.',
+  ASSISTANT_INTROUVABLE: 'Cet assistant est introuvable.',
+  IDEMPOTENCE_ARGUMENTS_DIFFERENTS: 'Cette clé d’idempotence a déjà servi pour une autre demande. Utilisez une nouvelle clé pour une nouvelle demande.',
   ERREUR_INTERNE: 'Une erreur est survenue de notre côté. Réessayez dans un instant.',
 }
 

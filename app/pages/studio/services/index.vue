@@ -10,6 +10,24 @@ const {
 
 // Limite du plan atteinte : « Ajouter » affiche le message de limite au lieu d'ouvrir le formulaire.
 const ajout = useLimiteAjout(computed(() => compteurs.value?.limitePlan))
+
+// Sous-titre : segments omis à zéro (maquettes S3 « 5 visibles · 3 en vedette sur 3 » et
+// S16 « 6 visibles · 2 brouillons »).
+const sousTitre = computed(() => {
+  const segments = [`${resume.value.visibles} ${resume.value.visibles > 1 ? 'visibles' : 'visible'}`]
+  if (resume.value.brouillons > 0) segments.push(`${resume.value.brouillons} ${resume.value.brouillons > 1 ? 'brouillons' : 'brouillon'}`)
+  if (resume.value.enVedette > 0) segments.push(`${resume.value.enVedette} en vedette sur ${resume.value.vedetteMax}`)
+  return segments.join(' · ')
+})
+
+// Éléments créés par l'assistant et encore masqués : un seul message à l'écran, la bannière
+// cède la place au message de limite ou d'erreur.
+const brouillonsAssistant = computed(() => resume.value.brouillonsAssistant)
+const banniereVisible = computed(() =>
+  brouillonsAssistant.value > 0 && !enChargement.value && !ajout.affichee.value && !message.value
+)
+const libelleBanniere = computed(() => (brouillonsAssistant.value === 1 ? '1 élément créé par votre assistant attend votre relecture.' : `${brouillonsAssistant.value} éléments créés par votre assistant attendent votre relecture.`))
+const aideBanniere = computed(() => (brouillonsAssistant.value === 1 ? 'Relisez-le, puis activez l’interrupteur « Visible » pour le publier.' : 'Relisez-les, puis activez l’interrupteur « Visible » pour les publier.'))
 </script>
 
 <template>
@@ -48,14 +66,11 @@ const ajout = useLimiteAjout(computed(() => compteurs.value?.limitePlan))
             Services
           </h1>
           <p v-if="!enChargement" class="m-0 mt-1 text-base text-texte-secondaire">
-            {{ resume.visibles }} {{ resume.visibles > 1 ? 'visibles' : 'visible' }} · {{ resume.enVedette }} en vedette sur {{ resume.vedetteMax }}
+            {{ sousTitre }}
           </p>
         </div>
-        <UButton
-          label="Ajouter"
+        <StudioBoutonAjouter
           :to="ajout.atteinte.value ? undefined : '/studio/services/nouveau'"
-          icon="i-ph-plus"
-          class="shrink-0"
           @click="ajout.tenter()"
         />
       </header>
@@ -72,12 +87,19 @@ const ajout = useLimiteAjout(computed(() => compteurs.value?.limitePlan))
         <span>{{ message }}</span>
       </p>
 
-      <div v-if="enChargement" role="status" class="mt-4 flex flex-col gap-4">
+      <div v-if="banniereVisible" class="mt-4 rounded-(--rayon) bg-accent-doux p-5">
+        <p class="m-0 text-base font-semibold text-encre">{{ libelleBanniere }}</p>
+        <p class="m-0 mt-1 text-base text-texte-secondaire">
+          {{ aideBanniere }}
+        </p>
+      </div>
+
+      <div v-if="enChargement" role="status" class="mt-4 flex flex-col gap-4 md:grid md:grid-cols-2">
         <span class="sr-only">Chargement de vos services</span>
         <USkeleton v-for="n in 4" :key="n" class="h-20 w-full" aria-hidden="true" />
       </div>
 
-      <ul v-else ref="liste" class="m-0 mt-4 list-none border-t border-bordure p-0">
+      <ul v-else ref="liste" class="m-0 mt-4 list-none border-t border-bordure p-0 md:grid md:grid-cols-2 md:gap-x-8">
         <StudioServiceLigne
           v-for="service in services"
           :key="service.id"

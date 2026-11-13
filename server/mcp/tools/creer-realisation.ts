@@ -2,9 +2,7 @@
 // Crée une réalisation en brouillon. Sans image principale, reste masquée et ne peut pas être activée.
 
 import { createRealisation } from '../../services/realisations'
-import { db } from '../../utils/db'
-import { realisations } from '../../../shared/db/schema'
-import { eq } from 'drizzle-orm'
+import { SOURCE_ASSISTANT } from '../../../shared/mcp'
 import type { ContexteMcp, Scope } from '../types'
 
 export interface RealisationCree {
@@ -31,7 +29,6 @@ export async function executer(
     role?: string | null
     lien?: string | null
     enVedette?: boolean
-    actif?: boolean
   }
 
   const imageMediaId = input.imageMediaId ?? null
@@ -48,15 +45,9 @@ export async function executer(
     lien: input.lien ?? null,
     enVedette: input.enVedette ?? false,
     actif: false,
-  })
+  }, undefined, SOURCE_ASSISTANT)
 
   const realisation = resultat.item.realisation
-
-  // Marque l'origine assistant (brouillon créé par le MCP).
-  await db
-    .update(realisations)
-    .set({ source: 'assistant', updatedAt: new Date() })
-    .where(eq(realisations.id, realisation.id))
 
   const sansImage = imageMediaId === null
   return {
@@ -64,7 +55,7 @@ export async function executer(
     slug: realisation.slug,
     titre: realisation.titre,
     actif: false,
-    source: 'assistant',
+    source: realisation.source,
     lienStudio: `/studio/compte`,
     message: sansImage
       ? 'Réalisation créée en brouillon (masquée). Ajoutez l’image principale dans le studio pour pouvoir publier cette réalisation.'

@@ -3,29 +3,36 @@ import { ref } from 'vue'
 definePageMeta({ layout: 'studio', ssr: false })
 useSeoMeta({ title: 'Assistants' })
 
-interface AssistantConnecte {
-  id: string
-  nom: string
-  clientId: string
-  createdAt: string
-}
+const {
+  enChargement, enErreur, actif, planPayant, adresse, assistants, refresh,
+  portees, connecteLe, nomAssistant,
+  aConfirmer, enRetrait, erreurRetrait, demanderRetrait, annulerRetrait, confirmerRetrait,
+  entrees, journalEnChargement, journalEnErreur, rafraichirJournal,
+  adresseCopiee, erreurCopie, copierAdresse,
+} = useStudioAssistants()
 
-interface EntreeJournal {
-  id: string
-  outil: string
-  statut: string
-  createdAt: string
-}
-
-const mcpActif = false
-const serveurMcp = 'https://mcp.jesuis.pro/mcp'
-const assistantsConnectes: AssistantConnecte[] = []
+// Le réglage « détail » n'a pas encore de stockage côté serveur : interrupteur inactif, sans état inventé.
 const detailAutorise = ref(false)
-const journal: EntreeJournal[] = []
-const enChargement = true
 
-const erreur = ref<string | null>(null)
-const _confirmation = ref<string | null>(null)
+const connecteurs = [
+  {
+    id: 'claude',
+    nom: 'Claude',
+    instructions: 'Dans Claude, allez dans Paramètres > Connecteurs > Ajouter un connecteur MCP. Saisissez l’adresse du serveur et autorisez les portées demandées.',
+  },
+  {
+    id: 'chatgpt',
+    nom: 'ChatGPT',
+    instructions: 'Dans ChatGPT, allez dans Paramètres > Intégrations > MCP. Ajoutez une nouvelle intégration MCP avec l’adresse du serveur.',
+  },
+] as const
+
+type ConnecteurId = (typeof connecteurs)[number]['id']
+const ouvert = ref<Partial<Record<ConnecteurId, boolean>>>({})
+
+function basculerConnecteur(id: ConnecteurId): void {
+  ouvert.value[id] = !ouvert.value[id]
+}
 </script>
 
 <template>
@@ -33,22 +40,22 @@ const _confirmation = ref<string | null>(null)
     <StudioRetour to="/studio/compte" label="Compte" />
 
     <div v-if="enChargement" role="status" aria-label="Chargement des assistants">
-      <div class="flex flex-col gap-3" aria-hidden="true">
-        <USkeleton class="h-10 w-48" />
-        <USkeleton class="h-5 w-24" />
+      <div class="flex flex-col gap-1" aria-hidden="true">
+        <USkeleton class="h-10 w-40" />
+        <USkeleton class="h-5 w-72" />
       </div>
       <div class="mt-6 flex flex-col gap-4" aria-hidden="true">
-        <USkeleton v-for="n in 3" :key="n" class="h-24 w-full" />
+        <USkeleton v-for="n in 3" :key="n" class="h-20 w-full" />
       </div>
     </div>
 
     <UEmpty
-      v-else-if="erreur"
+      v-else-if="enErreur"
       icon="i-ph-warning-circle"
       title="Les assistants ne s’affichent pas"
-      description="Nous n’avons pas pu charger la liste. Vos données sont intactes."
+      description="Nous n’avons pas pu charger cette page. Vos données sont intactes."
       :as="{ title: 'h1' }"
-      :actions="[{ label: 'Réessayer', size: 'xl' }]"
+      :actions="[{ label: 'Réessayer', size: 'xl', onClick: () => refresh() }]"
     />
 
     <template v-else>
@@ -57,137 +64,236 @@ const _confirmation = ref<string | null>(null)
           Assistants
         </h1>
         <p class="m-0 mt-1 text-base text-texte-secondaire">
-          Connectez votre assistant (Claude, ChatGPT…) à votre vitrine pour gérer vos services et réalisations.
+          Gérez votre vitrine depuis Claude, ChatGPT ou un autre assistant.
         </p>
       </header>
 
-      <section aria-labelledby="titre-serveur" class="flex flex-col gap-4">
-        <h2 id="titre-serveur" class="m-0 text-(length:--fs-20) font-semibold text-encre">
-          Adresse du serveur
+      <!-- Plan gratuit : un seul message, conformément à la maquette « Assistants (gratuit) ». -->
+      <div v-if="!planPayant" class="flex flex-col gap-4 rounded-(--rayon-carte) bg-accent-doux p-6">
+        <span class="flex size-12 items-center justify-center rounded-xl bg-champ">
+          <UIcon name="i-ph-sparkle" size="24" class="text-accent-texte" aria-hidden="true" />
+        </span>
+        <h2 class="m-0 text-(length:--fs-24) font-bold text-encre">
+          Pilotez votre vitrine depuis votre assistant
         </h2>
         <p class="m-0 text-base text-texte-secondaire">
-          Copiez cette adresse dans votre assistant pour établir la connexion.
+          Demandez à Claude ou ChatGPT d’ajouter un service, de préparer une réalisation ou de vous
+          résumer vos réservations. Disponible avec le plan payant.
         </p>
-        <div class="flex flex-col sm:flex-row gap-3">
-          <div class="flex-1 border border-bordure rounded-(--rayon) bg-surface">
-            <code class="block px-4 py-3 text-(length:--fs-14) text-encre break-all">
-              {{ serveurMcp }}
-            </code>
-          </div>
-          <UButton label="Copier" size="sm" variant="outline" />
-        </div>
-        <p v-if="!mcpActif" class="m-0 mt-2 text-(length:--fs-14) text-texte-secondaire">
-          Le serveur MCP est actuellement désactivé. Il sera activé pour votre compte dès que votre abonnement payant sera confirmé.
-        </p>
-      </section>
+        <UButton label="Passer au plan payant" to="/tarifs" block size="xl" />
+        <NuxtLink
+          to="/tarifs"
+          class="inline-flex items-center gap-1 text-base font-semibold text-accent-texte no-underline transition-colors hover:text-accent"
+        >
+          Voir les tarifs
+          <UIcon name="i-ph-caret-right" size="16" aria-hidden="true" />
+        </NuxtLink>
+      </div>
 
-      <section aria-labelledby="titre-instructions" class="flex flex-col gap-4">
-        <h2 id="titre-instructions" class="m-0 text-(length:--fs-20) font-semibold text-encre">
-          Instructions de connexion
-        </h2>
-
-        <UAccordion :model-value="['claude', 'chatgpt']">
-          <UAccordionItem header="Claude" value="claude" icon="i-ph-claude">
-            <p class="m-0 text-base text-texte-secondaire">
-              Dans Claude, allez dans Paramètres > Connecteurs > Ajouter un connecteur MCP. Saisissez l’adresse du serveur et autorisez les portées demandées.
-            </p>
-          </UAccordionItem>
-          <UAccordionItem header="ChatGPT" value="chatgpt" icon="i-ph-chatgpt">
-            <p class="m-0 text-base text-texte-secondaire">
-              Dans ChatGPT, allez dans Paramètres > Intégrations > MCP. Ajoutez une nouvelle intégration MCP avec l’adresse du serveur.
-            </p>
-          </UAccordionItem>
-        </UAccordion>
-      </section>
-
-      <section aria-labelledby="titre-assistants" class="flex flex-col gap-4">
-        <h2 id="titre-assistants" class="m-0 text-(length:--fs-20) font-semibold text-encre">
-          Assistants connectés
-        </h2>
-
-        <UEmpty
-          v-if="assistantsConnectes.length === 0"
-          icon="i-ph-robot"
-          title="Aucun assistant connecté"
-          description="Connectez votre premier assistant depuis Claude ou ChatGPT."
-          class="rounded-(--rayon) border border-bordure bg-surface"
-        />
-
-        <ul v-else class="m-0 list-none border border-bordure rounded-(--rayon) p-0">
-          <li
-            v-for="assistant in assistantsConnectes"
-            :key="assistant.id"
-            class="flex items-center justify-between gap-4 border-b border-bordure py-4 last:border-b-0"
-          >
-            <div class="min-w-0 flex-1">
-              <p class="m-0 text-base font-semibold text-encre">{{ assistant.nom }}</p>
-                <p class="m-0 text-(length:--fs-14) text-texte-secondaire">
-                  {{ assistant.clientId }} · {{ new Date(assistant.createdAt).toLocaleDateString('fr-FR') }}
-                </p>
-            </div>
+      <div v-else class="flex flex-col gap-6 md:grid md:grid-cols-2 md:items-start md:gap-x-10 md:gap-y-8">
+        <section aria-labelledby="titre-serveur" class="flex flex-col gap-3">
+          <h2 id="titre-serveur" class="m-0 text-(length:--fs-20) font-semibold text-encre">
+            Adresse du serveur
+          </h2>
+          <div class="flex min-h-12 items-center gap-2 rounded-(--rayon) border border-bordure bg-surface py-1.5 pr-1.5 pl-4">
+            <code data-testid="adresse-serveur" class="min-w-0 flex-1 truncate text-(length:--fs-14) text-encre">{{ adresse }}</code>
             <UButton
-              label="Révoquer"
-              variant="outline"
+              data-testid="copier-adresse"
+              :icon="adresseCopiee ? 'i-ph-check' : 'i-ph-copy'"
+              variant="ghost"
               color="neutral"
-              size="sm"
-              :loading="false"
-              @click="() => {}"
+              size="lg"
+              class="min-h-11 min-w-11 justify-center"
+              :aria-label="`Copier l’adresse du serveur (${adresse})`"
+              @click="copierAdresse"
             />
-          </li>
-        </ul>
-      </section>
+          </div>
+          <p role="status" aria-live="polite" class="m-0 min-h-6 text-(length:--fs-14) text-texte-secondaire">
+            <template v-if="adresseCopiee">Adresse copiée.</template>
+            <template v-else-if="erreurCopie">Impossible de copier l’adresse. Sélectionnez-la pour la copier manuellement.</template>
+          </p>
+          <p v-if="!actif" data-testid="mcp-inactif" class="m-0 text-(length:--fs-14) text-texte-secondaire">
+            Le serveur MCP n’est pas encore activé pour votre compte. Il le sera prochainement.
+          </p>
+        </section>
 
-      <section aria-labelledby="titre-detail" class="flex flex-col gap-4">
-        <h2 id="titre-detail" class="m-0 text-(length:--fs-20) font-semibold text-encre">
-          Détail des réservations et messages
-        </h2>
-        <USwitch
-          :id="'switch-detail'"
-          v-model="detailAutorise"
-          :label="'Autoriser mon assistant à lire le détail des réservations et des messages'"
-          :description="
-            'Lorsque cette option est activée, votre assistant peut lire les emails, numéros de téléphone et textes des messages des visiteurs. Désactivé par défaut pour protéger la confidentialité de vos visiteurs.'
-          "
-          :disabled="!mcpActif"
-          :ui="{ root: 'w-full flex-row-reverse items-center justify-between gap-4', wrapper: 'ms-0' }"
-        />
-        <p class="m-0 mt-2 text-(length:--fs-14) text-texte-secondaire">
-          Ce réglage s’applique à tous les assistants connectés. Modifiez-le à tout moment.
-        </p>
-      </section>
-
-      <section aria-labelledby="titre-journal" class="flex flex-col gap-4">
-        <h2 id="titre-journal" class="m-0 text-(length:--fs-20) font-semibold text-encre">
-          Journal des actions de l’assistant
-        </h2>
-        <p class="m-0 text-base text-texte-secondaire">
-          Les 50 dernières actions effectuées par votre assistant via le MCP.
-        </p>
-
-        <UEmpty
-          v-if="journal.length === 0"
-          icon="i-ph-clipboard-text"
-          title="Aucune action pour l’instant"
-          description="Le journal se remplit dès que votre assistant effectue une action."
-          class="rounded-(--rayon) border border-bordure bg-surface"
-        />
-
-        <ul v-else class="m-0 list-none border border-bordure rounded-(--rayon) p-0">
-          <li
-            v-for="entree in journal"
-            :key="entree.id"
-            class="border-b border-bordure py-3 last:border-b-0"
-          >
-            <div class="flex items-start justify-between gap-3">
-              <div class="min-w-0 flex-1">
-                <p class="m-0 text-base font-semibold text-encre">{{ entree.outil }}</p>
-                <p class="m-0 text-(length:--fs-14) text-texte-secondaire">{{ new Date(entree.createdAt).toLocaleDateString('fr-FR') }}</p>
-              </div>
-              <span class="shrink-0 text-(length:--fs-12) text-texte-secondaire">{{ entree.statut }}</span>
+        <section aria-labelledby="titre-connecter" class="flex flex-col">
+          <h2 id="titre-connecter" class="m-0 pb-2 text-(length:--fs-20) font-semibold text-encre">
+            Comment connecter
+          </h2>
+          <div v-for="connecteur in connecteurs" :key="connecteur.id" class="border-t border-bordure">
+            <button
+              type="button"
+              class="flex min-h-14 w-full cursor-pointer items-center justify-between gap-3 bg-transparent px-0 text-left text-base font-semibold text-encre transition-colors hover:bg-surface"
+              :aria-expanded="Boolean(ouvert[connecteur.id])"
+              @click="basculerConnecteur(connecteur.id)"
+            >
+              <span>{{ connecteur.nom }}</span>
+              <UIcon
+                name="i-ph-plus"
+                class="size-5 text-texte-secondaire transition-transform"
+                :class="{ 'rotate-45': ouvert[connecteur.id] }"
+                aria-hidden="true"
+              />
+            </button>
+            <div v-if="ouvert[connecteur.id]" class="pb-4 text-base text-texte-secondaire">
+              {{ connecteur.instructions }}
             </div>
-          </li>
-        </ul>
-      </section>
+          </div>
+          <div class="border-t border-bordure" />
+        </section>
+
+        <section aria-labelledby="titre-connectes" class="flex flex-col gap-3">
+          <h2 id="titre-connectes" class="m-0 text-(length:--fs-20) font-semibold text-encre">
+            Assistants connectés
+          </h2>
+          <p
+            v-if="assistants.length === 0"
+            data-testid="assistants-vide"
+            class="m-0 border-t border-bordure pt-4 text-base text-texte-secondaire"
+          >
+            Aucun assistant connecté pour l’instant. Connectez-en un depuis Claude ou ChatGPT ci-dessus :
+            vous le retrouverez ici, avec la possibilité de retirer son accès à tout moment.
+          </p>
+          <ul v-else class="m-0 flex list-none flex-col border-t border-bordure p-0" data-testid="assistants-liste">
+            <li
+              v-for="assistant in assistants"
+              :key="assistant.id"
+              class="flex flex-col gap-3 border-b border-bordure py-4"
+              data-testid="assistant"
+            >
+              <div class="flex items-start justify-between gap-3">
+                <div class="min-w-0 flex-1">
+                  <p class="m-0 text-base font-semibold wrap-break-word text-encre">{{ nomAssistant(assistant) }}</p>
+                  <p class="m-0 text-(length:--fs-14) text-texte-secondaire">{{ connecteLe(assistant) }}</p>
+                  <p v-if="portees(assistant).length" class="m-0 text-(length:--fs-14) text-texte-secondaire">
+                    {{ portees(assistant).join(' · ') }}
+                  </p>
+                </div>
+                <UButton
+                  v-if="aConfirmer !== assistant.id"
+                  data-testid="retirer-acces"
+                  label="Retirer l’accès"
+                  color="error"
+                  variant="outline"
+                  size="lg"
+                  class="min-h-11 shrink-0"
+                  :disabled="enRetrait !== null"
+                  @click="demanderRetrait(assistant.id)"
+                />
+              </div>
+              <div
+                v-if="aConfirmer === assistant.id"
+                role="group"
+                :aria-label="`Retirer l’accès de ${nomAssistant(assistant)}`"
+                class="flex flex-col gap-3 rounded-(--rayon) bg-accent-doux p-4"
+                data-testid="confirmation-retrait"
+              >
+                <p class="m-0 text-(length:--fs-14) leading-relaxed text-encre">
+                  {{ nomAssistant(assistant) }} ne pourra plus agir sur votre vitrine. Ce qu’il a déjà créé reste dans votre studio.
+                </p>
+                <p v-if="erreurRetrait" role="alert" class="m-0 flex items-start gap-2 text-(length:--fs-14) text-error">
+                  <UIcon name="i-ph-warning-circle" size="18" class="mt-0.5 shrink-0" aria-hidden="true" />
+                  {{ erreurRetrait }}
+                </p>
+                <div class="flex flex-col gap-2 sm:flex-row">
+                  <UButton
+                    data-testid="confirmer-retrait"
+                    label="Retirer l’accès"
+                    color="error"
+                    size="lg"
+                    class="min-h-11 justify-center"
+                    :loading="enRetrait === assistant.id"
+                    :disabled="enRetrait !== null"
+                    @click="confirmerRetrait(assistant.id)"
+                  />
+                  <UButton
+                    data-testid="annuler-retrait"
+                    label="Annuler"
+                    color="neutral"
+                    variant="outline"
+                    size="lg"
+                    class="min-h-11 justify-center"
+                    :disabled="enRetrait !== null"
+                    @click="annulerRetrait"
+                  />
+                </div>
+              </div>
+            </li>
+          </ul>
+        </section>
+
+        <section aria-labelledby="titre-confidentialite" class="flex flex-col gap-4">
+          <h2 id="titre-confidentialite" class="m-0 text-(length:--fs-20) font-semibold text-encre">
+            Confidentialité
+          </h2>
+          <div class="border-t border-bordure pt-4">
+            <USwitch
+              id="switch-detail"
+              v-model="detailAutorise"
+              label="Détail des réservations et des messages"
+              description="Autoriser mon assistant à lire les coordonnées et le texte de mes visiteurs. Bientôt disponible."
+              disabled
+              :ui="{ root: 'w-full flex-row-reverse items-start justify-between gap-4', wrapper: 'ms-0' }"
+            />
+          </div>
+          <div class="flex items-start gap-3 rounded-(--rayon) bg-accent-doux p-4">
+            <UIcon name="i-ph-lock" size="20" class="shrink-0 text-accent-texte" aria-hidden="true" />
+            <p class="m-0 text-(length:--fs-14) leading-relaxed text-encre">
+              Activé, votre assistant lira les noms, téléphones, emails, motifs et messages de vos
+              visiteurs. Pour un médecin, un psychologue ou un avocat, cela peut toucher au secret
+              professionnel. Activez-le seulement si vous êtes sûr d’y être autorisé.
+            </p>
+          </div>
+          <p class="m-0 text-(length:--fs-14) text-texte-secondaire">
+            Par défaut, votre assistant ne voit que la date, le service et le prénom. Il ne peut rien
+            supprimer ni publier : ce qu’il crée arrive masqué, à relire dans le studio.
+          </p>
+        </section>
+
+        <section aria-labelledby="titre-journal" class="flex flex-col gap-3 md:col-span-2">
+          <h2 id="titre-journal" class="m-0 text-(length:--fs-20) font-semibold text-encre">
+            Dernières actions
+          </h2>
+          <div v-if="journalEnChargement" role="status" aria-label="Chargement des dernières actions" class="border-t border-bordure pt-4">
+            <div class="flex flex-col gap-3" aria-hidden="true">
+              <USkeleton v-for="n in 3" :key="n" class="h-6 w-full" />
+            </div>
+          </div>
+          <div
+            v-else-if="journalEnErreur"
+            role="alert"
+            data-testid="journal-erreur"
+            class="flex flex-col items-start gap-3 border-t border-bordure pt-4"
+          >
+            <p class="m-0 text-base text-texte-secondaire">
+              Nous n’avons pas pu charger les dernières actions. Vos données sont intactes.
+            </p>
+            <UButton label="Réessayer" variant="outline" color="neutral" size="lg" class="min-h-11" @click="rafraichirJournal()" />
+          </div>
+          <p
+            v-else-if="entrees.length === 0"
+            data-testid="journal-vide"
+            class="m-0 border-t border-bordure pt-4 text-base text-texte-secondaire"
+          >
+            Aucune action pour l’instant. Le journal garde les 50 dernières actions de vos assistants :
+            services et réalisations créés, consultations, modifications.
+          </p>
+          <ul v-else class="m-0 list-none border-t border-bordure p-0" data-testid="journal-liste">
+            <li
+              v-for="entree in entrees"
+              :key="entree.id"
+              class="grid grid-cols-[6.5rem_minmax(0,1fr)] gap-3 border-b border-bordure py-3 text-base"
+            >
+              <span class="text-(length:--fs-14) text-texte-secondaire">{{ entree.date }}</span>
+              <span class="wrap-break-word text-encre">
+                {{ entree.phrase }}
+                <span v-if="entree.echec" class="sr-only">(échec)</span>
+              </span>
+            </li>
+          </ul>
+        </section>
+      </div>
     </template>
   </div>
 </template>

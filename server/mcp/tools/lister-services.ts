@@ -9,6 +9,9 @@ export interface ServiceResume {
   slug: string
   titre: string
   description: string | null
+  type: string
+  dureeMin: number | null
+  reservable: boolean
   actif: boolean
   enVedette: boolean
   source: string
@@ -25,6 +28,9 @@ export async function executer(
     slug: entry.service.slug,
     titre: entry.service.titre,
     description: entry.service.description,
+    type: entry.service.type,
+    dureeMin: entry.service.dureeMin,
+    reservable: entry.service.reservable,
     actif: entry.service.actif,
     enVedette: entry.service.enVedette,
     source: entry.service.source,

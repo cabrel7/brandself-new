@@ -359,16 +359,29 @@ describe('realisations — création (CA06 à CA16)', () => {
     expect((await creer(user.id, { titre: 'R5' })).item.realisation.ordre).toBe(0)
   })
 
-  it('CA07 should refuse a creation without main image or with a null one before the service: nothing is inserted', async () => {
-    const { vitrine } = await utilisateurAvecVitrine()
+  it('CA07 should accept a creation without main image (S16 schema) but insert it masked: never active, never vedette, never visible', async () => {
+    const { user, vitrine } = await utilisateurAvecVitrine()
 
     for (const imageMediaId of [undefined, null]) {
       const resultat = schemaRealisationCreate.safeParse({ titre: 'Sans image', imageMediaId })
-      expect(resultat.success).toBe(false)
-      expect(resultat.error?.issues[0]?.path).toEqual(['imageMediaId'])
-      expect(resultat.error?.issues[0]?.message).toBe('Ajoutez une image principale.')
+      expect(resultat.success).toBe(true)
+      expect(resultat.data?.imageMediaId).toBeNull()
     }
-    expect(await lignesDeLaVitrine(vitrine.id)).toHaveLength(0)
+
+    const { createRealisation } = await realisationsService()
+    const { item, compteurs } = await createRealisation(user.id, schemaRealisationCreate.parse({ titre: 'Sans image', imageMediaId: null }))
+
+    expect(item.realisation.imageMediaId).toBeNull()
+    expect(item.realisation.actif).toBe(false)
+    expect(item.realisation.enVedette).toBe(false)
+    expect(compteurs.visibles).toBe(0)
+    expect(await lignesDeLaVitrine(vitrine.id)).toHaveLength(1)
+
+    const erreur = await rejet(createRealisation(user.id, schemaRealisationCreate.parse({ titre: 'Brouillon en vedette', imageMediaId: null, enVedette: true })))
+    expect(erreur.estDomainError).toBe(true)
+    expect(erreur.code).toBe('VALIDATION')
+    expect(erreur.status).toBe(400)
+    expect(erreur.data?.champs).toEqual({ enVedette: ['Une réalisation masquée ne peut pas être en vedette.'] })
   })
 
   it('CA08 should make the first three realisations vedettes automatically and not the fourth (orders 0 to 3)', async () => {

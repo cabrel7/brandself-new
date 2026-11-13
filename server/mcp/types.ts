@@ -5,11 +5,29 @@ import type { ZodTypeAny } from 'zod'
 
 export type { Scope }
 
+/**
+ * Contexte d'un appel d'outil. `vitrineId`, `username` et `fuseau` viennent TOUJOURS de la vitrine de l'utilisateur
+ * authentifié (résolue côté serveur), jamais des arguments de l'assistant.
+ */
 export interface ContexteMcp {
   userId: string
   vitrineId: string
+  username: string
+  /** Fuseau IANA de la vitrine : toutes les heures renvoyées à l'assistant sont exprimées dans ce fuseau. */
+  fuseau: string
   assistantId: string
   scopes: readonly Scope[]
+}
+
+/** Ce que le jeton fournit ; le reste du contexte est résolu en base par le serveur. */
+export type BaseContexteMcp = Omit<ContexteMcp, 'vitrineId' | 'username' | 'fuseau'>
+
+export interface OptionsHandlerMcp {
+  cleIdempotence?: string
+  /** Réglage « détail des réservations et des messages » (décision #21) : toujours faux tant qu'il n'est pas câblé. */
+  detailAutorise?: boolean
+  /** Horloge injectable (tests) ; `new Date()` par défaut. */
+  maintenant?: Date
 }
 
 export interface OutilMcpDefinition {
@@ -21,23 +39,4 @@ export interface OutilMcpDefinition {
   idempotence: boolean
   /** Schéma Zod de validation des arguments d'entrée. */
   schema: ZodTypeAny
-}
-
-export interface OutilResultat {
-  content: Array<{ type: 'text', text: string }>
-  isError?: boolean
-}
-
-export interface RequeteJsonRpc {
-  jsonrpc: '2.0'
-  id: string | number | null
-  method: string
-  params?: unknown
-}
-
-export interface ReponseJsonRpc {
-  jsonrpc: '2.0'
-  id: string | number | null
-  result?: unknown
-  error?: { code: number, message: string, data?: unknown }
 }

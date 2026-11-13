@@ -2,7 +2,10 @@
 // Retourne les valeurs précédentes et journalise avant/après.
 
 import { getOwnService, updateService } from '../../services/services'
+import { ValidationError } from '../../exceptions/http'
 import type { ContexteMcp, Scope } from '../types'
+
+const MESSAGE_CONFIRMATION = 'Ce service est déjà visible sur la vitrine publique. Demandez d’abord confirmation à l’utilisateur dans la conversation, puis renvoyez la demande avec confirmation_utilisateur à vrai.'
 
 export interface ServiceModifie {
   id: string
@@ -34,7 +37,6 @@ export async function executer(
     inclus?: string[]
     reservable?: boolean
     enVedette?: boolean
-    actif?: boolean
     confirmation_utilisateur?: boolean
   }
 
@@ -46,7 +48,7 @@ export async function executer(
 
   // Si le service est déjà visible, la confirmation utilisateur est obligatoire.
   if (precedent.actif && !input.confirmation_utilisateur) {
-    throw new Error('CONFIRMATION_REQUISE')
+    throw new ValidationError({ confirmation_utilisateur: [MESSAGE_CONFIRMATION] }, MESSAGE_CONFIRMATION)
   }
 
   await updateService(contexte.userId, input.id, {
@@ -64,7 +66,6 @@ export async function executer(
     inclus: input.inclus,
     reservable: input.reservable,
     enVedette: input.enVedette,
-    actif: input.actif,
   })
 
   const misAJour = await getOwnService(contexte.userId, input.id)

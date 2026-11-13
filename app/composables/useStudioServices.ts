@@ -44,10 +44,13 @@ export function useStudioServices(listeEl?: Ref<HTMLElement | null>) {
   const vide = computed(() => Boolean(data.value) && services.value.length === 0)
 
   // Dérivés de la liste locale : suivent les basculements optimistes.
+  // Brouillon = interrupteur Visible désactivé, quelle que soit la source.
   const resume = computed(() => ({
     visibles: services.value.filter((s) => s.actif).length,
     enVedette: services.value.filter((s) => s.actif && s.enVedette).length,
     vedetteMax: data.value?.compteurs.vedetteMax ?? 0,
+    brouillons: services.value.filter((s) => !s.actif).length,
+    brouillonsAssistant: services.value.filter((s) => s.source === 'assistant' && !s.actif).length,
   }))
 
   async function basculerVisibilite(id: string, actif: boolean): Promise<void> {

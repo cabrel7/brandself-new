@@ -16,7 +16,7 @@
 ### Meilleure approche
 - Domaine dédié `mcp.jesuis.pro` monté via Nginx (processus Nitro séparé ou routage par domaine sur le même processus), avec `MCP_ACTIF=false` par défaut.
 - SDK `@modelcontextprotocol/sdk` (bibliothèque officielle maintenue, TypeScript) pour le serveur MCP.
-- 9 outils maximum, chacun appelant les **services existants** (aucune logique métier nouvelle, aucune écriture directe en base).
+- 12 outils maximum (relevé de 9 le 2026-11-11 : lecture de l'agenda, décision #25), chacun appelant les **services existants** (aucune logique métier nouvelle, aucune écriture directe en base).
 - Migration `0024` : tables `mcp_clients`, `mcp_tokens`, `journal_assistant` ; colonnes `source` sur `services` et `realisations`.
 - Capacité `mcp` dans `PlanService` (plan payant uniquement).
 - Plages de portées : `vitrine:lecture`, `contenu:ecriture`, `reservations:lecture`, `messages:lecture`.

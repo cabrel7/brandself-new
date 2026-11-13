@@ -27,6 +27,8 @@ export const RESERVED_USERNAMES = [
   'mentions-legales',
   'services',
   'desabonnement',
+  // Route serveur du protocole MCP (S16) : /mcp ne doit jamais être une vitrine.
+  'mcp',
 ]
 
 export function isReserved(value: string): boolean {

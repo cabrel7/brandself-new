@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { ERROR_CODES, ERROR_STATUS } from '../../shared/erreurs'
@@ -66,12 +66,16 @@ describe('contrats S4 : synchronisation base / code', () => {
     expect(MIGRATION_0011).toMatch(/realisations_vedette_actif_check CHECK \(NOT en_vedette OR actif\)/)
   })
 
-  it('should declare every constraint and index named in schema.ts for the realisation tables in the migration', () => {
+  it('should declare every constraint and index named in schema.ts for the realisation tables in the migrations', () => {
     const nomsDuSchema = [...SCHEMA_TS.matchAll(/'(realisation(?:s|_images)_[a-z_]+)'/g)].map((m) => m[1])
+    const toutesLesMigrations = readdirSync(DOSSIER_MIGRATIONS)
+      .filter((f) => f.endsWith('.sql'))
+      .map((f) => readFileSync(path.join(DOSSIER_MIGRATIONS, f), 'utf-8'))
+      .join('\n')
 
     expect(nomsDuSchema.length).toBeGreaterThanOrEqual(9)
     for (const nom of nomsDuSchema) {
-      expect(MIGRATION_0011, `${nom} doit figurer dans la migration 0011`).toContain(nom)
+      expect(toutesLesMigrations, `${nom} doit figurer dans les migrations`).toContain(nom)
     }
   })
 

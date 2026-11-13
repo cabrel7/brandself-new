@@ -2,9 +2,7 @@
 // Crée un service en brouillon (actif = false, source = assistant).
 
 import { createService } from '../../services/services'
-import { db } from '../../utils/db'
-import { services } from '../../../shared/db/schema'
-import { eq } from 'drizzle-orm'
+import { SOURCE_ASSISTANT } from '../../../shared/mcp'
 import type { ContexteMcp, Scope } from '../types'
 
 export interface ServiceCree {
@@ -37,7 +35,6 @@ export async function executer(
     inclus?: string[]
     reservable?: boolean
     enVedette?: boolean
-    actif?: boolean
   }
 
   const resultat = await createService(contexte.userId, {
@@ -57,22 +54,16 @@ export async function executer(
     reservable: input.reservable ?? true,
     enVedette: input.enVedette ?? false,
     actif: false,
-  })
+  }, undefined, undefined, SOURCE_ASSISTANT)
 
   const service = resultat.item.service
-
-  // Marque l'origine assistant (brouillon créé par le MCP).
-  await db
-    .update(services)
-    .set({ source: 'assistant', updatedAt: new Date() })
-    .where(eq(services.id, service.id))
 
   return {
     id: service.id,
     slug: service.slug,
     titre: service.titre,
     actif: false,
-    source: 'assistant',
+    source: service.source,
     lienStudio: `/studio/compte`,
     message: 'Service créé en brouillon (masqué). Rendez-vous dans le studio pour le relire et l’activer.',
   }

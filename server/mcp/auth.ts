@@ -1,23 +1,32 @@
-// S16 : authentification et autorisation du serveur MCP via @better-auth/mcp.
-// OAuth 2.1 avec PKCE, portées séparées, jetons courts et renouvelables, révocation.
+// S16 : autorisation du serveur MCP.
+// L'authentification (signature, émetteur, audience, expiration du jeton d'accès JWT) est faite par
+// `requireMcpAuth` de @better-auth/mcp (server/mcp/http.ts). Ce module en tire le contexte d'appel et applique
+// les gardes propres à l'application : serveur activé, plan payant, portées consenties, vitrine existante.
 // Le serveur MCP est livré désactivé (MCP_ACTIF=false).
 
-import { mcp as mcpPlugin, requireMcpAuth } from '@better-auth/mcp'
 import { eq } from 'drizzle-orm'
-import { sessions, vitrines } from '../../shared/db/schema'
+import { vitrines } from '../../shared/db/schema'
+import { MCP_PORTEES } from '../../shared/mcp'
+import type { McpPortee } from '../../shared/mcp'
 import { db } from '../utils/db'
-import { ForbiddenError, UnauthorizedError } from '../exceptions/http'
-import { estCapacitePayante } from '../../shared/plans'
+import { ForbiddenError } from '../exceptions/http'
+import { PLAN_PAYANT_ID } from '../config/plans'
 import { getPlanEffectif } from '../services/plans'
+import { getPortéesConsenties } from '../services/assistants'
 
-export type Scope = 'vitrine:lecture' | 'contenu:ecriture' | 'reservations:lecture' | 'messages:lecture'
+export type Scope = McpPortee
 
-export const TOUTES_PORTÉES: readonly Scope[] = [
-  'vitrine:lecture',
-  'contenu:ecriture',
-  'reservations:lecture',
-  'messages:lecture',
-]
+export const TOUTES_PORTÉES: readonly Scope[] = MCP_PORTEES
+
+/** Claims du jeton d'accès (JWT) tels que fournis par @better-auth/mcp après vérification. */
+export type ClaimsJeton = Readonly<Record<string, unknown>>
+
+/** Identité d'un appel, lue dans le jeton d'accès (déjà vérifié) : `sub` = utilisateur, `azp` = client OAuth. */
+export interface IdentiteJeton {
+  userId: string
+  clientId: string
+  portéesJeton: string[]
+}
 
 /** Vérifie que le serveur MCP est activé. */
 export function verifierMcpActif(mcpActif: boolean): void {
@@ -26,39 +35,28 @@ export function verifierMcpActif(mcpActif: boolean): void {
   }
 }
 
-/** Extrait le jeton Bearer de l'en-tête Authorization. */
-function extraireJetonBearer(authorization: string | undefined): string | null {
-  if (!authorization || !authorization.startsWith('Bearer ')) return null
-  return authorization.slice(7).trim()
+/** Extrait l'identité des claims JWT ; `null` si un claim indispensable manque (jeton inutilisable). */
+export function lireIdentiteJeton(claims: ClaimsJeton): IdentiteJeton | null {
+  const { sub, azp, scope } = claims
+  if (typeof sub !== 'string' || sub === '' || typeof azp !== 'string' || azp === '') return null
+  const portéesJeton = typeof scope === 'string' ? scope.split(' ').filter((portee) => portee !== '') : []
+  return { userId: sub, clientId: azp, portéesJeton }
 }
 
-/** Valide un jeton d'accès MCP et retourne l'utilisateur. */
-export async function authentifierMcp(authorization: string | undefined): Promise<{ userId: string }> {
-  const jeton = extraireJetonBearer(authorization)
-  if (!jeton) {
-    throw new UnauthorizedError('AUTHENTIFICATION_REQUISE')
-  }
-
-  const [session] = await db
-    .select({ userId: sessions.userId, expiresAt: sessions.expiresAt })
-    .from(sessions)
-    .where(eq(sessions.token, jeton))
-    .limit(1)
-
-  if (!session) {
-    throw new UnauthorizedError('JETON_INVALIDE')
-  }
-  if (session.expiresAt.getTime() <= Date.now()) {
-    throw new UnauthorizedError('JETON_EXPIRE')
-  }
-
-  return { userId: session.userId }
+/**
+ * Portées effectives = portées du jeton ∩ portées actuellement consenties. `null` si le consentement a été
+ * révoqué : le jeton (valable jusqu'à son expiration) n'ouvre alors plus rien.
+ */
+export async function résoudrePortées(identite: IdentiteJeton): Promise<Scope[] | null> {
+  const consenties = await getPortéesConsenties(identite.userId, identite.clientId)
+  if (consenties === null) return null
+  return consenties.filter((portee) => identite.portéesJeton.includes(portee))
 }
 
 /** Vérifie que l'utilisateur a un plan payant (actif ou en grâce). */
 export async function verifierPlanPayant(userId: string): Promise<void> {
   const plan = await getPlanEffectif(userId)
-  if (plan.plan !== 'payant') {
+  if (plan.plan !== PLAN_PAYANT_ID) {
     throw new ForbiddenError('PLAN_PAYANT_REQUIS')
   }
 }
@@ -70,25 +68,23 @@ export function verifierPortées(
 ): void {
   const manquantes = requises.filter((p) => !accordees.includes(p))
   if (manquantes.length > 0) {
-    throw new ForbiddenError('PORTÉE_INSUFFISANTE')
+    throw new ForbiddenError('PORTÉE_INSUFFISANTE', { manquantes })
   }
 }
 
-/** Vérifie qu'une capacité est réservée au plan payant. */
-export function estCapaciteMcp(capacite: string): boolean {
-  return estCapacitePayante(capacite)
+export interface VitrineMcp {
+  id: string
+  username: string
+  fuseau: string
 }
 
-/** Résout la vitrine de l'utilisateur pour le contexte MCP. */
-export async function resoudreVitrine(userId: string): Promise<string> {
+/** Résout la vitrine de l'utilisateur pour le contexte MCP (une seule requête : identifiant, adresse, fuseau). */
+export async function resoudreVitrine(userId: string): Promise<VitrineMcp> {
   const [vitrine] = await db
-    .select({ id: vitrines.id })
+    .select({ id: vitrines.id, username: vitrines.username, fuseau: vitrines.fuseau })
     .from(vitrines)
     .where(eq(vitrines.userId, userId))
     .limit(1)
   if (!vitrine) throw new ForbiddenError('VITRINE_INTROUVABLE')
-  return vitrine.id
+  return vitrine
 }
-
-/** Middleware MCP : expose `requireMcpAuth` pour protection de la route /mcp. */
-export { requireMcpAuth, mcpPlugin }

@@ -2,7 +2,10 @@
 // Retourne les valeurs précédentes et journalise avant/après.
 
 import { getOwnRealisation, updateRealisation } from '../../services/realisations'
+import { ValidationError } from '../../exceptions/http'
 import type { ContexteMcp, Scope } from '../types'
+
+const MESSAGE_CONFIRMATION = 'Cette réalisation est déjà visible sur la vitrine publique. Demandez d’abord confirmation à l’utilisateur dans la conversation, puis renvoyez la demande avec confirmation_utilisateur à vrai.'
 
 export interface RealisationModifiee {
   id: string
@@ -29,7 +32,6 @@ export async function executer(
     role?: string | null
     lien?: string | null
     enVedette?: boolean
-    actif?: boolean
     confirmation_utilisateur?: boolean
   }
 
@@ -41,10 +43,11 @@ export async function executer(
 
   // Si la réalisation est déjà visible, la confirmation utilisateur est obligatoire.
   if (precedent.actif && !input.confirmation_utilisateur) {
-    throw new Error('CONFIRMATION_REQUISE')
+    throw new ValidationError({ confirmation_utilisateur: [MESSAGE_CONFIRMATION] }, MESSAGE_CONFIRMATION)
   }
 
-  const galerie = (input.galerie ?? []).filter((id): id is string => id !== null && id !== undefined)
+  // Champ omis = inchangé : `undefined` n'écrase jamais (le service ne remplace la galerie que si elle est fournie).
+  const galerie = input.galerie?.filter((id): id is string => id !== null && id !== undefined)
 
   await updateRealisation(contexte.userId, input.id, {
     titre: input.titre,
@@ -56,7 +59,6 @@ export async function executer(
     role: input.role,
     lien: input.lien,
     enVedette: input.enVedette,
-    actif: input.actif,
   })
 
   const misAJour = await getOwnRealisation(contexte.userId, input.id)

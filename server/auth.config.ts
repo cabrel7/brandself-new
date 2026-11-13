@@ -1,9 +1,11 @@
 import { defineServerAuth } from '@nuxtjs/better-auth/config'
+import { mcp } from '@better-auth/mcp'
 import { Queue } from 'bullmq'
 import type { BetterAuthOptions } from 'better-auth'
 import { drizzle } from 'drizzle-orm/node-postgres'
 import { drizzleAdapter } from 'better-auth/adapters/drizzle'
 import { emailOTP } from 'better-auth/plugins/email-otp'
+import { jwt } from 'better-auth/plugins/jwt'
 import { phoneNumber } from 'better-auth/plugins/phone-number'
 import Redis from 'ioredis'
 import { Pool } from 'pg'
@@ -17,6 +19,15 @@ import {
   OTP_JOB_GARDER_REUSSIS,
   OTP_JOB_MAX_ATTEMPTS,
 } from '../shared/jobs'
+import {
+  MCP_CHEMIN,
+  MCP_JETON_ACCES_TTL_S,
+  MCP_JETON_RENOUVELLEMENT_TTL_S,
+  MCP_LIMITE_AUTORISATION,
+  MCP_LIMITE_ENREGISTREMENT,
+  MCP_LIMITE_JETON,
+  OAUTH_PORTEES,
+} from '../shared/mcp'
 import * as schema from '../shared/db/schema'
 
 export type OptionsAuth = Omit<BetterAuthOptions, 'secret' | 'baseURL' | 'basePath'>
@@ -98,6 +109,35 @@ export const optionsAuth: OptionsAuth = {
       },
       sendOTP: async ({ phoneNumber: tel, code }) => {
         await enqueueOtpSms(tel, code)
+      },
+    }),
+    // S16 : serveur d'autorisation OAuth 2.1 du serveur MCP (jeton d'accès JWT signé par `jwt()`).
+    // Better Auth est monté sous /api/auth : la découverte (/.well-known/…) est republiée à la racine
+    // par server/routes/.well-known/. PKCE (S256) est imposé par le fournisseur à tout client public.
+    jwt(),
+    mcp({
+      loginPage: '/connexion',
+      consentPage: '/studio/assistants/autorisation',
+      resource: `${env.NUXT_PUBLIC_SITE_URL}${MCP_CHEMIN}`,
+      scopes: [...OAUTH_PORTEES],
+      grantTypes: ['authorization_code', 'refresh_token'],
+      accessTokenExpiresIn: MCP_JETON_ACCES_TTL_S,
+      refreshTokenExpiresIn: MCP_JETON_RENOUVELLEMENT_TTL_S,
+      // Claude et ChatGPT s'enregistrent seuls (RFC 7591), sans compte : l'enregistrement est ouvert mais borné
+      // à nos portées, PKCE exigé, sans secret pour un client public. L'utilisateur consent ensuite, client par client.
+      allowDynamicClientRegistration: true,
+      allowUnauthenticatedClientRegistration: true,
+      // POST /oauth2/create-client (et la gestion des clients) fermé à tout utilisateur connecté : seuls les clients
+      // enregistrés dynamiquement (sans session) existent. Aucun rôle administrateur n'est prévu à ce stade.
+      clientPrivileges: () => false,
+      clientRegistrationDefaultScopes: [...OAUTH_PORTEES],
+      clientRegistrationAllowedScopes: [],
+      clientRegistrationRequirePKCE: true,
+      clientRegistrationDefaultApplicationType: 'infer',
+      rateLimit: {
+        register: { ...MCP_LIMITE_ENREGISTREMENT },
+        token: { ...MCP_LIMITE_JETON },
+        authorize: { ...MCP_LIMITE_AUTORISATION },
       },
     }),
   ],

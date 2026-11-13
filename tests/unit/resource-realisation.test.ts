@@ -24,7 +24,7 @@ const ID_GALERIE = ['ffffffff-0000-4000-8000-000000000003', '88888888-0000-4000-
 
 const CLES_STUDIO = [
   'actif', 'annee', 'creeLe', 'description', 'enVedette', 'galerie', 'id', 'image', 'lieu', 'lien', 'masqueParPlan', 'modifieLe',
-  'ordre', 'role', 'slug', 'titre',
+  'ordre', 'role', 'slug', 'source', 'titre',
 ].sort()
 
 const CLES_CARTE = ['annee', 'description', 'image', 'lieu', 'slug', 'titre'].sort()
@@ -49,6 +49,7 @@ function ligne(surcharges: Partial<RealisationRow & { masqueParPlan: boolean }> 
     enVedette: true,
     ordre: 2,
     actif: true,
+    source: 'utilisateur',
     createdAt: new Date('2026-03-01T10:00:00.000Z'),
     updatedAt: new Date('2026-03-02T11:30:00.000Z'),
     ...surcharges,
