@@ -1,68 +1,57 @@
 // S15 : service worker statique pour le studio et les pages marketing jesuis.pro.
-// Precache les fichiers statiques du studio (polices, scripts, icônes).
-// Aucune donnee personnelle, aucune reponse d'API mise en cache.
-// Page de repli hors ligne chaude : /offline.html.
+// Rôle unique : page de repli hors ligne (/offline.html) et icônes de marque disponibles sans réseau.
+// Aucune donnée personnelle, aucune réponse d'API, aucun script de l'application en cache.
+//
+// Règle de sûreté : on n'intercepte QUE les navigations et les fichiers listés dans PRECACHE.
+// Tout le reste (/_nuxt/*, modules Vite du mode développement, polices, images de vitrine) passe
+// par le réseau sans que ce worker s'en mêle. Un cache « d'abord » sur /_nuxt/ servait des modules
+// périmés après chaque build ou réoptimisation de Vite (« Failed to fetch dynamically imported module »).
 
-const CACHE_NAME = 'jesuis-pro-v1'
-const STATIC_ASSETS = [
-  '/',
-  '/studio/',
-  '/studio/agenda',
-  '/studio/services',
+const CACHE_NAME = 'jesuis-pro-v2'
+const PRECACHE = [
   '/brand/icone.png',
   '/brand/favicon.svg',
   '/brand/apple-touch-icon.png',
   '/brand/logo.svg',
   '/offline.html',
 ]
+const PAGE_HORS_LIGNE = '/offline.html'
 
-// Installation : precache les assets statiques.
+// Installation : précharge uniquement le strict nécessaire.
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(STATIC_ASSETS)).then(() => self.skipWaiting())
+    caches.open(CACHE_NAME).then((cache) => cache.addAll(PRECACHE)).then(() => self.skipWaiting()),
   )
 })
 
-// Activation : supprime les anciens caches.
+// Activation : supprime tous les anciens caches (dont jesuis-pro-v1, qui contenait des modules périmés).
 self.addEventListener('activate', (event) => {
   event.waitUntil(
-    caches.keys().then((keys) =>
-      Promise.all(keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key)))
-    ).then(() => self.clients.claim())
+    caches
+      .keys()
+      .then((keys) => Promise.all(keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key))))
+      .then(() => self.clients.claim()),
   )
 })
 
-// Interception des requetes : reseau d'abord, cache en secours pour les assets statiques,
-// page de repli hors ligne pour les pages du studio/marketing en cas d'echec.
-// Jamais de cache pour les reponses d'API ni donnees personnelles.
 self.addEventListener('fetch', (event) => {
-  const url = new URL(event.request.url)
+  const { request } = event
+  if (request.method !== 'GET') return
 
-  // Ne jamais intercepter les appels d'API.
+  const url = new URL(request.url)
+  if (url.origin !== self.location.origin) return
   if (url.pathname.startsWith('/api/')) return
 
-  // Pour les pages HTML : reseau d'abord, cache en secours, repli hors ligne.
-  if (event.request.mode === 'navigate') {
+  // Pages : réseau d'abord, page de repli si le réseau est indisponible.
+  if (request.mode === 'navigate') {
     event.respondWith(
-      fetch(event.request).catch(() =>
-        caches.match('/offline.html')
-      )
+      fetch(request).catch(() => caches.match(PAGE_HORS_LIGNE).then((reponse) => reponse ?? Response.error())),
     )
     return
   }
 
-  // Pour les assets statiques : cache d'abord, reseau en secours.
-  event.respondWith(
-    caches.match(event.request).then((cached) => {
-      if (cached) return cached
-      return fetch(event.request).then((response) => {
-        // Mise en cache uniquement des assets du meme origine et non-API.
-        if (response.ok && url.origin === self.location.origin && !url.pathname.startsWith('/api/')) {
-          const clone = response.clone()
-          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone))
-        }
-        return response
-      })
-    })
-  )
+  // Fichiers préchargés : cache d'abord. Tout le reste n'est pas intercepté.
+  if (PRECACHE.includes(url.pathname)) {
+    event.respondWith(caches.match(request).then((enCache) => enCache ?? fetch(request)))
+  }
 })
