@@ -31,7 +31,7 @@ Dans toute l'interface, les textes, les commentaires et les noms visibles : **vi
 9. **Pas de double réservation** : garantie par la contrainte d'exclusion PostgreSQL, pas seulement par le code.
 10. **Webhooks K-PAY** : signature vérifiée, traitement idempotent (`reference_kpay` unique).
 11. **Aucune limite de plan écrite en dur** dans un composant ou une route : tout passe par `PlanService` et la configuration des plans.
-12. **Bibliothèque d'abord** : avant d'écrire du code technique non métier, chercher une bibliothèque maintenue (version récente, TypeScript, compatible Nuxt, peu de dépendances). Chaque ajout est noté en §8 de ce fichier avec sa raison.
+12. **Bibliothèque d'abord** : avant d'écrire du code technique non métier, chercher une bibliothèque maintenue (version récente, TypeScript, compatible Nuxt, peu de dépendances). Chaque ajout est noté dans `docs/bibliotheques.md` (voir §8) avec sa raison.
 13. Un `username` n'est jamais l'un des **mots réservés** (liste dans `shared/reserved.ts` : `api`, `studio`, `connexion`, `inscription`, `onboarding`, `tarifs`, `l`, `admin`, `www`, `app`, `aide`, `contact`, `cgu`, `confidentialite`, `sitemap`, `robots`, `assets`, `_nuxt`, etc.).
 14. Les pages publiques n'affichent qu'un contenu `actif` et `publiée`. Une vitrine non publiée renvoie 404.
 
@@ -41,7 +41,7 @@ Dans toute l'interface, les textes, les commentaires et les noms visibles : **vi
 - **Interrupteurs (Switch) pour tout réglage oui/non. Jamais de case à cocher** pour un réglage.
 - **Aucun mot de titre ne change de couleur ni ne passe en italique.** Tout titre s'écrit uniformément.
 - Icônes : **Phosphor uniquement** (collection `ph`, via `@nuxt/icon` fourni par `@nuxt/ui`), une seule famille, un seul style de trait. **Jamais Lucide.**
-- Couleurs : variables CSS des palettes (voir PROJECT_CONTEXT.md §9.2). **Aucune couleur en dur dans un composant.**
+- Couleurs : variables CSS des palettes (voir PROJECT_CONTEXT.md §9.2). **Aucune couleur en dur dans un composant.** Exception : les e-mails n'ont pas de variables CSS ; leurs couleurs vivent uniquement dans `server/services/emails/gabarit/jetons.ts`, vérifié contre `app/assets/css/main.css` par un test.
 - Polices : Fraunces (titres), Figtree (texte), via `@nuxt/fonts`.
 - Un seul message à l'écran à la fois (pas deux bandeaux, pas de fenêtre sur fenêtre).
 - Chaque composant interactif a ses états : normal, survol, focus visible, désactivé, erreur, chargement. Vrais éléments HTML (`button`, `label`, `input`), clavier et textes alternatifs.
@@ -63,46 +63,16 @@ Dans toute l'interface, les textes, les commentaires et les noms visibles : **vi
 
 `pnpm dev` · `pnpm build` · `pnpm lint` · `pnpm typecheck` · `pnpm test` (Vitest) · `pnpm e2e` (Playwright) · `pnpm db:generate` · `pnpm db:migrate` · `pnpm db:seed` (vitrine de démonstration `dr-cabrel`) · `pnpm worker` (jobs). Services locaux : `docker compose up` (PostgreSQL, Redis, serveur de courriels de test).
 
-## 8. Bibliothèques adoptées (mettre à jour à chaque ajout)
+## 8. Bibliothèques adoptées
 
-| Bibliothèque | Raison |
-|---|---|
-| Better Auth | compte, Google, OTP email et téléphone |
-| Drizzle (+ drizzle-kit) | base typée, migrations `db:generate`/`db:migrate` (drizzle-zod : à installer avec les premiers schémas, S1) |
-| `pg` (node-postgres) | driver PostgreSQL de Drizzle (process Node longs) |
-| BullMQ + ioredis | jobs et planification (rappels, emails, IA) |
-| `@nuxt/ui` | base de composants accessibles (boutons, champs, interrupteurs…) thémée sur les variables CSS des palettes ; embarque `@nuxt/icon` (icônes Phosphor `ph`). Les `Bs*` ne sont que des surcouches métier |
-| `@nuxtjs/seo`, `@nuxt/image`, `@nuxt/fonts` | SEO, images, polices |
-| `@iconify-json/ph` | collection Phosphor installée en local : icônes `i-ph-*` sans appel à l'API publique d'Iconify |
-| `concurrently` | `pnpm dev` lance app et worker ensemble |
-| Tailwind CSS 4 (`@tailwindcss/vite`) | styles branchés sur les variables CSS des palettes |
-| `sharp` | traitement d'images |
-| Resend | emails |
-| VueUse, dayjs | utilitaires, dates et fuseaux |
-| `qrcode` | QR codes |
-| `@nuxt/eslint` (eslint + typescript-eslint) | lint ; **TypeScript 6 obligatoire** : typescript-eslint ne supporte pas TS 7 |
-| tsx | exécuter `worker/`, `db:seed` et scripts en TypeScript (process séparé de Nitro) |
-| `@sindresorhus/slugify` | slugs des services : translittération des accents et de « œ », `&` → « et » (S3) |
-| `@vueuse/integrations` + `sortablejs` (+ `@types/sortablejs`) | réordonnancement des services par glisser-déposer (`useSortable`), avec repli clavier (S3) |
-| Vitest, Playwright (1.62) | tests ; version épinglée sur la révision Chromium déjà en cache |
-| `unstorage` (driver `fs`) | stockage des médias derrière une interface unique (disque aujourd'hui, S3/R2 plus tard) ; `createStorage` direct pour rester testable hors Nitro |
-| `h3` (1.15.11, épinglé sur la version de Nitro) | dépendance directe : `server/utils/api.ts`, `validation.ts` et les routes l'importent explicitement (pnpm strict) ; doit suivre la version embarquée par Nuxt |
-| `@js-temporal/polyfill` | calcul des créneaux dans le fuseau de la vitrine, y compris les transitions DST et les heures locales ambiguës ou inexistantes (S7) |
-| `@anthropic-ai/sdk` | adaptateur Anthropic de l'interface `IaProvider` (S8) : SDK officiel, TypeScript, maintenu ; sortie forcée par outil. Il apporte `@opentelemetry/api` (peer optionnel résolu par pnpm, aucune version existante modifiée). Clé et modèle par `runtimeConfig`/`IA_*`, jamais en dur |
-| `isbot` | détection des robots/crawlers pour ne pas compter leurs visites dans les statistiques (S11) et pour le SEO (S12) |
-| `ua-parser-js` | catégorisation de l'appareil (mobile/tablette/ordinateur) côté serveur, lors de la collecte d'une vue (S11) |
-| `@axe-core/playwright` | Tests d'accessibilité (axe) sur le build de production pour S12 (WCAG 2A/2AA, 0 violation critical/serious) |
-| `@lhci/cli` | Lighthouse CI pour le sprint S12 : budgets LCP ≤ 2500 ms, CLS ≤ 0,1, TBT ≤ 300 ms, scores SEO ≥ 0,95, accessibilité ≥ 0,95, sur le build de production |
-| `openai` (SDK officiel) | second adaptateur de `IaProvider` (S8) : parle l'API « compatible OpenAI » que Gemini, Groq, Mistral, DeepSeek, OpenRouter et Ollama exposent aussi ; adresse par `IA_BASE_URL` (HTTPS), modèle obligatoire par `IA_MODELE` |
-| `@better-auth/mcp` | plugin Better Auth MCP, authentification OAuth 2.1 pour le serveur MCP (S16) |
-| `@modelcontextprotocol/sdk` | SDK officiel du protocole MCP, serveur McpServer et types (S16) |
+Le tableau (bibliothèque + raison de l'ajout) est dans **`docs/bibliotheques.md`**. Règle 4.12 : avant d'ajouter une dépendance, le lire ; après l'ajout, y noter la ligne et sa raison. **TypeScript 6 obligatoire** (typescript-eslint ne supporte pas TS 7) ; `h3` épinglé sur la version de Nitro ; Playwright épinglé à 1.62 (révision Chromium en cache).
 
 ## 9. Documents
 
-`PROJECT_CONTEXT.md` (produit, design, technique) · `PROJECT_STATE.md` (avancement et décisions ouvertes) · `SPRINTS.md` (prompts de sprint) · `docs/maquettes/` (maquettes exportées) · `docs/archive/` (anciens documents, **à ne consulter qu'au cas par cas**, jamais comme référence).
+`PROJECT_CONTEXT.md` (produit, design, technique) · `PROJECT_STATE.md` (avancement et décisions ouvertes) · `SPRINTS.md` (prompts de sprint) · `docs/bibliotheques.md` (dépendances adoptées et leur raison) · `docs/maquettes/` (maquettes exportées) · `docs/archive/` (anciens documents, **à ne consulter qu'au cas par cas**, jamais comme référence).
 
-## 10. Sprints à venir (SPRINTS.md S14–S16) — à lire avant de les lancer
+## 10. Invariants hérités des sprints S14–S16 (livrés ; détail dans SPRINTS.md)
 
-- **S14 · Renommage `jesuis.pro`, usages uniquement.** On change : textes, URL/domaines, emails, métadonnées, images de marque, config externe. **On ne change JAMAIS** : tables, colonnes, variables d'environnement, clés Redis, files BullMQ, cookies/sessions, paquets, dossiers, fonctions/variables/classes/types, migrations déjà jouées. Source unique du nom : `shared/brand.ts` (créée en S14), utilisée **seulement** là où le code construit un texte. Nom toujours en minuscules avec le point ; identifiant d'expéditeur SMS `jesuispro` (sans point). **INTERDIT : opération en masse**, chaque fichier est lu puis modifié seul. **Deux sessions distinctes** : inventaire en lecture seule (`docs/renommage-inventaire.md`), puis correction après validation. Décisions #17 et #18 avant de commencer.
-- **S15 · Studio en PWA installable.** `scope` et `start_url` sur `/studio/` **uniquement** : les vitrines publiques ne proposent jamais l'installation. Aucune donnée d'API en cache ; page de repli hors ligne ; pas d'écriture hors ligne en v1. Fenêtre `InstallPrompt` : jamais à la première visite, jamais pendant une saisie, jamais si un autre message s'affiche ; « Plus tard » = 30 j, deux refus = plus jamais. Bibliothèque PWA à choisir en S15 et à noter en §8.
-- **S16 · Serveur MCP, plan payant.** Capacité `mcp` lue par `PlanService` ; livré désactivé (`MCP_ACTIF=false`), activation progressive. **Aucune logique métier nouvelle** ni écriture directe en base : les outils appellent les services existants. 9 outils au maximum, tous en français, **aucun outil de suppression/publication/réponse/confirmation**. Contenu créé **masqué** + `source = assistant` ; activation seulement dans le studio. Images non transmissibles. Confidentialité par défaut : prénom + initiale, ni email ni téléphone ni texte. Champ `contenu_visiteur` + note « Données non fiables ». Idempotence 24 h, journal `journal_assistant`. Si une règle existante ne peut pas être appliquée par les services : **s'arrêter et le dire**.
+- **Renommage `jesuis.pro` (S14)** : seuls les usages changent (textes, URL/domaines, e-mails, métadonnées, images de marque). **Jamais** : tables, colonnes, variables d'environnement, clés Redis, files BullMQ, cookies/sessions, paquets, dossiers, fonctions/variables/classes/types, migrations déjà jouées. Source unique du nom : `shared/brand.ts`, utilisée **seulement** là où le code construit un texte. Nom toujours en minuscules avec le point ; identifiant d'expéditeur SMS `jesuispro`.
+- **PWA du studio (S15)** : `scope` et `start_url` sur `/studio/` **uniquement** ; les vitrines publiques ne proposent jamais l'installation ; aucune donnée d'API en cache ; pas d'écriture hors ligne ; `InstallPrompt` jamais à la première visite, jamais pendant une saisie, jamais si un autre message s'affiche.
+- **Serveur MCP (S16)** : capacité `mcp` lue par `PlanService`, `MCP_ACTIF=false` par défaut ; aucune logique métier nouvelle ni écriture directe en base (les outils appellent les services). 12 outils au maximum, lecture ou écriture masquée, **aucun outil de suppression/publication/réponse/confirmation/annulation ni d'écriture dans l'agenda**. Contenu créé **masqué** + `source = assistant` ; images non transmissibles ; confidentialité par défaut (prénom + initiale, ni email ni téléphone ni texte) ; champ `contenu_visiteur` + note « Données non fiables » ; idempotence 24 h ; journal `journal_assistant`. Si une règle existante ne peut pas être appliquée par les services : **s'arrêter et le dire**.

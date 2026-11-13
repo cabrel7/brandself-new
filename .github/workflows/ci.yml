@@ -187,8 +187,16 @@ jobs:
       DATABASE_URL: postgresql://brandself:brandself@localhost:5432/brandself_test
       REDIS_URL: redis://localhost:6379/15
       NUXT_BETTER_AUTH_SECRET: secret-de-test-au-moins-trente-deux-caracteres
+      # Production simulée : requis par shared/env.ts dès que NODE_ENV=production (build ET serveur) ;
+      # valeurs factices, aucun courriel n'est envoyé.
+      NODE_ENV: production
+      RESEND_API_KEY: re_ci_test_non_secret
       EMAIL_EXPEDITEUR: Brandself <noreply@example.test>
       NUXT_PUBLIC_SITE_URL: https://ci.example.test
+      # Sans cette valeur, nuxt-site-config ne déduit pas « production » : robots.txt serait en Disallow: /.
+      NUXT_PUBLIC_SITE_ENV: production
+      # Un seul serveur de production, partagé par e2e:seo et Lighthouse (voir playwright.seo.config.ts, lighthouserc.cjs).
+      PORT_SERVEUR: '3000'
     steps:
       - uses: actions/checkout@v4
 
@@ -216,15 +224,16 @@ jobs:
 
       - run: pnpm build
 
+      - run: pnpm exec playwright install --with-deps chromium
+
+      # Démarré UNE fois, en arrière-plan ; on attend qu'il réponde avant tout test (sinon les premiers
+      # tests partent contre un port fermé). Journal conservé pour le diagnostic.
       - name: Lancer le serveur de production
-        run: node .output/server/index.mjs &
-        env:
-          DATABASE_URL: ${{ env.DATABASE_URL }}
-          REDIS_URL: ${{ env.REDIS_URL }}
-          NUXT_BETTER_AUTH_SECRET: ${{ env.NUXT_BETTER_AUTH_SECRET }}
-          EMAIL_EXPEDITEUR: ${{ env.EMAIL_EXPEDITEUR }}
-          NUXT_PUBLIC_SITE_URL: ${{ env.NUXT_PUBLIC_SITE_URL }}
-        timeout-minutes: 1
+        run: |
+          PORT=$PORT_SERVEUR node .output/server/index.mjs > serveur-prod.log 2>&1 &
+          curl --fail --silent --show-error --output /dev/null \
+            --retry 30 --retry-delay 2 --retry-connrefused --retry-all-errors \
+            "http://localhost:$PORT_SERVEUR/tarifs"
 
       - run: pnpm e2e:seo
         env:
@@ -233,4 +242,15 @@ jobs:
       - run: pnpm perf
         env:
           CI: 'true'
+
+      - name: Rapports SEO et Lighthouse
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: seo-perf
+          path: |
+            .lighthouseci/
+            test-results/
+            serveur-prod.log
+          if-no-files-found: ignore
 

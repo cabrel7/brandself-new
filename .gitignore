@@ -27,6 +27,9 @@ logs
 # Médias téléversés (stockage local)
 storage/
 
+# Aperçus d'e-mails générés (scripts/apercu-emails.ts)
+tmp/
+
 # Claude Code
 .claude/worktrees/
 .claude/settings.local.json
@@ -36,4 +39,6 @@ ISSUES.log
 # Playwright
 test-results/
 playwright-report/
+# Lighthouse CI (S12)
+.lighthouseci/
 capture-*.png
