@@ -1,15 +1,16 @@
 <script setup lang="ts">
-import type { SujetMessage } from '#shared/message'
-import { SUJET_LIBELLES } from '#shared/message'
-
 definePageMeta({ layout: 'studio', ssr: false })
 useSeoMeta({ title: 'Messages' })
 
 const {
   messages,
   nonLus,
-  idDeplie,
-  basculer,
+  idSelectionne,
+  voisins,
+  ouvrir,
+  fermer,
+  precedent,
+  suivant,
   erreurMarquageLu,
   enChargement,
   enErreur,
@@ -17,18 +18,46 @@ const {
   rafraichir,
 } = useStudioMessages()
 
+// PC (xl, 1280 px) : volet de lecture à côté de la liste ; en dessous : feuille. Page `ssr: false`.
+const estPc = useMediaQuery('(min-width: 1280px)')
+
+const liste = useTemplateRef<HTMLElement>('liste')
+
+// Dernier message lu : la feuille garde son contenu pendant l'animation de fermeture,
+// et le focus revient sur sa ligne.
+const idCourant = ref<string | null>(null)
+watch(idSelectionne, (id) => {
+  if (id !== null) idCourant.value = id
+})
+const messageCourant = computed(() => messages.value.find((message) => message.id === idCourant.value) ?? null)
+
+const feuilleOuverte = computed({
+  get: () => !estPc.value && idSelectionne.value !== null && messageCourant.value !== null,
+  set: (ouverte: boolean) => {
+    if (!ouverte) fermer()
+  },
+})
+
+// Sur PC un message est toujours sélectionné ; en repassant sous 1280 px, aucune feuille ne s'ouvre seule.
+watch([estPc, messages], () => {
+  if (!estPc.value) {
+    if (idSelectionne.value !== null) fermer()
+    return
+  }
+  const present = idSelectionne.value !== null && messages.value.some((message) => message.id === idSelectionne.value)
+  if (!present) {
+    const id = premierASelectionner(messages.value)
+    if (id !== null) ouvrir(id)
+  }
+}, { immediate: true })
+
+function retournerALaLigne(): void {
+  if (idCourant.value === null) return
+  liste.value?.querySelector<HTMLElement>(`[data-message-id="${CSS.escape(idCourant.value)}"]`)?.focus()
+}
+
 function plurielNonLus(nombre: number): string {
   return nombre > 1 ? 'non lus' : 'non lu'
-}
-
-function libelleSujet(sujet: string): string {
-  return Object.hasOwn(SUJET_LIBELLES, sujet) ? SUJET_LIBELLES[sujet as SujetMessage] : sujet
-}
-
-// L'email du visiteur est encodé : un « ? » ou un « & » valide dans une adresse ne doit pas
-// ajouter de paramètres (cc, bcc, body) au lien mailto.
-function lienMail(email: string): string {
-  return `mailto:${encodeURIComponent(email)}`
 }
 </script>
 
@@ -74,16 +103,6 @@ function lienMail(email: string): string {
         </p>
       </header>
 
-      <UAlert
-        v-if="erreurMarquageLu"
-        role="alert"
-        aria-live="assertive"
-        color="error"
-        variant="soft"
-        icon="i-ph-warning-circle"
-        :description="erreurMarquageLu.texte"
-      />
-
       <UEmpty
         v-if="messages.length === 0"
         icon="i-ph-chat-circle-dots"
@@ -92,65 +111,72 @@ function lienMail(email: string): string {
         class="rounded-(--rayon) border border-bordure bg-surface"
       />
 
-      <ul v-else class="m-0 list-none border-t border-bordure p-0">
-        <li v-for="message in messages" :key="message.id" class="border-b border-bordure">
-          <button
-            type="button"
-            class="flex w-full items-start gap-4 py-4 text-left transition-colors hover:bg-surface"
-            :aria-expanded="idDeplie === message.id"
-            :aria-controls="`message-detail-${message.id}`"
-            @click="basculer(message.id)"
-          >
-            <span
-              class="flex size-12 shrink-0 items-center justify-center rounded-full bg-accent-doux font-(family-name:--font-titre) text-(length:--fs-20) font-semibold text-accent-texte"
-              aria-hidden="true"
+      <div v-else class="xl:grid xl:grid-cols-[minmax(20rem,26rem)_minmax(0,1fr)] xl:items-start xl:gap-8">
+        <ul ref="liste" class="m-0 list-none border-t border-bordure p-0">
+          <li v-for="message in messages" :key="message.id" class="border-b border-bordure">
+            <button
+              type="button"
+              :data-message-id="message.id"
+              class="relative flex min-h-14 w-full items-start gap-4 px-2 py-3 text-left transition-colors hover:bg-surface"
+              :class="{ 'bg-surface before:absolute before:inset-y-0 before:left-0 before:w-1 before:bg-accent': estPc && idSelectionne === message.id }"
+              :aria-haspopup="estPc ? undefined : 'dialog'"
+              :aria-current="estPc && idSelectionne === message.id ? 'true' : undefined"
+              @click="ouvrir(message.id)"
             >
-              {{ message.initiale }}
-            </span>
-            <span class="min-w-0 flex-1">
-              <span class="flex items-center justify-between gap-3">
-                <span class="truncate text-encre" :class="message.luLe === null ? 'font-bold' : 'font-medium'">
-                  <span v-if="message.luLe === null" class="sr-only">Non lu, </span>{{ message.nom }}
-                </span>
-                <span class="flex shrink-0 items-center gap-2 text-(length:--fs-14) text-texte-secondaire">
-                  {{ message.dateRelative }}
-                  <span
-                    v-if="message.luLe === null"
-                    class="size-2 rounded-full bg-accent"
-                    aria-hidden="true"
-                  />
-                </span>
+              <span
+                class="flex size-12 shrink-0 items-center justify-center rounded-full bg-accent-doux font-(family-name:--font-titre) text-(length:--fs-20) font-semibold text-accent-texte"
+                aria-hidden="true"
+              >
+                {{ message.initiale }}
               </span>
-              <span v-if="idDeplie !== message.id" class="mt-1 line-clamp-2 block text-base text-texte-secondaire">{{ message.message }}</span>
-            </span>
-          </button>
+              <span class="min-w-0 flex-1">
+                <span class="flex items-center justify-between gap-3">
+                  <span class="truncate text-encre" :class="message.luLe === null ? 'font-bold' : 'font-medium'">
+                    <span v-if="message.luLe === null" class="sr-only">Non lu, </span>{{ message.nom }}
+                  </span>
+                  <span class="flex shrink-0 items-center gap-2 text-(length:--fs-14) text-texte-secondaire">
+                    {{ message.dateRelative }}
+                    <span
+                      v-if="message.luLe === null"
+                      class="size-2 rounded-full bg-accent"
+                      aria-hidden="true"
+                    />
+                  </span>
+                </span>
+                <span class="mt-1 line-clamp-2 text-base wrap-break-word text-texte-secondaire">{{ message.message }}</span>
+              </span>
+            </button>
+          </li>
+        </ul>
 
-          <div
-            v-if="idDeplie === message.id"
-            :id="`message-detail-${message.id}`"
-            class="flex gap-4 pb-5"
-          >
-            <span class="w-12 shrink-0" aria-hidden="true" />
-            <div class="min-w-0 flex-1">
-            <p class="m-0 text-(length:--fs-14) text-texte-secondaire">
-              Sujet : <span class="font-semibold text-encre">{{ libelleSujet(message.sujet) }}</span>
-            </p>
-            <p class="m-0 mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-(length:--fs-14)">
-              <a
-                :href="lienMail(message.email)"
-                class="break-all text-texte-secondaire underline-offset-4 hover:underline"
-              >{{ message.email }}</a>
-              <a
-                v-if="message.telephone"
-                :href="`tel:${message.telephone}`"
-                class="text-texte-secondaire underline-offset-4 hover:underline"
-              >{{ message.telephone }}</a>
-            </p>
-            <p class="m-0 mt-3 text-base whitespace-pre-line text-encre">{{ message.message }}</p>
-            </div>
-          </div>
-        </li>
-      </ul>
+        <section
+          v-if="estPc"
+          aria-label="Lecture du message"
+          class="sticky top-4 max-h-[calc(100dvh-2rem)] overflow-y-auto rounded-(--rayon) border border-bordure bg-surface p-6"
+        >
+          <StudioMessageLecture
+            v-if="messageCourant && idSelectionne !== null"
+            :message="messageCourant"
+            :voisins="voisins"
+            :erreur="erreurMarquageLu?.texte ?? null"
+            avec-entete
+            @precedent="precedent"
+            @suivant="suivant"
+          />
+        </section>
+      </div>
+
+      <StudioFeuilleMessage
+        v-if="!estPc && messageCourant"
+        v-model:open="feuilleOuverte"
+        :message="messageCourant"
+        :voisins="voisins"
+        :erreur="erreurMarquageLu?.texte ?? null"
+        @precedent="precedent"
+        @suivant="suivant"
+        @fermer="fermer"
+        @fermee="retournerALaLigne"
+      />
 
       <p class="m-0 text-(length:--fs-14) text-texte-secondaire">
         Les messages arrivent aussi par email. Répondez directement depuis votre messagerie.

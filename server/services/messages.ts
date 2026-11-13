@@ -64,6 +64,19 @@ export async function listOwnMessages(userId: string): Promise<{ items: MessageR
   return { items, nonLus: Number(compte?.total ?? 0) }
 }
 
+/**
+ * Nombre de messages non lus de SA vitrine. Lecture pure : un seul COUNT (index partiel `messages_non_lus_idx`), aucun
+ * effet de bord ; sans vitrine, 0.
+ */
+export async function countOwnMessagesNonLus(userId: string): Promise<number> {
+  const [ligne] = await db
+    .select({ total: count() })
+    .from(messages)
+    .innerJoin(vitrines, eq(vitrines.id, messages.vitrineId))
+    .where(and(eq(vitrines.userId, userId), isNull(messages.luLe)))
+  return Number(ligne?.total ?? 0)
+}
+
 export async function markMessageLu(userId: string, id: string): Promise<{ item: MessageRow }> {
   return db.transaction(async (tx) => {
     const [current] = await tx
