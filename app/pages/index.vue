@@ -1,40 +1,29 @@
 <script setup lang="ts">
 import { MARQUE } from '#shared/brand'
-import { OG_IMAGE_DEFAUT, OG_IMAGE_LARGEUR, OG_IMAGE_HAUTEUR } from '#shared/seo'
+import { OG_IMAGE_DEFAUT, OG_IMAGE_HAUTEUR, OG_IMAGE_LARGEUR, SITE_DESCRIPTION, urlAbsolue, urlCanonique } from '#shared/seo'
 
-const { public: { siteUrl = '' } } = useRuntimeConfig()
+// `site.url` (nuxt-site-config) : même source que la canonique du module. L'Organization et le WebSite
+// viennent de `schemaOrg.identity` (nuxt.config.ts) : rien à déclarer ici.
+const siteUrl = useSiteConfig().url ?? ''
+const imagePartage = urlAbsolue(siteUrl, OG_IMAGE_DEFAUT)
 
 useSeoMeta({
   title: 'Votre vitrine en ligne',
-  description: 'Une vitrine en ligne pour les professionnels : être trouvé, être compris, être contacté ou réservé.',
+  description: SITE_DESCRIPTION,
   ogTitle: `${MARQUE.nom} — votre vitrine en ligne`,
-  ogDescription: 'Une vitrine en ligne pour les professionnels : être trouvé, être compris, être contacté ou réservé.',
+  ogDescription: SITE_DESCRIPTION,
   ogType: 'website',
-  ogUrl: siteUrl || undefined,
-  ogImage: [{ url: OG_IMAGE_DEFAUT, width: OG_IMAGE_LARGEUR, height: OG_IMAGE_HAUTEUR, alt: MARQUE.nom }],
+  ogUrl: urlCanonique(siteUrl, '/'),
+  ogImage: [{ url: imagePartage, width: OG_IMAGE_LARGEUR, height: OG_IMAGE_HAUTEUR, alt: MARQUE.nom }],
   twitterCard: 'summary_large_image',
-  twitterImage: OG_IMAGE_DEFAUT,
+  twitterImage: imagePartage,
 })
-
-useSchemaOrg([
-  {
-    '@type': 'Organization',
-    name: MARQUE.nom,
-    url: siteUrl || undefined,
-    logo: '/brand/icone.png',
-  },
-  {
-    '@type': 'WebSite',
-    name: MARQUE.nom,
-    url: siteUrl || undefined,
-  },
-])
 </script>
 
 <template>
   <section>
-    <Promesse />
-    <Fonctions />
-    <TarifsResume />
+    <MarketingPromesse />
+    <MarketingFonctions />
+    <MarketingTarifsResume />
   </section>
 </template>

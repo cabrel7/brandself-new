@@ -1,10 +1,26 @@
 <script setup lang="ts">
 import { MARQUE } from '#shared/brand'
 import { PERIODES_MOIS } from '#shared/plans'
+import { OG_IMAGE_DEFAUT, OG_IMAGE_HAUTEUR, OG_IMAGE_LARGEUR, ogLocale, urlAbsolue, urlCanonique } from '#shared/seo'
+
+const TITRE_PAGE = 'Tarifs'
+const DESCRIPTION_PAGE = 'Un plan gratuit pour commencer, un plan payant quand votre vitrine reçoit des rendez-vous. Paiement par Mobile Money, sans renouvellement automatique.'
+
+// Même source que la page d'accueil : `site.url` (nuxt-site-config), image de marque par défaut, locale du site.
+const siteUrl = useSiteConfig().url ?? ''
+const imagePartage = urlAbsolue(siteUrl, OG_IMAGE_DEFAUT)
 
 useSeoMeta({
-  title: 'Tarifs',
-  description: 'Un plan gratuit pour commencer, un plan payant quand votre vitrine reçoit des rendez-vous. Paiement par Mobile Money, sans renouvellement automatique.',
+  title: TITRE_PAGE,
+  description: DESCRIPTION_PAGE,
+  ogTitle: `${TITRE_PAGE} — ${MARQUE.nom}`,
+  ogDescription: DESCRIPTION_PAGE,
+  ogType: 'website',
+  ogLocale: ogLocale(null),
+  ogUrl: urlCanonique(siteUrl, '/tarifs'),
+  ogImage: [{ url: imagePartage, width: OG_IMAGE_LARGEUR, height: OG_IMAGE_HAUTEUR, alt: MARQUE.nom }],
+  twitterCard: 'summary_large_image',
+  twitterImage: imagePartage,
 })
 
 const {
@@ -116,7 +132,7 @@ const moyensTexte = computed(() => moyensLibelles.value.join(' ou '))
 
     <footer class="border-t border-bordure">
       <div class="mx-auto flex w-full max-w-6xl items-center justify-between gap-4 px-6 py-6 text-(length:--fs-14) text-texte-secondaire">
-        <p class="m-0">{{ MARQUE.nom }}</p>
+        <BsLogo variante="wordmark" class="h-8" />
         <p class="m-0">Douala, Cameroun</p>
       </div>
     </footer>

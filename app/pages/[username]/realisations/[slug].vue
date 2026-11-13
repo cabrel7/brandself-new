@@ -9,23 +9,7 @@ const [vitrine, reponse] = await Promise.all([usePublicVitrine(username), usePub
 
 const realisation = computed(() => reponse.value.realisation)
 
-useSeoMeta({
-  title: () => realisation.value.seo.titre,
-  description: () => realisation.value.seo.description,
-  ogTitle: () => realisation.value.seo.titre,
-  ogDescription: () => realisation.value.seo.description,
-})
-
-// Pas de type CreativeWork dédié dans le module : nœud brut. L'image absolue viendra avec l'URL du site (S12).
-useSchemaOrg([
-  {
-    '@type': 'CreativeWork',
-    'name': () => realisation.value.titre,
-    'description': () => realisation.value.seo.description,
-    'creator': { '@type': 'Person', 'name': vitrine.value.nomAffiche },
-    ...(realisation.value.annee !== null ? { dateCreated: String(realisation.value.annee) } : {}),
-  },
-])
+useSeoVitrine({ vitrine: vitrine.value, page: 'realisation', realisation: realisation.value, image: realisation.value.seo.image })
 </script>
 
 <template>

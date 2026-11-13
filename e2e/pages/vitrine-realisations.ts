@@ -17,7 +17,7 @@ export class VitrineRealisations {
   }
 
   get navigation(): Locator {
-    return this.page.getByRole('navigation', { name: 'Vitrine' })
+    return this.page.getByRole('navigation', { name: 'Navigation principale' })
   }
 
   lienNav(nom: string): Locator {

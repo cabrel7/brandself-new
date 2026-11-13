@@ -151,7 +151,7 @@ test.describe.serial('studio des services — vitrine fraîche (S3-CA45, CA46, C
     await page.goto(`/${username}`)
     await expect(page.getByRole('heading', { level: 1 })).toBeVisible()
     await expect(page.getByRole('heading', { name: 'Ce que je propose' })).toHaveCount(0)
-    await expect(page.getByRole('navigation', { name: 'Vitrine' }).getByRole('link', { name: 'Services', exact: true })).toHaveCount(0)
+    await expect(page.getByRole('navigation', { name: 'Navigation principale' }).getByRole('link', { name: 'Services', exact: true })).toHaveCount(0)
     const reponse = await page.goto(`/${username}/services`)
     expect(reponse?.status()).toBe(404)
   })
@@ -279,7 +279,7 @@ test.describe.serial('studio des services — vitrine fraîche (S3-CA45, CA46, C
     await page.setViewportSize(PC)
     await page.goto(`/${username}`)
     await expect(page.getByRole('heading', { name: 'Ce que je propose' })).toBeVisible()
-    await expect(page.getByRole('navigation', { name: 'Vitrine' }).getByRole('link', { name: 'Services', exact: true })).toBeVisible()
+    await expect(page.getByRole('navigation', { name: 'Navigation principale' }).getByRole('link', { name: 'Services', exact: true })).toBeVisible()
     await page.setViewportSize(MOBILE)
   })
 

@@ -33,6 +33,6 @@ export function lignesPlan(plan: PlanTarifDTO): string[] {
     ia === null ? 'Propositions de l’IA illimitées' : `${nombre(ia, 'proposition', 'propositions')} de l’IA par mois`,
     'Page de liens incluse',
     `Statistiques des ${plan.statistiquesJours} derniers jours`,
-    plan.badge ? `Badge « Créé avec ${MARQUE.nom} » sur votre vitrine` : `Sans badge ${MARQUE.nom}`,
+    plan.badge ? `Badge « Propulsé par ${MARQUE.nom} » sur votre vitrine` : `Sans badge ${MARQUE.nom}`,
   ]
 }

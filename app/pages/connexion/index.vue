@@ -9,6 +9,8 @@ interface StoredIdentifier {
 }
 
 const authClient = useAuthClient()
+// Autorisation d'un assistant en attente (query OAuth) : elle traverse toute la connexion.
+const reprise = useRepriseOauth()
 const googleActif = useRuntimeConfig().public.googleActif
 
 const channel = ref<Channel>('email')
@@ -93,13 +95,6 @@ function normalizePhone(): string {
   return `${countryCode.value}${digits}`
 }
 
-function translateError(message: string): string {
-  if (/too many|rate limit/i.test(message)) {
-    return 'Trop de tentatives. Patientez une minute avant de recommencer.'
-  }
-  return ERREUR_ENVOI
-}
-
 function rejectField(message: string): void {
   error.value = message
   fieldInvalid.value = true
@@ -125,7 +120,7 @@ async function sendCode(): Promise<void> {
         type: 'sign-in',
       })
       if (sendError) {
-        error.value = translateError(sendError.message ?? '')
+        error.value = messageErreurEnvoiCode(sendError)
         return
       }
       storeIdentifier('email', value)
@@ -137,12 +132,12 @@ async function sendCode(): Promise<void> {
       }
       const { error: sendError } = await authClient.phoneNumber.sendOtp({ phoneNumber: phone })
       if (sendError) {
-        error.value = translateError(sendError.message ?? '')
+        error.value = messageErreurEnvoiCode(sendError)
         return
       }
       storeIdentifier('telephone', phone)
     }
-    await navigateTo('/connexion/code')
+    await navigateTo(reprise.versConnexion('/connexion/code'))
   } catch {
     error.value = ERREUR_ENVOI
   } finally {
@@ -158,7 +153,7 @@ async function continueWithGoogle(): Promise<void> {
     return
   }
   try {
-    await authClient.signIn.social({ provider: 'google', callbackURL: '/onboarding' })
+    await authClient.signIn.social({ provider: 'google', callbackURL: reprise.urlReprise() ?? '/onboarding' })
   } catch {
     error.value = 'Nous n\'avons pas pu ouvrir Google. Réessayez dans un instant.'
   }
@@ -168,7 +163,7 @@ async function continueWithGoogle(): Promise<void> {
 <template>
   <div class="grid min-h-screen lg:grid-cols-[45fr_55fr]">
     <aside class="hidden flex-col justify-between gap-8 bg-accent-doux p-12 lg:flex">
-      <p class="font-(family-name:--font-titre) text-(length:--fs-24) font-bold">{{ MARQUE.nom }}</p>
+      <BsLogo variante="horizontal" class="h-14 self-start" />
       <p class="font-(family-name:--font-titre) text-(length:--fs-48) leading-[1.15] font-bold">
         Votre vitrine professionnelle, prête en quelques minutes.
       </p>
@@ -182,7 +177,7 @@ async function continueWithGoogle(): Promise<void> {
     </aside>
 
     <main class="mx-auto flex w-full max-w-120 flex-col gap-4 px-6 pt-8 pb-12 lg:justify-center lg:py-12">
-      <p class="font-(family-name:--font-titre) text-(length:--fs-24) font-bold lg:hidden">{{ MARQUE.nom }}</p>
+      <BsLogo variante="wordmark" class="h-10 self-start lg:hidden" />
 
       <h1 class="font-(family-name:--font-titre) text-(length:--fs-32) leading-[1.15] font-bold">
         Bienvenue
