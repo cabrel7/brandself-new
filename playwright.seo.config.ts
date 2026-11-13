@@ -1,23 +1,32 @@
-// S12 (#162) : projet Playwright dédié aux tests SEO sur le build de production.
+// S12 (#162) : projet Playwright dédié aux tests SEO (e2e/seo) et d'accessibilité (e2e/a11y) sur le BUILD de production.
+// En CI, le serveur est démarré une seule fois par le workflow (partagé avec Lighthouse) : aucun `webServer` ici.
+// En local : `pnpm build`, puis `NUXT_PUBLIC_SITE_URL=https://… pnpm e2e:seo` ; un serveur déjà lancé sur le port est réutilisé.
 import { defineConfig, devices } from '@playwright/test'
 
+const PORT = Number(process.env.PORT_SERVEUR ?? 3000)
+const BASE_URL = `http://localhost:${PORT}`
+const TIMEOUT_DEMARRAGE_MS = 120_000
+
 export default defineConfig({
-  testDir: './e2e/seo',
+  testDir: './e2e',
+  testMatch: ['seo/**/*.spec.ts', 'a11y/**/*.spec.ts'],
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
   workers: process.env.CI ? 1 : undefined,
-  reporter: process.env.CI ? 'blob' : 'list',
+  reporter: 'list',
   use: {
-    baseURL: 'http://localhost:3000',
+    baseURL: BASE_URL,
     trace: 'on-first-retry',
   },
-  webServer: {
-    command: 'node .output/server/index.mjs',
-    port: 3000,
-    timeout: 120 * 1000,
-    reuseExistingServer: !process.env.CI,
-  },
+  webServer: process.env.CI
+    ? undefined
+    : {
+        command: 'node .output/server/index.mjs',
+        url: BASE_URL,
+        timeout: TIMEOUT_DEMARRAGE_MS,
+        reuseExistingServer: true,
+      },
   projects: [
     {
       name: 'chromium',

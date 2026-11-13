@@ -6,6 +6,7 @@ import {
   LLMS_NOTES,
   LLMS_SECTIONS,
   NOINDEX_ROUTES,
+  OG_LOGO,
   ROBOTS_IA_POLITIQUE_DEFAUT,
   SITE_DESCRIPTION,
   SITEMAP_CACHE_S,
@@ -105,7 +106,9 @@ export default defineNuxtConfig({
     llmsTxtCacheSeconds: 3600,
     contentSignal: { aiTrain: false, search: true, aiInput: true, contentUsage: false },
   },
-  schemaOrg: { identity: 'Organization' },
+  // Organization du site (nœud `#identity` de chaque page). `url` volontairement absent : le module la lit dans
+  // `site.url` au runtime, donc elle suit NUXT_PUBLIC_SITE_URL même si l'image est construite pour un autre hôte.
+  schemaOrg: { identity: { type: 'Organization', name: MARQUE.nom, logo: OG_LOGO } },
   app: {
     head: {
       htmlAttrs: { lang: 'fr' },
@@ -152,6 +155,11 @@ export default defineNuxtConfig({
       headers: { 'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer' },
     },
   },
+  // Serveur de dev lié à 127.0.0.1 (boucle locale IPv4) : par défaut Node résout `localhost` en ::1 et
+  // n'écoute qu'en IPv6, ce qui fait refuser le WebSocket HMR par Firefox (NS_ERROR_WEBSOCKET_CONNECTION_REFUSED)
+  // alors que le HTTP passe. Jamais `0.0.0.0` ni `::` : la boîte OTP de dev (/api/dev/boite-otp) serait
+  // lisible depuis tout le réseau local. `localhost` reste utilisable dans le navigateur.
+  devServer: { host: '127.0.0.1' },
   // Développement uniquement : les sous-modules lourds de @nuxtjs/seo sont coupés.
   // nuxt-og-image télécharge des polices depuis fonts.gstatic.com pendant le build
   // Nitro de dev ; un échec réseau fait échouer ce build (« dev server unavailable »).

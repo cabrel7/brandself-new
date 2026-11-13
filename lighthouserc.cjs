@@ -1,15 +1,24 @@
-// S12 (#162) : configuration Lighthouse CI. Lancée sur le build de production.
+// S12 (#162) : configuration Lighthouse CI, sur le build de production.
+// Les budgets reprennent BUDGET_* de shared/seo.ts (un test unitaire vérifie qu'ils sont identiques).
+// En CI, le serveur est déjà démarré par le workflow (partagé avec e2e:seo) : on ne le relance pas.
+// En local (`pnpm perf:local`), lhci démarre lui-même le serveur et attend sa ligne « Listening ».
+const PORT = process.env.PORT_SERVEUR || '3000'
+const BASE = `http://localhost:${PORT}`
+const DEMARRAGE_LOCAL = process.env.CI
+  ? {}
+  : { startServerCommand: 'node .output/server/index.mjs', startServerReadyPattern: 'Listening', startServerReadyTimeout: 120000 }
+
 module.exports = {
   ci: {
     collect: {
       numberOfRuns: 3,
-      startServerCommand: 'node .output/server/index.mjs',
-      startServerReadyPattern: 'ready',
+      ...DEMARRAGE_LOCAL,
+      // `/@dr-cabrel` (lien en bio) est volontairement `noindex` : son score SEO ne serait jamais valide.
       url: [
-        'http://localhost:3000/',
-        'http://localhost:3000/dr-cabrel',
-        'http://localhost:3000/dr-cabrel/services/consultation-de-cardiologie',
-        'http://localhost:3000/@dr-cabrel',
+        `${BASE}/`,
+        `${BASE}/tarifs`,
+        `${BASE}/dr-cabrel`,
+        `${BASE}/dr-cabrel/services/consultation-de-cardiologie`,
       ],
     },
     assert: {
@@ -23,8 +32,10 @@ module.exports = {
         'total-blocking-time': ['error', { maxNumericValue: 300 }],
       },
     },
+    // Aucun envoi vers un stockage public : rapports écrits sur disque, publiés en artefact par le workflow.
     upload: {
-      target: 'temporary-public-storage',
+      target: 'filesystem',
+      outputDir: '.lighthouseci',
     },
   },
 }

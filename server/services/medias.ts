@@ -12,10 +12,12 @@ import {
   UnsupportedMediaTypeError,
 } from '../exceptions/http'
 import { db } from '../utils/db'
+import { OG_IMAGE_HAUTEUR, OG_IMAGE_LARGEUR, OG_IMAGE_QUALITE } from '../../shared/seo'
 import {
   deleteMediaFiles,
   deleteUserMediaFiles,
   getStorage,
+  partageKey,
   readMediaVariantFile,
   writeMediaVariant,
 } from '../utils/stockage'
@@ -263,6 +265,36 @@ export async function getPartageVariant(mediaId: string, _vitrineId: string): Pr
   await stockage.setItemRaw(partageKey, output)
 
   return { url: `/medias/${row.userId}/${mediaId}/partage.webp`, largeur: 1200, hauteur: 630, mime: 'image/jpeg' }
+}
+
+/**
+ * S12 : octets JPEG 1200×630 de la variante de partage d'un média (URL `/medias/{id}/partage.jpg`, celle de `seo.image`).
+ * Produite à la première demande depuis la plus grande variante, mise en cache sur le disque. Même exposition que les
+ * autres variantes (id non devinable) : id mal formé ou média absent = 404.
+ */
+export async function readPartageJpeg(mediaId: string): Promise<Buffer> {
+  if (!MEDIA_ID_RE.test(mediaId)) throw new NotFoundError('MEDIA_INTROUVABLE')
+  const [row] = await db.select({ userId: medias.userId }).from(medias).where(eq(medias.id, mediaId)).limit(1)
+  if (!row) throw new NotFoundError('MEDIA_INTROUVABLE')
+
+  const stockage = getStorage()
+  const cle = partageKey(row.userId, mediaId)
+  const existant = await stockage.getItemRaw<Buffer | null>(cle)
+  if (existant) return existant
+
+  const largeurSource = MEDIA_WIDTHS[MEDIA_WIDTHS.length - 1]
+  if (!largeurSource) throw new UnprocessableError('IMAGE_ILLISIBLE')
+  const source = await readMediaVariant(mediaId, largeurSource)
+  try {
+    const sortie = await sharp(source, { limitInputPixels: MEDIA_MAX_PIXELS, failOn: 'error' })
+      .resize(OG_IMAGE_LARGEUR, OG_IMAGE_HAUTEUR, { fit: 'cover', position: 'attention' })
+      .jpeg({ quality: OG_IMAGE_QUALITE })
+      .toBuffer()
+    await stockage.setItemRaw(cle, sortie)
+    return sortie
+  } catch {
+    throw new UnprocessableError('IMAGE_ILLISIBLE')
+  }
 }
 
 /** S12 : sert la variante de partage déjà générée. 404 si absente. */

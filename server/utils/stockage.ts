@@ -4,7 +4,7 @@ import { createStorage } from 'unstorage'
 import fsDriver from 'unstorage/drivers/fs'
 import type { Storage } from 'unstorage'
 import { env } from '../../shared/env'
-import { MEDIA_WIDTHS } from '../../shared/medias'
+import { MEDIA_WIDTHS, PARTAGE_FICHIER } from '../../shared/medias'
 import type { MediaWidth } from '../../shared/medias'
 
 // Stockage des médias : unstorage + driver disque. On utilise `createStorage` (et non le
@@ -31,6 +31,13 @@ export function mediaKey(userId: string, mediaId: string, width: MediaWidth): st
   assertSafeId(mediaId, 'média')
   assertWidth(width)
   return `${userId}:${mediaId}:${width}.webp`
+}
+
+/** S12 : clé de la variante de partage (JPEG 1200×630), produite à la première demande. */
+export function partageKey(userId: string, mediaId: string): string {
+  assertSafeId(userId, 'utilisateur')
+  assertSafeId(mediaId, 'média')
+  return `${userId}:${mediaId}:${PARTAGE_FICHIER}`
 }
 
 let storage: Storage | undefined
@@ -63,7 +70,10 @@ export async function readMediaVariantFile(userId: string, mediaId: string, widt
 /** Supprime les 3 variantes d'un média puis son dossier (s'il est vide). Idempotent. */
 export async function deleteMediaFiles(userId: string, mediaId: string): Promise<void> {
   const current = getStorage()
-  await Promise.all(MEDIA_WIDTHS.map((width) => current.removeItem(mediaKey(userId, mediaId, width))))
+  await Promise.all([
+    ...MEDIA_WIDTHS.map((width) => current.removeItem(mediaKey(userId, mediaId, width))),
+    current.removeItem(partageKey(userId, mediaId)),
+  ])
   await rmdir(directory(userId, mediaId)).catch(() => undefined)
 }
 
