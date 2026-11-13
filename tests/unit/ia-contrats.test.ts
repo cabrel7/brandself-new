@@ -107,8 +107,9 @@ describe('constantes IA (shared/ia)', () => {
     expect(IA_CONCURRENCE_WORKER).toBe(4)
   })
 
-  it('should list the types, statuses, providers and the default model', () => {
-    expect([...IA_TYPES]).toEqual(['onboarding_vitrine', 'ameliorer_texte'])
+  it('should list the three types, the statuses, the providers and the default model', () => {
+    // Décision #24 : `seo_vitrine` s'ajoute aux deux types S8 (CHECK de la migration 0027).
+    expect([...IA_TYPES]).toEqual(['onboarding_vitrine', 'ameliorer_texte', 'seo_vitrine'])
     expect([...GENERATION_STATUTS]).toEqual(['en_attente', 'en_cours', 'terminee', 'repli', 'expiree'])
     expect([...GENERATION_STATUTS_TERMINAUX]).toEqual(['terminee', 'repli', 'expiree'])
     expect([...IA_FOURNISSEURS]).toEqual(['anthropic', 'openai', 'faux', 'aucun'])

@@ -4,16 +4,18 @@ import Redis from 'ioredis'
 import { env, resolveIaFournisseur } from '../shared/env'
 import { assertConfigPaiements } from '../server/config/paiements'
 import { IA_BASE_URL_DEFAUT, IA_CONCURRENCE_WORKER } from '../shared/ia'
-import type { OtpJobData } from '../shared/jobs'
+import { schemaSeoJobData } from '../shared/schemas/ia'
 import {
   EMAILS_NOTIFICATIONS_CONCURRENCE_WORKER,
   FILE_EMAILS_LEGACY,
   FILE_EMAILS_NOTIFICATIONS,
   FILE_IA,
+  FILE_IA_FOND,
   FILE_MAINTENANCE,
   FILE_MESSAGES_AUTH,
   FILE_PAIEMENTS,
   FILE_SYSTEM,
+  IA_FOND_CONCURRENCE_WORKER,
   IA_JOB_LOCK_MS,
   IA_JOB_MAX_STALLED,
   IA_PURGE_SCHEDULER_ID,
@@ -30,17 +32,22 @@ import { planifierPurge } from '../server/jobs/ia'
 import { dispatchPendingTransactionalEmails } from '../server/jobs/email-outbox'
 import { planifierVerificationsPaiements } from '../server/jobs/paiements'
 import { planifierNotificationsRepetees, planifierPurgeNotifications } from '../server/jobs/notifications'
+import { planifierPurgeIndisponibilites } from '../server/jobs/indisponibilites'
+import { planifierPurgeOauth } from '../server/jobs/oauth'
 import { planifierAgregationStatistiques, planifierPurgeStatistiques } from '../server/jobs/statistiques'
 import { processTransactionalEmail } from '../server/services/email-outbox'
 import { planifierNotifications } from '../server/services/notifications/planification'
 import { purgeOutbox } from '../server/services/notifications/purge'
 import { executeGeneration, purgeGenerations } from '../server/services/ia/generations'
 import { createIaProvider } from '../server/services/ia/fournisseurs'
+import { regenererSeoVitrine } from '../server/services/ia/seo'
 import type { ExecutionDeps } from '../server/services/ia/types'
+import { purgerIndisponibilites } from '../server/services/indisponibilites-purge'
+import { purgerOauth } from '../server/services/oauth-purge'
 import { agregerStatistiques, purgerStatistiques } from '../server/services/statistiques'
 import { verifierPaiementsDus } from '../server/services/abonnements'
 import { purgeProgressionsAbandonnees } from '../server/services/onboarding'
-import { senderOtpEmail, senderOtpSms } from '../server/services/otp/envoi'
+import { cleIdempotenceOtp, processOtpJob as processOtpJobData } from '../server/jobs/otp'
 
 const OUTBOX_POLL_INTERVAL_MS = 5_000
 
@@ -100,22 +107,29 @@ const workerMaintenance = new Worker(
       console.info('[worker] statistiques purgées (STATISTIQUES_PURGEES)')
       return
     }
+    // S16 : clients OAuth orphelins, assertions et jetons expirés (nombres seulement dans le journal).
+    if (job.name === JOBS.purgerOauth) {
+      const bilan = await purgerOauth(new Date())
+      console.info(
+        `[worker] purge OAuth : ${bilan.clients} client(s), ${bilan.assertions} assertion(s), ${bilan.jetonsAcces} jeton(s) d'accès, ${bilan.jetonsRenouvellement} jeton(s) de renouvellement supprimé(s)`,
+      )
+      return
+    }
+    // Indisponibilités de plus de 90 jours (nombre seulement dans le journal : la raison saisie peut être personnelle).
+    if (job.name === JOBS.purgerIndisponibilites) {
+      const purgees = await purgerIndisponibilites(new Date())
+      console.info(`[worker] purge indisponibilités : ${purgees} ligne(s) supprimée(s)`)
+      return
+    }
     throw new Error(`Unknown job: ${job.name}`)
   },
   { connection: createConnection(), concurrency: MAINTENANCE_CONCURRENCE_WORKER },
 )
 
+// Le traitement vit dans server/jobs/otp.ts (testable) ; la clé d'idempotence (file du job + id + instant de mise en
+// file) est celle du job : un essai répété du même job réutilise sa clé, deux jobs distincts n'en partagent jamais.
 async function processOtpJob(job: Job): Promise<void> {
-  const data = job.data as OtpJobData
-  if (job.name === JOBS.sendOtpEmail) {
-    await senderOtpEmail.send(data.identifier, data.code)
-    return
-  }
-  if (job.name === JOBS.sendOtpSms) {
-    await senderOtpSms.send(data.identifier, data.code)
-    return
-  }
-  throw new Error(`Unknown job: ${job.name}`)
+  await processOtpJobData(job.name, job.data, cleIdempotenceOtp(job.queueName, job.id, job.timestamp))
 }
 
 async function processNotificationEmailJob(job: Job): Promise<void> {
@@ -215,7 +229,27 @@ const workerIa = new Worker(
   },
 )
 
-for (const worker of [workerSystem, workerMaintenance, workerMessagesAuth, workerEmailsNotifications, workerEmailsLegacy, workerIa]) {
+// Décision #24 : file `ia-fond`, à part de `ia`. Régénération du SEO d'une vitrine (job différé de 5 minutes),
+// une à la fois ; mêmes dépendances (fournisseur, horloge) que `ia`. Le job ne porte qu'un identifiant de vitrine.
+const workerIaFond = new Worker(
+  FILE_IA_FOND,
+  async (job) => {
+    if (job.name === JOBS.regenererSeoIa) {
+      const data = schemaSeoJobData.parse(job.data)
+      await regenererSeoVitrine(data.vitrineId, iaDeps)
+      return
+    }
+    throw new Error(`Unknown job: ${job.name}`)
+  },
+  {
+    connection: createConnection(),
+    concurrency: IA_FOND_CONCURRENCE_WORKER,
+    lockDuration: IA_JOB_LOCK_MS,
+    maxStalledCount: IA_JOB_MAX_STALLED,
+  },
+)
+
+for (const worker of [workerSystem, workerMaintenance, workerMessagesAuth, workerEmailsNotifications, workerEmailsLegacy, workerIa, workerIaFond]) {
   worker.on('completed', (job) => {
     console.info(`[worker] job « ${job.name} » #${job.id} completed`)
   })
@@ -258,6 +292,14 @@ planifierPurgeStatistiques(maintenanceQueue).catch(() => {
   console.error('[worker] statistics purge scheduling failed (STATISTIQUES_PURGE_SCHEDULE_FAILED)')
 })
 
+planifierPurgeOauth(maintenanceQueue).catch(() => {
+  console.error('[worker] OAuth purge scheduling failed (OAUTH_PURGE_SCHEDULE_FAILED)')
+})
+
+planifierPurgeIndisponibilites(maintenanceQueue).catch(() => {
+  console.error('[worker] unavailability purge scheduling failed (INDISPONIBILITES_PURGE_SCHEDULE_FAILED)')
+})
+
 // S9 : tick de planification sur la file `system`, idempotent au redémarrage.
 planifierNotificationsRepetees(systemQueue).catch(() => {
   console.error('[worker] notifications scheduling failed (NOTIFICATIONS_SCHEDULE_FAILED)')
@@ -287,7 +329,7 @@ dispatchTimer.unref()
 void dispatchOutbox()
 
 console.info(
-  `[worker] started — queues « ${FILE_SYSTEM} », « ${FILE_MAINTENANCE} », « ${FILE_MESSAGES_AUTH} », « ${FILE_EMAILS_NOTIFICATIONS} », « ${FILE_IA} », « ${FILE_PAIEMENTS} » and legacy « ${FILE_EMAILS_LEGACY} » (IA provider: ${fournisseurIa})`,
+  `[worker] started — queues « ${FILE_SYSTEM} », « ${FILE_MAINTENANCE} », « ${FILE_MESSAGES_AUTH} », « ${FILE_EMAILS_NOTIFICATIONS} », « ${FILE_IA} », « ${FILE_IA_FOND} », « ${FILE_PAIEMENTS} » and legacy « ${FILE_EMAILS_LEGACY} » (IA provider: ${fournisseurIa})`,
 )
 
 async function stop(signal: string): Promise<void> {
@@ -301,6 +343,7 @@ async function stop(signal: string): Promise<void> {
       workerEmailsNotifications.close(),
       workerEmailsLegacy.close(),
       workerIa.close(),
+      workerIaFond.close(),
       workerPaiements.close(),
       paiementsQueue.close(),
       emailDispatchQueue.close(),

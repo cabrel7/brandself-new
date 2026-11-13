@@ -288,6 +288,7 @@ describe('JSON Schema transmis au fournisseur', () => {
     expect(Object.keys((jsonSchema as { properties: Record<string, unknown> }).properties).sort()).toEqual([
       'accroches',
       'presentation',
+      'seo',
       'services',
     ])
   })

@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { schemaIaJobData } from './schemas/ia'
-import type { IaJobData } from './schemas/ia'
+import type { IaJobData, SeoJobData } from './schemas/ia'
 
 // Une file = une nature de travail et un profil de latence. Une opération sensible à la latence n'attend
 // jamais derrière une opération lente ou limitée en débit.
@@ -14,6 +14,11 @@ export const FILE_MESSAGES_AUTH = 'messages-auth'
 export const FILE_EMAILS_NOTIFICATIONS = 'emails-notifications'
 /** Générations IA (jusqu'à 25 s) : jamais partagée. */
 export const FILE_IA = 'ia'
+/**
+ * Décision #24 : régénération du SEO en tâche de fond. File À PART de `ia` : un job de fond (différé, sans
+ * utilisateur qui attend) ne passe jamais devant ni derrière une génération d'onboarding sensible à la latence.
+ */
+export const FILE_IA_FOND = 'ia-fond'
 /** S10 : rapprochement des paiements avec le fournisseur (appels réseau bornés par un budget global). */
 export const FILE_PAIEMENTS = 'paiements'
 /**
@@ -31,6 +36,8 @@ export const MESSAGES_AUTH_CONCURRENCE_WORKER = 5
 export const EMAILS_NOTIFICATIONS_CONCURRENCE_WORKER = 1
 /** Un seul tick de vérification à la fois : le budget d'appels K-PAY est partagé avec l'initiation. */
 export const PAIEMENTS_CONCURRENCE_WORKER = 1
+/** Le SEO de fond n'est pas pressé : une régénération à la fois, le débit du fournisseur reste prévisible. */
+export const IA_FOND_CONCURRENCE_WORKER = 1
 
 /** Options des jobs OTP (e-mail et SMS). */
 export const OTP_JOB_MAX_ATTEMPTS = 3
@@ -68,12 +75,18 @@ export const JOBS = {
   sendTransactionalEmail: 'send-transactional-email',
   genererIa: 'ia-generer',
   purgerIa: 'ia-purger',
+  // Décision #24 : régénération différée du SEO d'une vitrine (file `ia-fond`).
+  regenererSeoIa: 'seo-ia-regenerer',
   planifierNotifications: 'notifications-planifier',
   purgerNotifications: 'notifications-purger',
   verifierPaiements: 'paiements-verifier',
   // S11 : agrégation et purge des statistiques (file `maintenance`).
   agregerStatistiques: 'statistiques-agreger',
   purgerStatistiques: 'statistiques-purger',
+  // S16 : purge des clients OAuth orphelins et des jetons expirés (file `maintenance`).
+  purgerOauth: 'oauth-purger',
+  // Purge des indisponibilités de plus de 90 jours (file `maintenance`).
+  purgerIndisponibilites: 'indisponibilites-purger',
 } as const
 
 export type JobName = (typeof JOBS)[keyof typeof JOBS]
@@ -97,6 +110,11 @@ export const IA_PURGE_SCHEDULER_ID = 'ia-purger'
 export const IA_PURGE_CRON = '0 3 * * *'
 export const IA_PURGE_TZ = 'UTC'
 
+// Décision #24 : file `ia-fond`. Un job = un identifiant de vitrine (rien de personnel dans Redis), différé de
+// 5 minutes et unique par vitrine (le délai repart à chaque nouvelle modification : debounce).
+export const SEO_IA_JOB_ID_PREFIXE = 'seo-ia-'
+export const SEO_IA_DEBOUNCE_MS = 300_000
+
 // S10 : file `paiements`. Un ordonnanceur répété (tick) réclame les paiements dus ; aucune donnée personnelle
 // ne transite par Redis (le job ne porte aucune charge utile).
 export const PAIEMENTS_SCHEDULER_ID = 'paiements-verifier'
@@ -110,4 +128,4 @@ export const PAIEMENTS_VERIFICATION_CALENDRIER_S = [15, 30, 60, 120, 300] as con
 export const PAIEMENT_EXPIRATION_MINUTES = 15
 
 export const iaJobDataSchema = schemaIaJobData
-export type { IaJobData }
+export type { IaJobData, SeoJobData }

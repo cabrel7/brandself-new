@@ -1,5 +1,5 @@
 import { Queue } from 'bullmq'
-import { FILE_EMAILS_NOTIFICATIONS, FILE_IA, FILE_MAINTENANCE, FILE_SYSTEM } from '../../shared/jobs'
+import { FILE_EMAILS_NOTIFICATIONS, FILE_IA, FILE_IA_FOND, FILE_MAINTENANCE, FILE_SYSTEM } from '../../shared/jobs'
 import { redis } from '../utils/redis'
 
 // Les files d'authentification (OTP) sont produites par server/auth.config.ts (fichier limité à node_modules
@@ -9,6 +9,7 @@ const g = globalThis as typeof globalThis & {
   __fileMaintenanceBrandself?: Queue
   __fileEmailsNotificationsBrandself?: Queue
   __fileIaBrandself?: Queue
+  __fileIaFondBrandself?: Queue
 }
 
 function createQueue(name: string): Queue {
@@ -37,5 +38,12 @@ export function getEmailsNotificationsQueue(): Queue {
 export function getIaQueue(): Queue {
   const queue = g.__fileIaBrandself ?? createQueue(FILE_IA)
   g.__fileIaBrandself = queue
+  return queue
+}
+
+/** Décision #24 : régénération du SEO en tâche de fond, à part de `ia` (onboarding, sensible à la latence). */
+export function getIaFondQueue(): Queue {
+  const queue = g.__fileIaFondBrandself ?? createQueue(FILE_IA_FOND)
+  g.__fileIaFondBrandself = queue
   return queue
 }

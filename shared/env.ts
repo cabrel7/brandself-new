@@ -45,6 +45,8 @@ const schemaSiteEnv = z.preprocess(rognerOuAbsent, z.enum(SITE_ENVIRONNEMENTS).o
 const schemaPaiementEnLigne = z.preprocess(videVautAbsent, z.stringbool().default(false))
 // S10 : même règle pour `KPAY_MODE_TEST_AUTORISE` (défaut faux).
 const schemaBooleenFaux = z.preprocess(videVautAbsent, z.stringbool().default(false))
+// Décision #24 : interrupteur d'urgence de la régénération du SEO (défaut vrai). Vide = absent.
+const schemaBooleenVrai = z.preprocess(videVautAbsent, z.stringbool().default(true))
 
 const schemaEnv = z
   .object({
@@ -114,6 +116,10 @@ const schemaEnv = z
     // Serveur MCP (S16) : désactivé par défaut. Activé pour une liste de comptes pilotes,
     // puis pour tous les comptes payants.
     MCP_ACTIF: schemaBooleenFaux,
+    // Décision #24 : régénération du SEO en tâche de fond (frein d'urgence : coût IA, incident fournisseur).
+    // Coupée (`false`), les modifications n'enfilent plus aucun job ; la génération faite à l'onboarding, elle,
+    // fait partie de l'appel IA existant et n'est pas concernée.
+    SEO_IA_REGENERATION_ACTIVE: schemaBooleenVrai,
   })
   .superRefine((env, ctx) => {
     if (env.IA_FOURNISSEUR === 'openai' && !env.IA_MODELE) {

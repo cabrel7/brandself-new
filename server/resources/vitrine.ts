@@ -1,11 +1,12 @@
 import type { ContenusPublicsDTO, StudioResumeDTO, VitrinePubliqueDTO, VitrineStudioDTO } from '../../shared/dto'
-import { PALETTES, DEFAULT_PALETTE } from '../../shared/palettes'
-import type { Palette } from '../../shared/palettes'
+import { asPalette } from '../../shared/palettes'
 import { PAYS, TITRES, displayName } from '../../shared/vitrine'
 import type { Titre } from '../../shared/vitrine'
 import type { ContenusPublics, StudioSummary, VitrineAvecPhoto } from '../services/vitrines'
 import { toMediaResource } from './media'
-import { construireTitreVitrine, construireDescriptionVitrine } from '../../shared/seo'
+import { construireImagePartage, resoudreSeoVitrine } from '../../shared/seo'
+import type { SeoVitrineSource } from '../../shared/seo'
+import { seoIaFraiche } from '../services/ia/seo-regles'
 
 // Les colonnes sont du texte libre côté TypeScript (les CHECK de la base garantissent les valeurs) :
 // on les rétrécit ici plutôt que de caster.
@@ -13,17 +14,30 @@ export function asTitre(value: string | null): Titre | null {
   return TITRES.find((titre) => titre === value) ?? null
 }
 
-function asPalette(value: string): Palette {
-  return PALETTES.find((palette) => palette === value) ?? DEFAULT_PALETTE
+function sourceSeo(vitrine: VitrineAvecPhoto['vitrine'], nomAffiche: string): SeoVitrineSource {
+  const pays = vitrine.pays ?? ''
+  return {
+    nomAffiche,
+    metier: vitrine.metier,
+    ville: vitrine.ville ?? '',
+    paysLibelle: PAYS.find((entree) => entree.code === pays)?.label ?? pays,
+    accroche: vitrine.accroche,
+    bio: vitrine.bio,
+    seoTitre: vitrine.seoTitre,
+    seoDescription: vitrine.seoDescription,
+  }
 }
 
 export function toVitrineStudioResource({ vitrine, photo }: VitrineAvecPhoto): VitrineStudioDTO {
+  const nomAffiche = displayName(asTitre(vitrine.titre), vitrine.prenom, vitrine.nom)
+  // Texte automatique résolu SANS les saisies : ce que « Revenir au texte automatique » donnerait.
+  const auto = resoudreSeoVitrine({ ...sourceSeo(vitrine, nomAffiche), seoTitre: null, seoDescription: null }, seoIaFraiche(vitrine))
   return {
     username: vitrine.username,
     titre: asTitre(vitrine.titre),
     prenom: vitrine.prenom,
     nom: vitrine.nom,
-    nomAffiche: displayName(asTitre(vitrine.titre), vitrine.prenom, vitrine.nom),
+    nomAffiche,
     metier: vitrine.metier,
     ville: vitrine.ville,
     pays: vitrine.pays,
@@ -39,6 +53,13 @@ export function toVitrineStudioResource({ vitrine, photo }: VitrineAvecPhoto): V
     publieeLe: vitrine.publieeLe?.toISOString() ?? null,
     creeLe: vitrine.createdAt.toISOString(),
     modifieLe: vitrine.updatedAt.toISOString(),
+    seoTitre: vitrine.seoTitre,
+    seoDescription: vitrine.seoDescription,
+    seoAuto: {
+      titre: auto.titre,
+      description: auto.description,
+      origine: auto.origineTitre === 'ia' || auto.origineDescription === 'ia' ? 'ia' : 'gabarit',
+    },
   }
 }
 
@@ -61,7 +82,7 @@ export function toContenusPublicsResource(contenus: ContenusPublics): ContenusPu
  * DTO public : liste blanche explicite. Ni id, ni userId, ni email du compte, ni téléphone du
  * compte, ni chemin disque, ni réglages internes — on ne spread jamais la ligne de base.
  * S10 : `badgeBrandself` (plan gratuit) est le SEUL reflet public du plan ; le statut d'abonnement n'est jamais exposé.
- * S12 : `seo.image` (null → image par défaut OG_IMAGE_DEFAUT), `modifieLe` pour le sitemap.
+ * S12 : `seo.image` (variante `partage` de la photo ; null → image par défaut OG_IMAGE_DEFAUT), `modifieLe` pour le sitemap.
  */
 export function toVitrinePublicResource(
   { vitrine, photo }: VitrineAvecPhoto,
@@ -72,6 +93,8 @@ export function toVitrinePublicResource(
   const ville = vitrine.ville ?? ''
   const pays = vitrine.pays ?? ''
   const paysLibelle = PAYS.find((entree) => entree.code === pays)?.label ?? pays
+  const resolu = resoudreSeoVitrine(sourceSeo(vitrine, nomAffiche), seoIaFraiche(vitrine))
+  const seoPublic = { titre: resolu.titre, description: resolu.description }
   return {
     username: vitrine.username,
     titre,
@@ -93,23 +116,8 @@ export function toVitrinePublicResource(
     palette: asPalette(vitrine.palette),
     fuseau: vitrine.fuseau,
     seo: {
-      titre: construireTitreVitrine({
-        nomAffiche,
-        metier: vitrine.metier,
-        ville: ville,
-        seoTitre: vitrine.seoTitre,
-      }),
-      description: construireDescriptionVitrine({
-        nomAffiche,
-        metier: vitrine.metier,
-        ville: ville,
-        paysLibelle,
-        accroche: vitrine.accroche,
-        bio: vitrine.bio,
-        seoTitre: vitrine.seoTitre,
-        seoDescription: vitrine.seoDescription,
-      }),
-      image: null,
+      ...seoPublic,
+      image: construireImagePartage(photo?.id, nomAffiche),
     },
     modifieLe: vitrine.updatedAt.toISOString(),
     badgeBrandself,

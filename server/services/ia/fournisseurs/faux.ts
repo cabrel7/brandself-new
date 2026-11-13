@@ -1,8 +1,8 @@
 import { z } from 'zod'
 import { redis } from '../../../utils/redis'
-import { schemaEntreeAmelioration, schemaEntreeOnboarding } from '../entrees'
+import { schemaEntreeAmelioration, schemaEntreeOnboarding, schemaEntreeSeo } from '../entrees'
 import type { EntreeAmelioration, EntreeOnboarding } from '../entrees'
-import { OUTIL_PROPOSER_TEXTE, OUTIL_PROPOSER_VITRINE } from '../outils'
+import { OUTIL_PROPOSER_SEO, OUTIL_PROPOSER_TEXTE, OUTIL_PROPOSER_VITRINE } from '../outils'
 import { IaErreur } from '../types'
 import type { IaProvider, IaReponse, IaRequete } from '../types'
 import { ACCROCHE_MAX, BIO_MAX } from '../../../../shared/vitrine'
@@ -12,7 +12,9 @@ import { ACCROCHE_MAX, BIO_MAX } from '../../../../shared/vitrine'
 // données reçues. Le mode (panne, lenteur, sortie invalide...) se règle dans Redis, clé `ia:faux:mode`.
 
 export const FAUX_MODE_CLE = 'ia:faux:mode'
-export const FAUX_MODES = ['normal', 'panne', 'lent', 'invalide', 'invente'] as const
+// `seo_invalide` : le bloc SEO est hors bornes (le reste est valide) ; `sans_accents` : tous les textes ont perdu
+// leurs accents (décision #24).
+export const FAUX_MODES = ['normal', 'panne', 'lent', 'invalide', 'invente', 'seo_invalide', 'sans_accents'] as const
 export type FauxMode = (typeof FAUX_MODES)[number]
 
 const FAUX_MODELE = 'faux'
@@ -89,7 +91,37 @@ function presentation(entree: EntreeOnboarding, mode: FauxMode): string {
   return [...paragraphes, ...PARAGRAPHES_COMMUNS].join('\n\n')
 }
 
+const MARQUES_ACCENTS = /\p{M}/gu
+
+/** Texte sans accent (mode `sans_accents`) : la même phrase, comme un modèle qui oublierait les accents. */
+function sansAccents(texte: string): string {
+  return texte.normalize('NFD').replace(MARQUES_ACCENTS, '').replace(/œ/g, 'oe').replace(/Œ/g, 'OE')
+}
+
+/** Titre et description SEO valides : la ville dans les deux, aucun fait ajouté. Hors bornes en `seo_invalide`. */
+function seoPour(metier: string, ville: string, mode: FauxMode): { titre: string, description: string } {
+  if (mode === 'seo_invalide') return { titre: 'Trop court', description: 'Description trop courte.' }
+  const lieu = ville === '' ? '' : ` à ${ville}`
+  const seo = {
+    titre: `${metier}${lieu}`,
+    description: `Consultations de ${enMinuscule(metier)}${lieu} pour vous accompagner avec écoute, clarté et un suivi adapté à votre rythme.`,
+  }
+  if (mode === 'invente') seo.description = `${metier}${lieu} avec 15 ans d’expérience au service de votre cœur et de votre santé.`
+  return mode === 'sans_accents' ? { titre: sansAccents(seo.titre), description: sansAccents(seo.description) } : seo
+}
+
 function proposition(entree: EntreeOnboarding, mode: FauxMode): unknown {
+  const sortie = propositionSansSeo(entree, mode)
+  return { ...sortie, seo: seoPour(entree.metier, entree.ville, mode) }
+}
+
+function propositionSansSeo(entree: EntreeOnboarding, mode: FauxMode): Record<string, unknown> {
+  const sortie = propositionNormale(entree, mode)
+  if (mode !== 'sans_accents') return sortie
+  return JSON.parse(sansAccents(JSON.stringify(sortie))) as Record<string, unknown>
+}
+
+function propositionNormale(entree: EntreeOnboarding, mode: FauxMode): Record<string, unknown> {
   return {
     accroches: mode === 'invalide' ? ACCROCHES_INVALIDES : ACCROCHES_VALIDES,
     presentation: presentation(entree, mode),
@@ -161,6 +193,10 @@ export class FauxProvider implements IaProvider {
       const entree = schemaEntreeOnboarding.safeParse(donnees)
       if (!entree.success) throw new IaErreur('fournisseur')
       sortie = proposition(entree.data, mode)
+    } else if (requete.outil.nom === OUTIL_PROPOSER_SEO) {
+      const entree = schemaEntreeSeo.safeParse(donnees)
+      if (!entree.success) throw new IaErreur('fournisseur')
+      sortie = seoPour(entree.data.metier, entree.data.ville, mode === 'invalide' ? 'seo_invalide' : mode)
     } else if (requete.outil.nom === OUTIL_PROPOSER_TEXTE) {
       const entree = schemaEntreeAmelioration.safeParse(donnees)
       if (!entree.success) throw new IaErreur('fournisseur')

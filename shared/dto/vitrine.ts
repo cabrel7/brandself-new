@@ -23,6 +23,11 @@ export interface VitrineStudioDTO {
   publieeLe: string | null
   creeLe: string
   modifieLe: string
+  /** Texte Google saisi par l'utilisateur (null = automatique). */
+  seoTitre: string | null
+  seoDescription: string | null
+  /** Texte automatique résolu SANS les textes saisis (IA fraîche, sinon gabarit). */
+  seoAuto: { titre: string, description: string, origine: 'ia' | 'gabarit' }
 }
 
 export interface StudioResumeDTO {

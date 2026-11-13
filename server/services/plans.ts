@@ -11,7 +11,7 @@ import {
 } from '../../shared/db/schema'
 import type { QuotaDTO } from '../../shared/dto/abonnement'
 import type { QuotaIaDTO } from '../../shared/dto/ia'
-import { GENERATION_EXPIRATION_MS } from '../../shared/ia'
+import { GENERATION_EXPIRATION_MS, IA_TYPES_QUOTA } from '../../shared/ia'
 import {
   ABONNEMENT_FUSEAU_REPLI,
   ABONNEMENT_GRACE_JOURS,
@@ -192,6 +192,8 @@ async function compterUtilise(
         .where(
           and(
             eq(generationsIa.userId, contexte.userId),
+            // Décision #24 : le SEO de fond n'est pas une demande de l'utilisateur, il ne consomme pas son quota.
+            inArray(generationsIa.type, [...IA_TYPES_QUOTA]),
             gte(generationsIa.createdAt, debut),
             lt(generationsIa.createdAt, fin),
             or(

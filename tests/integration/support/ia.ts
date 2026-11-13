@@ -50,7 +50,7 @@ export const jobsIa = () => import('../../../server/jobs/ia')
 export const CLE_MODE_FAUX = 'ia:faux:mode'
 const DUREE_MODE_FAUX_S = 600
 
-export type ModeFaux = 'normal' | 'panne' | 'lent' | 'invalide' | 'invente'
+export type ModeFaux = 'normal' | 'panne' | 'lent' | 'invalide' | 'invente' | 'seo_invalide' | 'sans_accents'
 
 export async function definirModeFaux(mode: ModeFaux): Promise<void> {
   await redis.set(CLE_MODE_FAUX, mode, 'EX', DUREE_MODE_FAUX_S)

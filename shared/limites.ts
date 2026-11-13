@@ -24,6 +24,13 @@ export const IA_GLOBAL_LIMIT: RateLimit = { limit: 2000, windowS: 86400 }
 /** S8 — clés du limiteur (préfixe `limite:` ajouté par le limiteur). */
 export const IA_LIMITE_CLE_UTILISATEUR_PREFIXE = 'ia:'
 export const IA_LIMITE_CLE_GLOBALE = 'ia-global'
+/**
+ * Décision #24 — régénération du SEO d'UNE vitrine : 5 par 24 h (compteur `seo-ia:{vitrineId}`). Jamais le compteur
+ * par utilisateur (`ia:{userId}`) ni le quota mensuel : le SEO de fond n'est pas une demande de l'utilisateur. Le
+ * plafond global de coût (`IA_LIMITE_CLE_GLOBALE`) s'applique en revanche.
+ */
+export const SEO_IA_VITRINE_LIMIT: RateLimit = { limit: 5, windowS: 86400 }
+export const SEO_IA_LIMITE_CLE_PREFIXE = 'seo-ia:'
 /** S11 — enregistrement d'une vue publique, par IP, fail-open (la navigation n'est jamais interrompue). */
 export const VUE_PUBLIC_LIMIT: RateLimit = { limit: 60, windowS: 60 }
 export const VUE_LIMITE_CLE_PREFIXE = 'vue:'

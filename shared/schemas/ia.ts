@@ -21,14 +21,19 @@ import {
   SERVICE_TYPES_PROPOSABLES,
   countWords,
 } from '../ia'
+import { SEO_DESCRIPTION_MAX, SEO_DESCRIPTION_MIN, SEO_IA_TITRE_MAX, SEO_IA_TITRE_MIN } from '../seo'
 import { SERVICE_DESCRIPTION_MAX, SERVICE_TITRE_MAX } from '../services'
 import { ACCROCHE_MAX, BIO_MAX } from '../vitrine'
 
 // S8 §3.4 : sorties attendues du fournisseur (validées par Zod avant tout usage) et entrées des routes IA.
 
-/** Identifiants de schéma de sortie, stockés dans `prompts_ia.schema_sortie`. */
-export const SCHEMA_SORTIE_PROPOSITION = 'proposition_onboarding_v1'
+/**
+ * Identifiants de schéma de sortie, stockés dans `prompts_ia.schema_sortie`. La proposition d'onboarding est en v2
+ * depuis la décision #24 (elle porte en plus le bloc « seo ») ; les générations faites en v1 restent lisibles.
+ */
+export const SCHEMA_SORTIE_PROPOSITION = 'proposition_onboarding_v2'
 export const SCHEMA_SORTIE_TEXTE = 'texte_ameliore_v1'
+export const SCHEMA_SORTIE_SEO = 'seo_vitrine_v1'
 
 function entreMots(min: number, max: number) {
   return (texte: string): boolean => {
@@ -102,7 +107,16 @@ const schemaServiceRepli = z
   })
   .superRefine(verifierCoherenceService)
 
-export const schemaPropositionOnboarding = z.strictObject({
+/**
+ * Proposition de SEO (décision #24) : même borne que les CHECK `vitrines_seo_ia_*` de la migration 0027
+ * (titre 10..50, description 50..160). Strict : une clé inconnue est une sortie invalide. `trim` AVANT les bornes.
+ */
+export const schemaSeoIa = z.strictObject({
+  titre: z.string().trim().min(SEO_IA_TITRE_MIN).max(SEO_IA_TITRE_MAX),
+  description: z.string().trim().min(SEO_DESCRIPTION_MIN).max(SEO_DESCRIPTION_MAX),
+})
+
+const champsPropositionCommuns = {
   accroches: z
     .array(
       z
@@ -125,12 +139,30 @@ export const schemaPropositionOnboarding = z.strictObject({
     .array(schemaServicePropose)
     .length(SERVICES_PROPOSES)
     .refine((services) => toutesDistinctes(services.map((s) => s.titre)), 'Les services doivent avoir des titres différents.'),
+}
+
+/** JSON Schema de l'outil `proposer_vitrine` (prompt v2) : le bloc « seo » est OBLIGATOIRE pour le modèle. */
+export const schemaPropositionOnboardingOutil = z.strictObject({
+  ...champsPropositionCommuns,
+  seo: schemaSeoIa,
+})
+
+/**
+ * Validation de la sortie reçue : le bloc « seo » est lu tel quel (`unknown`) puis validé À PART (`validerSeo`).
+ * Un SEO invalide ne doit pas faire rejeter (et refaire payer) la proposition entière, et une génération faite en
+ * v1, sans bloc « seo », reste valide.
+ */
+export const schemaPropositionOnboarding = z.strictObject({
+  ...champsPropositionCommuns,
+  seo: z.unknown().optional(),
 })
 
 export const schemaPropositionRepli = z.strictObject({
   accroches: z.array(z.string().trim().min(1).max(ACCROCHE_MAX)).length(ACCROCHES_PROPOSEES),
   presentation: z.string().trim().min(1).max(BIO_MAX),
   services: z.array(schemaServiceRepli).length(SERVICES_PROPOSES),
+  // Lecture de la sortie stockée : présent quand l'IA a fourni un SEO valide, absent sinon (repli, v1, SEO rejeté).
+  seo: schemaSeoIa.optional(),
 })
 
 /** Bornes propres à chaque champ (caractères, mots) : vérifiées par le service. */
@@ -165,9 +197,14 @@ export const schemaPromptParametres = z.strictObject({
 /** Données du job `ia-generer` : un identifiant, rien de personnel dans Redis. */
 export const schemaIaJobData = z.strictObject({ generationId: z.uuid() })
 
+/** Données du job `seo-ia-regenerer` : un identifiant de vitrine, rien de personnel dans Redis. */
+export const schemaSeoJobData = z.strictObject({ vitrineId: z.uuid() })
+
 export type ServicePropose = z.infer<typeof schemaServicePropose>
 export type PropositionOnboarding = z.infer<typeof schemaPropositionOnboarding>
 export type TexteAmeliore = z.infer<typeof schemaTexteAmeliore>
 export type AmeliorerInput = z.infer<typeof schemaAmeliorerInput>
 export type PromptParametres = z.infer<typeof schemaPromptParametres>
 export type IaJobData = z.infer<typeof schemaIaJobData>
+export type SeoJobData = z.infer<typeof schemaSeoJobData>
+export type SeoIa = z.infer<typeof schemaSeoIa>

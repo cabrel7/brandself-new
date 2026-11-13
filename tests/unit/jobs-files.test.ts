@@ -11,6 +11,7 @@ import {
   FILE_SYSTEM,
   MESSAGES_AUTH_CONCURRENCE_WORKER,
 } from '../../shared/jobs'
+import * as jobs from '../../shared/jobs'
 import { DESABONNEMENT_ACTION_LIMIT, DESABONNEMENT_APERCU_LIMIT } from '../../shared/limites'
 import { HEURE_MS, JOUR_MS, MS_PAR_SECONDE, SECONDES_PAR_JOUR } from '../../shared/temps'
 
@@ -24,7 +25,8 @@ const lire = (fichier: string): string => readFileSync(path.join(RACINE, fichier
 /** Texte d'un `new Worker(` jusqu'au suivant : contient la file, le processeur et les options. */
 function blocWorker(source: string, fichier: string): string {
   const blocs = source.split('new Worker(').slice(1)
-  const trouve = blocs.find((bloc) => bloc.trimStart().startsWith(fichier))
+  // La virgule évite de confondre `FILE_IA` et `FILE_IA_FOND`.
+  const trouve = blocs.find((bloc) => bloc.trimStart().startsWith(`${fichier},`))
   if (trouve === undefined) throw new Error(`Aucun worker pour ${fichier}`)
   // Le `new Worker(` se ferme par une parenthèse en colonne 0.
   return trouve.split('\n)\n')[0] ?? trouve
@@ -32,7 +34,11 @@ function blocWorker(source: string, fichier: string): string {
 
 describe('noms et constantes des files', () => {
   it('should give every queue its own name', () => {
-    const noms = [FILE_SYSTEM, FILE_MAINTENANCE, FILE_MESSAGES_AUTH, FILE_EMAILS_NOTIFICATIONS, FILE_IA, FILE_EMAILS_LEGACY]
+    // Décision #24 : `ia-fond` (SEO régénéré en tâche de fond) est une file à part, jamais mêlée à `ia` (onboarding, latence).
+    // Le nom de la constante n'est pas figé : on cherche la file par sa valeur.
+    const fileFond = Object.values(jobs).find((valeur) => valeur === 'ia-fond')
+    expect(fileFond).toBe('ia-fond')
+    const noms = [FILE_SYSTEM, FILE_MAINTENANCE, FILE_MESSAGES_AUTH, FILE_EMAILS_NOTIFICATIONS, FILE_IA, fileFond, FILE_EMAILS_LEGACY]
     expect(new Set(noms).size).toBe(noms.length)
   })
 

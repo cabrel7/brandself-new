@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import type { IaType } from '../../../shared/ia'
-import { schemaPropositionOnboarding, schemaTexteAmeliore } from '../../../shared/schemas/ia'
+import { schemaPropositionOnboardingOutil, schemaSeoIa, schemaTexteAmeliore } from '../../../shared/schemas/ia'
 import type { IaOutil } from './types'
 
 // S8 §4.6 : la sortie du modèle est forcée par un outil (tool use) dont le schéma vient de Zod.
@@ -9,6 +9,8 @@ import type { IaOutil } from './types'
 
 export const OUTIL_PROPOSER_VITRINE = 'proposer_vitrine'
 export const OUTIL_PROPOSER_TEXTE = 'proposer_texte'
+/** Décision #24 : SEO d'une vitrine existante (titre et description pour les moteurs de recherche). */
+export const OUTIL_PROPOSER_SEO = 'proposer_seo'
 
 function schemaJson(schema: z.ZodType): Record<string, unknown> {
   const { $schema: _version, ...reste } = z.toJSONSchema(schema)
@@ -20,7 +22,15 @@ export function outilPour(type: IaType): IaOutil {
     return {
       nom: OUTIL_PROPOSER_VITRINE,
       description: 'Enregistre la proposition de vitrine',
-      schema: schemaJson(schemaPropositionOnboarding),
+      // Prompt v2 : le bloc « seo » est obligatoire pour le modèle (la validation, elle, le tolère absent).
+      schema: schemaJson(schemaPropositionOnboardingOutil),
+    }
+  }
+  if (type === 'seo_vitrine') {
+    return {
+      nom: OUTIL_PROPOSER_SEO,
+      description: 'Enregistre le titre et la description pour les moteurs de recherche',
+      schema: schemaJson(schemaSeoIa),
     }
   }
   return {

@@ -5,8 +5,15 @@ import { SERVICE_TYPES } from './services'
 // Les listes du statut, des motifs et des types sont recopiées dans les CHECK de la
 // migration 0018 : les garder synchronisées.
 
-export const IA_TYPES = ['onboarding_vitrine', 'ameliorer_texte'] as const
+// Décision #24 : `seo_vitrine` (proposition SEO régénérée en tâche de fond) s'ajoute aux deux types S8 (CHECK 0027).
+export const IA_TYPES = ['onboarding_vitrine', 'ameliorer_texte', 'seo_vitrine'] as const
 export type IaType = (typeof IA_TYPES)[number]
+
+/**
+ * Types que l'utilisateur déclenche lui-même : seuls à compter dans son quota mensuel (`generations_ia_mois`) et
+ * seuls lisibles par `GET /api/studio/generations/{id}`. Le SEO de fond n'est ni compté ni visible du studio.
+ */
+export const IA_TYPES_QUOTA = ['onboarding_vitrine', 'ameliorer_texte'] as const satisfies readonly IaType[]
 
 export const GENERATION_STATUTS = ['en_attente', 'en_cours', 'terminee', 'repli', 'expiree'] as const
 export type GenerationStatut = (typeof GENERATION_STATUTS)[number]
@@ -60,7 +67,16 @@ export const IA_BASE_URL_DEFAUT = 'https://api.openai.com/v1'
 export const IA_HOTES_HTTP_AUTORISES: readonly string[] = ['localhost', '127.0.0.1']
 
 /** Codes d'erreur courts conservés sur une génération (jamais un message brut). */
-export const IA_ERREUR_CODES = ['delai', 'fournisseur', 'reponse_vide', 'sortie_invalide', 'faits_inventes'] as const
+export const IA_ERREUR_CODES = [
+  'delai',
+  'fournisseur',
+  'reponse_vide',
+  'sortie_invalide',
+  'faits_inventes',
+  // Décision #24 : texte sans accents, ou formulation interdite (superlatif, promesse, allégation de santé…).
+  'accents_manquants',
+  'formulation_interdite',
+] as const
 export type IaErreurCode = (typeof IA_ERREUR_CODES)[number]
 
 export const IA_MODELE_DEFAUT = 'claude-haiku-5-5'

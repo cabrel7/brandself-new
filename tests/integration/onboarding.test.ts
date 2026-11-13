@@ -1189,7 +1189,7 @@ describe('suppression de compte (cascade)', () => {
     expect(await lireGenerationsDe(a.id)).toHaveLength(0)
     expect(await lireProgression(b.id)).toBeDefined()
     expect(await lireGenerationsDe(b.id)).toHaveLength(1)
-    expect(await db.$count((await import('../../shared/db/schema')).promptsIa)).toBe(2)
+    expect(await db.$count((await import('../../shared/db/schema')).promptsIa)).toBe(4) // onboarding v1 + v2, ameliorer_texte v1, seo_vitrine v1 (migration 0027)
   })
 })
 

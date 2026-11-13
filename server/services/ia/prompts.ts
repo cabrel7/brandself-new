@@ -4,6 +4,7 @@ import type { PromptIa } from '../../../shared/db/schema'
 import type { IaType } from '../../../shared/ia'
 import {
   SCHEMA_SORTIE_PROPOSITION,
+  SCHEMA_SORTIE_SEO,
   SCHEMA_SORTIE_TEXTE,
   schemaPromptParametres,
 } from '../../../shared/schemas/ia'
@@ -22,6 +23,7 @@ export const VARIABLES_AUTORISEES = ['donnees'] as const
 const SCHEMA_SORTIE_PAR_TYPE: Record<IaType, string> = {
   onboarding_vitrine: SCHEMA_SORTIE_PROPOSITION,
   ameliorer_texte: SCHEMA_SORTIE_TEXTE,
+  seo_vitrine: SCHEMA_SORTIE_SEO,
 }
 
 export interface PromptCharge {
