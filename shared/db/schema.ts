@@ -1,5 +1,6 @@
 import { desc, sql } from 'drizzle-orm'
 import {
+  bigint,
   boolean,
   check,
   date,
@@ -11,6 +12,7 @@ import {
   text,
   time,
   timestamp,
+  unique,
   uniqueIndex,
   primaryKey,
 } from 'drizzle-orm/pg-core'
@@ -35,9 +37,22 @@ export const users = pgTable('users', {
   email_hebdo: boolean('email_hebdo').notNull().default(true),
   // S9 (migration 0020) : préférence « rendez-vous du jour » (e-mail du matin au professionnel), désabonnable.
   email_rappel_jour: boolean('email_rappel_jour').notNull().default(true),
+  // A1 (migration 0028) : plugin admin() de Better Auth. Les PROPRIÉTÉS (role, banned, banReason,
+  // banExpires) sont les noms de champs du plugin (node_modules/better-auth/dist/plugins/admin/schema.mjs,
+  // exigés par l'adaptateur Drizzle) ; les colonnes SQL sont en français. `role` ∈ {'user','superadmin'}
+  // (CHECK) ; la source des valeurs côté application est shared/admin.ts. `banned` = compte suspendu.
+  role: text('role').notNull().default('user'),
+  banned: boolean('suspendu').notNull().default(false),
+  banReason: text('motif_suspension'),
+  banExpires: timestamp('suspension_fin', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
-})
+}, (table) => [
+  check('users_role_check', sql`${table.role} IN ('user','superadmin')`),
+  // Index partiel : ne contient que les comptes privilégiés (quelques lignes). Requête réelle :
+  // « liste des superadmins » (requireSuperadmin, sendVerificationOTP de l'hôte admin, admin:reinitialiser).
+  index('users_role_privilegie_idx').on(table.role).where(sql`${table.role} <> 'user'`),
+])
 
 export const sessions = pgTable(
   'sessions',
@@ -50,12 +65,18 @@ export const sessions = pgTable(
     token: text('token').notNull(),
     ipAddress: text('ip_address'),
     userAgent: text('user_agent'),
+    // A1 (migration 0028). `impersonatedBy` : champ du plugin admin() ; l'impersonation est INTERDITE
+    // (CHECK sessions_sans_incarnation_check : toujours NULL). `admin` : session ouverte sur l'hôte
+    // d'administration (durée absolue 8 h imposée par la garde, voir docs/specs/A1-socle-admin.md D-A1-05).
+    impersonatedBy: text('incarne_par'),
+    admin: boolean('admin').notNull().default(false),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
     uniqueIndex('sessions_token_unique').on(table.token),
     index('sessions_user_id_idx').on(table.userId),
+    check('sessions_sans_incarnation_check', sql`${table.impersonatedBy} IS NULL`),
   ],
 )
 
@@ -918,6 +939,97 @@ export const journalAssistant = pgTable('journal_assistant', {
   index('journal_assistant_created_at_idx').on(table.createdAt),
 ])
 
+// ─── A1 : administration (migration 0028, docs/specs/A1-socle-admin.md §2) ─────────────────────────────────
+// Journal des actions du superadmin : AJOUT SEUL et CHAÎNÉ.
+// `numero`, `empreinte_precedente`, `empreinte` et `cree_le` sont posés par le déclencheur
+// `journal_admin_chainer` (BEFORE INSERT, sous pg_advisory_xact_lock, READ COMMITTED obligatoire) : les
+// valeurs par défaut ci-dessous ne sont que des marqueurs de typage (jamais conservés ; `numero` à 0 est
+// refusé par le CHECK si le déclencheur manquait). UPDATE, DELETE et TRUNCATE sont refusés (42501) par
+// `journal_admin_sans_modif` / `journal_admin_sans_vidage`. Les déclencheurs et fonctions ne sont pas
+// générés par drizzle-kit : ils sont écrits à la main dans la migration.
+// `avant`/`apres` : objet plat, clés ^[a-z_]+$, valeurs string ≤ 64 | number | boolean | null (validé par le
+// service d'audit ; la base garantit seulement le type objet). Aucune donnée personnelle : D-A1-09.
+export const journalAdmin = pgTable(
+  'journal_admin',
+  {
+    id: text('id').primaryKey(),
+    numero: bigint('numero', { mode: 'number' }).notNull().default(0),
+    adminId: text('admin_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict' }),
+    action: text('action').notNull(),
+    cibleType: text('cible_type').notNull(),
+    cibleId: text('cible_id'),
+    avant: jsonb('avant'),
+    apres: jsonb('apres'),
+    motif: text('motif').notNull(),
+    ip: text('ip').notNull(),
+    cleIdempotence: text('cle_idempotence'),
+    creeLe: timestamp('cree_le', { withTimezone: true }).notNull().defaultNow(),
+    empreintePrecedente: text('empreinte_precedente').notNull().default(sql`repeat('0', 64)`),
+    empreinte: text('empreinte').notNull().default(sql`repeat('0', 64)`),
+  },
+  (table) => [
+    unique('journal_admin_numero_unique').on(table.numero),
+    unique('journal_admin_empreinte_unique').on(table.empreinte),
+    index('journal_admin_cree_le_idx').on(desc(table.creeLe)),
+    index('journal_admin_cible_idx').on(table.cibleType, table.cibleId),
+    // Requête réelle : contrôle RESTRICT de la clé étrangère à chaque suppression d'un compte, et liste du
+    // journal filtrée par administrateur (A5). L'unique partiel ci-dessous ne peut pas servir à cela.
+    index('journal_admin_admin_id_idx').on(table.adminId),
+    // CA21 : une clé d'idempotence ne rejoue pas la même action pour un même administrateur.
+    uniqueIndex('journal_admin_idempotence_unique')
+      .on(table.adminId, table.cleIdempotence)
+      .where(sql`${table.cleIdempotence} IS NOT NULL`),
+    check('journal_admin_numero_check', sql`${table.numero} > 0`),
+    check('journal_admin_action_check', sql`${table.action} ~ '^[a-z_]+\\.[a-z_]+$'`),
+    check('journal_admin_cible_type_check', sql`${table.cibleType} ~ '^[a-z_]+$'`),
+    check('journal_admin_cible_id_check', sql`${table.cibleId} IS NULL OR char_length(${table.cibleId}) <= 64`),
+    check('journal_admin_avant_check', sql`${table.avant} IS NULL OR jsonb_typeof(${table.avant}) = 'object'`),
+    check('journal_admin_apres_check', sql`${table.apres} IS NULL OR jsonb_typeof(${table.apres}) = 'object'`),
+    check('journal_admin_motif_check', sql`char_length(btrim(${table.motif})) BETWEEN 5 AND 500`),
+    check('journal_admin_ip_check', sql`char_length(${table.ip}) <= 64`),
+    check(
+      'journal_admin_cle_idempotence_check',
+      sql`${table.cleIdempotence} IS NULL OR char_length(${table.cleIdempotence}) BETWEEN 8 AND 128`,
+    ),
+    check('journal_admin_empreinte_precedente_check', sql`${table.empreintePrecedente} ~ '^[0-9a-f]{64}$'`),
+    check('journal_admin_empreinte_check', sql`${table.empreinte} ~ '^[0-9a-f]{64}$'`),
+  ],
+)
+
+// Réauthentification d'une action destructrice (D-A1-08) : code à 6 chiffres haché (HMAC-SHA256, secret
+// NUXT_BETTER_AUTH_SECRET, jamais le code en clair), 10 min, 3 essais, lié au triplet
+// (action, cible_type, cible_id), usage unique (`consomme_le`). Consommé DANS la transaction de l'action.
+export const adminReauth = pgTable(
+  'admin_reauth',
+  {
+    id: text('id').primaryKey(),
+    adminId: text('admin_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    action: text('action').notNull(),
+    cibleType: text('cible_type').notNull(),
+    cibleId: text('cible_id'),
+    codeEmpreinte: text('code_empreinte').notNull(),
+    essais: smallint('essais').notNull().default(0),
+    expireLe: timestamp('expire_le', { withTimezone: true }).notNull(),
+    consommeLe: timestamp('consomme_le', { withTimezone: true }),
+    creeLe: timestamp('cree_le', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    // Requête réelle : recherche de la demande ouverte (admin, triplet) à consommer ou à faire expirer.
+    index('admin_reauth_ouvert_idx')
+      .on(table.adminId, table.action, table.cibleType, table.cibleId)
+      .where(sql`${table.consommeLe} IS NULL`),
+    check('admin_reauth_action_check', sql`${table.action} ~ '^[a-z_]+\\.[a-z_]+$'`),
+    check('admin_reauth_cible_type_check', sql`${table.cibleType} ~ '^[a-z_]+$'`),
+    check('admin_reauth_cible_id_check', sql`${table.cibleId} IS NULL OR char_length(${table.cibleId}) <= 64`),
+    check('admin_reauth_code_empreinte_check', sql`${table.codeEmpreinte} ~ '^[0-9a-f]{64}$'`),
+    check('admin_reauth_essais_check', sql`${table.essais} BETWEEN 0 AND 3`),
+  ],
+)
+
 // S16 : les tables maison mcp_clients / mcp_tokens ont été supprimées (migration 0026) : l'OAuth du
 // serveur MCP est porté par les tables Better Auth ci-dessous (oauth_clients, oauth_*_tokens, ...).
 
@@ -1446,3 +1558,7 @@ export type ProgressionInscription = typeof progressionsInscription.$inferSelect
 export type NewProgressionInscription = typeof progressionsInscription.$inferInsert
 export type JournalAssistant = typeof journalAssistant.$inferSelect
 export type NewJournalAssistant = typeof journalAssistant.$inferInsert
+export type JournalAdmin = typeof journalAdmin.$inferSelect
+export type NewJournalAdmin = typeof journalAdmin.$inferInsert
+export type AdminReauth = typeof adminReauth.$inferSelect
+export type NewAdminReauth = typeof adminReauth.$inferInsert
