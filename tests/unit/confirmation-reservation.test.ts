@@ -5,7 +5,7 @@ import { contenuConfirmation } from '../../app/utils/confirmation-reservation'
 const CONTEXTE = { professionnel: 'Dr Cabrel Nguesso', username: 'dr-cabrel' }
 
 describe('contenuConfirmation : un état par statut de réservation', () => {
-  it('couvre chaque statut avec un titre, une phrase et un picto', () => {
+  it('couvre chaque statut avec un titre, un picto et une phrase non vide quand elle existe', () => {
     for (const statut of RESERVATION_STATUTS) {
       const contenu = contenuConfirmation(statut, CONTEXTE)
       expect(contenu.titre, statut).not.toBe('')
@@ -49,6 +49,7 @@ describe('contenuConfirmation : un état par statut de réservation', () => {
   it('terminee : pas d’ICS, aucune action de reprise', () => {
     const contenu = contenuConfirmation('terminee', CONTEXTE)
     expect(contenu.titre).toBe('Ce rendez-vous est passé')
+    expect(contenu.phrase).toBeNull()
     expect(contenu.ics).toBe(false)
     expect(contenu.action).toBeNull()
   })
@@ -56,7 +57,7 @@ describe('contenuConfirmation : un état par statut de réservation', () => {
   it('n’emploie jamais les mots interdits côté visiteur', () => {
     for (const statut of RESERVATION_STATUTS) {
       const { titre, phrase } = contenuConfirmation(statut, CONTEXTE)
-      expect(`${titre} ${phrase}`).not.toMatch(/\b(espace|bloc|module|widget|section)\b/i)
+      expect(`${titre} ${phrase ?? ''}`).not.toMatch(/\b(espace|bloc|module|widget|section)\b/i)
     }
   })
 })

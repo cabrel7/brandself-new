@@ -25,7 +25,7 @@ const lignes = computed<LigneContact[]>(() => {
     { icone: 'i-ph-envelope-simple', libelle: 'E-mail', valeur: email, href: email ? `mailto:${email}` : null, externe: false },
     { icone: 'i-ph-phone', libelle: 'Téléphone', valeur: telephone, href: telephone ? lienTel(telephone) : null, externe: false },
     { icone: 'i-ph-whatsapp-logo', libelle: 'WhatsApp', valeur: whatsapp, href: lienWhatsapp(whatsapp, ACCROCHE_WHATSAPP), externe: true },
-    { icone: 'i-ph-map-pin', libelle: 'Cabinet', valeur: `${props.vitrine.ville}, ${props.vitrine.paysLibelle}`, href: null, externe: false },
+    { icone: 'i-ph-map-pin', libelle: 'Lieu', valeur: `${props.vitrine.ville}, ${props.vitrine.paysLibelle}`, href: null, externe: false },
   ]
   return toutes.filter(ligne => ligne.valeur)
 })
@@ -35,9 +35,6 @@ const lignes = computed<LigneContact[]>(() => {
   <div class="flex flex-col gap-8">
     <div class="rounded-(--rayon-carte) bg-accent-doux p-6">
       <h2 class="m-0 text-(length:--fs-20) font-bold text-encre">Vous préférez réserver ?</h2>
-      <p class="m-0 mt-2 text-base text-texte-secondaire">
-        Choisissez directement un créneau dans l’agenda.
-      </p>
       <UButton
         :to="`/${vitrine.username}/agenda`"
         label="Voir l’agenda"

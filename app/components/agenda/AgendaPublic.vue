@@ -114,7 +114,7 @@ const villeFuseau = computed(() => {
 })
 const resumeCreneaux = computed(() => {
   const nombre = creneauxDuJour.value.length
-  return `${nombre} créneau${nombre > 1 ? 'x' : ''} disponible${nombre > 1 ? 's' : ''} · heure de ${villeFuseau.value}`
+  return `${nombre} créneau${nombre > 1 ? 'x' : ''}`
 })
 const peutReculer = computed(() => ajouterJoursAgenda(debutSemaine.value, -1) >= props.dateDebut)
 const peutAvancer = computed(() => ajouterJoursAgenda(debutSemaine.value, JOURS_PAR_SEMAINE) <= props.dateFin)
@@ -156,7 +156,6 @@ const libelleConfirmation = computed(() => {
     <div class="flex flex-col gap-2">
       <p class="text-(length:--fs-14) font-semibold tracking-widest text-accent-texte uppercase">Agenda</p>
       <h2 id="agenda-titre" class="text-(length:--fs-32) leading-tight font-bold">Réservez votre rendez-vous</h2>
-      <p class="text-texte-secondaire">Choisissez un service, un jour, puis une heure.</p>
     </div>
 
     <USelect
@@ -199,7 +198,10 @@ const libelleConfirmation = computed(() => {
     <div v-else class="mt-6 grid gap-6 xl:grid-cols-2 xl:gap-8">
       <div class="flex flex-col gap-4">
         <div class="flex items-center justify-between gap-4">
-          <h3 class="text-(length:--fs-20) font-bold">{{ titreMois }}</h3>
+          <div>
+            <h3 class="text-(length:--fs-20) font-bold">{{ titreMois }}</h3>
+            <p class="text-(length:--fs-14) text-texte-secondaire">Heures de {{ villeFuseau }}</p>
+          </div>
           <div class="flex gap-2">
             <UButton
               type="button"
@@ -275,12 +277,11 @@ const libelleConfirmation = computed(() => {
             {{ formaterHeureAgenda(creneau.debut, fuseauEffectif) }}
           </button>
         </div>
-        <p v-else class="text-texte-secondaire">Aucun créneau ce jour. Choisissez un jour marqué d’un point.</p>
+        <p v-else class="text-texte-secondaire">Aucun créneau ce jour.</p>
 
         <UButton v-if="lienConfirmation" :to="lienConfirmation" block class="mt-auto">
           {{ libelleConfirmation }}
         </UButton>
-        <p class="text-(length:--fs-14) text-texte-secondaire">Votre demande sera confirmée par le professionnel.</p>
       </div>
     </div>
   </section>

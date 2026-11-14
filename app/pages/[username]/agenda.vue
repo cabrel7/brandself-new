@@ -53,9 +53,6 @@ useSeoVitrine({ vitrine: vitrine.value, page: 'agenda' })
 
       <header>
         <h1 class="m-0 text-(length:--fs-32) leading-[1.1] font-bold md:text-(length:--fs-48)">Agenda</h1>
-        <p class="m-0 mt-3 max-w-xl text-base text-texte-secondaire">
-          Choisissez un service, puis un jour et une heure disponibles.
-        </p>
       </header>
 
       <div
@@ -66,7 +63,7 @@ useSeoVitrine({ vitrine: vitrine.value, page: 'agenda' })
         <UIcon name="i-ph-calendar-x" class="size-8 text-accent" aria-hidden="true" />
         <h2 class="mt-4 text-(length:--fs-24) font-bold">Aucune réservation en ligne pour le moment</h2>
         <p class="mt-2 text-texte-secondaire">
-          {{ vitrine.nomAffiche }} n’ouvre pas de créneaux actuellement. Écrivez-le depuis la page Contact pour convenir d’un rendez-vous.
+          {{ vitrine.nomAffiche }} n’ouvre pas de créneaux actuellement.
         </p>
         <UButton :to="`/${vitrine.username}/contact`" class="mt-5" variant="outline">
           Aller à la page Contact

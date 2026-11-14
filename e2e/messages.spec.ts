@@ -137,7 +137,7 @@ test.describe.serial('Contact et Messages S7-bis', () => {
     await page.goto(`/${username}/contact`)
 
     await expect(page.getByRole('heading', { level: 1, name: 'Me contacter' })).toBeVisible()
-    // Vitrine de test sans WhatsApp : la ligne WhatsApp (lien wa.me) est absente, sans jamais masquer la ligne « Cabinet ».
+    // Vitrine de test sans WhatsApp : la ligne WhatsApp (lien wa.me) est absente, sans jamais masquer la ligne « Lieu ».
     await expect(page.getByRole('link', { name: /WhatsApp/ })).toHaveCount(0)
     await expect(page.getByText(/Douala, Cameroun|Douala/).first()).toBeVisible()
 

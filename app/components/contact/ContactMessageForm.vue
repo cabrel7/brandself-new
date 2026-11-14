@@ -43,7 +43,7 @@ watch(envoyee, async (valeur) => {
           <UIcon name="i-ph-check" class="size-6" aria-hidden="true" />
         </span>
         <span class="text-base font-semibold text-encre">
-          Votre message est envoyé. {{ professionnel }} vous répond dès que possible.
+          Votre message est envoyé.
         </span>
       </p>
     </div>
@@ -101,7 +101,7 @@ watch(envoyee, async (valeur) => {
         />
       </UFormField>
 
-      <UFormField label="Message" name="message" required :error="erreurs.message" help="Quelques lignes suffisent.">
+      <UFormField label="Message" name="message" required :error="erreurs.message">
         <UTextarea
           v-model="form.message"
           required
@@ -126,7 +126,7 @@ watch(envoyee, async (valeur) => {
       <UButton type="submit" label="Envoyer mon message" :loading="envoi" block size="lg" class="min-h-(--cible-tactile)" />
 
       <p class="m-0 text-(length:--fs-14) text-texte-secondaire">
-        En envoyant, vous acceptez que vos informations soient transmises à {{ professionnel }} pour répondre à votre message.
+        Vos informations sont transmises à {{ professionnel }} pour répondre à votre message.
       </p>
     </form>
   </section>

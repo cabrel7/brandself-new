@@ -1,5 +1,5 @@
 <script setup lang="ts">
-const SOUS_TITRE = 'Une question avant de réserver ? Écrivez-moi, je vous réponds dès que possible.'
+const SOUS_TITRE = 'Une question avant de réserver ?'
 
 const route = useRoute()
 const username = String(route.params.username)

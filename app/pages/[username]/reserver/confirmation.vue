@@ -95,7 +95,7 @@ useSeoMeta({ title: titrePage, robots: 'noindex, nofollow' })
           <UIcon name="i-ph-clock-countdown" class="size-10" aria-hidden="true" />
         </span>
         <h1 ref="titre" tabindex="-1" class="text-(length:--fs-32) leading-tight font-bold outline-none">Cette confirmation a expiré</h1>
-        <p class="text-texte-secondaire">Votre demande a bien été transmise, mais ce récapitulatif temporaire n’est plus accessible.</p>
+        <p class="text-texte-secondaire">Votre demande a bien été transmise.</p>
         <UButton :to="`/${vitrine.username}`">Retour à la vitrine</UButton>
       </div>
 
@@ -104,7 +104,7 @@ useSeoMeta({ title: titrePage, robots: 'noindex, nofollow' })
           <UIcon name="i-ph-calendar-x" class="size-10" aria-hidden="true" />
         </span>
         <h1 ref="titre" tabindex="-1" class="text-(length:--fs-32) leading-tight font-bold outline-none">Confirmation introuvable</h1>
-        <p class="text-texte-secondaire">Ce récapitulatif n’est plus accessible. Revenez à la vitrine pour consulter les créneaux disponibles.</p>
+        <p class="text-texte-secondaire">Ce récapitulatif n’est plus accessible.</p>
         <UButton :to="`/${vitrine.username}`">Retour à la vitrine</UButton>
       </div>
 
@@ -113,7 +113,7 @@ useSeoMeta({ title: titrePage, robots: 'noindex, nofollow' })
           <UIcon name="i-ph-warning-circle" class="size-10" aria-hidden="true" />
         </span>
         <h1 ref="titre" tabindex="-1" class="text-(length:--fs-32) leading-tight font-bold outline-none">Le récapitulatif ne peut pas être chargé</h1>
-        <p class="text-texte-secondaire">Réessayez dans un instant. Aucune information personnelle n’est affichée sur cette page.</p>
+        <p class="text-texte-secondaire">Réessayez dans un instant.</p>
         <UButton variant="outline" icon="i-ph-arrow-counter-clockwise" @click="recharger">Réessayer</UButton>
       </div>
 
@@ -123,7 +123,7 @@ useSeoMeta({ title: titrePage, robots: 'noindex, nofollow' })
             <UIcon :name="contenu.picto" class="size-8" aria-hidden="true" />
           </span>
           <h1 ref="titre" tabindex="-1" class="max-w-xl text-(length:--fs-32) leading-tight font-bold outline-none">{{ contenu.titre }}</h1>
-          <p class="m-0 max-w-xl text-texte-secondaire">{{ contenu.phrase }}</p>
+          <p v-if="contenu.phrase" class="m-0 max-w-xl text-texte-secondaire">{{ contenu.phrase }}</p>
         </div>
 
         <ReservationRecap

@@ -23,9 +23,6 @@ const fil = computed(() => [{ label: 'Accueil', to: `/${vitrine.value.username}`
         <h1 class="font-(family-name:--font-titre) text-(length:--fs-32) leading-[1.1] font-bold md:text-(length:--fs-48)">
           Mes réalisations
         </h1>
-        <p class="max-w-prose text-(length:--fs-16) text-texte-secondaire">
-          Quelques projets qui montrent ma façon de travailler.
-        </p>
       </div>
       <ul class="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
         <li v-for="realisation in realisations" :key="realisation.slug">

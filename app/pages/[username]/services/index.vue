@@ -22,9 +22,6 @@ const fil = computed(() => [{ label: 'Accueil', to: `/${vitrine.value.username}`
         <h1 class="font-(family-name:--font-titre) text-(length:--fs-32) leading-[1.1] font-bold md:text-(length:--fs-48)">
           Mes services
         </h1>
-        <p class="max-w-prose text-(length:--fs-16) text-texte-secondaire">
-          Choisissez la prestation qui correspond à votre besoin, puis réservez le créneau qui vous convient.
-        </p>
       </div>
       <ul class="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
         <li v-for="service in services" :key="service.slug">

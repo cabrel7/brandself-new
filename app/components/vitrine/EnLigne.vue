@@ -28,7 +28,7 @@ onMounted(() => titre.value?.focus())
     >
       C’est en ligne.
     </h1>
-    <p class="text-texte-secondaire">Votre vitrine est publiée. Voici votre adresse, prête à être partagée.</p>
+    <p class="text-texte-secondaire">Votre adresse :</p>
 
     <div class="flex w-full items-center justify-between gap-2 rounded-(--rayon) border border-bordure bg-surface py-1 ps-4 pe-1">
       <span class="truncate font-semibold">{{ adresse }}</span>

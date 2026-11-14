@@ -107,7 +107,7 @@ useSeoMeta({
 
       <div v-if="!parcoursReservation" class="mt-8 max-w-xl">
         <h2 class="text-(length:--fs-24) font-bold">Choisissez d’abord un créneau</h2>
-        <p class="mt-2 text-texte-secondaire">Revenez à l’agenda pour choisir le service, le jour et l’heure qui vous conviennent.</p>
+        <p class="mt-2 text-texte-secondaire">Revenez à l’agenda pour choisir un créneau.</p>
         <UButton :to="`/${vitrine.username}/agenda`" class="mt-5">Voir l’agenda</UButton>
       </div>
 
@@ -134,7 +134,7 @@ useSeoMeta({
 
       <div v-else-if="!contexteReservation || !service" class="mt-8 max-w-xl">
         <h2 class="text-(length:--fs-24) font-bold">Ce créneau n’est plus disponible</h2>
-        <p class="mt-2 text-texte-secondaire">Il a expiré ou vient d’être réservé. Consultez les horaires encore libres.</p>
+        <p class="mt-2 text-texte-secondaire">Il a expiré ou vient d’être réservé.</p>
         <UButton :to="`/${vitrine.username}/agenda?service=${serviceQuery}`" class="mt-5">Choisir un autre créneau</UButton>
       </div>
 

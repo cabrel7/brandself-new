@@ -26,9 +26,6 @@ const envoyee = ref(false)
 const honeypotId = `${useId()}-site-web`
 
 const titre = computed(() => props.serviceType === 'atelier' ? 'Demandez votre inscription' : 'Parlez de votre besoin')
-const aideMessage = computed(() => props.serviceType === 'atelier'
-  ? 'Précisez vos attentes ou toute information utile.'
-  : 'Décrivez brièvement votre projet ou votre besoin.')
 
 function normaliserTelephone(value: string): string {
   return value.trim().replace(/[\s().-]/g, '')
@@ -124,14 +121,13 @@ async function envoyer(): Promise<void> {
         <UIcon name="i-ph-check" class="size-7" aria-hidden="true" />
       </span>
       <h2 id="demande-titre" class="text-(length:--fs-32) leading-tight font-bold">Votre demande est envoyée</h2>
-      <p class="text-texte-secondaire">{{ professionnel }} vous répondra prochainement au sujet de « {{ serviceTitre }} ».</p>
+      <p class="text-texte-secondaire">{{ professionnel }} vous répondra.</p>
     </div>
 
     <form v-else class="flex flex-col gap-6" novalidate @submit.prevent="envoyer">
       <div class="flex flex-col gap-2">
         <p class="text-(length:--fs-14) font-semibold tracking-widest text-accent-texte uppercase">{{ serviceTitre }}</p>
         <h2 id="demande-titre" class="text-(length:--fs-32) leading-tight font-bold">{{ titre }}</h2>
-        <p class="text-texte-secondaire">{{ professionnel }} vous répondra personnellement.</p>
       </div>
 
       <div class="grid gap-5 md:grid-cols-2">
@@ -172,7 +168,7 @@ async function envoyer(): Promise<void> {
             @update:model-value="viderErreur('email')"
           />
         </UFormField>
-        <UFormField class="md:col-span-2" name="message" :error="erreurs.message" :help="aideMessage">
+        <UFormField class="md:col-span-2" name="message" :error="erreurs.message">
           <template #label>Votre message <span class="font-normal text-texte-secondaire">(facultatif)</span></template>
           <UTextarea
             v-model="form.message"
@@ -196,7 +192,7 @@ async function envoyer(): Promise<void> {
       </p>
       <UButton type="submit" label="Envoyer ma demande" :loading="envoi" block />
       <p class="text-(length:--fs-14) text-texte-secondaire">
-        En envoyant, vous acceptez que vos informations soient transmises à {{ professionnel }} pour cette demande.
+        Vos informations sont transmises à {{ professionnel }} pour cette demande.
       </p>
     </form>
   </section>
