@@ -4,6 +4,9 @@
 // planifié dans le temps mort du navigateur et jamais bloquant : une 429 ou une
 // erreur réseau n'interrompt jamais la navigation (échec silencieux).
 export default defineNuxtPlugin((nuxtApp) => {
+  // A1 : l'hôte d'administration n'envoie aucune vue (aucun hook, aucune requête).
+  if (useHoteAdmin()) return
+
   nuxtApp.hook('page:finish', () => {
     const route = useRoute()
     const username = route.params.username

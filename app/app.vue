@@ -3,6 +3,8 @@ import { fr } from '@nuxt/ui/locale'
 import { ref, onMounted } from 'vue'
 
 const nouvelleVersion = ref(false)
+// A1 : l'hôte d'administration n'a ni installation, ni service worker, ni message de mise à jour.
+const hoteAdmin = useHoteAdmin()
 
 function activerNouvelleVersion(): void {
   nouvelleVersion.value = false
@@ -11,7 +13,7 @@ function activerNouvelleVersion(): void {
 
 onMounted(() => {
   // Détection d'une nouvelle version du service worker (maquette « PWA · Mise à jour »).
-  if (typeof window === 'undefined' || !('serviceWorker' in navigator)) return
+  if (hoteAdmin || typeof window === 'undefined' || !('serviceWorker' in navigator)) return
   navigator.serviceWorker.ready.then((registration) => {
     registration.addEventListener('updatefound', () => {
       const installingWorker = registration.installing
@@ -43,7 +45,7 @@ onMounted(() => {
         </div>
       </div>
       <NuxtPage />
-      <InstallPrompt />
+      <InstallPrompt v-if="!hoteAdmin" />
     </NuxtLayout>
   </UApp>
 </template>

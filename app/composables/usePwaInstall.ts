@@ -123,6 +123,7 @@ async function lancerInstallation(): Promise<ResultatInstallation> {
 
 /** Accès simple à l'installation (page Compte) : aucune fenêtre, aucun minuteur. */
 export function usePwaInstall() {
+  enregistrerServiceWorker()
   const dejaInstalle = isStandalone()
   const appareil: TypeAppareil = isClient() ? typeAppareil(window.navigator.userAgent) : 'inconnu'
   return { dejaInstalle, appareil, installer: lancerInstallation }
@@ -130,6 +131,7 @@ export function usePwaInstall() {
 
 /** Fenêtre d'installation affichée selon les règles S15 (montée une seule fois, dans app.vue). */
 export function useInstallPrompt() {
+  enregistrerServiceWorker()
   const route = useRoute()
   const { enregistrerEvenement } = usePwaStats()
 
@@ -242,8 +244,13 @@ export function useInstallPrompt() {
   return { visible, iosSafari, appareil, plusTard, refuser, installer }
 }
 
-// Enregistrement du service worker (côté client uniquement, dès le premier usage du composable).
-if (isClient() && 'serviceWorker' in navigator) {
+// Enregistrement du service worker (côté client uniquement, une seule fois, au premier usage d'un composable
+// ci-dessus). A1 : jamais sur l'hôte d'administration (aucun service worker, aucune mise en cache).
+let serviceWorkerDemande = false
+function enregistrerServiceWorker(): void {
+  if (serviceWorkerDemande || !isClient() || !('serviceWorker' in navigator)) return
+  serviceWorkerDemande = true
+  if (useHoteAdmin()) return
   navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch(() => {
     // Échec silencieux : le SW n'est pas critique pour le fonctionnement de l'app.
   })

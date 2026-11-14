@@ -59,6 +59,10 @@
   /* Photo de la page /@username : arche 144 x 176 px. */
   --photo-arche-largeur: 9rem;
   --photo-arche-hauteur: 11rem;
+
+  /* Bandeau permanent de l'administration (A1, D-A1-12) : aucune nouvelle couleur, encre sur fond. */
+  --admin-bandeau: var(--encre);
+  --sur-admin-bandeau: var(--fond);
 }
 
 /* Palettes de vitrine (PROJECT_CONTEXT.md §9.2). Un attribut `data-palette`
