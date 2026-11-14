@@ -1,4 +1,5 @@
-import { and, desc, eq, gt } from 'drizzle-orm'
+import { and, desc, eq, gt, sql } from 'drizzle-orm'
+import { SUPERADMIN } from '../../shared/admin'
 import { ACCOUNT_DELETION_PHRASE, FRESH_SESSION_MAX_AGE_S } from '../../shared/compte'
 import { sessions, users, vitrines } from '../../shared/db/schema'
 import type { MoiUpdateInput } from '../../shared/schemas/moi'
@@ -106,7 +107,16 @@ export async function deleteAccount(userId: string, input: AccountDeletionInput)
   // Négation volontaire : une date illisible (NaN) doit refuser, jamais autoriser.
   if (!(ageMs <= FRESH_SESSION_MAX_AGE_S * MS_PER_SECOND)) throw new ForbiddenError('SESSION_TROP_ANCIENNE')
 
-  await db.delete(users).where(eq(users.id, userId))
+  // A1 : un compte d'administration (ou référencé par le journal, FK RESTRICT) ne se supprime pas depuis le studio.
+  // Lecture et suppression dans la MÊME transaction, ligne verrouillée : pas de promotion ni d'écriture de journal
+  // entre la vérification et la suppression.
+  await db.transaction(async (tx) => {
+    const [compte] = await tx.select({ role: users.role }).from(users).where(eq(users.id, userId)).for('update').limit(1)
+    if (compte?.role === SUPERADMIN) throw new UnprocessableError('COMPTE_ADMIN')
+    const journal = await tx.execute(sql`SELECT 1 FROM journal_admin WHERE admin_id = ${userId} LIMIT 1`)
+    if (journal.rows.length > 0) throw new UnprocessableError('COMPTE_ADMIN')
+    await tx.delete(users).where(eq(users.id, userId))
+  })
 
   await deleteAllUserMediaFiles(userId).catch((error: unknown) => {
     console.error({ utilisateurs: 'fichiers non supprimés', nom: error instanceof Error ? error.name : typeof error })

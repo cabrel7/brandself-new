@@ -105,6 +105,46 @@ describe('producteurs', () => {
   })
 })
 
+describe('code de réauthentification de l\'administrateur (A1)', () => {
+  const worker = lire('worker/index.ts')
+
+  it('should give the new job its own name, distinct from every other job', () => {
+    const noms = Object.values(jobs.JOBS)
+
+    expect(jobs.JOBS.sendAdminReauthEmail).toBe('send-admin-reauth-email')
+    expect(new Set(noms).size).toBe(noms.length)
+  })
+
+  it('should enqueue the code e-mail on the authentication queue (messages-auth), never on a rate-limited one', () => {
+    const queues = lire('server/jobs/queues.ts')
+    const producteur = lire('server/jobs/admin-reauth.ts')
+
+    expect(queues).toMatch(/getMessagesAuthQueue[\s\S]*FILE_MESSAGES_AUTH/)
+    expect(producteur).toContain('getMessagesAuthQueue')
+    expect(producteur).toContain('JOBS.sendAdminReauthEmail')
+    expect(producteur).not.toContain('FILE_EMAILS')
+    expect(producteur).not.toContain('FILE_IA')
+  })
+
+  it('should process it in the authentication worker, which keeps no limiter, and not in the notification worker', () => {
+    const auth = blocWorker(worker, 'FILE_MESSAGES_AUTH')
+
+    expect(auth).not.toContain('limiter')
+    expect(auth).toContain('processOtpJob')
+    expect(worker).toMatch(/job\.name === JOBS\.sendAdminReauthEmail[\s\S]{0,80}processAdminReauthEmailJob\(job\.data\)/)
+    expect(blocWorker(worker, 'FILE_EMAILS_NOTIFICATIONS')).not.toContain('processAdminReauthEmailJob')
+    expect(blocWorker(worker, 'FILE_EMAILS_NOTIFICATIONS')).not.toContain('sendAdminReauthEmail')
+  })
+
+  it('should dispatch the job before the OTP job data validation (an unknown job name would be refused by processOtpJob)', () => {
+    const dispatch = worker.indexOf('JOBS.sendAdminReauthEmail')
+    const otp = worker.indexOf('processOtpJobData(job.name')
+
+    expect(dispatch).toBeGreaterThan(-1)
+    expect(otp).toBeGreaterThan(dispatch)
+  })
+})
+
 describe('constantes de temps partagées', () => {
   it('should derive every duration from the same base', () => {
     expect(MS_PAR_SECONDE).toBe(1_000)

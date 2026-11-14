@@ -1,0 +1,299 @@
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import path from 'node:path'
+import { afterAll, describe, expect, it } from 'vitest'
+import { z } from 'zod'
+import * as schemasAdmin from '../../../shared/schemas/admin'
+import { CONTRAT, EXCEPTIONS_CLES_REPONSE } from '../../support/admin-contrat'
+import type { EntreeContrat } from '../../support/admin-contrat'
+import {
+  analyserSchema,
+  cheminDeFichier,
+  cleCanonique,
+  ecartsContrat,
+  ecartsSourceRoute,
+  listerRoutes,
+} from './support/contrat'
+import type { SchemaZod } from './support/contrat'
+
+// A1 CA23 : test de confidentialité STRUCTUREL. Il parcourt `server/api/admin/**` avec le système de fichiers et le
+// compare à la table CONTRAT (tests/support/admin-contrat.ts) : une route nouvelle ne passe pas sous le radar.
+// Chaque schéma de réponse doit être strict (`.strict()`) et sans clé interdite (CLES_AUDIT_INTERDITES).
+
+const RACINE = path.resolve(import.meta.dirname, '../../..')
+const DOSSIER_ROUTES = path.join(RACINE, 'server/api/admin')
+
+const schemaExporte = (nom: string): SchemaZod => {
+  const valeur = (schemasAdmin as Record<string, unknown>)[nom]
+  if (typeof valeur !== 'object' || valeur === null || !('_zod' in valeur)) throw new Error(`shared/schemas/admin.ts n'exporte pas de schéma Zod « ${nom} ».`)
+  return valeur as SchemaZod
+}
+
+/** Schémas de RÉPONSE exportés (convention de nommage : …Dto, …Reponse). Les schémas de requête n'en font pas partie. */
+/** Routes de `server/api/admin/` qui ne renvoient jamais de donnée et n'ont donc pas de schéma de réponse. */
+const ROUTES_HORS_CONTRAT: readonly string[] = ['[...].ts']
+
+const NOMS_SCHEMAS_REPONSE = Object.keys(schemasAdmin).filter((nom) => /^schema.*(Dto|Reponse)$/.test(nom))
+
+describe('contrat de confidentialité : routes de server/api/admin/** (CA23)', () => {
+  // La route attrape-tout `[...].ts` est VOLONTAIREMENT hors contrat : elle ne renvoie aucune donnée (404 uniforme).
+  const toutes = listerRoutes(DOSSIER_ROUTES)
+  const fichiers = toutes.filter((f) => !ROUTES_HORS_CONTRAT.includes(f))
+
+  it('should find the administration routes on disk (the folder exists and is not empty)', () => {
+    expect(fichiers.length).toBeGreaterThan(0)
+  })
+
+  it('should cover every route file with an entry of CONTRAT, and every entry with a file', () => {
+    expect(ecartsContrat(fichiers, CONTRAT)).toEqual([])
+  })
+
+  it('should exclude only the catch-all, which guards first then throws the uniform 404 and returns no data', () => {
+    expect(toutes.filter((f) => !fichiers.includes(f))).toEqual(['[...].ts'])
+    const source = readFileSync(path.join(DOSSIER_ROUTES, '[...].ts'), 'utf-8')
+
+    expect(ecartsSourceRoute('[...].ts', source)).toEqual([])
+    expect(source.indexOf('requireSuperadmin(')).toBeLessThan(source.indexOf('introuvableAdmin()'))
+    expect(source).not.toMatch(/return\s/)
+  })
+
+  it('should declare exactly the four routes of A1', () => {
+    expect([...fichiers]).toEqual([
+      'deconnexion.post.ts',
+      'reauth/code.post.ts',
+      'session.get.ts',
+      'vue-ensemble.get.ts',
+    ])
+  })
+
+  it.each(Object.entries(CONTRAT))('should have route %s guard first, wrap errors, and never touch the database directly', (fichier) => {
+    const source = readFileSync(path.join(DOSSIER_ROUTES, fichier), 'utf-8')
+
+    expect(ecartsSourceRoute(fichier, source)).toEqual([])
+  })
+
+  it.each(Object.entries(CONTRAT))('should describe the response of %s with a strict schema without sensitive key', (_fichier, entree: EntreeContrat) => {
+    if (entree.schema === null) {
+      expect(entree.statutSucces).toBe(204)
+      return
+    }
+    const exceptions = EXCEPTIONS_CLES_REPONSE[entree.schema] ?? {}
+
+    const { violations } = analyserSchema(schemaExporte(entree.schema), exceptions)
+
+    expect(violations).toEqual([])
+  })
+
+  it('should check EVERY response schema exported by shared/schemas/admin.ts, covered by a route or not', () => {
+    expect(NOMS_SCHEMAS_REPONSE.length).toBeGreaterThan(0)
+    for (const nom of NOMS_SCHEMAS_REPONSE) {
+      const { violations } = analyserSchema(schemaExporte(nom), EXCEPTIONS_CLES_REPONSE[nom] ?? {})
+      expect(violations, nom).toEqual([])
+    }
+  })
+
+  it('should have a schema in the contract that is exported by shared/schemas/admin.ts', () => {
+    for (const entree of Object.values(CONTRAT)) {
+      if (entree.schema !== null) expect(NOMS_SCHEMAS_REPONSE, entree.chemin).toContain(entree.schema)
+    }
+  })
+
+  it('should keep every declared exception in use, and justified (a stale exception would hide a future leak)', () => {
+    for (const [nomSchema, exceptions] of Object.entries(EXCEPTIONS_CLES_REPONSE)) {
+      const { exceptionsUtilisees } = analyserSchema(schemaExporte(nomSchema), exceptions)
+      for (const [cle, raison] of Object.entries(exceptions)) {
+        expect(exceptionsUtilisees, `${nomSchema}.${cle} n'est plus utilisée`).toContain(cle)
+        expect(raison.trim().length, `${nomSchema}.${cle} sans justification`).toBeGreaterThan(20)
+      }
+    }
+  })
+
+  it('should limit the exceptions to the administrator\'s own identity (name and e-mail), nothing about a visitor', () => {
+    const cles = new Set(Object.values(EXCEPTIONS_CLES_REPONSE).flatMap((e) => Object.keys(e)))
+
+    expect([...cles].sort()).toEqual(['email', 'nom'])
+  })
+
+  it('should not tolerate the sensitive keys of a visitor in any exception', () => {
+    for (const exceptions of Object.values(EXCEPTIONS_CLES_REPONSE)) {
+      for (const cle of ['telephone', 'message', 'contenu', 'motif_visiteur', 'sujet', 'visiteur']) {
+        expect(exceptions).not.toHaveProperty(cle)
+      }
+    }
+  })
+
+  it('should not expose a request schema as a response schema (naming convention)', () => {
+    expect(NOMS_SCHEMAS_REPONSE).not.toContain('schemaDemandeReauth')
+    expect(NOMS_SCHEMAS_REPONSE).not.toContain('schemaMotifAdmin')
+  })
+})
+
+describe('mécanique du contrôle : il échoue quand il doit (CA23)', () => {
+  const racines: string[] = []
+  afterAll(() => {
+    for (const racine of racines) rmSync(racine, { recursive: true, force: true })
+  })
+
+  function dossierAvec(fichiers: readonly string[]): string {
+    const racine = mkdtempSync(path.join(tmpdir(), 'contrat-admin-'))
+    racines.push(racine)
+    for (const fichier of fichiers) {
+      mkdirSync(path.dirname(path.join(racine, fichier)), { recursive: true })
+      writeFileSync(path.join(racine, fichier), '// route de fixture\n')
+    }
+    return racine
+  }
+
+  const entree = (chemin: string, methode: EntreeContrat['methode'] = 'GET'): EntreeContrat => ({ methode, chemin, schema: null, statutSucces: 204 })
+
+  it('should report a new route x.get.ts that is absent from the contract', () => {
+    const racine = dossierAvec(['session.get.ts', 'x.get.ts'])
+
+    const ecarts = ecartsContrat(listerRoutes(racine), { 'session.get.ts': entree('/api/admin/session') })
+
+    expect(ecarts).toEqual(['x.get.ts : route absente du contrat de confidentialité'])
+  })
+
+  it('should report a nested new route and an unexpected file name', () => {
+    const racine = dossierAvec(['session.get.ts', 'export/utilisateurs.get.ts', 'notes.md'])
+
+    const ecarts = ecartsContrat(listerRoutes(racine), { 'session.get.ts': entree('/api/admin/session') })
+
+    expect(ecarts).toContain('export/utilisateurs.get.ts : route absente du contrat de confidentialité')
+    expect(ecarts.some((e) => e.startsWith('notes.md : nom de route inattendu'))).toBe(true)
+  })
+
+  it('should report a contract entry whose route file disappeared', () => {
+    const racine = dossierAvec(['session.get.ts'])
+
+    const ecarts = ecartsContrat(listerRoutes(racine), { 'session.get.ts': entree('/api/admin/session'), 'vieille.get.ts': entree('/api/admin/vieille') })
+
+    expect(ecarts).toEqual(['vieille.get.ts : entrée du contrat sans fichier de route'])
+  })
+
+  it('should report a contract entry whose path or method drifted from its file name', () => {
+    const racine = dossierAvec(['session.get.ts'])
+
+    expect(ecartsContrat(listerRoutes(racine), { 'session.get.ts': entree('/api/admin/autre') }).some((e) => e.includes('chemin du contrat'))).toBe(true)
+    expect(ecartsContrat(listerRoutes(racine), { 'session.get.ts': entree('/api/admin/session', 'POST') }).some((e) => e.includes('méthode du contrat'))).toBe(true)
+  })
+
+  it('should accept a folder that matches the contract exactly', () => {
+    const racine = dossierAvec(['session.get.ts', 'reauth/code.post.ts'])
+
+    expect(ecartsContrat(listerRoutes(racine), {
+      'session.get.ts': entree('/api/admin/session'),
+      'reauth/code.post.ts': entree('/api/admin/reauth/code', 'POST'),
+    })).toEqual([])
+  })
+
+  it('should treat a missing folder as empty, never as covered', () => {
+    expect(listerRoutes(path.join(tmpdir(), 'dossier-qui-nexiste-pas-jamais'))).toEqual([])
+  })
+
+  it('should derive the HTTP path from the file name, including dynamic segments and index files', () => {
+    expect(cheminDeFichier('session.get.ts')).toBe('/api/admin/session')
+    expect(cheminDeFichier('reauth/code.post.ts')).toBe('/api/admin/reauth/code')
+    expect(cheminDeFichier('utilisateurs/[id].get.ts')).toBe('/api/admin/utilisateurs/:id')
+    expect(cheminDeFichier('utilisateurs/index.get.ts')).toBe('/api/admin/utilisateurs')
+    expect(cheminDeFichier('notes.md')).toBeNull()
+  })
+
+  it.each([
+    ['email', 'email'],
+    ['phoneNumber', 'phone_number'],
+    ['motifVisiteur', 'motif_visiteur'],
+    ['fullName', 'full_name'],
+    ['nom', 'nom'],
+  ])('should canonicalise the key %s as %s', (cle, attendu) => {
+    expect(cleCanonique(cle)).toBe(attendu)
+  })
+
+  it('should flag a response schema that contains the key email', () => {
+    const schema = z.strictObject({ id: z.string(), email: z.string() })
+
+    expect(analyserSchema(schema as unknown as SchemaZod).violations).toEqual(['email : clé interdite dans une réponse d\'administration'])
+  })
+
+  it.each(['telephone', 'nom', 'name', 'message', 'contenu', 'motif_visiteur', 'sujet', 'motifVisiteur', 'phoneNumber', 'ip', 'token'])(
+    'should flag the sensitive key %s, even nested in an array of objects',
+    (cle) => {
+      const schema = z.strictObject({ lignes: z.array(z.strictObject({ id: z.string(), [cle]: z.string() })) })
+
+      const { violations } = analyserSchema(schema as unknown as SchemaZod)
+
+      expect(violations).toHaveLength(1)
+      expect(violations[0]).toContain(`lignes[].${cle}`)
+    },
+  )
+
+  it('should flag a sensitive key hidden in an optional, nullable, union or piped branch', () => {
+    const cache = z.strictObject({ email: z.string() })
+    for (const schema of [
+      z.strictObject({ a: cache.optional() }),
+      z.strictObject({ a: cache.nullable() }),
+      z.strictObject({ a: z.union([z.string(), cache]) }),
+      z.strictObject({ a: z.string().pipe(z.string()).or(cache) }),
+      z.strictObject({ a: z.array(cache).default([]) }),
+    ]) {
+      expect(analyserSchema(schema as unknown as SchemaZod).violations.length).toBeGreaterThan(0)
+    }
+  })
+
+  it('should flag a response schema that is not strict (the default object strips unknown keys silently)', () => {
+    const schema = z.object({ id: z.string() })
+
+    expect(analyserSchema(schema as unknown as SchemaZod).violations).toEqual(['(racine) : objet non strict (utiliser z.strictObject)'])
+  })
+
+  it('should flag a non strict object nested in an array, and a loose object', () => {
+    expect(analyserSchema(z.strictObject({ lignes: z.array(z.object({ id: z.string() })) }) as unknown as SchemaZod).violations)
+      .toEqual(['lignes[] : objet non strict (utiliser z.strictObject)'])
+    expect(analyserSchema(z.looseObject({ id: z.string() }) as unknown as SchemaZod).violations)
+      .toEqual(['(racine) : objet non strict (utiliser z.strictObject)'])
+  })
+
+  it('should accept an object made strict with .strict()', () => {
+    expect(analyserSchema(z.object({ id: z.string() }).strict() as unknown as SchemaZod).violations).toEqual([])
+  })
+
+  it('should flag an open dictionary: it is not a whitelist', () => {
+    expect(analyserSchema(z.strictObject({ donnees: z.record(z.string(), z.string()) }) as unknown as SchemaZod).violations)
+      .toEqual(['donnees : dictionnaire à clés libres (pas une liste blanche)'])
+  })
+
+  it('should accept a strict schema with neutral keys and counters', () => {
+    const schema = z.strictObject({ id: z.string(), total: z.number(), actif: z.boolean(), genereLe: z.iso.datetime(), plan: z.enum(['gratuit', 'payant']) })
+
+    expect(analyserSchema(schema as unknown as SchemaZod).violations).toEqual([])
+  })
+
+  it('should tolerate a sensitive key only when it is declared as an exception, and report that it was used', () => {
+    const schema = z.strictObject({ id: z.string(), nom: z.string() })
+
+    const resultat = analyserSchema(schema as unknown as SchemaZod, { nom: 'nom de l\'administrateur lui-même' })
+
+    expect(resultat.violations).toEqual([])
+    expect(resultat.exceptionsUtilisees).toEqual(['nom'])
+    expect(analyserSchema(schema as unknown as SchemaZod, { email: 'autre clé' }).violations).toHaveLength(1)
+  })
+
+  it('should report an exception that no longer matches any key', () => {
+    const schema = z.strictObject({ id: z.string() })
+
+    expect(analyserSchema(schema as unknown as SchemaZod, { nom: 'plus utilisée' }).exceptionsUtilisees).toEqual([])
+  })
+
+  it('should flag a route that reads the body before the guard, skips the guard, or touches the database', () => {
+    const sain = 'export default defineApiHandler(async (event) => {\n  const admin = await requireSuperadmin(event)\n  const corps = await readValidatedBody(event, schema.parse)\n  return toX(await service(admin, corps))\n})\n'
+    expect(ecartsSourceRoute('a.post.ts', sain)).toEqual([])
+
+    expect(ecartsSourceRoute('a.post.ts', sain.replace('requireSuperadmin(event)', 'rien(event)'))).toContain('a.post.ts : n\'appelle pas requireSuperadmin')
+    const corpsAvantGarde = 'export default defineApiHandler(async (event) => {\n  const corps = await readValidatedBody(event, schema.parse)\n  await requireSuperadmin(event)\n})\n'
+    expect(ecartsSourceRoute('a.post.ts', corpsAvantGarde).some((e) => e.includes('avant requireSuperadmin'))).toBe(true)
+    expect(ecartsSourceRoute('a.get.ts', `import { db } from '../../utils/db'\n${sain}`).some((e) => e.includes('accède à la base'))).toBe(true)
+    expect(ecartsSourceRoute('a.get.ts', `import { eq } from 'drizzle-orm'\n${sain}`).some((e) => e.includes('accède à la base'))).toBe(true)
+    expect(ecartsSourceRoute('a.get.ts', sain.replace('defineApiHandler(', 'defineEventHandler(')).some((e) => e.includes('defineApiHandler'))).toBe(true)
+    expect(ecartsSourceRoute('a.get.ts', `${sain}const x = process.env.SECRET\n`).some((e) => e.includes('process.env'))).toBe(true)
+  })
+})

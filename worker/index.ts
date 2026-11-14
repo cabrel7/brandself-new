@@ -48,6 +48,7 @@ import { agregerStatistiques, purgerStatistiques } from '../server/services/stat
 import { verifierPaiementsDus } from '../server/services/abonnements'
 import { purgeProgressionsAbandonnees } from '../server/services/onboarding'
 import { cleIdempotenceOtp, processOtpJob as processOtpJobData } from '../server/jobs/otp'
+import { processAdminReauthEmailJob } from '../server/jobs/admin-reauth'
 
 const OUTBOX_POLL_INTERVAL_MS = 5_000
 
@@ -129,6 +130,11 @@ const workerMaintenance = new Worker(
 // Le traitement vit dans server/jobs/otp.ts (testable) ; la clé d'idempotence (file du job + id + instant de mise en
 // file) est celle du job : un essai répété du même job réutilise sa clé, deux jobs distincts n'en partagent jamais.
 async function processOtpJob(job: Job): Promise<void> {
+  // A1 : le code de réauthentification de l'administrateur partage la file des codes de connexion (jamais de limiteur).
+  if (job.name === JOBS.sendAdminReauthEmail) {
+    await processAdminReauthEmailJob(job.data)
+    return
+  }
   await processOtpJobData(job.name, job.data, cleIdempotenceOtp(job.queueName, job.id, job.timestamp))
 }
 

@@ -1,15 +1,16 @@
 import { Queue } from 'bullmq'
-import { FILE_EMAILS_NOTIFICATIONS, FILE_IA, FILE_IA_FOND, FILE_MAINTENANCE, FILE_SYSTEM } from '../../shared/jobs'
+import { FILE_EMAILS_NOTIFICATIONS, FILE_IA, FILE_IA_FOND, FILE_MAINTENANCE, FILE_MESSAGES_AUTH, FILE_SYSTEM } from '../../shared/jobs'
 import { redis } from '../utils/redis'
 
-// Les files d'authentification (OTP) sont produites par server/auth.config.ts (fichier limité à node_modules
-// et shared/, il ne peut pas importer ce module).
+// Les OTP de connexion sont produits par server/auth.config.ts (fichier limité à node_modules et shared/, il ne peut
+// pas importer ce module). La file `messages-auth` n'est reprise ici que pour le code de réauthentification (A1).
 const g = globalThis as typeof globalThis & {
   __fileSystemBrandself?: Queue
   __fileMaintenanceBrandself?: Queue
   __fileEmailsNotificationsBrandself?: Queue
   __fileIaBrandself?: Queue
   __fileIaFondBrandself?: Queue
+  __fileMessagesAuthBrandself?: Queue
 }
 
 function createQueue(name: string): Queue {
@@ -45,5 +46,12 @@ export function getIaQueue(): Queue {
 export function getIaFondQueue(): Queue {
   const queue = g.__fileIaFondBrandself ?? createQueue(FILE_IA_FOND)
   g.__fileIaFondBrandself = queue
+  return queue
+}
+
+/** A1 : code de réauthentification de l'administrateur (même file que les OTP, jamais de limiteur de débit). */
+export function getMessagesAuthQueue(): Queue {
+  const queue = g.__fileMessagesAuthBrandself ?? createQueue(FILE_MESSAGES_AUTH)
+  g.__fileMessagesAuthBrandself = queue
   return queue
 }

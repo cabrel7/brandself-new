@@ -41,9 +41,10 @@ const rognerOuAbsent = (valeur: unknown): unknown => videVautAbsent(typeof valeu
 
 /**
  * A1 (D-A1-02) : hôte de l'administration, SANS port ni schéma ni chemin (`admin.jesuis.pro`). Minuscules, rogné,
- * au moins deux libellés DNS valides (`admin.localhost` convient). Vide = absent.
+ * au moins deux libellés DNS valides (`admin.localhost` convient). Le dernier libellé commence par une lettre :
+ * une adresse IP (`127.0.0.1`) est refusée (la séparation repose sur un NOM d'hôte). Vide = absent.
  */
-const HOTE_DNS_FORMAT = /^(?=.{3,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/
+const HOTE_DNS_FORMAT = /^(?=.{3,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z](?:[a-z0-9-]{0,61}[a-z0-9])?$/
 const schemaAdminHost = z.preprocess(
   (valeur) => (typeof valeur === 'string' ? rognerOuAbsent(valeur.toLowerCase()) : valeur),
   z.string().regex(HOTE_DNS_FORMAT, 'doit être un nom d’hôte sans port ni schéma (ex. admin.jesuis.pro)').optional(),

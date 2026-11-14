@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto'
+import { cheminNormalise } from '../../shared/admin'
 import { OTP_WINDOW_SECONDS, checkOtpLimit } from '../../shared/limiteur'
 import { getClientIp } from '../utils/client-ip'
 import { redis } from '../utils/redis'
@@ -18,7 +19,9 @@ interface EventWithWeb {
 }
 
 export default defineEventHandler(async (event) => {
-  if (event.method !== 'POST' || !OTP_PATHS.has(event.path)) {
+  // Chemin normalisé (sans requête ni ancre, sans `//` ni `/./`) : `…/send-verification-otp?x` ne contourne plus la limite.
+  const chemin = cheminNormalise(event.path)
+  if (event.method !== 'POST' || chemin === null || !OTP_PATHS.has(chemin)) {
     return
   }
 

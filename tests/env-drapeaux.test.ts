@@ -7,12 +7,15 @@ const valide = {
   NUXT_BETTER_AUTH_SECRET: 'secret-de-test-au-moins-trente-deux-caracteres',
 }
 
+// A1 (D-A1-02) : hors production, l'hôte d'administration retombe sur `admin.localhost`.
+const ADMIN_HOST_DEV = 'admin.localhost'
+
 describe('loadDrapeauxPublics', () => {
   it('échoue en dev/build si une variable manque', () => {
     expect(() => loadDrapeauxPublics({}, ['node', 'nuxt', 'build'])).toThrow(/DATABASE_URL/)
   })
   it('dérive googleActif et boiteOtpDev de la configuration validée', () => {
-    expect(loadDrapeauxPublics(valide, ['dev'])).toEqual({ googleActif: false, boiteOtpDev: true, paiementEnLigne: false })
+    expect(loadDrapeauxPublics(valide, ['dev'])).toEqual({ googleActif: false, boiteOtpDev: true, paiementEnLigne: false, adminHost: ADMIN_HOST_DEV })
     expect(
       loadDrapeauxPublics({
         ...valide,
@@ -23,11 +26,13 @@ describe('loadDrapeauxPublics', () => {
         // S9 (#91) : obligatoires en production.
         EMAIL_EXPEDITEUR: 'Brandself <bonjour@brandself.io>',
         NUXT_PUBLIC_SITE_URL: 'https://brandself.io',
+        // A1 (D-A1-02) : obligatoire en production.
+        ADMIN_HOST: 'admin.brandself.io',
       }, ['build']),
-    ).toEqual({ googleActif: true, boiteOtpDev: false, paiementEnLigne: false })
+    ).toEqual({ googleActif: true, boiteOtpDev: false, paiementEnLigne: false, adminHost: 'admin.brandself.io' })
   })
   it('tolère un environnement vide pour prepare et typecheck', () => {
-    expect(loadDrapeauxPublics({}, ['node', 'nuxt', 'prepare'])).toEqual({ googleActif: false, boiteOtpDev: true, paiementEnLigne: false })
+    expect(loadDrapeauxPublics({}, ['node', 'nuxt', 'prepare'])).toEqual({ googleActif: false, boiteOtpDev: true, paiementEnLigne: false, adminHost: ADMIN_HOST_DEV })
     expect(() => loadDrapeauxPublics({}, ['typecheck'])).not.toThrow()
   })
 })
@@ -58,6 +63,6 @@ describe('loadDrapeauxPublics : paiementEnLigne (PAIEMENT_EN_LIGNE, S3)', () => 
   it('ne dépend pas des autres drapeaux (Google, boîte OTP)', () => {
     const drapeaux = loadDrapeauxPublics({ ...valide, PAIEMENT_EN_LIGNE: 'true', GOOGLE_CLIENT_ID: 'id', GOOGLE_CLIENT_SECRET: 's' }, ['dev'])
 
-    expect(drapeaux).toEqual({ googleActif: true, boiteOtpDev: true, paiementEnLigne: true })
+    expect(drapeaux).toEqual({ googleActif: true, boiteOtpDev: true, paiementEnLigne: true, adminHost: ADMIN_HOST_DEV })
   })
 })

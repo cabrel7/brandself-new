@@ -15,6 +15,8 @@ const BASE_PRODUCTION = {
   RESEND_API_KEY: 're_test_cle_resend',
   EMAIL_EXPEDITEUR: 'Brandself <bonjour@brandself.io>',
   NUXT_PUBLIC_SITE_URL: 'https://brandself.io',
+  // A1 (D-A1-02) : obligatoire en production.
+  ADMIN_HOST: 'admin.brandself.io',
 }
 const CLE_TEST = 'kpay_test_AbCdEf0123456789_-xyz'
 const CLE_LIVE = 'kpay_live_AbCdEf0123456789_-xyz'

@@ -81,6 +81,11 @@ export const ERROR_MESSAGES: Record<ErrorCode, string> = {
   PORTÉE_INSUFFISANTE: 'Portée insuffisante pour cet outil.',
   ASSISTANT_INTROUVABLE: 'Cet assistant est introuvable.',
   IDEMPOTENCE_ARGUMENTS_DIFFERENTS: 'Cette clé d’idempotence a déjà servi pour une autre demande. Utilisez une nouvelle clé pour une nouvelle demande.',
+  // A1 : administration. Le message de REAUTH_INVALIDE ne dit jamais si le code est faux, expiré ou déjà utilisé.
+  REAUTH_REQUISE: 'Cette action demande un code de confirmation. Demandez-le, puis saisissez-le pour continuer.',
+  REAUTH_INVALIDE: 'Ce code de confirmation n’est pas valide. Demandez-en un nouveau.',
+  COMPTE_ADMIN: 'Ce compte est un compte d’administration : il ne peut pas être supprimé depuis le studio.',
+  MOTIF_REQUIS: 'Indiquez le motif de cette action (au moins 5 caractères).',
   ERREUR_INTERNE: 'Une erreur est survenue de notre côté. Réessayez dans un instant.',
 }
 

@@ -80,6 +80,8 @@ export const ERROR_CODES = [
   'REAUTH_REQUISE',
   'REAUTH_INVALIDE',
   'MOTIF_REQUIS',
+  // A1 (revue de régression) : un compte d'administration ne se supprime pas depuis le studio.
+  'COMPTE_ADMIN',
   'ERREUR_INTERNE',
 ] as const
 
@@ -162,6 +164,7 @@ export const ERROR_STATUS: Record<ErrorCode, number> = {
   REAUTH_REQUISE: 403,
   REAUTH_INVALIDE: 403,
   MOTIF_REQUIS: 422,
+  COMPTE_ADMIN: 422,
   ERREUR_INTERNE: 500,
 }
 

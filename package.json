@@ -23,6 +23,8 @@
     "db:generate": "node --env-file=.env node_modules/drizzle-kit/bin.cjs generate",
     "db:migrate": "node --env-file=.env node_modules/drizzle-kit/bin.cjs migrate",
     "db:seed": "node --env-file=.env node_modules/tsx/dist/cli.mjs server/db/seed.ts",
+    "admin:creer": "node --env-file=.env node_modules/tsx/dist/cli.mjs scripts/admin-creer.ts",
+    "admin:reinitialiser": "node --env-file=.env node_modules/tsx/dist/cli.mjs scripts/admin-reinitialiser.ts",
     "jobs:ping": "node --env-file=.env node_modules/tsx/dist/cli.mjs scripts/enfiler-ping.ts",
     "emails:apercu": "node node_modules/tsx/dist/cli.mjs scripts/apercu-emails.ts"
   },
