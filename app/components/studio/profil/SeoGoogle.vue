@@ -29,7 +29,7 @@ const noteMiseAJour = computed(() => props.identiteModifiee && !personnalise.val
 
 function aide(valeur: string, min: number, max: number): string {
   const longueur = valeur.trim().length
-  if (longueur === 0) return `Texte automatique. Si vous écrivez le vôtre : ${min} à ${max} caractères.`
+  if (longueur === 0) return `Texte automatique, ou ${min} à ${max} caractères.`
   if (longueur < min) return `${longueur} sur ${max} caractères : encore ${min - longueur} pour atteindre le minimum.`
   return `${longueur} sur ${max} caractères`
 }
@@ -74,7 +74,7 @@ async function revenirAuto(): Promise<void> {
     </p>
 
     <p class="m-0 text-base text-texte-secondaire">
-      Titre et description affichés dans les résultats de recherche. Laissez vide : nous les écrivons pour vous à partir de votre métier, de votre ville et de votre accroche.
+      Laissez vide pour un texte automatique.
     </p>
 
     <div class="grid gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">

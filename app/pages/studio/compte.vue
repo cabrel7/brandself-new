@@ -77,7 +77,7 @@ async function installerCompteApp(): Promise<void> {
       v-else-if="enErreur || !moi"
       icon="i-ph-warning-circle"
       title="Votre compte ne s’affiche pas"
-      description="Nous n’avons pas pu le charger. Vos informations sont intactes."
+      description="Nous n’avons pas pu charger votre compte."
       :as="{ title: 'h1' }"
       :actions="[{ label: 'Réessayer', size: 'xl', onClick: () => refresh() }]"
     />
@@ -104,9 +104,6 @@ async function installerCompteApp(): Promise<void> {
             </dt>
             <dd class="m-0 text-base text-encre">
               {{ moi.email ?? 'Non renseignée' }}
-            </dd>
-            <dd v-if="moi.email" class="m-0 text-(length:--fs-14) text-texte-secondaire">
-              Adresse vérifiée
             </dd>
           </div>
           <div>
@@ -160,10 +157,6 @@ async function installerCompteApp(): Promise<void> {
           </li>
         </ul>
 
-        <p class="m-0 text-(length:--fs-14) text-texte-secondaire">
-          {{ NOTE_EMAILS_TRANSACTIONNELS }}
-        </p>
-
         <p v-if="erreurEmails" role="alert" class="message-erreur">
           <UIcon name="i-ph-warning-circle" class="size-5 shrink-0" aria-hidden="true" />
           <span>{{ erreurEmails }}</span>
@@ -195,9 +188,6 @@ async function installerCompteApp(): Promise<void> {
             />
             <UIcon v-else name="i-ph-check" class="size-5 shrink-0 text-accent-texte" aria-hidden="true" />
           </div>
-          <p v-if="dejaInstalleApp" class="m-0 pb-3 text-(length:--fs-14) text-texte-secondaire">
-            L’application est déjà installée sur cet appareil.
-          </p>
           <NuxtLink
             to="/studio/assistants"
             class="flex min-h-14 cursor-pointer items-center justify-between gap-3 border-t border-bordure bg-transparent px-1 text-left text-base text-encre no-underline transition-colors hover:bg-surface"
@@ -212,10 +202,6 @@ async function installerCompteApp(): Promise<void> {
         <h2 id="titre-securite" class="m-0 text-(length:--fs-20) font-semibold text-encre">
           Connexion et sécurité
         </h2>
-        <p class="m-0 text-base text-texte-secondaire">
-          Aucun mot de passe à gérer.
-        </p>
-
         <div class="border-y border-bordure">
           <button
             type="button"
@@ -311,7 +297,7 @@ async function installerCompteApp(): Promise<void> {
             Supprimer mon compte
           </h2>
           <p class="m-0 text-base text-texte-secondaire">
-            Votre vitrine et tout son contenu seront supprimés définitivement. Cette action est irréversible.
+            Votre vitrine et tout son contenu seront supprimés définitivement.
           </p>
           <UFormField :label="`Pour confirmer, saisissez ${ACCOUNT_DELETION_PHRASE}`" name="confirmation" :error="suppression.erreur.value || undefined">
             <UInput v-model="saisie" autocomplete="off" autocapitalize="characters" spellcheck="false" />

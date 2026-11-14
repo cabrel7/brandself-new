@@ -79,7 +79,6 @@ function plurielNonLus(nombre: number): string {
       v-else-if="absente"
       icon="i-ph-storefront"
       title="Créons d’abord votre vitrine"
-      description="Vos messages apparaissent ici dès que votre vitrine existe."
       :as="{ title: 'h1' }"
       :actions="[{ label: 'Créer ma vitrine', to: '/onboarding', size: 'xl' }]"
     />
@@ -88,7 +87,7 @@ function plurielNonLus(nombre: number): string {
       v-else-if="enErreur"
       icon="i-ph-warning-circle"
       title="Vos messages ne s’affichent pas"
-      description="Nous n’avons pas pu les charger. Aucun message n’est perdu."
+      description="Nous n’avons pas pu charger vos messages."
       :as="{ title: 'h1' }"
       :actions="[{ label: 'Réessayer', size: 'xl', onClick: rafraichir }]"
     />
@@ -107,7 +106,7 @@ function plurielNonLus(nombre: number): string {
         v-if="messages.length === 0"
         icon="i-ph-chat-circle-dots"
         title="Aucun message pour l’instant"
-        description="Ils arrivent surtout après la mise en ligne de votre vitrine."
+        description="Les nouveaux messages apparaîtront ici."
         class="rounded-(--rayon) border border-bordure bg-surface"
       />
 
@@ -177,10 +176,6 @@ function plurielNonLus(nombre: number): string {
         @fermer="fermer"
         @fermee="retournerALaLigne"
       />
-
-      <p class="m-0 text-(length:--fs-14) text-texte-secondaire">
-        Les messages arrivent aussi par email. Répondez directement depuis votre messagerie.
-      </p>
     </template>
   </div>
 </template>

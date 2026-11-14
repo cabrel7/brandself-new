@@ -24,6 +24,11 @@ const photoAffichee = computed(() =>
   televersee.value && televersee.value.id === form.photoMediaId ? televersee.value : (vitrine.value?.photo ?? null),
 )
 
+// Le compteur n'apparaît qu'à l'approche de la limite.
+const SEUIL_COMPTEUR = 0.8
+const accrocheProcheLimite = computed(() => form.accroche.length >= ACCROCHE_MAX * SEUIL_COMPTEUR)
+const bioProcheLimite = computed(() => form.bio.length >= BIO_MAX * SEUIL_COMPTEUR)
+
 const initiales = computed(() => `${form.prenom.charAt(0)}${form.nom.charAt(0)}`.toUpperCase())
 
 function surPhotoTelechargee(media: MediaDTO): void {
@@ -80,7 +85,6 @@ async function validerAdresse(): Promise<void> {
       v-else-if="absente"
       icon="i-ph-storefront"
       title="Créons d’abord votre vitrine"
-      description="Votre profil apparaît ici dès que votre vitrine existe."
       :as="{ title: 'h1' }"
       :actions="[{ label: 'Créer ma vitrine', to: '/onboarding', size: 'xl' }]"
     />
@@ -89,7 +93,7 @@ async function validerAdresse(): Promise<void> {
       v-else-if="enErreur || !vitrine"
       icon="i-ph-warning-circle"
       title="Votre profil ne s’affiche pas"
-      description="Nous n’avons pas pu le charger. Vos informations sont intactes."
+      description="Nous n’avons pas pu charger votre profil."
       :as="{ title: 'h1' }"
       :actions="[{ label: 'Réessayer', size: 'xl', onClick: () => refresh() }]"
     />
@@ -146,7 +150,7 @@ async function validerAdresse(): Promise<void> {
 
       <UFormField label="Accroche" name="accroche" :error="erreurs.accroche">
         <UInput v-model="form.accroche" :maxlength="ACCROCHE_MAX" @update:model-value="viderErreur('accroche')" />
-        <p class="m-0 mt-2 text-(length:--fs-14) text-texte-secondaire">
+        <p v-if="accrocheProcheLimite" class="m-0 mt-2 text-(length:--fs-14) text-texte-secondaire">
           {{ form.accroche.length }} sur {{ ACCROCHE_MAX }} caractères
         </p>
       </UFormField>
@@ -154,7 +158,7 @@ async function validerAdresse(): Promise<void> {
       <div ref="blocPresentation" class="flex flex-col gap-3">
         <UFormField label="Présentation" name="bio" :error="erreurs.bio">
           <UTextarea v-model="form.bio" :rows="6" :maxlength="BIO_MAX" class="w-full" @update:model-value="viderErreur('bio')" />
-          <p class="m-0 mt-2 text-(length:--fs-14) text-texte-secondaire">
+          <p v-if="bioProcheLimite" class="m-0 mt-2 text-(length:--fs-14) text-texte-secondaire">
             {{ form.bio.length }} sur {{ BIO_MAX }} caractères
           </p>
         </UFormField>
@@ -195,7 +199,7 @@ async function validerAdresse(): Promise<void> {
             @update:model-value="viderErreur('emailContact')"
           />
         </UFormField>
-        <UFormField label="Téléphone" name="telephone" :error="erreurs.telephone" help="Format international, par exemple +237600000000.">
+        <UFormField label="Téléphone" name="telephone" :error="erreurs.telephone">
           <UInput
             v-model="form.telephone"
             type="tel"

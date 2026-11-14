@@ -21,6 +21,10 @@ const NOMS_DEVISES: Readonly<Record<string, string>> = { XAF: 'francs CFA', XOF:
 export const MESSAGE_RESERVATIONS_INDISPONIBLES =
   'Ce professionnel ne prend plus de nouvelle réservation en ligne ce mois-ci. Vous pouvez le contacter directement.'
 
+/** Fin de période de grâce : ce que devient le contenu, dit au moment où il compte (bandeau et carte Abonnement). */
+export const MESSAGE_APRES_GRACE =
+  'Ensuite, votre vitrine repasse au plan gratuit : le contenu en trop est masqué, jamais supprimé.'
+
 /** Libellés des quotas affichés sur la carte du plan gratuit. */
 export const LIBELLES_QUOTAS: Readonly<Record<RessourceQuota, string>> = {
   services: 'Services',

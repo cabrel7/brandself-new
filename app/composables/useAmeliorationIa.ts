@@ -13,7 +13,6 @@ export const MESSAGE_AMELIORATION_REPLI =
   'Nous n’avons pas pu proposer une nouvelle version pour le moment. Votre texte est inchangé.'
 export const MESSAGE_AMELIORATION_ECHEC =
   'Nous n’avons pas pu rédiger de proposition. Votre texte est inchangé, réessayez dans un instant.'
-export const AIDE_AMELIORATION = 'L’IA reformule votre texte, vous validez avant d’enregistrer.'
 export const AIDE_AMELIORATION_TROP_COURT =
   'Écrivez au moins quelques mots, puis l’IA vous proposera une version plus claire.'
 

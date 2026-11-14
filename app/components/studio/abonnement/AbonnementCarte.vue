@@ -127,7 +127,7 @@ watch(() => abonnement.value !== null, async (charge) => {
             Votre abonnement est terminé.
           </p>
           <p class="m-0 text-base text-texte-secondaire">
-            Vous gardez tout jusqu’au {{ jourFinGrace }}.
+            Vous gardez tout jusqu’au {{ jourFinGrace }}. {{ MESSAGE_APRES_GRACE }}
           </p>
         </div>
 

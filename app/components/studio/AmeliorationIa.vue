@@ -11,7 +11,6 @@ const emit = defineEmits<{ utiliser: [texte: string] }>()
 const { enCours, proposition, message, limiteAtteinte, demander, fermer } = useAmeliorationIa()
 
 const assezLong = computed(() => texteSuffisant(props.texte))
-const aide = computed(() => (assezLong.value ? AIDE_AMELIORATION : AIDE_AMELIORATION_TROP_COURT))
 const messageVisible = computed(() => (props.messageMasque ? null : message.value))
 
 const titre = useTemplateRef<HTMLElement>('titre')
@@ -39,8 +38,8 @@ async function garder(): Promise<void> {
 
 <template>
   <div class="flex flex-col gap-3">
-    <p id="aide-amelioration-ia" class="m-0 text-(length:--fs-14) text-texte-secondaire">
-      {{ aide }}
+    <p v-if="!assezLong" id="aide-amelioration-ia" class="m-0 text-(length:--fs-14) text-texte-secondaire">
+      {{ AIDE_AMELIORATION_TROP_COURT }}
     </p>
     <UButton
       ref="bouton"
@@ -52,7 +51,7 @@ async function garder(): Promise<void> {
       :label="enCours ? 'Rédaction en cours…' : 'Améliorer avec l’IA'"
       :loading="enCours"
       :disabled="!assezLong && !enCours"
-      aria-describedby="aide-amelioration-ia"
+      :aria-describedby="assezLong ? undefined : 'aide-amelioration-ia'"
       @click="demander('bio', texte)"
     />
 

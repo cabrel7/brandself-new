@@ -113,7 +113,7 @@ const initialeAssistant = computed(() => nomClient.value.charAt(0).toUpperCase()
           <li class="flex items-start gap-3 border-b border-bordure py-3">
             <div class="min-w-0 flex-1">
               <p class="m-0 text-base font-semibold text-encre">Lire votre vitrine</p>
-              <p class="m-0 text-(length:--fs-14) text-texte-secondaire">Profil, services, réalisations, horaires et créneaux libres. Toujours accordé.</p>
+              <p class="m-0 text-(length:--fs-14) text-texte-secondaire">Profil, services, réalisations, horaires et créneaux libres.</p>
             </div>
             <UIcon name="i-ph-lock" size="20" class="mt-1 shrink-0 text-texte-secondaire" aria-label="Toujours accordé" />
           </li>
@@ -138,8 +138,7 @@ const initialeAssistant = computed(() => nomClient.value.charAt(0).toUpperCase()
 
         <div class="mt-6 flex flex-col gap-3 rounded-(--rayon) bg-accent-doux px-4 py-3.5">
           <p class="m-0 text-(length:--fs-14) leading-relaxed text-encre">
-            Votre assistant ne peut <strong>rien supprimer ni publier</strong>. Ce qu’il crée arrive masqué :
-            vous le relisez avant de l’activer.
+            Votre assistant ne peut <strong>rien supprimer ni publier</strong>. Ce qu’il crée arrive masqué.
           </p>
           <!-- Sécurité : destination de la redirection, discrète mais lisible. -->
           <div v-if="destination" class="flex flex-col gap-0.5 border-t border-bordure pt-3 text-(length:--fs-14) leading-relaxed text-encre">
@@ -149,7 +148,7 @@ const initialeAssistant = computed(() => nomClient.value.charAt(0).toUpperCase()
             </p>
             <p v-if="destination.surAppareil" class="m-0 text-texte-secondaire">Application sur votre appareil</p>
             <p class="m-0 text-texte-secondaire">
-              Ce nom est déclaré par l’assistant : vérifiez que l’adresse de retour est bien celle attendue.
+              Nom déclaré par l’assistant : vérifiez l’adresse de retour.
             </p>
           </div>
         </div>
@@ -185,10 +184,6 @@ const initialeAssistant = computed(() => nomClient.value.charAt(0).toUpperCase()
             Refuser
           </button>
         </div>
-
-        <p class="m-0 mt-8 text-center text-(length:--fs-14) text-texte-secondaire">
-          Vous pourrez retirer cet accès à tout moment dans Compte, Assistants.
-        </p>
       </template>
     </div>
   </div>

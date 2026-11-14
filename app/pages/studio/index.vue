@@ -114,7 +114,7 @@ async function publier(): Promise<void> {
       v-else-if="enErreur || !vitrine || !resume"
       icon="i-ph-warning-circle"
       title="Votre vitrine ne s’affiche pas"
-      description="Nous n’avons pas pu la charger. Vos informations sont intactes."
+      description="Nous n’avons pas pu charger votre vitrine."
       :as="{ title: 'h1' }"
       :actions="[{ label: 'Réessayer', size: 'xl', onClick: () => refresh() }]"
     />
@@ -141,7 +141,7 @@ async function publier(): Promise<void> {
               Pour publier, complétez votre profil : {{ libelleChampsManquants(manquants) }}.
             </template>
             <template v-else>
-              Votre vitrine n’est visible que par vous. Publiez-la quand vous êtes prêt.
+              Pas encore publiée.
             </template>
           </p>
         </div>

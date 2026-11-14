@@ -11,14 +11,11 @@ const {
   adresseCopiee, erreurCopie, copierAdresse,
 } = useStudioAssistants()
 
-// Le réglage « détail » n'a pas encore de stockage côté serveur : interrupteur inactif, sans état inventé.
-const detailAutorise = ref(false)
-
 const connecteurs = [
   {
     id: 'claude',
     nom: 'Claude',
-    instructions: 'Dans Claude, allez dans Paramètres > Connecteurs > Ajouter un connecteur MCP. Saisissez l’adresse du serveur et autorisez les portées demandées.',
+    instructions: 'Dans Claude, allez dans Paramètres > Connecteurs > Ajouter un connecteur MCP. Saisissez l’adresse du serveur et autorisez l’accès demandé.',
   },
   {
     id: 'chatgpt',
@@ -53,7 +50,7 @@ function basculerConnecteur(id: ConnecteurId): void {
       v-else-if="enErreur"
       icon="i-ph-warning-circle"
       title="Les assistants ne s’affichent pas"
-      description="Nous n’avons pas pu charger cette page. Vos données sont intactes."
+      description="Nous n’avons pas pu charger vos assistants."
       :as="{ title: 'h1' }"
       :actions="[{ label: 'Réessayer', size: 'xl', onClick: () => refresh() }]"
     />
@@ -113,7 +110,7 @@ function basculerConnecteur(id: ConnecteurId): void {
             <template v-else-if="erreurCopie">Impossible de copier l’adresse. Sélectionnez-la pour la copier manuellement.</template>
           </p>
           <p v-if="!actif" data-testid="mcp-inactif" class="m-0 text-(length:--fs-14) text-texte-secondaire">
-            Le serveur MCP n’est pas encore activé pour votre compte. Il le sera prochainement.
+            Pas encore disponible pour votre compte.
           </p>
         </section>
 
@@ -152,8 +149,7 @@ function basculerConnecteur(id: ConnecteurId): void {
             data-testid="assistants-vide"
             class="m-0 border-t border-bordure pt-4 text-base text-texte-secondaire"
           >
-            Aucun assistant connecté pour l’instant. Connectez-en un depuis Claude ou ChatGPT ci-dessus :
-            vous le retrouverez ici, avec la possibilité de retirer son accès à tout moment.
+            Aucun assistant connecté pour l’instant. Connectez-en un depuis Claude ou ChatGPT ci-dessus.
           </p>
           <ul v-else class="m-0 flex list-none flex-col border-t border-bordure p-0" data-testid="assistants-liste">
             <li
@@ -223,34 +219,6 @@ function basculerConnecteur(id: ConnecteurId): void {
           </ul>
         </section>
 
-        <section aria-labelledby="titre-confidentialite" class="flex flex-col gap-4">
-          <h2 id="titre-confidentialite" class="m-0 text-(length:--fs-20) font-semibold text-encre">
-            Confidentialité
-          </h2>
-          <div class="border-t border-bordure pt-4">
-            <USwitch
-              id="switch-detail"
-              v-model="detailAutorise"
-              label="Détail des réservations et des messages"
-              description="Autoriser mon assistant à lire les coordonnées et le texte de mes visiteurs. Bientôt disponible."
-              disabled
-              :ui="{ root: 'w-full flex-row-reverse items-start justify-between gap-4', wrapper: 'ms-0' }"
-            />
-          </div>
-          <div class="flex items-start gap-3 rounded-(--rayon) bg-accent-doux p-4">
-            <UIcon name="i-ph-lock" size="20" class="shrink-0 text-accent-texte" aria-hidden="true" />
-            <p class="m-0 text-(length:--fs-14) leading-relaxed text-encre">
-              Activé, votre assistant lira les noms, téléphones, emails, motifs et messages de vos
-              visiteurs. Pour un médecin, un psychologue ou un avocat, cela peut toucher au secret
-              professionnel. Activez-le seulement si vous êtes sûr d’y être autorisé.
-            </p>
-          </div>
-          <p class="m-0 text-(length:--fs-14) text-texte-secondaire">
-            Par défaut, votre assistant ne voit que la date, le service et le prénom. Il ne peut rien
-            supprimer ni publier : ce qu’il crée arrive masqué, à relire dans le studio.
-          </p>
-        </section>
-
         <section aria-labelledby="titre-journal" class="flex flex-col gap-3 md:col-span-2">
           <h2 id="titre-journal" class="m-0 text-(length:--fs-20) font-semibold text-encre">
             Dernières actions
@@ -267,7 +235,7 @@ function basculerConnecteur(id: ConnecteurId): void {
             class="flex flex-col items-start gap-3 border-t border-bordure pt-4"
           >
             <p class="m-0 text-base text-texte-secondaire">
-              Nous n’avons pas pu charger les dernières actions. Vos données sont intactes.
+              Nous n’avons pas pu charger les dernières actions.
             </p>
             <UButton label="Réessayer" variant="outline" color="neutral" size="lg" class="min-h-11" @click="rafraichirJournal()" />
           </div>
@@ -276,8 +244,7 @@ function basculerConnecteur(id: ConnecteurId): void {
             data-testid="journal-vide"
             class="m-0 border-t border-bordure pt-4 text-base text-texte-secondaire"
           >
-            Aucune action pour l’instant. Le journal garde les 50 dernières actions de vos assistants :
-            services et réalisations créés, consultations, modifications.
+            Aucune action pour l’instant.
           </p>
           <ul v-else class="m-0 list-none border-t border-bordure p-0" data-testid="journal-liste">
             <li
