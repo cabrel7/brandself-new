@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { ADMIN_HOST_DEV_DEFAUT } from './admin'
 import { IA_CLE_API_LONGUEUR_MIN, IA_FOURNISSEURS, IA_HOTES_HTTP_AUTORISES, IA_MODELE_DEFAUT } from './ia'
 import type { IaFournisseur } from './ia'
 import { EMAIL_EXPEDITEUR_DEV_DEFAUT, SITE_URL_DEV_DEFAUT } from './notifications'
@@ -37,6 +38,16 @@ const baseUrlKpayValide = (valeur: string): boolean => baseUrlValide(valeur, KPA
 
 /** Variable texte facultative : vide ou espaces = absente, sinon rognée. */
 const rognerOuAbsent = (valeur: unknown): unknown => videVautAbsent(typeof valeur === 'string' ? valeur.trim() : valeur)
+
+/**
+ * A1 (D-A1-02) : hôte de l'administration, SANS port ni schéma ni chemin (`admin.jesuis.pro`). Minuscules, rogné,
+ * au moins deux libellés DNS valides (`admin.localhost` convient). Vide = absent.
+ */
+const HOTE_DNS_FORMAT = /^(?=.{3,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/
+const schemaAdminHost = z.preprocess(
+  (valeur) => (typeof valeur === 'string' ? rognerOuAbsent(valeur.toLowerCase()) : valeur),
+  z.string().regex(HOTE_DNS_FORMAT, 'doit être un nom d’hôte sans port ni schéma (ex. admin.jesuis.pro)').optional(),
+)
 
 const schemaSiteUrl = z.preprocess(videVautAbsent, z.url('doit être une URL valide').optional())
 const schemaSiteEnv = z.preprocess(rognerOuAbsent, z.enum(SITE_ENVIRONNEMENTS).optional())
@@ -120,6 +131,9 @@ const schemaEnv = z
     // Coupée (`false`), les modifications n'enfilent plus aucun job ; la génération faite à l'onboarding, elle,
     // fait partie de l'appel IA existant et n'est pas concernée.
     SEO_IA_REGENERATION_ACTIVE: schemaBooleenVrai,
+    // A1 (D-A1-02) : hôte de l'administration. Obligatoire en production, différent de l'hôte public ;
+    // absent hors production = `admin.localhost`.
+    ADMIN_HOST: schemaAdminHost,
   })
   .superRefine((env, ctx) => {
     if (env.IA_FOURNISSEUR === 'openai' && !env.IA_MODELE) {
@@ -162,6 +176,30 @@ const schemaEnv = z
           code: 'custom',
           path: ['NUXT_PUBLIC_SITE_URL'],
           message: 'doit commencer par https:// en production',
+        })
+      }
+    }
+    // A1 (D-A1-02) : l'hôte d'administration est obligatoire en production et distinct de l'hôte public
+    // (sinon la séparation par nom d'hôte n'existerait pas). Messages sans valeur.
+    if (env.NODE_ENV === 'production' && !env.ADMIN_HOST) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['ADMIN_HOST'],
+        message: 'requis en production (hôte de l’administration, ex. admin.jesuis.pro)',
+      })
+    }
+    if (env.ADMIN_HOST && env.NUXT_PUBLIC_SITE_URL) {
+      let hotePublic: string | undefined
+      try {
+        hotePublic = new URL(env.NUXT_PUBLIC_SITE_URL).hostname.toLowerCase()
+      } catch {
+        hotePublic = undefined
+      }
+      if (hotePublic === env.ADMIN_HOST) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['ADMIN_HOST'],
+          message: 'doit être différent de l’hôte de NUXT_PUBLIC_SITE_URL',
         })
       }
     }
@@ -214,6 +252,8 @@ const schemaEnv = z
     NUXT_PUBLIC_SITE_URL: (env.NUXT_PUBLIC_SITE_URL ?? SITE_URL_DEV_DEFAUT).replace(/\/+$/, ''),
     // Garanti défini : adresse par défaut de K-PAY sinon (sans barre finale, les chemins commencent par `/`).
     KPAY_BASE_URL: (env.KPAY_BASE_URL ?? KPAY_BASE_URL_DEFAUT).replace(/\/+$/, ''),
+    // Garanti défini : requis en production par la validation ci-dessus, `admin.localhost` sinon.
+    ADMIN_HOST: env.ADMIN_HOST ?? ADMIN_HOST_DEV_DEFAUT,
   }))
 
 export type Env = z.infer<typeof schemaEnv>
@@ -277,6 +317,8 @@ export interface DrapeauxPublics {
   googleActif: boolean
   boiteOtpDev: boolean
   paiementEnLigne: boolean
+  /** A1 : hôte de l'administration (sans port), lu par le middleware de route côté client. Public : un nom d'hôte. */
+  adminHost: string
 }
 
 /**
@@ -293,6 +335,7 @@ export function loadDrapeauxPublics(
       googleActif: Boolean(source.GOOGLE_CLIENT_ID),
       boiteOtpDev: source.NODE_ENV !== 'production',
       paiementEnLigne: schemaPaiementEnLigne.safeParse(source.PAIEMENT_EN_LIGNE).data ?? false,
+      adminHost: schemaAdminHost.safeParse(source.ADMIN_HOST).data ?? ADMIN_HOST_DEV_DEFAUT,
     }
   }
   const valide = loadEnv(source)
@@ -300,6 +343,7 @@ export function loadDrapeauxPublics(
     googleActif: Boolean(valide.GOOGLE_CLIENT_ID),
     boiteOtpDev: valide.NODE_ENV !== 'production',
     paiementEnLigne: valide.PAIEMENT_EN_LIGNE,
+    adminHost: valide.ADMIN_HOST,
   }
 }
 

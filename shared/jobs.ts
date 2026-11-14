@@ -87,6 +87,8 @@ export const JOBS = {
   purgerOauth: 'oauth-purger',
   // Purge des indisponibilités de plus de 90 jours (file `maintenance`).
   purgerIndisponibilites: 'indisponibilites-purger',
+  // A1 : e-mail du code de réauthentification de l'administrateur (file `messages-auth`, jamais de limiteur).
+  sendAdminReauthEmail: 'send-admin-reauth-email',
 } as const
 
 export type JobName = (typeof JOBS)[keyof typeof JOBS]
@@ -95,6 +97,18 @@ export interface OtpJobData {
   identifier: string
   code: string
 }
+
+/**
+ * A1 : e-mail d'un code de réauthentification. Le job ne porte ni adresse ni libellé personnel : l'identifiant de
+ * la ligne `admin_reauth` suffit (l'adresse de l'administrateur est relue en base) et le code à 6 chiffres, comme
+ * pour les jobs OTP existants. Le producteur le crée avec `removeOnComplete: true` (le code ne reste pas dans Redis).
+ */
+export const adminReauthEmailJobDataSchema = z.strictObject({
+  reauthId: z.string().min(1).max(64),
+  code: z.string().regex(/^\d{6}$/),
+})
+
+export type AdminReauthEmailJobData = z.infer<typeof adminReauthEmailJobDataSchema>
 
 export const transactionalEmailJobDataSchema = z.strictObject({
   outboxId: z.uuid(),

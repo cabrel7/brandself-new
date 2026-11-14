@@ -16,7 +16,7 @@ import {
 
 // Validation de l'environnement dès le chargement de la configuration :
 // `pnpm dev` / `pnpm build` échouent immédiatement si une variable manque.
-const { googleActif, boiteOtpDev, paiementEnLigne } = loadDrapeauxPublics(process.env, process.argv)
+const { googleActif, boiteOtpDev, paiementEnLigne, adminHost } = loadDrapeauxPublics(process.env, process.argv)
 const siteConfig = loadSiteConfig(process.env, process.argv)
 
 // S12 (#149) : une directive par route, appliquée en meta et en `X-Robots-Tag` (routeRules.robots).
@@ -63,6 +63,9 @@ export default defineNuxtConfig({
       boiteOtpDev,
       // Faux en v1 : seul le règlement « sur place » est proposé pour un service payant.
       paiementEnLigne,
+      // A1 : hôte de l'administration (nom d'hôte, sans port). Sert au middleware de route et à l'exclusion
+      // de l'invite d'installation, du suivi de visites et du service worker sur ce domaine.
+      adminHost,
     },
   },
   // `indexable` volontairement absent : une valeur explicite l'emporterait sur `env` et sur
@@ -154,6 +157,15 @@ export default defineNuxtConfig({
       robots: NOINDEX_ROUTES['/desabonnement'],
       headers: { 'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer' },
     },
+    // A1 : administration (servie seulement sur ADMIN_HOST, voir server/middleware/00-hote.ts). Rendu client
+    // uniquement, jamais indexée ni mise en cache. Aucune règle `auth` du module : l'accès est contrôlé par
+    // `requireSuperadmin` (réponse 404 uniforme) et le middleware de route `admin`.
+    '/admin/**': {
+      ssr: false,
+      robots: 'noindex, nofollow',
+      headers: { 'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer' },
+    },
+    '/api/admin/**': { headers: { 'Cache-Control': 'no-store' } },
   },
   // Serveur de dev lié à 127.0.0.1 (boucle locale IPv4) : par défaut Node résout `localhost` en ::1 et
   // n'écoute qu'en IPv6, ce qui fait refuser le WebSocket HMR par Firefox (NS_ERROR_WEBSOCKET_CONNECTION_REFUSED)
