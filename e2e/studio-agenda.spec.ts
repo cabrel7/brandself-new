@@ -229,7 +229,7 @@ test.describe.serial('Studio Agenda S7 - vitrine fraîche', () => {
     await page.getByRole('tab', { name: 'Demandes', exact: true }).click()
     await expect(page.getByText('Aucune demande', { exact: true })).toBeVisible()
     await page.getByRole('tab', { name: 'Passées', exact: true }).click()
-    await expect(page.getByText('Rien de passé — tout est traité', { exact: true })).toBeVisible()
+    await expect(page.getByText('Aucun rendez-vous passé', { exact: true })).toBeVisible()
     await page.getByRole('tab', { name: 'À venir', exact: true }).click()
 
     await page.getByRole('link', { name: 'Disponibilités', exact: true }).click()
@@ -276,8 +276,8 @@ test.describe.serial('Studio Agenda S7 - vitrine fraîche', () => {
     const pas = disponibilites().getByRole('combobox', { name: 'Pas des créneaux' })
     await pas.click()
     await page.getByRole('option', { name: '60 minutes', exact: true }).click()
-    await disponibilites().getByLabel('Préavis (heures)').fill('1')
-    await disponibilites().getByLabel('Horizon (jours)').fill('45')
+    await disponibilites().getByLabel('Délai minimal avant réservation (heures)').fill('1')
+    await disponibilites().getByLabel('Réservation possible jusqu’à (jours)').fill('45')
     await expect(boutonEnregistrer).toBeEnabled()
 
     const reponseFuseauPromise = page.waitForResponse((reponse) =>
@@ -324,8 +324,8 @@ test.describe.serial('Studio Agenda S7 - vitrine fraîche', () => {
     await disponibilites().getByText('Réglages avancés', { exact: true }).click()
     await expect(disponibilites().getByRole('combobox', { name: 'Fuseau horaire' })).toContainText('Europe/Paris')
     await expect(disponibilites().getByRole('combobox', { name: 'Pas des créneaux' })).toContainText('60 minutes')
-    await expect(disponibilites().getByLabel('Préavis (heures)')).toHaveValue('1')
-    await expect(disponibilites().getByLabel('Horizon (jours)')).toHaveValue('45')
+    await expect(disponibilites().getByLabel('Délai minimal avant réservation (heures)')).toHaveValue('1')
+    await expect(disponibilites().getByLabel('Réservation possible jusqu’à (jours)')).toHaveValue('45')
     expect(await lireDisponibilites()).toEqual(enregistrees)
 
     await retourAgenda.click()
@@ -509,10 +509,6 @@ test.describe.serial('Studio Agenda S7 - vitrine fraîche', () => {
 
       const confirmation = indisponibilites().getByRole('group', { name: 'Supprimer cette indisponibilité ?' })
       await expect(confirmation).toBeVisible()
-      await expect(confirmation.getByText(
-        'Les créneaux habituels seront de nouveau proposés ce jour-là.',
-        { exact: true },
-      )).toBeVisible()
       const confirmer = confirmation.getByRole('button', { name: 'Supprimer', exact: true })
       await expect(confirmer).toBeFocused()
 

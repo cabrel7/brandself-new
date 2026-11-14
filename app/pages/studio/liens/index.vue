@@ -111,7 +111,6 @@ async function telechargerQrcode(): Promise<void> {
       v-if="absente || vitrineAbsente"
       icon="i-ph-storefront"
       title="Créons d’abord votre vitrine"
-      description="Vos liens apparaissent ici dès que votre vitrine existe."
       :as="{ title: 'h1' }"
       :actions="[{ label: 'Créer ma vitrine', to: '/onboarding', size: 'xl' }]"
     />
@@ -120,7 +119,7 @@ async function telechargerQrcode(): Promise<void> {
       v-else-if="enErreur || vitrineEnErreur"
       icon="i-ph-warning-circle"
       title="Vos liens ne s’affichent pas"
-      description="Nous n’avons pas pu les charger. Vos liens sont intacts."
+      description="Nous n’avons pas pu les charger."
       :as="{ title: 'h1' }"
       :actions="[{ label: 'Réessayer', size: 'xl', onClick: rafraichirPage }]"
     />
@@ -207,7 +206,6 @@ async function telechargerQrcode(): Promise<void> {
         class="mt-4"
         icon="i-ph-link"
         title="Réunissez vos liens en une page"
-        description="Ajoutez votre premier lien : site, réseaux sociaux, prise de rendez-vous… tout ce qui vous relie à vos clients."
         action-label="Ajouter un lien"
         action-to="/studio/liens/nouveau"
       />
@@ -223,9 +221,6 @@ async function telechargerQrcode(): Promise<void> {
           @deplacer="(sens: -1 | 1) => deplacer(lien.id, sens)"
         />
       </ul>
-      <p v-if="!enChargement && !vide" class="m-0 mt-6 text-(length:--fs-14) text-texte-secondaire">
-        Glissez les liens pour changer leur ordre. L’interrupteur masque un lien sans le supprimer.
-      </p>
     </template>
 
     <p class="sr-only" aria-live="polite">{{ annonce }}</p>
@@ -233,7 +228,6 @@ async function telechargerQrcode(): Promise<void> {
     <UModal
       v-model:open="qrcodeOuverte"
       title="QR code de votre page de liens"
-      description="Vos visiteurs peuvent le scanner pour ouvrir votre page de liens."
     >
       <template #body>
         <div ref="qrcodeConteneur" class="flex flex-col items-center gap-4 py-2">

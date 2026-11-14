@@ -22,7 +22,6 @@ const resumeTexte = computed(() => resumeListeRealisations(resume.value.visibles
       v-if="absente"
       icon="i-ph-storefront"
       title="Créons d’abord votre vitrine"
-      description="Vos réalisations apparaissent ici dès que votre vitrine existe."
       :as="{ title: 'h1' }"
       :actions="[{ label: 'Créer ma vitrine', to: '/onboarding', size: 'xl' }]"
     />
@@ -31,7 +30,7 @@ const resumeTexte = computed(() => resumeListeRealisations(resume.value.visibles
       v-else-if="enErreur"
       icon="i-ph-warning-circle"
       title="Vos réalisations ne s’affichent pas"
-      description="Nous n’avons pas pu les charger. Vos réalisations sont intactes."
+      description="Nous n’avons pas pu les charger."
       :as="{ title: 'h1' }"
       :actions="[{ label: 'Réessayer', size: 'xl', onClick: () => refresh() }]"
     />
@@ -40,7 +39,6 @@ const resumeTexte = computed(() => resumeListeRealisations(resume.value.visibles
       v-else-if="vide"
       icon="i-ph-squares-four"
       title="Montrez votre travail"
-      description="Ajoutez une première réalisation : vos visiteurs verront concrètement ce que vous faites."
       action-label="Ajouter une réalisation"
       action-to="/studio/realisations/nouveau"
     />
@@ -97,10 +95,6 @@ const resumeTexte = computed(() => resumeListeRealisations(resume.value.visibles
       </ul>
       <p class="sr-only" aria-live="polite">
         {{ annonce }}
-      </p>
-
-      <p v-if="!enChargement" class="m-0 mt-6 text-base text-texte-secondaire">
-        La première réalisation en vedette est mise à la une de votre accueil. Toutes les réalisations visibles restent sur la page Réalisations.
       </p>
     </template>
   </div>

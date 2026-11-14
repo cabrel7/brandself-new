@@ -36,7 +36,6 @@ const deviseParDefaut = computed<Devise>(() => moi.value?.devise ?? DEVISE_REPLI
       v-else-if="introuvable"
       icon="i-ph-briefcase"
       title="Ce service n’existe plus"
-      description="Il a peut-être été supprimé depuis un autre appareil."
       :as="{ title: 'h1' }"
       :actions="[{ label: 'Retour aux services', to: '/studio/services', size: 'xl' }]"
     />
@@ -45,7 +44,6 @@ const deviseParDefaut = computed<Devise>(() => moi.value?.devise ?? DEVISE_REPLI
       v-else-if="sansVitrine"
       icon="i-ph-storefront"
       title="Créons d’abord votre vitrine"
-      description="Vos services apparaissent ici dès que votre vitrine existe."
       :as="{ title: 'h1' }"
       :actions="[{ label: 'Créer ma vitrine', to: '/onboarding', size: 'xl' }]"
     />
@@ -54,7 +52,7 @@ const deviseParDefaut = computed<Devise>(() => moi.value?.devise ?? DEVISE_REPLI
       v-else-if="enErreur || !service || !compteurs"
       icon="i-ph-warning-circle"
       title="Ce service ne s’affiche pas"
-      description="Nous n’avons pas pu le charger. Vos services sont intacts."
+      description="Nous n’avons pas pu le charger."
       :as="{ title: 'h1' }"
       :actions="[{ label: 'Réessayer', size: 'xl', onClick: () => refresh() }]"
     />

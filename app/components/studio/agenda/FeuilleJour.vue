@@ -75,7 +75,6 @@ async function retirer(cle: string): Promise<void> {
   <UModal
     v-model:open="ouverte"
     :title="jour.libelle"
-    description="Heures d’ouverture de ce jour."
     :close="false"
     :dismissible="false"
     @close:prevent="fermer"
@@ -167,7 +166,7 @@ async function retirer(cle: string): Promise<void> {
           </p>
         </div>
         <p v-else class="m-0 text-base text-texte-secondaire">
-          Ce jour est fermé : personne ne peut réserver.
+          Ce jour est fermé.
         </p>
 
         <div class="border-t border-bordure pt-4">

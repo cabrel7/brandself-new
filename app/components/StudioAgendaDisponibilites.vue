@@ -147,10 +147,9 @@ function rendreLeFocus(): void {
           />
         </UFormField>
         <UFormField
-          label="Préavis (heures)"
+          label="Délai minimal avant réservation (heures)"
           name="preavisHeures"
           :error="erreurs.preavisHeures"
-          help="Délai minimal avant une réservation."
         >
           <UInput
             type="number"
@@ -163,10 +162,9 @@ function rendreLeFocus(): void {
           />
         </UFormField>
         <UFormField
-          label="Horizon (jours)"
+          label="Réservation possible jusqu’à (jours)"
           name="horizonJours"
           :error="erreurs.horizonJours"
-          help="Période ouverte à la réservation."
         >
           <UInput
             type="number"

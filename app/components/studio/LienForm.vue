@@ -208,7 +208,7 @@ async function enregistrer(): Promise<void> {
       />
     </UFormField>
 
-    <UFormField label="Libellé" name="libelle" required :error="erreurs.libelle?.[0]" help="Le texte du bouton.">
+    <UFormField label="Libellé" name="libelle" required :error="erreurs.libelle?.[0]">
       <UInput v-model="form.libelle" :maxlength="100" :disabled="enregistrement" @update:model-value="viderErreur('libelle')" />
     </UFormField>
 
@@ -277,7 +277,6 @@ async function enregistrer(): Promise<void> {
       <USwitch
         v-model="form.actif"
         label="Visible sur la page de liens"
-        description="Désactivez pour masquer ce lien sans le supprimer."
         :disabled="enregistrement"
         :ui="{ root: 'w-full flex-row-reverse items-center justify-between gap-4', wrapper: 'ms-0' }"
         @update:model-value="viderErreur('actif')"

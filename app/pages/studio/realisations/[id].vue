@@ -28,7 +28,6 @@ const { realisation, compteurs, enChargement, enErreur, introuvable, sansVitrine
       v-else-if="introuvable"
       icon="i-ph-squares-four"
       title="Cette réalisation n’existe plus"
-      description="Elle a peut-être été supprimée depuis un autre appareil."
       :as="{ title: 'h1' }"
       :actions="[{ label: 'Retour aux réalisations', to: '/studio/realisations', size: 'xl' }]"
     />
@@ -37,7 +36,6 @@ const { realisation, compteurs, enChargement, enErreur, introuvable, sansVitrine
       v-else-if="sansVitrine"
       icon="i-ph-storefront"
       title="Créons d’abord votre vitrine"
-      description="Vos réalisations apparaissent ici dès que votre vitrine existe."
       :as="{ title: 'h1' }"
       :actions="[{ label: 'Créer ma vitrine', to: '/onboarding', size: 'xl' }]"
     />
@@ -46,7 +44,7 @@ const { realisation, compteurs, enChargement, enErreur, introuvable, sansVitrine
       v-else-if="enErreur || !realisation || !compteurs"
       icon="i-ph-warning-circle"
       title="Cette réalisation ne s’affiche pas"
-      description="Nous n’avons pas pu la charger. Vos réalisations sont intactes."
+      description="Nous n’avons pas pu la charger."
       :as="{ title: 'h1' }"
       :actions="[{ label: 'Réessayer', size: 'xl', onClick: () => refresh() }]"
     />

@@ -34,7 +34,6 @@ const deviseParDefaut = computed<Devise>(() => moi.value?.devise ?? DEVISE_REPLI
       v-else-if="absente"
       icon="i-ph-storefront"
       title="Créons d’abord votre vitrine"
-      description="Vous pourrez ajouter des services dès que votre vitrine existera."
       :as="{ title: 'h1' }"
       :actions="[{ label: 'Créer ma vitrine', to: '/onboarding', size: 'xl' }]"
     />
@@ -43,7 +42,7 @@ const deviseParDefaut = computed<Devise>(() => moi.value?.devise ?? DEVISE_REPLI
       v-else-if="enErreur || !compteurs"
       icon="i-ph-warning-circle"
       title="Le formulaire ne s’affiche pas"
-      description="Nous n’avons pas pu le charger. Vos services sont intacts."
+      description="Nous n’avons pas pu le charger."
       :as="{ title: 'h1' }"
       :actions="[{ label: 'Réessayer', size: 'xl', onClick: () => refresh() }]"
     />

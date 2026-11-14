@@ -36,7 +36,6 @@ const aideBanniere = computed(() => (brouillonsAssistant.value === 1 ? 'Relisez-
       v-if="absente"
       icon="i-ph-storefront"
       title="Créons d’abord votre vitrine"
-      description="Vos services apparaissent ici dès que votre vitrine existe."
       :as="{ title: 'h1' }"
       :actions="[{ label: 'Créer ma vitrine', to: '/onboarding', size: 'xl' }]"
     />
@@ -45,7 +44,7 @@ const aideBanniere = computed(() => (brouillonsAssistant.value === 1 ? 'Relisez-
       v-else-if="enErreur"
       icon="i-ph-warning-circle"
       title="Vos services ne s’affichent pas"
-      description="Nous n’avons pas pu les charger. Vos services sont intacts."
+      description="Nous n’avons pas pu les charger."
       :as="{ title: 'h1' }"
       :actions="[{ label: 'Réessayer', size: 'xl', onClick: () => refresh() }]"
     />
@@ -54,7 +53,6 @@ const aideBanniere = computed(() => (brouillonsAssistant.value === 1 ? 'Relisez-
       v-else-if="vide"
       icon="i-ph-briefcase"
       title="Présentez ce que vous proposez"
-      description="Ajoutez votre premier service : vos visiteurs sauront comment travailler avec vous."
       action-label="Ajouter un service"
       action-to="/studio/services/nouveau"
     />
@@ -112,10 +110,6 @@ const aideBanniere = computed(() => (brouillonsAssistant.value === 1 ? 'Relisez-
       </ul>
       <p class="sr-only" aria-live="polite">
         {{ annonce }}
-      </p>
-
-      <p v-if="!enChargement" class="m-0 mt-6 text-base text-texte-secondaire">
-        L’interrupteur masque un service sur votre vitrine sans le supprimer. Les services en vedette s’affichent en premier sur l’accueil.
       </p>
     </template>
   </div>

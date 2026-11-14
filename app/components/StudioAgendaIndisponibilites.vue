@@ -90,9 +90,6 @@ watch(() => props.ajoutEnCours, async (encours, avant) => {
       >
         Indisponibilités
       </h2>
-      <p class="m-0 text-base text-texte-secondaire">
-        Les dates où vous êtes absent (congés, déplacements) : personne ne peut réserver ces jours-là.
-      </p>
     </div>
 
     <div class="overflow-hidden rounded-(--rayon) border border-bordure bg-surface">
@@ -209,7 +206,6 @@ watch(() => props.ajoutEnCours, async (encours, avant) => {
         class="border-t border-bordure"
         icon="i-ph-calendar-x"
         title="Aucune date fermée"
-        description="Indiquez ci-dessus vos congés ou déplacements. Sinon, vos heures de la semaine s’appliquent sans exception."
         :ui="{ root: 'py-6', title: 'text-base' }"
       />
 
@@ -222,9 +218,6 @@ watch(() => props.ajoutEnCours, async (encours, avant) => {
           >
             <p :id="`confirmer-indisponibilite-${item.id}`" class="m-0 text-base font-semibold text-encre">
               Supprimer cette indisponibilité ?
-            </p>
-            <p class="m-0 mt-1 text-(length:--fs-14) text-texte-secondaire">
-              Les créneaux habituels seront de nouveau proposés ce jour-là.
             </p>
             <div class="mt-3 grid grid-cols-2 gap-2">
               <UButton

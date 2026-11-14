@@ -28,7 +28,7 @@ const {
 // Créée via l'assistant MCP : relue dans le studio, activable seulement avec une image principale.
 const creeeParAssistant = computed(() => props.realisation?.source === 'assistant')
 const actifBloque = computed(() => creeeParAssistant.value && image.value === null)
-const aideVisibilite = computed(() => (actifBloque.value ? 'Disponible dès que l’image principale est ajoutée.' : 'Désactivez pour masquer cette réalisation sans la supprimer.'))
+const aideVisibilite = computed(() => (actifBloque.value ? 'Disponible dès que l’image principale est ajoutée.' : undefined))
 </script>
 
 <template>
@@ -36,7 +36,6 @@ const aideVisibilite = computed(() => (actifBloque.value ? 'Disponible dès que 
     v-if="introuvable"
     icon="i-ph-squares-four"
     title="Cette réalisation n’existe plus"
-    description="Elle a peut-être été supprimée depuis un autre appareil."
     :actions="[{ label: 'Retour aux réalisations', to: '/studio/realisations', size: 'xl' }]"
   />
 
@@ -92,7 +91,6 @@ const aideVisibilite = computed(() => (actifBloque.value ? 'Disponible dès que 
         @update:model-value="viderErreur('description')"
       />
       <p class="m-0 mt-2 text-(length:--fs-14) text-texte-secondaire">
-        Racontez le contexte, votre rôle et le résultat.
         {{ form.description.length }} sur {{ REALISATION_DESCRIPTION_MAX }} caractères.
       </p>
     </UFormField>

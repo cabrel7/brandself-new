@@ -104,7 +104,6 @@ async function enregistrerPuisQuitter(): Promise<void> {
       v-else-if="absente"
       icon="i-ph-storefront"
       title="Créons d’abord votre vitrine"
-      description="Vos disponibilités apparaissent ici dès que votre vitrine existe."
       :as="{ title: 'h1' }"
       :actions="[{ label: 'Créer ma vitrine', to: '/onboarding', size: 'xl' }]"
     />
@@ -113,7 +112,7 @@ async function enregistrerPuisQuitter(): Promise<void> {
       v-else-if="enErreur"
       icon="i-ph-warning-circle"
       title="Vos disponibilités ne s’affichent pas"
-      description="Nous n’avons pas pu les charger. Elles restent appliquées sur votre vitrine."
+      description="Nous n’avons pas pu les charger."
       :as="{ title: 'h1' }"
       :actions="[{ label: 'Réessayer', size: 'xl', onClick: rafraichir }]"
     />
@@ -123,9 +122,6 @@ async function enregistrerPuisQuitter(): Promise<void> {
         <h1 class="m-0 text-(length:--fs-32) leading-tight font-bold text-encre">
           Vos disponibilités
         </h1>
-        <p class="m-0 mt-1 max-w-2xl text-base text-texte-secondaire">
-          Les visiteurs ne peuvent réserver que dans ces plages.
-        </p>
       </header>
 
       <div class="flex flex-col gap-6 lg:grid lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] lg:items-start lg:gap-x-10">

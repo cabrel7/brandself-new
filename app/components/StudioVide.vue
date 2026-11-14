@@ -2,7 +2,7 @@
 defineProps<{
   icon: string
   title: string
-  description: string
+  description?: string
   /** Action unique de l'état vide (facultative). */
   actionLabel?: string
   actionTo?: string

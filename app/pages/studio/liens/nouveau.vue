@@ -28,7 +28,6 @@ async function apresEnregistrement(): Promise<void> {
       v-else-if="absente"
       icon="i-ph-storefront"
       title="Créons d’abord votre vitrine"
-      description="Vous pourrez ajouter des liens dès que votre vitrine existera."
       :as="{ title: 'h1' }"
       :actions="[{ label: 'Créer ma vitrine', to: '/onboarding', size: 'xl' }]"
     />
@@ -37,7 +36,7 @@ async function apresEnregistrement(): Promise<void> {
       v-else-if="enErreur"
       icon="i-ph-warning-circle"
       title="Le formulaire ne s’affiche pas"
-      description="Nous n’avons pas pu le charger. Vos liens sont intacts."
+      description="Nous n’avons pas pu le charger."
       :as="{ title: 'h1' }"
       :actions="[{ label: 'Réessayer', size: 'xl', onClick: () => refresh() }]"
     />

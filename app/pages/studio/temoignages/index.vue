@@ -24,7 +24,6 @@ const resumeTexte = computed(() =>
       v-if="absente"
       icon="i-ph-storefront"
       title="Créons d’abord votre vitrine"
-      description="Vos témoignages apparaissent ici dès que votre vitrine existe."
       :as="{ title: 'h1' }"
       :actions="[{ label: 'Créer ma vitrine', to: '/onboarding', size: 'xl' }]"
     />
@@ -33,7 +32,7 @@ const resumeTexte = computed(() =>
       v-else-if="enErreur"
       icon="i-ph-warning-circle"
       title="Vos témoignages ne s’affichent pas"
-      description="Nous n’avons pas pu les charger. Vos témoignages sont intacts."
+      description="Nous n’avons pas pu les charger."
       :as="{ title: 'h1' }"
       :actions="[{ label: 'Réessayer', size: 'xl', onClick: () => refresh() }]"
     />
@@ -42,7 +41,6 @@ const resumeTexte = computed(() =>
       v-else-if="vide"
       icon="i-ph-chat-centered-text"
       title="Donnez la parole à vos clients"
-      description="Ajoutez un premier témoignage : un client qui vous recommande rassure les visiteurs."
       action-label="Ajouter un témoignage"
       action-to="/studio/temoignages/nouveau"
     />
@@ -99,10 +97,6 @@ const resumeTexte = computed(() =>
       </ul>
       <p class="sr-only" aria-live="polite">
         {{ annonce }}
-      </p>
-
-      <p v-if="!enChargement" class="m-0 mt-6 text-base text-texte-secondaire">
-        Glissez les témoignages pour changer leur ordre. L’interrupteur masque un témoignage sans le supprimer.
       </p>
     </template>
   </div>
