@@ -42,9 +42,9 @@ const TITRES_ECRAN: Record<OnboardingEtape, string> = {
   3: 'Voici notre proposition',
   4: 'Choisissez votre adresse',
 }
-const SOUS_TITRE_NOMINAL_ETAPE_3 = 'Nous avons rédigé une première version pour vous. Choisissez, corrigez, c’est vous qui décidez.'
-const SOUS_TITRE_REPLI = 'Nous avons préparé une première version à partir de vos réponses. Modifiez-la librement, c’est vous qui décidez.'
-const MESSAGE_ATTENTE = 'Nous rédigeons votre proposition. Cela prend quelques secondes.'
+const SOUS_TITRE_NOMINAL_ETAPE_3 = 'Nous avons rédigé une première version pour vous. Choisissez et corrigez.'
+const SOUS_TITRE_REPLI = 'Nous avons préparé une première version à partir de vos réponses. Modifiez-la librement.'
+const MESSAGE_ATTENTE = 'Nous rédigeons votre proposition…'
 const MESSAGE_ATTENTE_LONGUE = 'Encore un instant, nous relisons chaque phrase.'
 const MESSAGE_PHOTO_REQUISE = 'Ajoutez une photo pour continuer : c’est la première chose que vos visiteurs regardent.'
 const MESSAGE_FORMAT_REFUSE = 'Ce format n’est pas accepté. Choisissez une photo JPEG, PNG ou WebP.'

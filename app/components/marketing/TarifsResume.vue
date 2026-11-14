@@ -9,13 +9,9 @@ const { tarifs, erreur, gratuit, payant } = await useTarifs()
     <h2 class="m-0 font-(family-name:--font-titre) text-(length:--fs-24) leading-tight font-semibold text-encre">
       Tarifs
     </h2>
-    <p class="m-0 text-base text-texte-secondaire">
-      Un plan gratuit pour commencer, un plan payant quand votre vitrine reçoit des rendez-vous.
-    </p>
     <div class="grid gap-6 sm:grid-cols-2">
       <div v-if="gratuit" class="p-6 rounded-(--rayon) border border-bordure bg-surface">
         <h3 class="m-0 text-base font-semibold text-encre">Gratuit</h3>
-        <p class="m-0 mt-1 text-sm text-texte-secondaire">Pour toujours</p>
         <ul class="mt-4 list-disc list-inside text-sm text-texte-secondaire">
           <li v-for="ligne in lignesPlan(gratuit)" :key="ligne">{{ ligne }}</li>
         </ul>

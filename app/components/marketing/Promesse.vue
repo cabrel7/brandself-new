@@ -8,9 +8,6 @@ defineProps<{ palette?: string }>()
     <h1 class="m-0 font-(family-name:--font-titre) text-(length:--fs-32) leading-tight font-bold text-encre md:text-(length:--fs-48)">
       Votre vitrine en ligne
     </h1>
-    <p class="m-0 max-w-2xl text-(length:--fs-20) text-texte-secondaire">
-      Être trouvé sur Google, être compris, être contacté ou réservé.
-    </p>
     <div class="mt-6 flex flex-col gap-4 sm:flex-row sm:justify-center">
       <NuxtLink to="/connexion" class="min-h-(--cible-tactile) inline-flex items-center justify-center gap-2 px-6 py-3 font-semibold text-sur-accent bg-accent rounded-(--rayon) no-underline transition-colors hover:bg-accent-hover">
         Créer ma vitrine

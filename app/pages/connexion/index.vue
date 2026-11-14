@@ -63,19 +63,7 @@ const sendModeItems = [
   { label: 'WhatsApp', value: 'whatsapp', disabled: !whatsappActif },
 ]
 
-const pointsPanneau = [
-  'Une adresse simple à partager',
-  'Des rendez-vous réservables en ligne',
-  'Aucun mot de passe à retenir',
-]
-
-const aideEnvoi = computed(() => {
-  if (channel.value === 'email') {
-    return 'Nous vous envoyons un code à 6 chiffres, valable 10 minutes.'
-  }
-  const canal = whatsappActif ? 'par SMS ou WhatsApp' : 'par SMS'
-  return `Nous vous envoyons un code à 6 chiffres ${canal}, valable 10 minutes.`
-})
+const pointsPanneau = ['Une adresse à partager', 'Des rendez-vous en ligne']
 
 watch(channel, () => {
   error.value = ''
@@ -173,7 +161,6 @@ async function continueWithGoogle(): Promise<void> {
           <span>{{ point }}</span>
         </li>
       </ul>
-      <p class="text-sm text-muted">Créé avec soin à Douala</p>
     </aside>
 
     <main class="mx-auto flex w-full max-w-120 flex-col gap-4 px-6 pt-8 pb-12 lg:justify-center lg:py-12">
@@ -183,7 +170,7 @@ async function continueWithGoogle(): Promise<void> {
         Bienvenue
       </h1>
       <p class="text-muted">
-        Connectez-vous ou créez votre vitrine en quelques instants. Aucun mot de passe à retenir.
+        Connectez-vous ou créez votre vitrine en quelques instants.
       </p>
 
       <UButton
@@ -225,7 +212,7 @@ async function continueWithGoogle(): Promise<void> {
         Continuer avec Google
       </UButton>
       <p v-if="!googleActif" class="-mt-2 text-sm text-muted">
-        Connexion Google bientôt disponible. Utilisez votre email ou votre téléphone pour l'instant.
+        Google bientôt disponible.
       </p>
 
       <USeparator label="ou" />
@@ -273,7 +260,6 @@ async function continueWithGoogle(): Promise<void> {
           v-if="channel === 'telephone'"
           label="Recevoir le code par"
           name="envoi"
-          :help="whatsappActif ? undefined : 'WhatsApp arrive bientôt.'"
         >
           <UTabs
             v-model="sendMode"
@@ -296,8 +282,6 @@ async function continueWithGoogle(): Promise<void> {
         <UButton type="submit" block :loading="loading">
           {{ loading ? 'Envoi en cours…' : 'Recevoir un code' }}
         </UButton>
-
-        <p class="text-muted">{{ aideEnvoi }}</p>
 
         <p class="text-sm text-muted">
           En continuant, vous acceptez les conditions d'utilisation et la politique de

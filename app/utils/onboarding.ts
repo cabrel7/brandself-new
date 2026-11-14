@@ -21,16 +21,16 @@ export const TITRES_ECRAN: Record<OnboardingEtape, string> = {
 }
 
 export const SOUS_TITRES_ECRAN: Record<OnboardingEtape, string> = {
-  1: 'Bienvenue. Construisons votre vitrine ensemble.',
-  2: 'C’est la première chose que vos visiteurs regardent.',
-  3: 'Nous avons rédigé une première version pour vous. Choisissez, corrigez, c’est vous qui décidez.',
-  4: 'C’est le lien que vous partagerez à vos patients et clients.',
+  1: '',
+  2: '',
+  3: 'Nous avons rédigé une première version pour vous. Choisissez et corrigez.',
+  4: '',
 }
 
 export const SOUS_TITRE_REPLI =
-  'Nous avons préparé une première version à partir de vos réponses. Modifiez-la librement, c’est vous qui décidez.'
+  'Nous avons préparé une première version à partir de vos réponses. Modifiez-la librement.'
 
-export const MESSAGE_ATTENTE = 'Nous rédigeons votre proposition. Cela prend quelques secondes.'
+export const MESSAGE_ATTENTE = 'Nous rédigeons votre proposition…'
 export const MESSAGE_ATTENTE_LONGUE = 'Encore un instant, nous relisons chaque phrase.'
 
 /** Formulaire de l'étape 1 (valeurs de saisie, avant envoi). */

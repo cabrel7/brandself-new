@@ -34,9 +34,6 @@ const { ready: squeletteVisible } = useTimeout(200, { controls: true })
       <h1 ref="titre" tabindex="-1" class="m-0 pt-8 font-(family-name:--font-titre) text-(length:--fs-32) leading-[1.15] font-bold outline-none">
         Ne plus recevoir {{ libelle }} ?
       </h1>
-      <p class="m-0 text-base text-texte-secondaire">
-        Vous pourrez le réactiver à tout moment dans votre compte.
-      </p>
       <p v-if="message" role="alert" class="message-erreur">
         <UIcon name="i-ph-warning-circle" class="size-5 shrink-0" aria-hidden="true" />
         <span>{{ message }}</span>

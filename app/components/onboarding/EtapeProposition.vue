@@ -39,7 +39,7 @@ defineExpose({ focusErreur })
   <div ref="racine">
     <div v-if="etat === 'attente'" class="flex flex-col gap-6" aria-busy="true">
       <p role="status" aria-live="polite" class="m-0 font-semibold text-encre">
-        {{ attenteLongue ? 'Encore un instant, nous relisons chaque phrase.' : 'Nous rédigeons votre proposition. Cela prend quelques secondes.' }}
+        {{ attenteLongue ? 'Encore un instant, nous relisons chaque phrase.' : 'Nous rédigeons votre proposition…' }}
       </p>
       <div class="flex flex-col gap-3" aria-hidden="true">
         <USkeleton v-for="n in ACCROCHES_PROPOSEES" :key="n" class="h-20 w-full" />
@@ -88,9 +88,6 @@ defineExpose({ focusErreur })
           :disabled="desactive"
           class="w-full"
         />
-        <template #help>
-          Modifiable à tout moment. Rien n’est publié sans votre accord.
-        </template>
       </UFormField>
 
       <section aria-labelledby="titre-services" class="flex flex-col gap-3">

@@ -406,8 +406,7 @@ test.describe.serial('abonnement, limites du plan gratuit, tarifs et badge (S10 
         await expect(p.getByRole('heading', { level: 2 })).toHaveCount(2)
         await expect(tarifs.planPayant()).toContainText(`facturé ${formaterXaf(montant12)} pour 12 mois`)
         await expect(p.getByRole('radiogroup', { name: 'Devise' })).toHaveCount(0)
-        await expect(p.getByText(/Pas de renouvellement automatique/)).toBeVisible()
-        await expect(p.getByText(/7 jours de grâce/)).toBeVisible()
+        await expect(p.getByText(/Sans renouvellement automatique/)).toBeVisible()
         await expect(tarifs.planGratuit().getByRole('link', { name: 'Commencer gratuitement' })).toHaveAttribute('href', '/connexion')
         await sansDebordementHorizontal(p)
       }

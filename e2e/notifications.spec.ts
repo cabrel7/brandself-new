@@ -235,7 +235,6 @@ test.describe('S9 interface : préférences, désabonnement, prochaine étape, p
 
       await expect(desabonnement.titre('Ne plus recevoir le résumé de la semaine ?')).toBeVisible({ timeout: DELAI_ECRAN_MS })
       await expect(desabonnement.titre('Ne plus recevoir le résumé de la semaine ?')).toBeFocused()
-      await expect(p.getByText('Vous pourrez le réactiver à tout moment dans votre compte.')).toBeVisible()
       // L'aperçu n'a aucun effet.
       expect((await lirePreferences(session.userId)).emailHebdo).toBe(true)
 

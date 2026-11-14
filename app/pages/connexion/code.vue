@@ -245,7 +245,7 @@ onUnmounted(() => {
       Saisissez votre code
     </h1>
     <p class="text-muted">
-      Nous avons envoyé un code à 6 chiffres à
+      Code envoyé à
       <strong class="font-semibold text-default">{{ identifiantAffiche }}</strong>.
     </p>
 
@@ -274,7 +274,6 @@ onUnmounted(() => {
       icon="i-ph-warning-circle"
       :description="error"
     />
-    <p v-else class="text-sm text-muted">Le code expire dans 10 minutes.</p>
 
     <UButton block :loading="loading" @click="verify">
       {{ loading ? 'Vérification…' : 'Valider' }}
@@ -294,7 +293,9 @@ onUnmounted(() => {
       >
         Renvoyer le code
       </UButton>
-      <p class="flex min-h-(--cible-tactile) items-center text-muted">{{ aideIndesirables }}</p>
+      <p v-if="seconds === 0" class="flex min-h-(--cible-tactile) items-center text-muted">
+        {{ aideIndesirables }}
+      </p>
       <template v-if="devMode && boiteVisible">
         <p v-if="boiteCode" class="font-mono text-xs text-muted">Code de test : {{ boiteCode }}</p>
         <p v-else-if="boiteManquant" class="font-mono text-xs text-muted">

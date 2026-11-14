@@ -93,7 +93,7 @@ const estMobile = computed(() => appareil.value === 'mobile')
             <UIcon name="i-ph-x" size="20" aria-hidden="true" />
           </button>
         </div>
-        <p class="m-0 mb-6 text-base text-texte-secondaire">Retrouvez votre studio en un geste, sans retenir l’adresse.</p>
+        <p class="m-0 mb-6 text-base text-texte-secondaire">Ouvrez votre studio comme une application.</p>
         <button
           type="button"
           class="min-h-12 w-full cursor-pointer rounded-xl bg-accent text-base font-semibold text-sur-accent transition-opacity hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
@@ -140,7 +140,7 @@ const estMobile = computed(() => appareil.value === 'mobile')
           <UIcon name="i-ph-x" size="20" aria-hidden="true" />
         </button>
       </div>
-      <p class="m-0 mb-5 mt-4 text-base text-texte-secondaire">Ouvrez votre studio comme une application, sans retenir l’adresse.</p>
+      <p class="m-0 mb-5 mt-4 text-base text-texte-secondaire">Ouvrez votre studio comme une application.</p>
       <button
         type="button"
         class="min-h-11 w-full cursor-pointer rounded-xl bg-accent text-base font-semibold text-sur-accent transition-opacity hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"

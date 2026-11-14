@@ -87,9 +87,6 @@ const moyensTexte = computed(() => moyensLibelles.value.join(' ou '))
           <h1 class="m-0 text-(length:--fs-32) leading-tight font-bold md:text-(length:--fs-48)">
             Un plan gratuit, un plan payant
           </h1>
-          <p class="m-0 text-(length:--fs-20) text-texte-secondaire">
-            Commencez gratuitement. Passez au payant quand votre vitrine reçoit des rendez-vous.
-          </p>
         </div>
 
         <div v-if="prixPeriodes.length > 0" class="mt-8 flex flex-col items-center gap-4">
@@ -102,7 +99,6 @@ const moyensTexte = computed(() => moyensLibelles.value.join(' ou '))
             v-if="gratuit"
             titre="Gratuit"
             :prix="prixGratuit"
-            precision="pour toujours"
             :lignes="lignesPlan(gratuit)"
             :action="{ label: 'Commencer gratuitement', to: LIEN_COMMENCER }"
           />
@@ -123,8 +119,7 @@ const moyensTexte = computed(() => moyensLibelles.value.join(' ou '))
             Paiement par {{ moyensTexte }}.
           </p>
           <p class="m-0">
-            Vous payez une période. Pas de renouvellement automatique : nous vous prévenons avant la fin.
-            À l’échéance, {{ tarifs.graceJours }} jours de grâce : rien n’est supprimé.
+            Sans renouvellement automatique.
           </p>
         </div>
       </template>
@@ -133,7 +128,6 @@ const moyensTexte = computed(() => moyensLibelles.value.join(' ou '))
     <footer class="border-t border-bordure">
       <div class="mx-auto flex w-full max-w-6xl items-center justify-between gap-4 px-6 py-6 text-(length:--fs-14) text-texte-secondaire">
         <BsLogo variante="wordmark" class="h-8" />
-        <p class="m-0">Douala, Cameroun</p>
       </div>
     </footer>
   </div>
