@@ -23,5 +23,16 @@ export default defineConfig({
   // Machine de 7 Go partagée : deux workers Chromium déclenchent des
   // ERR_ABORTED (renderer OOM) — la sérialisation évite les navigations avortées.
   workers: 1,
-  projects: [{ name: 'chromium', use: { browserName: 'chromium' } }],
+  projects: [
+    {
+      name: 'chromium',
+      use: {
+        browserName: 'chromium',
+        // A1 : l'administration vit sur son propre hôte. `admin.localhost` n'est pas résolu par le système : Chromium
+        // le renvoie vers la boucle locale (le serveur de développement écoute sur 127.0.0.1). Sans effet sur les
+        // autres hôtes ni sur les requêtes brutes (`request`, qui ne passent pas par le navigateur).
+        launchOptions: { args: ['--host-resolver-rules=MAP admin.localhost 127.0.0.1'] },
+      },
+    },
+  ],
 })

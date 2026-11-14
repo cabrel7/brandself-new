@@ -44,6 +44,8 @@ jobs:
       # Requises par le build de production depuis S9 (expéditeur vérifié, liens absolus des e-mails).
       EMAIL_EXPEDITEUR: Brandself <noreply@example.test>
       NUXT_PUBLIC_SITE_URL: https://ci.example.test
+      # A1 : ADMIN_HOST obligatoire en production, hôte seul, différent de celui de NUXT_PUBLIC_SITE_URL.
+      ADMIN_HOST: admin.ci.example
     steps:
       - uses: actions/checkout@v4
 
@@ -193,6 +195,8 @@ jobs:
       RESEND_API_KEY: re_ci_test_non_secret
       EMAIL_EXPEDITEUR: Brandself <noreply@example.test>
       NUXT_PUBLIC_SITE_URL: https://ci.example.test
+      # A1 : ADMIN_HOST obligatoire en production, hôte seul, différent de celui de NUXT_PUBLIC_SITE_URL.
+      ADMIN_HOST: admin.ci.example
       # Sans cette valeur, nuxt-site-config ne déduit pas « production » : robots.txt serait en Disallow: /.
       NUXT_PUBLIC_SITE_ENV: production
       # Un seul serveur de production, partagé par e2e:seo et Lighthouse (voir playwright.seo.config.ts, lighthouserc.cjs).
