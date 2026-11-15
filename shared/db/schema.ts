@@ -52,6 +52,12 @@ export const users = pgTable('users', {
   // Index partiel : ne contient que les comptes privilégiés (quelques lignes). Requête réelle :
   // « liste des superadmins » (requireSuperadmin, sendVerificationOTP de l'hôte admin, admin:reinitialiser).
   index('users_role_privilegie_idx').on(table.role).where(sql`${table.role} <> 'user'`),
+  // A2 (migration 0029, docs/specs/A2-utilisateurs-vitrines.md §3). Requêtes réelles de la liste des comptes :
+  // filtre « suspendus » (index partiel : quelques lignes), tri par défaut « plus récents d'abord », recherche
+  // par numéro de téléphone (égalité sur les chiffres, D-A2-11 ; partiel : la colonne est facultative).
+  index('users_suspendu_idx').on(table.banned).where(sql`${table.banned}`),
+  index('users_cree_le_idx').on(desc(table.createdAt)),
+  index('users_telephone_idx').on(table.phoneNumber).where(sql`${table.phoneNumber} IS NOT NULL`),
 ])
 
 export const sessions = pgTable(
@@ -184,11 +190,26 @@ export const vitrines = pgTable(
     preavisHeures: integer('preavis_heures').notNull().default(2),
     horizonJours: integer('horizon_jours').notNull().default(60),
     publieeLe: timestamp('publiee_le', { withTimezone: true }),
+    // A2 (migration 0029, D-A2-02) : dépublication par l'administration. `publiee_le` est CONSERVÉE : republier
+    // = remettre `blocage_admin` à false. Le motif (5-500) est affiché au professionnel, jamais au visiteur.
+    blocageAdmin: boolean('blocage_admin').notNull().default(false),
+    blocageMotif: text('blocage_motif'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
     index('vitrines_photo_media_id_idx').on(table.photoMediaId),
+    // A2 : liste « vitrines bloquées » de l'administration (index partiel : quelques lignes).
+    index('vitrines_blocage_idx').on(table.blocageAdmin).where(sql`${table.blocageAdmin}`),
+    // A2 : bornes du motif recopiées de shared/admin.ts (motif 5-500) : garder synchronisées. `IS NOT NULL` est
+    // indispensable (ÉCART DE LA SPEC §3, voir rapport) : sans lui, char_length(btrim(NULL)) BETWEEN ... vaut NULL et un
+    // CHECK à NULL est ACCEPTÉ par PostgreSQL : une vitrine bloquée SANS motif passerait.
+    check(
+      'vitrines_blocage_check',
+      sql`(${table.blocageAdmin} = false AND ${table.blocageMotif} IS NULL)
+        OR (${table.blocageAdmin} = true AND ${table.blocageMotif} IS NOT NULL
+          AND char_length(btrim(${table.blocageMotif})) BETWEEN 5 AND 500)`,
+    ),
     // Les listes ci-dessous sont recopiées en dur : la source côté application est
     // shared/palettes.ts (PALETTES) et shared/vitrine.ts (TITRES). Garder les trois synchronisées.
     check('vitrines_titre_check', sql`${table.titre} IS NULL OR ${table.titre} IN ('dr','pr','me','m','mme')`),
@@ -656,7 +677,11 @@ export const emailsTransactionnels = pgTable(
         'utilisateur_resume_hebdo',
         'utilisateur_rappel_journee',
         'abonnement_rappel',
-        'paiement_confirme'
+        'paiement_confirme',
+        'utilisateur_suspendu',
+        'utilisateur_reactive',
+        'utilisateur_jours_offerts',
+        'utilisateur_depubliee'
       )`,
     ),
     check(
@@ -1277,10 +1302,17 @@ export const paiements = pgTable(
     abonnementExpireAvant: timestamp('abonnement_expire_avant', { withTimezone: true }),
     abonnementExpireApres: timestamp('abonnement_expire_apres', { withTimezone: true }),
     termineLe: timestamp('termine_le', { withTimezone: true }),
+    // A3 (migration 0030, D-A3-03) : origine de l'encaissement. 'kpay' = passé par le fournisseur (toutes les lignes
+    // existantes) ; 'manuel' = créé par l'administration (marquage manuel). Source côté application : shared/paiements.ts.
+    source: text('source').notNull().default('kpay'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
+    // A3 : listes de l'administration (filtre par statut, plus récents d'abord) et revenus du mois par devise
+    // (somme des paiements `reussi` bornée par `applique_le`, D-A3-01).
+    index('paiements_liste_admin_idx').on(table.statut, desc(table.createdAt)),
+    index('paiements_encaisse_idx').on(table.devise, table.appliqueLe).where(sql`${table.statut} = 'reussi'`),
     // Un identifiant et une référence fournisseur n'existent qu'une fois par fournisseur (rapprochement du webhook).
     uniqueIndex('paiements_fournisseur_id_unique')
       .on(table.fournisseur, table.idFournisseur)
@@ -1348,6 +1380,46 @@ export const paiements = pgTable(
       sql`${table.statut} <> 'en_attente' OR ${table.idFournisseur} IS NOT NULL OR ${table.initiationIncertaine}`,
     ),
     check('paiements_verifications_check', sql`${table.verifications} BETWEEN 0 AND 1000`),
+    check('paiements_source_check', sql`${table.source} IN ('kpay','manuel')`),
+    // A3 : un paiement manuel (et lui seul) a le fournisseur 'manuel' ; il n'a ni identifiant fournisseur, ni frais,
+    // ni code d'échec, sa référence est 'manuel-' || id, il ne peut être que `cree` (transitoire) ou `reussi`.
+    // Les index uniques (fournisseur, id_fournisseur) et (fournisseur, reference_fournisseur) sont inchangés : un
+    // manuel ne peut pas entrer en collision avec une référence K-PAY (fournisseur différent).
+    // ÉCART DE LA SPEC §3 (voir rapport) : la spec écrit (source = 'kpay') = (fournisseur = 'kpay'), ce qui interdirait
+    // tout autre fournisseur en base (contraire à la règle S10 « fournisseur n'est pas une énumération » et à une
+    // ligne `stripe` créée par tests/integration/webhook-kpay-route.test.ts). On garantit ici l'équivalence côté
+    // manuel seulement : manuel <=> fournisseur 'manuel'. Second écart : `reference_fournisseur IS NOT NULL` explicite
+    // (une comparaison avec NULL vaut NULL, et un CHECK à NULL est accepté : un manuel sans référence passerait).
+    check(
+      'paiements_source_coherence_check',
+      sql`(${table.source} = 'manuel') = (${table.fournisseur} = 'manuel')
+        AND (${table.source} = 'kpay' OR (
+          ${table.methode} = 'manuel' AND ${table.statut} IN ('cree','reussi')
+          AND ${table.idFournisseur} IS NULL AND ${table.referenceFournisseur} IS NOT NULL
+          AND ${table.referenceFournisseur} = 'manuel-' || ${table.id}
+          AND ${table.fraisTauxPb} = 0 AND ${table.fraisEstimes} = 0 AND ${table.netEstime} = ${table.montant}
+          AND ${table.codeEchec} IS NULL AND ${table.initiationIncertaine} = false
+        ))`,
+    ),
+  ],
+)
+
+// A3 (migration 0030, D-A3-05) : compteur horaire des webhooks refusés (signature invalide, corps trop gros).
+// Une ligne par (heure, fournisseur, motif) : taille bornée sous attaque. Aucun corps, aucune IP, aucun en-tête.
+// Rétention 90 jours (purge applicative). Écriture best-effort. Motifs recopiés de shared/paiements.ts.
+export const webhooksRefuses = pgTable(
+  'webhooks_refuses',
+  {
+    heure: timestamp('heure', { withTimezone: true }).notNull(),
+    fournisseur: text('fournisseur').notNull(),
+    motif: text('motif').notNull(),
+    nombre: integer('nombre').notNull().default(1),
+  },
+  (table) => [
+    primaryKey({ columns: [table.heure, table.fournisseur, table.motif] }),
+    check('webhooks_refuses_fournisseur_check', sql`${table.fournisseur} ~ '^[a-z0-9_-]{1,40}$'`),
+    check('webhooks_refuses_motif_check', sql`${table.motif} IN ('SIGNATURE_INVALIDE','CORPS_TROP_GROS')`),
+    check('webhooks_refuses_nombre_check', sql`${table.nombre} >= 1`),
   ],
 )
 
@@ -1366,10 +1438,15 @@ export const abonnements = pgTable(
     expireLe: timestamp('expire_le', { withTimezone: true }).notNull(),
     premiereActivationLe: timestamp('premiere_activation_le', { withTimezone: true }).notNull(),
     dernierPaiementId: text('dernier_paiement_id').references(() => paiements.id, { onDelete: 'set null' }),
+    // A2 (migration 0029, D-A2-04/05, D-A3-06) : comment l'abonnement a été CRÉÉ. 'paiement' = encaissement
+    // (défaut, lignes existantes) ; 'offert' = jours offerts par l'administration ; 'admin' = changement de plan.
+    // N'est jamais modifiée par une prolongation ultérieure. Source côté application : shared/admin.ts.
+    origine: text('origine').notNull().default('paiement'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
+    check('abonnements_origine_check', sql`${table.origine} IN ('paiement','offert','admin')`),
     // Planificateur des rappels J-7 / J-3 / J0 (balayage des échéances proches).
     index('abonnements_expire_le_idx').on(table.expireLe),
     // FK parcourue à la suppression d'un paiement (ON DELETE SET NULL).
@@ -1547,6 +1624,8 @@ export type Paiement = typeof paiements.$inferSelect
 export type NewPaiement = typeof paiements.$inferInsert
 export type Abonnement = typeof abonnements.$inferSelect
 export type NewAbonnement = typeof abonnements.$inferInsert
+export type WebhookRefuse = typeof webhooksRefuses.$inferSelect
+export type NewWebhookRefuse = typeof webhooksRefuses.$inferInsert
 export type EvenementPaiement = typeof evenementsPaiement.$inferSelect
 export type NewEvenementPaiement = typeof evenementsPaiement.$inferInsert
 

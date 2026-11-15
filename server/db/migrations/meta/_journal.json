@@ -204,6 +204,20 @@
       "when": 1794629004598,
       "tag": "0028_a1_admin_socle",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1794692311875,
+      "tag": "0029_a2_utilisateurs_vitrines",
+      "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1794692363718,
+      "tag": "0030_a3_paiements_admin",
+      "breakpoints": true
     }
   ]
 }

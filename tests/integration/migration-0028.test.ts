@@ -78,14 +78,15 @@ describe('migration 0028 : fichiers et journal drizzle', () => {
     expect(contenu).toMatch(/--\s*DROP TABLE IF EXISTS admin_reauth/)
   })
 
-  it('should be registered last in the drizzle journal, with a date after the previous migration (or it would never be applied)', () => {
+  it('should be registered at index 28 of the drizzle journal, with a date after the previous migration (or it would never be applied)', () => {
     const journal = JSON.parse(readFileSync(path.join(MIGRATIONS_DIR, 'meta/_journal.json'), 'utf-8')) as {
       entries: Array<{ idx: number, tag: string, when: number, breakpoints: boolean }>
     }
     const { entries } = journal
 
     expect(entries.map((e) => e.idx)).toEqual(entries.map((_, i) => i))
-    expect(entries.at(-1)).toMatchObject({ idx: 28, tag: '0028_a1_admin_socle', breakpoints: true })
+    // Les migrations suivantes (0029, 0030…) s'ajoutent après : 0028 n'est plus la dernière depuis A2.
+    expect(entries[28]).toMatchObject({ idx: 28, tag: '0028_a1_admin_socle', breakpoints: true })
     for (const entree of entries) expect(existsSync(path.join(MIGRATIONS_DIR, `${entree.tag}.sql`)), entree.tag).toBe(true)
     for (let i = 1; i < entries.length; i += 1) expect(entries[i]!.when, entries[i]!.tag).toBeGreaterThan(entries[i - 1]!.when)
   })

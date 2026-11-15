@@ -40,7 +40,7 @@ beforeEach(async () => {
   // du journal vérifient eux-mêmes que le déclencheur est actif (tests/integration/admin/journal.test.ts).
   await db.transaction(async (tx) => {
     await tx.execute(sql`ALTER TABLE journal_admin DISABLE TRIGGER journal_admin_sans_vidage`)
-    await tx.execute(sql`TRUNCATE TABLE users, verifications, emails_transactionnels, vitrines, services, realisations RESTART IDENTITY CASCADE`)
+    await tx.execute(sql`TRUNCATE TABLE users, verifications, emails_transactionnels, vitrines, services, realisations, webhooks_refuses RESTART IDENTITY CASCADE`)
     await tx.execute(sql`ALTER TABLE journal_admin ENABLE TRIGGER journal_admin_sans_vidage`)
   })
   await supprimerCles(`${PREFIXE_LIMITES}*`)
