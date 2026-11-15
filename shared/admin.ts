@@ -34,8 +34,51 @@ export const ADMIN_MOTIF_MAX = 500
 export const ADMIN_ACTIONS = {
   superadminCreer: 'superadmin.creer',
   superadminReinitialiser: 'superadmin.reinitialiser',
+  // A2 : utilisateurs, vitrines, assistants (docs/specs/A2-utilisateurs-vitrines.md §5, journal).
+  utilisateurSuspendre: 'utilisateur.suspendre',
+  utilisateurReactiver: 'utilisateur.reactiver',
+  utilisateurOffrirJours: 'utilisateur.offrir_jours',
+  utilisateurChangerPlan: 'utilisateur.changer_plan',
+  utilisateurRevoquerSessions: 'utilisateur.revoquer_sessions',
+  utilisateurRetirerAssistants: 'utilisateur.retirer_assistants',
+  utilisateurSupprimer: 'utilisateur.supprimer',
+  vitrineDepublier: 'vitrine.depublier',
+  vitrineRepublier: 'vitrine.republier',
+  assistantRetirer: 'assistant.retirer',
+  // A3 : abonnements et paiements (docs/specs/A3-abonnements-paiements.md §3).
+  paiementReverifier: 'paiement.reverifier',
+  paiementMarquerPaye: 'paiement.marquer_paye',
+  abonnementRappeler: 'abonnement.rappeler',
+  exportPaiements: 'export.paiements',
 } as const
 export type AdminAction = (typeof ADMIN_ACTIONS)[keyof typeof ADMIN_ACTIONS]
+
+/** Types de cible du journal (`cible_type`), au format `ADMIN_CIBLE_TYPE_FORMAT`. */
+export const ADMIN_CIBLES = {
+  utilisateur: 'utilisateur',
+  vitrine: 'vitrine',
+  assistant: 'assistant',
+  paiement: 'paiement',
+  abonnement: 'abonnement',
+  export: 'export',
+} as const
+export type AdminCible = (typeof ADMIN_CIBLES)[keyof typeof ADMIN_CIBLES]
+
+/** Listes d'administration (A2, A3) : pagination par page (1 = première), tri en liste blanche côté serveur. */
+export const ADMIN_LISTE_LIMITE_DEFAUT = 25
+export const ADMIN_LISTE_LIMITE_MAX = 100
+export const ADMIN_LISTE_PAGE_MAX = 10_000
+export const ADMIN_ORDRES = ['asc', 'desc'] as const
+export type AdminOrdre = (typeof ADMIN_ORDRES)[number]
+
+/**
+ * Idempotence des écritures (D-A2-06, D-A3-04) : `journal_admin.cle_idempotence`, unique par administrateur.
+ * A2 la lit dans l'en-tête, A3 dans le corps. Jeu de caractères restreint (UUID, ULID, jeton hexadécimal).
+ */
+export const ADMIN_IDEMPOTENCE_ENTETE = 'idempotency-key'
+export const ADMIN_CLE_IDEMPOTENCE_MIN = 8
+export const ADMIN_CLE_IDEMPOTENCE_MAX = 128
+export const ADMIN_CLE_IDEMPOTENCE_FORMAT = /^[A-Za-z0-9._:-]+$/
 export const ADMIN_ACTION_FORMAT = /^[a-z_]+\.[a-z_]+$/
 export const ADMIN_CIBLE_TYPE_FORMAT = /^[a-z_]+$/
 export const ADMIN_CIBLE_ID_MAX = 64

@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { schemaIaJobData } from './schemas/ia'
 import type { IaJobData, SeoJobData } from './schemas/ia'
+import { ADMIN_A2_EMAIL_TYPES } from './admin-a2'
 
 // Une file = une nature de travail et un profil de latence. Une opération sensible à la latence n'attend
 // jamais derrière une opération lente ou limitée en débit.
@@ -61,6 +62,8 @@ export const TRANSACTIONAL_EMAIL_TYPES = [
   // S10 : rappels d'échéance de l'abonnement (planifiés) et reçu de paiement (immédiat).
   'abonnement_rappel',
   'paiement_confirme',
+  // A2 : e-mails d'administration au titulaire du compte (suspension, réactivation, jours offerts, dépublication).
+  ...ADMIN_A2_EMAIL_TYPES,
 ] as const
 
 export type TransactionalEmailType = (typeof TRANSACTIONAL_EMAIL_TYPES)[number]
@@ -89,6 +92,8 @@ export const JOBS = {
   purgerIndisponibilites: 'indisponibilites-purger',
   // A1 : e-mail du code de réauthentification de l'administrateur (file `messages-auth`, jamais de limiteur).
   sendAdminReauthEmail: 'send-admin-reauth-email',
+  // A3 : purge du compteur des webhooks refusés (file `maintenance`).
+  purgerWebhooksRefuses: 'webhooks-refuses-purger',
 } as const
 
 export type JobName = (typeof JOBS)[keyof typeof JOBS]
@@ -140,6 +145,11 @@ export const PAIEMENTS_VERIFICATION_LOT = 5
 export const PAIEMENTS_VERIFICATION_CALENDRIER_S = [15, 30, 60, 120, 300] as const
 /** Minutes : au-delà, un paiement `cree` ou `en_attente` passe localement à `expire` (un `completed` tardif reste appliqué). */
 export const PAIEMENT_EXPIRATION_MINUTES = 15
+
+// A3 : purge quotidienne des lignes de `webhooks_refuses` plus vieilles que `WEBHOOKS_REFUSES_RETENTION_JOURS`. Aucune charge utile.
+export const WEBHOOKS_REFUSES_PURGE_SCHEDULER_ID = 'webhooks-refuses-purger'
+export const WEBHOOKS_REFUSES_PURGE_CRON = '30 4 * * *'
+export const WEBHOOKS_REFUSES_PURGE_LOT = 500
 
 export const iaJobDataSchema = schemaIaJobData
 export type { IaJobData, SeoJobData }

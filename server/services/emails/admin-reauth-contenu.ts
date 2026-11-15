@@ -22,6 +22,20 @@ export const LIBELLE_ACTION_REPLI = 'une action d’administration'
 const LIBELLES_ACTION: Readonly<Record<string, string>> = {
   'superadmin.creer': 'création d’un compte d’administration',
   'superadmin.reinitialiser': 'réinitialisation d’un compte d’administration',
+  'utilisateur.suspendre': 'suspension d’un compte',
+  'utilisateur.reactiver': 'réactivation d’un compte',
+  'utilisateur.offrir_jours': 'jours offerts sur un abonnement',
+  'utilisateur.changer_plan': 'changement de plan d’un compte',
+  'utilisateur.revoquer_sessions': 'déconnexion de tous les appareils d’un compte',
+  'utilisateur.retirer_assistants': 'retrait des assistants d’un compte',
+  'utilisateur.supprimer': 'suppression d’un compte',
+  'vitrine.depublier': 'dépublication d’une vitrine',
+  'vitrine.republier': 'republication d’une vitrine',
+  'assistant.retirer': 'retrait d’un assistant',
+  'paiement.reverifier': 'vérification d’un paiement',
+  'paiement.marquer_paye': 'confirmation manuelle d’un paiement',
+  'abonnement.rappeler': 'envoi d’un rappel d’abonnement',
+  'export.paiements': 'export des paiements',
 }
 
 export function libelleAction(action: string): string {
