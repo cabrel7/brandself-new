@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import type { Page, Request } from '@playwright/test'
+import type { Locator, Page, Request } from '@playwright/test'
 import { ADMIN_NAV } from '../shared/admin'
 import { ORIGINE_PUBLIC, URL_ADMIN, cookiesDepuis, creerCompte, creerSuperadmin, demanderCodeConnexion, fermerAdmin, libererLimitesOtp, lireSessionsDe, nettoyerComptes, ouvrirSession } from './helpers/admin'
 import type { CompteE2E, SessionE2E } from './helpers/admin'
@@ -53,6 +53,24 @@ function titreAttendu(to: string): string {
   return to === '/admin' ? `Bonjour, ${NOM_ADMIN}` : 'Bientôt disponible'
 }
 
+/** Pages livrées (A2, A3) : un repère de la page elle-même. Les autres (systèmes, réglages, journal) restent provisoires. */
+const REPERES_PAGES_LIVREES: Readonly<Record<string, (page: Page) => Locator>> = {
+  '/admin/utilisateurs': (page) => page.getByRole('search', { name: 'Rechercher des utilisateurs' }),
+  '/admin/vitrines': (page) => page.getByRole('search', { name: 'Rechercher des vitrines' }),
+  '/admin/abonnements': (page) => page.getByRole('heading', { level: 1, name: 'Abonnements' }),
+}
+
+/** Attend le contenu propre à la page (repère des pages livrées, sinon le texte provisoire). */
+async function attendreContenu(page: Page, to: string): Promise<void> {
+  const repere = REPERES_PAGES_LIVREES[to]
+  if (repere) {
+    await expect(repere(page)).toBeVisible()
+    await expect(page.getByText('Bientôt disponible')).toHaveCount(0)
+  } else {
+    await expect(page.getByText(titreAttendu(to))).toBeVisible()
+  }
+}
+
 test.describe('CA22 pages /admin/* : noindex, no-store, aucune surface publique', () => {
   for (const entree of ADMIN_NAV) {
     test(`CA22 ${entree.to} : noindex, no-store, sans InstallPrompt, sans vue, sans service worker`, async ({ page }) => {
@@ -60,7 +78,7 @@ test.describe('CA22 pages /admin/* : noindex, no-store, aucune surface publique'
 
       const reponse = await page.goto(`${URL_ADMIN}${entree.to}`)
       await attendreHydration(page)
-      await expect(page.getByText(titreAttendu(entree.to))).toBeVisible()
+      await attendreContenu(page, entree.to)
       // Les vues partent dans le temps mort du navigateur (délai max. 2 s) et un service worker s'inscrit après le
       // chargement : on laisse passer ce délai avant d'affirmer l'absence.
       await page.waitForTimeout(DELAI_IDLE_VUE_MS)
@@ -96,7 +114,7 @@ test.describe('CA22 pages /admin/* : noindex, no-store, aucune surface publique'
     for (const entree of ADMIN_NAV.filter((e) => e.to !== '/admin')) {
       await page.getByRole('link', { name: entree.libelle }).first().click()
       await expect(page).toHaveURL(new RegExp(`${entree.to}$`))
-      await expect(page.getByText('Bientôt disponible')).toBeVisible()
+      await attendreContenu(page, entree.to)
     }
   })
 })

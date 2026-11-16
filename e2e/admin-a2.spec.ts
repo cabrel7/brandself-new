@@ -57,17 +57,26 @@ async function creerProPublie(): Promise<Pro> {
   return { ...compte, username, vitrineId }
 }
 
-/** Demande un code de réauthentification (route A1) puis lit le code dans le job mis en file. */
+/**
+ * Demande un code de réauthentification (route A1) puis lit le code dans le job mis en file. Le job est créé avec
+ * `removeOnComplete` (le code ne reste jamais dans Redis) : un worker en marche (serveur de développement) l'emporterait
+ * avant la lecture. La file est donc mise en PAUSE le temps de la lecture, puis reprise (`finally`).
+ */
 async function codeReauth(action: string, cibleType: string, cibleId: string): Promise<string> {
-  const demande = await appeler({ chemin: '/api/admin/reauth/code', cookie: sessionAdmin.cookie, corps: { action, cibleType, cibleId } })
-  expect(demande.status, demande.corps).toBe(202)
-  const fin = Date.now() + ATTENTE_JOB_MS
-  for (;;) {
-    const jobs = await fileAuth().getJobs(['wait', 'delayed', 'active', 'prioritized', 'completed', 'failed'], 0, -1)
-    const job = jobs.reverse().find((j) => j.name === JOBS.sendAdminReauthEmail && typeof (j.data as { code?: unknown }).code === 'string')
-    if (job) return (job.data as { code: string }).code
-    if (Date.now() > fin) throw new Error('Aucun job de réauthentification mis en file.')
-    await new Promise((resolve) => setTimeout(resolve, 100))
+  await fileAuth().pause()
+  try {
+    const demande = await appeler({ chemin: '/api/admin/reauth/code', cookie: sessionAdmin.cookie, corps: { action, cibleType, cibleId } })
+    expect(demande.status, demande.corps).toBe(202)
+    const fin = Date.now() + ATTENTE_JOB_MS
+    for (;;) {
+      const jobs = await fileAuth().getJobs(['wait', 'paused', 'delayed', 'active', 'prioritized', 'completed', 'failed'], 0, -1)
+      const job = jobs.reverse().find((j) => j.name === JOBS.sendAdminReauthEmail && typeof (j.data as { code?: unknown }).code === 'string')
+      if (job) return (job.data as { code: string }).code
+      if (Date.now() > fin) throw new Error('Aucun job de réauthentification mis en file.')
+      await new Promise((resolve) => setTimeout(resolve, 100))
+    }
+  } finally {
+    await fileAuth().resume()
   }
 }
 

@@ -78,12 +78,16 @@ export async function appeler(appel: AppelAdmin): Promise<ReponseAdmin> {
   const methode = appel.methode ?? (appel.corps === undefined ? 'GET' : 'POST')
   const hote = appel.hote === 'admin' || appel.hote === 'public' || appel.hote === undefined ? hoteDe(appel.hote ?? 'admin') : appel.hote
   const ecriture = methode !== 'GET' && methode !== 'HEAD'
-  const corps = appel.corps === undefined ? null : Buffer.from(JSON.stringify(appel.corps), 'utf-8')
+  // Sans corps, on envoie un corps VIDE (et non `null`, qui laisse la requête ouverte : le serveur attendrait la fin du
+  // corps d'un POST sans corps et aucune réponse n'arriverait).
+  const corps = appel.corps === undefined ? Buffer.alloc(0) : Buffer.from(JSON.stringify(appel.corps), 'utf-8')
   const entetes: Record<string, string> = { host: hote, accept: 'application/json', ...appel.entetes }
   if (appel.cookie) entetes.cookie = appel.cookie
-  if (corps) {
+  if (corps.length > 0) {
     entetes['content-type'] = 'application/json'
     entetes['content-length'] = String(corps.length)
+  } else if (ecriture) {
+    entetes['content-length'] = '0'
   }
   if (appel.origine !== false && (ecriture || appel.origine !== undefined)) {
     entetes.origin = appel.origine ?? (appel.hote === 'public' ? ORIGINE_PUBLIC : ORIGINE_ADMIN)
@@ -218,7 +222,15 @@ export async function ouvrirSession(compte: CompteE2E, hote: Hote): Promise<Sess
   const envoi = await demanderCodeConnexion(compte.email, hote)
   if (envoi.status !== 200) throw new Error(`Envoi du code refusé (${envoi.status}) sur l'hôte ${hote}.`)
   const code = await lireDernierCode(compte.email)
-  const connexion = await connecterAvecCode(compte.email, code, hote)
+  let connexion = await connecterAvecCode(compte.email, code, hote)
+  if (connexion.status === STATUT_TROP_DE_REQUETES) {
+    // Limiteur de Better Auth (100 requêtes / minute / IP, en mémoire) saturé par les tests précédents : on attend une fenêtre.
+    await new Promise((resolve) => setTimeout(resolve, FENETRE_LIMITE_OTP_MS))
+    await libererLimitesOtp()
+    const nouvelEnvoi = await demanderCodeConnexion(compte.email, hote)
+    if (nouvelEnvoi.status !== 200) throw new Error(`Envoi du code refusé (${nouvelEnvoi.status}) sur l'hôte ${hote}.`)
+    connexion = await connecterAvecCode(compte.email, await lireDernierCode(compte.email), hote)
+  }
   if (connexion.status !== 200) throw new Error(`Connexion refusée (${connexion.status}) sur l'hôte ${hote} : ${connexion.corps}`)
   const cookie = cookieDepuis(connexion.setCookie)
   const session = await db().query<{ id: string }>('SELECT id FROM sessions WHERE user_id = $1 ORDER BY created_at DESC LIMIT 1', [compte.id])
