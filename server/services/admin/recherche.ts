@@ -5,6 +5,7 @@ import { desc } from 'drizzle-orm'
 import { ADMIN_RECHERCHE_PAR_GROUPE } from '../../../shared/admin-a2'
 import { users, vitrines } from '../../../shared/db/schema'
 import { UnprocessableError } from '../../exceptions/http'
+import { lireGraceJours } from '../plans'
 import {
   baseUtilisateurs,
   baseVitrines,
@@ -28,6 +29,7 @@ export { normaliserRecherche } from './a2-lignes'
 export async function rechercher(saisie: string, now: Date = new Date()): Promise<ResultatRecherche> {
   if (!rechercheValide(saisie)) throw new UnprocessableError('VALIDATION', { champs: { q: ['Saisissez entre 3 et 100 caractères.'] } })
   const recherche = normaliserRecherche(saisie)
+  const graceJours = await lireGraceJours()
   const [comptes, lesVitrines] = await Promise.all([
     baseUtilisateurs()
       .where(sqlRechercheUtilisateur(recherche))
@@ -39,7 +41,7 @@ export async function rechercher(saisie: string, now: Date = new Date()): Promis
       .limit(ADMIN_RECHERCHE_PAR_GROUPE),
   ])
   return {
-    utilisateurs: comptes.map((ligne) => versLigneUtilisateur(ligne, now)),
-    vitrines: lesVitrines.map((ligne) => versLigneVitrine(ligne, now)),
+    utilisateurs: comptes.map((ligne) => versLigneUtilisateur(ligne, now, graceJours)),
+    vitrines: lesVitrines.map((ligne) => versLigneVitrine(ligne, now, graceJours)),
   }
 }

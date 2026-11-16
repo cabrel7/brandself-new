@@ -2,7 +2,7 @@
 // une réauthentification et une clé d'idempotence ; révoquer pose `revoque_le` (la ligne reste : traçabilité). La lecture
 // côté application est `aCapaciteAccordee` (services/plans.ts), sans cache : une révocation vaut au prochain appel.
 import { randomUUID } from 'node:crypto'
-import { and, eq, isNull } from 'drizzle-orm'
+import { and, desc, eq, isNull } from 'drizzle-orm'
 import { ADMIN_ACTIONS, ADMIN_CIBLES } from '../../../shared/admin'
 import { capacitesAccordees, users } from '../../../shared/db/schema'
 import type { CapacitePayante } from '../../../shared/plans'
@@ -71,7 +71,8 @@ export async function accorderCapacite(
         .select(COLONNES)
         .from(capacitesAccordees)
         .where(and(eq(capacitesAccordees.userId, utilisateurId), eq(capacitesAccordees.capacite, capacite)))
-        .orderBy(capacitesAccordees.accordeLe)
+        // La ligne la plus RÉCENTE : après octroi, révocation, nouvel octroi, le rejeu rend l'octroi en vigueur.
+        .orderBy(desc(capacitesAccordees.accordeLe), desc(capacitesAccordees.id))
         .limit(1)
       if (!ligne) throw new NotFoundError('UTILISATEUR_INTROUVABLE')
       return { capacite: versVue(ligne), rejoue: true }

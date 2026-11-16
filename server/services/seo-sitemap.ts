@@ -2,9 +2,9 @@
 // Une URL par vitrine publiée + ses éléments visibles (services, réalisations) selon le plan effectif.
 // Toutes les requêtes sont groupées (≤ 4 par lot) pour respecter le budget de performance.
 import { and, desc, eq, inArray } from 'drizzle-orm'
-import { abonnements, realisations, services, vitrines } from '../../shared/db/schema'
+import { abonnements, realisations, services, users, vitrines } from '../../shared/db/schema'
 import { db } from '../utils/db'
-import { resoudrePlanEffectif } from './plans'
+import { lireGraceJours, resoudrePlanEffectif } from './plans'
 import { sqlVitrinePublique } from './visibilite'
 import { assurerInstantane, lirePlanConfig } from './configuration/lecture'
 import type { ConfigPlan } from '../config/plans'
@@ -40,10 +40,13 @@ async function listerVitrinesPubliees(now: Date, limite: number): Promise<Vitrin
   // Tous les abonnements en une seule requête, indexés par userId.
   const userIds = [...new Set(lignes.map((l) => l.userId))]
   const abos = await db
-    .select({ userId: abonnements.userId, plan: abonnements.plan, expireLe: abonnements.expireLe })
+    .select({ userId: abonnements.userId, plan: abonnements.plan, expireLe: abonnements.expireLe, fuseau: users.fuseau })
     .from(abonnements)
+    .innerJoin(users, eq(users.id, abonnements.userId))
     .where(inArray(abonnements.userId, userIds))
   const abosParUser = new Map(abos.map((a) => [a.userId, a]))
+  // R2 : durée de grâce lue du réglage `abonnement.grace_jours` (une lecture par lot), fuseau de l'abonné.
+  const graceJours = await lireGraceJours()
 
   // A5 : limites lues sur la version active du plan (cache de 5 s).
   await assurerInstantane()
@@ -51,7 +54,7 @@ async function listerVitrinesPubliees(now: Date, limite: number): Promise<Vitrin
   for (const ligne of lignes) {
     const abo = abosParUser.get(ligne.userId)
     const effectif = abo
-      ? resoudrePlanEffectif({ plan: abo.plan, expireLe: abo.expireLe }, now)
+      ? resoudrePlanEffectif({ plan: abo.plan, expireLe: abo.expireLe }, now, abo.fuseau, graceJours)
       : resoudrePlanEffectif(null, now)
     const config = lirePlanConfig(effectif.plan)
     resultats.push({

@@ -5,7 +5,7 @@ import { and, eq, or, sql } from 'drizzle-orm'
 import type { SQL } from 'drizzle-orm'
 import { ADMIN_RECHERCHE_MAX, ADMIN_RECHERCHE_MIN } from '../../../shared/admin-a2'
 import { abonnements, sessions, users, vitrines } from '../../../shared/db/schema'
-import { ABONNEMENT_FUSEAU_REPLI, ABONNEMENT_GRACE_JOURS } from '../../../shared/plans'
+import { ABONNEMENT_FUSEAU_REPLI } from '../../../shared/plans'
 import type { EtatAbonnement, PlanId } from '../../../shared/plans'
 import { PLAN_PAYANT_ID } from '../../config/plans'
 import { db } from '../../utils/db'
@@ -48,21 +48,21 @@ export interface VitrineLigneVue {
 
 // ---------------------------------------------------------------------------------------------
 // État d'abonnement en SQL (filtres et tris). Même règle que `resoudrePlanEffectif` : actif avant l'échéance, grâce
-// pendant `ABONNEMENT_GRACE_JOURS` jours, sinon gratuit. Le calcul affiché, lui, passe toujours par
+// pendant `graceJours` jours (réglage `abonnement.grace_jours`, lu par l'appelant via `lireGraceJours`), sinon gratuit. Le calcul affiché, lui, passe toujours par
 // `resoudrePlanEffectif` (source unique) ; le SQL ne sert qu'à filtrer et trier.
 // ---------------------------------------------------------------------------------------------
 
-export function sqlEtatAbonnement(now: Date): SQL<EtatAbonnement> {
+export function sqlEtatAbonnement(now: Date, graceJours: number): SQL<EtatAbonnement> {
   return sql<EtatAbonnement>`(CASE
     WHEN ${abonnements.id} IS NULL OR ${abonnements.plan} <> ${PLAN_PAYANT_ID} THEN 'gratuit'
     WHEN ${abonnements.expireLe} > ${now.toISOString()}::timestamptz THEN 'actif'
-    WHEN ${abonnements.expireLe} + make_interval(days => ${ABONNEMENT_GRACE_JOURS}::int) > ${now.toISOString()}::timestamptz THEN 'grace'
+    WHEN ${abonnements.expireLe} + make_interval(days => ${graceJours}::int) > ${now.toISOString()}::timestamptz THEN 'grace'
     ELSE 'gratuit' END)`
 }
 
 /** `payant` = droits du plan payant (actif OU grâce), comme `PlanEffectif.plan`. */
-export function sqlPlanAbonnement(now: Date): SQL<PlanId> {
-  return sql<PlanId>`(CASE WHEN ${sqlEtatAbonnement(now)} = 'gratuit' THEN 'gratuit' ELSE ${PLAN_PAYANT_ID} END)`
+export function sqlPlanAbonnement(now: Date, graceJours: number): SQL<PlanId> {
+  return sql<PlanId>`(CASE WHEN ${sqlEtatAbonnement(now, graceJours)} = 'gratuit' THEN 'gratuit' ELSE ${PLAN_PAYANT_ID} END)`
 }
 
 /** Plan et état d'un compte (source unique : `resoudrePlanEffectif`). */
@@ -70,11 +70,12 @@ export function planDuCompte(
   abonnement: { plan: string | null, expireLe: Date | null },
   fuseau: string,
   now: Date,
+  graceJours: number,
 ): { plan: PlanId, etat: EtatAbonnement } {
   const lu = abonnement.plan !== null && abonnement.expireLe !== null
     ? { plan: abonnement.plan, expireLe: abonnement.expireLe }
     : null
-  const effectif = resoudrePlanEffectif(lu, now, fuseau)
+  const effectif = resoudrePlanEffectif(lu, now, fuseau, graceJours)
   return { plan: effectif.plan, etat: effectif.etat }
 }
 
@@ -202,8 +203,8 @@ interface BruteUtilisateur {
   abonnementExpireLe: Date | null
 }
 
-export function versLigneUtilisateur(brute: BruteUtilisateur, now: Date): UtilisateurLigneVue {
-  const { plan, etat } = planDuCompte({ plan: brute.abonnementPlan, expireLe: brute.abonnementExpireLe }, brute.fuseau, now)
+export function versLigneUtilisateur(brute: BruteUtilisateur, now: Date, graceJours: number): UtilisateurLigneVue {
+  const { plan, etat } = planDuCompte({ plan: brute.abonnementPlan, expireLe: brute.abonnementExpireLe }, brute.fuseau, now, graceJours)
   return {
     id: brute.id,
     nom: nomAffiche(brute.nom, brute.nomUsuel),
@@ -257,8 +258,8 @@ interface BruteVitrine {
   abonnementExpireLe: Date | null
 }
 
-export function versLigneVitrine(brute: BruteVitrine, now: Date): VitrineLigneVue {
-  const { plan } = planDuCompte({ plan: brute.abonnementPlan, expireLe: brute.abonnementExpireLe }, brute.fuseau, now)
+export function versLigneVitrine(brute: BruteVitrine, now: Date, graceJours: number): VitrineLigneVue {
+  const { plan } = planDuCompte({ plan: brute.abonnementPlan, expireLe: brute.abonnementExpireLe }, brute.fuseau, now, graceJours)
   return {
     id: brute.id,
     utilisateurId: brute.utilisateurId,

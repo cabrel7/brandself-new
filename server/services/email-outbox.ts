@@ -35,6 +35,7 @@ import { ABONNEMENT_FUSEAU_REPLI, PERIODES_MOIS } from '../../shared/plans'
 import type { PeriodeMois } from '../../shared/plans'
 import { getMoyenPaiement } from '../config/paiements'
 import { db } from '../utils/db'
+import { lireGraceJours } from './plans'
 import { signUnsubscribeToken } from './desabonnement'
 import { preparerEmailAdminCompte } from './admin/a2-emails'
 import { buildTransactionalEmail, publicReplyTo } from './emails/contenus'
@@ -720,6 +721,7 @@ async function prepareRappelAbonnement(row: EmailOutboxRow, now: Date): Promise<
       jours,
       expireLe: result.expireLe,
       periodeMois,
+      graceJours: await lireGraceJours(),
     },
   }
 }

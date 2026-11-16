@@ -35,21 +35,32 @@ function versDto(moyen: MoyenPaiementConfig): MoyenPaiementDTO {
   }
 }
 
+/** Montant TTC d'une période pour UN moyen, calculé comme `initierPaiement` ; repli sur le prix du plan (jamais d'exception). */
+function montantAffichePourMoyen(montantPlan: number, frais: TableFrais, moyen: MoyenPaiementConfig): number {
+  const bareme = frais[moyen.fournisseur]?.[moyen.methode]
+  if (bareme === undefined) return montantPlan
+  try {
+    return calculerMontants({ prixPlan: montantPlan, tauxPb: bareme.tauxPointsBase, supporteur: bareme.supporteur }).montant
+  } catch {
+    return montantPlan
+  }
+}
+
 /**
  * R12 : ajoute à chaque période le montant TTC que le client paiera (frais compris si le client les supporte), calculé
- * comme `initierPaiement` : c'est EXACTEMENT ce que le client renvoie en `prixAffiche`.
+ * comme `initierPaiement` : c'est EXACTEMENT ce que le client renvoie en `prixAffiche`. Les frais dépendent du moyen :
+ * `montantAfficheParMoyen` donne le montant de chacun des moyens de la devise ; `montantAffiche` est celui du premier.
  */
-function prixAffiches(prix: PrixPeriodeDTO[], frais: TableFrais, moyen: MoyenPaiementConfig): PrixPeriodeDTO[] {
-  const bareme = frais[moyen.fournisseur]?.[moyen.methode]
-  return prix.map((periode) => {
-    if (bareme === undefined) return { ...periode, montantAffiche: periode.montant }
-    try {
-      const { montant } = calculerMontants({ prixPlan: periode.montant, tauxPb: bareme.tauxPointsBase, supporteur: bareme.supporteur })
-      return { ...periode, montantAffiche: montant }
-    } catch {
-      return { ...periode, montantAffiche: periode.montant }
-    }
-  })
+function prixAffiches(prix: PrixPeriodeDTO[], frais: TableFrais, moyensDeLaDevise: readonly MoyenPaiementConfig[]): PrixPeriodeDTO[] {
+  const [premier] = moyensDeLaDevise
+  if (premier === undefined) return prix
+  return prix.map((periode) => ({
+    ...periode,
+    montantAffiche: montantAffichePourMoyen(periode.montant, frais, premier),
+    montantAfficheParMoyen: Object.fromEntries(
+      moyensDeLaDevise.map((moyen) => [moyen.id, montantAffichePourMoyen(periode.montant, frais, moyen)]),
+    ),
+  }))
 }
 
 /** Prix par période d'une devise, `undefined` si la devise n'est pas tarifée. */
@@ -82,7 +93,11 @@ export function construireOffre(
     if (parPeriode === undefined) continue
     const exposant = DEVISES_EXPOSANT[moyen.devise]
     if (exposant === undefined) continue
-    devises.push({ devise: moyen.devise, exposant, prix: prixAffiches(prixPeriodes(parPeriode), frais, moyen) })
+    devises.push({
+      devise: moyen.devise,
+      exposant,
+      prix: prixAffiches(prixPeriodes(parPeriode), frais, moyens.filter((candidat) => candidat.devise === moyen.devise)),
+    })
   }
   const payables = moyens.filter((moyen) => devises.some((offre) => offre.devise === moyen.devise))
   const souhaitee = devises.find((offre) => offre.devise === deviseSouhaitee)

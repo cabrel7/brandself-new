@@ -207,6 +207,8 @@ export interface AbonnementRappelContent extends AbonnementEmailBase {
   expireLe: Date
   /** Période à présélectionner dans le lien de renouvellement (dernière période payée). */
   periodeMois: number
+  /** Durée de la grâce (réglage `abonnement.grace_jours`, lu par l'appelant) ; défaut : la constante du code. */
+  graceJours?: number
 }
 
 export interface PaiementConfirmeContent extends AbonnementEmailBase {
@@ -521,7 +523,7 @@ export function buildAbonnementRappelEmail(content: AbonnementRappelContent): Em
       t.invitation,
       `${t.action} : ${lienRenouvellement(content.siteUrl, content.periodeMois)}`,
       '',
-      t.grace(ABONNEMENT_GRACE_JOURS),
+      t.grace(content.graceJours ?? ABONNEMENT_GRACE_JOURS),
       '',
       t.cloture,
       TEXTES_NOTIFICATIONS.signatureMarque,

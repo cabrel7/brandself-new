@@ -309,12 +309,14 @@ export const optionsAuth: OptionsAuth = {
         getTempEmail: (tel) => `${tel.replace(/[^+\d]/g, '')}@${TEMP_EMAIL_DOMAIN}`,
       },
       sendOTP: async ({ phoneNumber: tel, code }, ctx?: ContexteRequete) => {
-        // A4 (D-A4-09) : inscriptions fermées, numéro inconnu : aucun envoi, réponse identique (aucun oracle).
-        if (!surHoteAdmin(ctx) && (await envoiRefuseInscriptionsFermees('telephone', tel))) return
-        // A5 (CA02) : canal SMS coupé pour ce pays = 422 avant toute mise en file.
+        // A5 (CA02) : canal SMS coupé pour ce pays = 422 avant toute mise en file. Contrôlé AVANT la garde des
+        // inscriptions : il ne dépend que du pays du numéro, jamais de l'existence du compte (sinon 422 pour un numéro
+        // connu et 200 silencieux pour un inconnu = oracle d'énumération des comptes).
         if (await canalSmsIndisponible(tel)) {
           throw APIError.from('UNPROCESSABLE_ENTITY', { message: MESSAGE_CANAL_INDISPONIBLE, code: 'CANAL_INDISPONIBLE' })
         }
+        // A4 (D-A4-09) : inscriptions fermées, numéro inconnu : aucun envoi, réponse identique (aucun oracle).
+        if (!surHoteAdmin(ctx) && (await envoiRefuseInscriptionsFermees('telephone', tel))) return
         await enqueueOtpSms(tel, code)
       },
     }),

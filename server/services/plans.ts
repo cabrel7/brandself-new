@@ -108,6 +108,20 @@ export function resoudrePlanEffectif(
   return planGratuit()
 }
 
+/**
+ * Durée de la grâce (jours) : SOURCE UNIQUE, le réglage `abonnement.grace_jours`. Cache de 5 s (celui des réglages),
+ * repli sur `ABONNEMENT_GRACE_JOURS` si la lecture est impossible, jamais d'exception. Tout lecteur de la grâce
+ * (plan effectif, tarifs, sitemap, filtres d'administration, aperçu d'impact, e-mail) passe par ici.
+ */
+export async function lireGraceJours(): Promise<number> {
+  try {
+    const valeur = await Reglages.lire(REGLAGE_CLES.abonnementGraceJours)
+    return Number.isInteger(valeur) && valeur >= 0 ? valeur : ABONNEMENT_GRACE_JOURS
+  } catch {
+    return ABONNEMENT_GRACE_JOURS
+  }
+}
+
 interface PlanLu {
   effectif: PlanEffectif
   /** `users.fuseau` (repli si l'utilisateur n'existe pas). */
@@ -127,7 +141,7 @@ async function lirePlan(executor: Executor, userId: string, now: Date): Promise<
   if (!ligne) return { effectif: planGratuit(), fuseau: ABONNEMENT_FUSEAU_REPLI }
   const abonnement = ligne.plan !== null && ligne.expireLe !== null ? { plan: ligne.plan, expireLe: ligne.expireLe } : null
   // A4 : durée de grâce pilotée par le réglage `abonnement.grace_jours` (repli : valeur du code, jamais d'exception).
-  const graceJours = await Reglages.lire(REGLAGE_CLES.abonnementGraceJours)
+  const graceJours = await lireGraceJours()
   return { effectif: resoudrePlanEffectif(abonnement, now, ligne.fuseau, graceJours), fuseau: ligne.fuseau }
 }
 

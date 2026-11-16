@@ -32,7 +32,7 @@ import { ConflictError, NotFoundError, UnprocessableError } from '../../exceptio
 import { planifierRafraichissementCacheMedias } from '../../jobs/rafraichir-cache-medias'
 import { db } from '../../utils/db'
 import { activerPayantParAdmin, offrirJours as offrirJoursAbonnement, supprimerAbonnement } from '../abonnements-offrir'
-import { getIaQuota } from '../plans'
+import { getIaQuota, lireGraceJours } from '../plans'
 import { supprimerCompteDansTransaction, supprimerFichiersDuCompte } from '../utilisateurs'
 import {
   FUSEAU_FILTRES,
@@ -97,11 +97,11 @@ const CIBLE_UTILISATEUR = ADMIN_CIBLES.utilisateur
 // Lectures
 // ---------------------------------------------------------------------------------------------
 
-function conditionsFiltres(filtres: Partial<ListeUtilisateursQuery>, now: Date): (SQL | undefined)[] {
+function conditionsFiltres(filtres: Partial<ListeUtilisateursQuery>, now: Date, graceJours: number): (SQL | undefined)[] {
   return [
     filtres.q === undefined ? undefined : sqlRechercheUtilisateur(normaliserRecherche(filtres.q)),
-    filtres.plan === undefined ? undefined : sql`${sqlPlanAbonnement(now)} = ${filtres.plan}`,
-    filtres.etat === undefined ? undefined : sql`${sqlEtatAbonnement(now)} = ${filtres.etat}`,
+    filtres.plan === undefined ? undefined : sql`${sqlPlanAbonnement(now, graceJours)} = ${filtres.plan}`,
+    filtres.etat === undefined ? undefined : sql`${sqlEtatAbonnement(now, graceJours)} = ${filtres.etat}`,
     filtres.suspendu === undefined ? undefined : eq(users.banned, filtres.suspendu),
     filtres.vitrine === 'publiee'
       ? sql`${vitrines.publieeLe} IS NOT NULL AND ${vitrines.blocageAdmin} = false`
@@ -117,7 +117,7 @@ function conditionsFiltres(filtres: Partial<ListeUtilisateursQuery>, now: Date):
   ]
 }
 
-function ordreUtilisateurs(filtres: Partial<ListeUtilisateursQuery>, now: Date): SQL[] {
+function ordreUtilisateurs(filtres: Partial<ListeUtilisateursQuery>, now: Date, graceJours: number): SQL[] {
   const sens = filtres.ordre === 'asc' ? sql`ASC` : sql`DESC`
   const tri = filtres.tri ?? ADMIN_UTILISATEURS_TRI_DEFAUT
   const departage = asc(users.id)
@@ -127,7 +127,7 @@ function ordreUtilisateurs(filtres: Partial<ListeUtilisateursQuery>, now: Date):
     case 'derniere_connexion':
       return [sql`${sqlDerniereConnexion()} ${sens} NULLS LAST`, departage]
     case 'plan':
-      return [sql`(CASE WHEN ${sqlPlanAbonnement(now)} = 'gratuit' THEN 0 ELSE 1 END) ${sens}`, departage]
+      return [sql`(CASE WHEN ${sqlPlanAbonnement(now, graceJours)} = 'gratuit' THEN 0 ELSE 1 END) ${sens}`, departage]
     case 'cree_le':
       return [sql`${users.createdAt} ${sens}`, departage]
   }
@@ -141,11 +141,12 @@ export async function listerUtilisateurs(
 ): Promise<PageAdmin<UtilisateurLigneVue>> {
   const page = pagination.page ?? filtres.page ?? 1
   const limite = pagination.limite ?? filtres.limite ?? ADMIN_LISTE_LIMITE_DEFAUT
-  const condition = toutesLesConditions(conditionsFiltres(filtres, now))
+  const graceJours = await lireGraceJours()
+  const condition = toutesLesConditions(conditionsFiltres(filtres, now, graceJours))
   const [lignes, [total]] = await Promise.all([
     baseUtilisateurs()
       .where(condition)
-      .orderBy(...ordreUtilisateurs(filtres, now))
+      .orderBy(...ordreUtilisateurs(filtres, now, graceJours))
       .limit(limite)
       .offset((page - 1) * limite),
     db
@@ -155,7 +156,7 @@ export async function listerUtilisateurs(
       .leftJoin(abonnements, eq(abonnements.userId, users.id))
       .where(condition),
   ])
-  return { elements: lignes.map((ligne) => versLigneUtilisateur(ligne, now)), total: total?.total ?? 0, page, limite }
+  return { elements: lignes.map((ligne) => versLigneUtilisateur(ligne, now, graceJours)), total: total?.total ?? 0, page, limite }
 }
 
 function versOrigine(valeur: string): AbonnementOrigine {
@@ -166,7 +167,7 @@ function versOrigine(valeur: string): AbonnementOrigine {
 export async function getFicheUtilisateur(id: string, now: Date = new Date()): Promise<UtilisateurFicheVue> {
   const [brute] = await baseUtilisateurs().where(eq(users.id, id)).limit(1)
   if (!brute) throw new NotFoundError('UTILISATEUR_INTROUVABLE')
-  const ligne = versLigneUtilisateur(brute, now)
+  const ligne = versLigneUtilisateur(brute, now, await lireGraceJours())
 
   const [detail] = await db
     .select({
@@ -403,6 +404,7 @@ export async function changerPlan(
   deps: DepsEcritureReauth,
 ): Promise<ResultatChangementPlan> {
   const maintenant = horloge(deps)
+  const graceJours = await lireGraceJours()
   if (plan === 'payant' && jours === null) {
     throw new UnprocessableError('VALIDATION', { champs: { jours: ['Indiquez le nombre de jours.'] } })
   }
@@ -427,6 +429,7 @@ export async function changerPlan(
       { plan: abonnement?.plan ?? null, expireLe: abonnement?.expireLe ?? null },
       compte.fuseau,
       maintenant,
+      graceJours,
     )
 
     let expireLe: Date | null = null

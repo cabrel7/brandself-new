@@ -228,8 +228,11 @@ export const schemaActiverVersion = z.strictObject({
 })
 export type ActiverVersion = z.infer<typeof schemaActiverVersion>
 
-/** `POST …/[type]/[id]/retour` (réauthentification `version.retour`) et `POST …/prix/[id]/valider` (`version.valider_prix`). */
-export const schemaRetourVersion = z.strictObject({ motif: schemaMotifAdmin })
+/**
+ * `POST …/[type]/[id]/retour` (réauthentification `version.retour`) et `POST …/prix/[id]/valider` (`version.valider_prix`).
+ * Un retour qui BAISSE une limite de plan exige `impactAcquitte`, comme une activation (sinon 409 `IMPACT_CHANGE`).
+ */
+export const schemaRetourVersion = z.strictObject({ impactAcquitte: schemaImpactPlan.optional(), motif: schemaMotifAdmin })
 export const schemaValiderPrix = z.strictObject({ motif: schemaMotifAdmin })
 export type RetourVersion = z.infer<typeof schemaRetourVersion>
 export type ValiderPrix = z.infer<typeof schemaValiderPrix>

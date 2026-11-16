@@ -28,6 +28,8 @@ import { instantaneDuCode, lireInstantaneSansCache, viderCacheConfiguration } fr
 export type TypeVersionConfiguration = Exclude<AdminVersionType, 'prompts'>
 
 const PREFIXE_ID_VERSION = 'a5v'
+/** `statut` journalisé d'une version programmée que le job n'a pas pu appliquer. */
+const STATUT_NON_APPLICABLE = 'non_applicable'
 /** Catégorie journalisée d'une version de prompt (hors `configuration_versions`). */
 const CATEGORIE_PROMPT = 'prompt'
 const TYPE_PAR_CATEGORIE: Record<string, TypeVersionConfiguration> = { plan: 'plans', prix: 'prix', frais: 'frais', moyens: 'moyens' }
@@ -324,15 +326,26 @@ export function estUneBaisse(actuelle: ValeursPlan, candidate: ValeursPlan): boo
   })
 }
 
-async function exigerImpactAcquitte(tx: TransactionAdmin, ligne: LigneConfiguration, acquitte: ImpactPlan | undefined): Promise<void> {
+/** Impact actuel de la version `ligne` d'un plan si elle BAISSE une limite du plan en vigueur ; `null` sinon. */
+async function impactDeLaBaisse(tx: TransactionAdmin, ligne: LigneConfiguration): Promise<ImpactPlan | null> {
   const candidate = schemaValeursPlan.parse(ligne.valeurs)
   const plans = (await lireInstantaneSansCache(tx)).plans
   const plan = ligne.cle === 'gratuit' ? 'gratuit' : 'payant'
-  if (!estUneBaisse(plans[plan] ?? instantaneDuCode().plans[plan], candidate)) return
-  const actuel = await apercuImpactPlan(plan, candidate, tx)
+  if (!estUneBaisse(plans[plan] ?? instantaneDuCode().plans[plan], candidate)) return null
+  return apercuImpactPlan(plan, candidate, tx)
+}
+
+/**
+ * Baisse de limite : l'impact acquitté doit être celui du moment (sinon 409 `IMPACT_CHANGE`). Renvoie l'empreinte de
+ * l'impact vérifié (à garder dans le journal d'une programmation, pour la revalider à l'application), `null` hors baisse.
+ */
+async function exigerImpactAcquitte(tx: TransactionAdmin, ligne: LigneConfiguration, acquitte: ImpactPlan | undefined): Promise<string | null> {
+  const actuel = await impactDeLaBaisse(tx, ligne)
+  if (actuel === null) return null
   // Un impact entièrement nul n'a rien à acquitter (aucun compte, aucun élément touché) : l'absence d'acquittement passe.
-  if (acquitte === undefined && !impactNonNul(actuel)) return
+  if (acquitte === undefined && !impactNonNul(actuel)) return empreinteValeurs(actuel)
   if (acquitte === undefined || !memeImpact(acquitte, actuel)) throw new ConflictError('IMPACT_CHANGE', { impact: actuel })
+  return empreinteValeurs(actuel)
 }
 
 async function activerConfiguration(
@@ -341,14 +354,14 @@ async function activerConfiguration(
   ligne: LigneConfiguration,
   options: OptionsActivation,
   maintenant: Date,
-): Promise<LigneConfiguration> {
+): Promise<{ ligne: LigneConfiguration, impactEmpreinte: string | null }> {
   if (ligne.statut !== 'brouillon') throw new UnprocessableError('VERSION_NON_ACTIVABLE')
   const type = TYPE_PAR_CATEGORIE[ligne.categorie]
   if (type === undefined) throw new UnprocessableError('VERSION_NON_ACTIVABLE')
   const adaptateur: AdaptateurVersion = ADAPTATEURS[type] as AdaptateurVersion
   // La cohérence se rejoue à l'activation : l'autre plan, ou les moyens, ont pu changer depuis le brouillon.
   await adaptateur.validerCoherence(tx, ligne.cle, ligne.valeurs)
-  if (type === 'plans') await exigerImpactAcquitte(tx, ligne, options.impactAcquitte)
+  const impactEmpreinte = type === 'plans' ? await exigerImpactAcquitte(tx, ligne, options.impactAcquitte) : null
   const valideeLe = type === 'prix' ? maintenant : null
 
   if (options.programmeePour !== null) {
@@ -366,7 +379,7 @@ async function activerConfiguration(
       .where(eq(configurationVersions.id, ligne.id))
       .returning()
     if (!programmee) throw new Error('VERSION_NON_PROGRAMMEE')
-    return programmee
+    return { ligne: programmee, impactEmpreinte }
   }
 
   await tx
@@ -379,7 +392,7 @@ async function activerConfiguration(
     .where(eq(configurationVersions.id, ligne.id))
     .returning()
   if (!activee) throw new Error('VERSION_NON_ACTIVEE')
-  return activee
+  return { ligne: activee, impactEmpreinte }
 }
 
 /**
@@ -428,14 +441,19 @@ export async function programmerOuActiver(
     .from(configurationVersions)
     .where(and(eq(configurationVersions.categorie, cible.ligne.categorie), eq(configurationVersions.cle, cible.ligne.cle), eq(configurationVersions.statut, 'active')))
     .limit(1)
-  const resultat = await activerConfiguration(tx, auteur, cible.ligne, options, maintenant)
+  const { ligne: resultat, impactEmpreinte } = await activerConfiguration(tx, auteur, cible.ligne, options, maintenant)
   await enregistrer(tx, {
     adminId: auteur.adminId,
     action,
     cibleType: ADMIN_CIBLES.version,
     cibleId: id,
     avant: etatCible(cible),
-    apres: etatConfiguration(resultat, { ...parametres, remplace_id: programmee ? null : (actuelle?.id ?? null) }),
+    // Programmation d'une baisse : l'empreinte de l'impact acquitté est gardée, le job la revalide à l'application.
+    apres: etatConfiguration(resultat, {
+      ...parametres,
+      remplace_id: programmee ? null : (actuelle?.id ?? null),
+      ...(programmee && impactEmpreinte !== null ? { impact_empreinte: impactEmpreinte } : {}),
+    }),
     motif: options.motif,
     ip: auteur.ip,
     cleIdempotence: auteur.cleIdempotence,
@@ -447,7 +465,11 @@ export async function programmerOuActiver(
 // Retour arrière, validation d'un prix
 // ---------------------------------------------------------------------------------------------
 
-async function retourConfiguration(tx: TransactionAdmin, ligne: LigneConfiguration): Promise<{ cible: LigneConfiguration, remplacee: LigneConfiguration | null }> {
+async function retourConfiguration(
+  tx: TransactionAdmin,
+  ligne: LigneConfiguration,
+  impactAcquitte: ImpactPlan | undefined,
+): Promise<{ cible: LigneConfiguration, remplacee: LigneConfiguration | null }> {
   const parCle = and(eq(configurationVersions.categorie, ligne.categorie), eq(configurationVersions.cle, ligne.cle))
   let cible: LigneConfiguration | undefined
   let remplacee: LigneConfiguration | null = null
@@ -467,6 +489,8 @@ async function retourConfiguration(tx: TransactionAdmin, ligne: LigneConfigurati
     remplacee = active ?? null
   }
   if (!cible) throw new UnprocessableError('VERSION_NON_ACTIVABLE')
+  // Rétablir une version qui baisse des limites a le même effet qu'une activation : l'aperçu d'impact acquitté est exigé.
+  if (TYPE_PAR_CATEGORIE[cible.categorie] === 'plans') await exigerImpactAcquitte(tx, cible, impactAcquitte)
   if (remplacee !== null) {
     await tx.update(configurationVersions).set({ statut: 'remplacee' }).where(eq(configurationVersions.id, remplacee.id))
   }
@@ -491,6 +515,12 @@ async function retourPrompt(tx: TransactionAdmin, ligne: LignePrompt): Promise<{
   return { cible: activee, remplacee: precedente }
 }
 
+export interface OptionsRetour {
+  motif: string
+  /** Aperçu d'impact acquitté : exigé quand le retour baisse une limite de plan (comme une activation). */
+  impactAcquitte?: ImpactPlan | undefined
+}
+
 /**
  * Retour arrière (CA11). `id` = la version ACTIVE (la précédente est rétablie) ou une version `remplacee` à rétablir.
  * La version retirée devient `remplacee`. Les contenus ne sont jamais modifiés ni supprimés (CA03 : les éléments masqués
@@ -500,7 +530,7 @@ export async function retourArriere(
   tx: TransactionAdmin,
   auteur: AuteurEcritureReauth,
   id: string,
-  options: { motif: string },
+  options: OptionsRetour,
 ): Promise<{ type: AdminVersionType, rejoue: boolean }> {
   const apercu = await trouverCible(tx, id, false)
   const type: AdminVersionType = apercu.espace === 'prompt' ? 'prompts' : (TYPE_PAR_CATEGORIE[apercu.ligne.categorie] ?? 'plans')
@@ -525,7 +555,7 @@ export async function retourArriere(
     })
     return { type, rejoue: false }
   }
-  const { cible: restauree, remplacee } = await retourConfiguration(tx, cible.ligne)
+  const { cible: restauree, remplacee } = await retourConfiguration(tx, cible.ligne, options.impactAcquitte)
   await enregistrer(tx, {
     adminId: auteur.adminId,
     action: ADMIN_ACTIONS.versionRetour,
@@ -595,7 +625,7 @@ export function activerVersion(auteur: AuteurEcritureReauth, id: string, options
   return enTransaction((tx) => programmerOuActiver(tx, auteur, id, options), id)
 }
 
-export function retourVersion(auteur: AuteurEcritureReauth, id: string, options: { motif: string }): Promise<ResultatVersion> {
+export function retourVersion(auteur: AuteurEcritureReauth, id: string, options: OptionsRetour): Promise<ResultatVersion> {
   return enTransaction((tx) => retourArriere(tx, auteur, id, options), id)
 }
 
@@ -612,10 +642,48 @@ export async function apercuImpact(plan: 'gratuit' | 'payant', valeurs: ValeursP
 // Job `versions-appliquer` (D-A5-03)
 // ---------------------------------------------------------------------------------------------
 
+const MOTIF_NON_APPLICABLE = 'Version programmée non appliquée : elle n\'est plus valable depuis sa programmation.'
+const IP_JOB = 'job'
+
+type RaisonNonApplicable = 'COHERENCE' | 'IMPACT_CHANGE'
+
+/**
+ * Revalide une version programmée au moment de l'appliquer (D-A5-03) : cohérence rejouée, et pour une baisse de limite
+ * d'un plan, impact recalculé et comparé à celui qui avait été acquitté à la programmation (empreinte gardée dans le
+ * journal). `null` = applicable, sinon la raison. Aucune écriture. Seules les erreurs métier valent refus : une panne
+ * de base remonte (le job réessaiera).
+ */
+async function raisonNonApplicable(tx: TransactionAdmin, ligne: LigneConfiguration): Promise<{ raison: RaisonNonApplicable | null, adminId: string }> {
+  const [programmation] = (await tx.execute<{ admin_id: string, empreinte: string | null }>(sql`
+    SELECT admin_id, apres->>'impact_empreinte' AS empreinte FROM journal_admin
+    WHERE action = ${ADMIN_ACTIONS.versionProgrammer} AND cible_type = ${ADMIN_CIBLES.version} AND cible_id = ${ligne.id}
+      AND coalesce(apres->>'statut', '') <> ${STATUT_NON_APPLICABLE}
+    ORDER BY numero DESC LIMIT 1`)).rows
+  const adminId = programmation?.admin_id ?? ligne.creePar
+  const type = TYPE_PAR_CATEGORIE[ligne.categorie]
+  if (type === undefined) return { raison: 'COHERENCE', adminId }
+  try {
+    await (ADAPTATEURS[type] as AdaptateurVersion).validerCoherence(tx, ligne.cle, ligne.valeurs)
+  } catch (erreur) {
+    if (erreur instanceof ValidationError || erreur instanceof UnprocessableError || erreur instanceof ConflictError) return { raison: 'COHERENCE', adminId }
+    throw erreur
+  }
+  if (type !== 'plans') return { raison: null, adminId }
+  const actuel = await impactDeLaBaisse(tx, ligne)
+  if (actuel === null) return { raison: null, adminId }
+  const acquitte = programmation?.empreinte ?? null
+  // Sans empreinte gardée (programmation antérieure à ce contrôle) : seule une baisse sans effet reste applicable.
+  const change = acquitte === null ? impactNonNul(actuel) : acquitte !== empreinteValeurs(actuel)
+  return { raison: change ? 'IMPACT_CHANGE' : null, adminId }
+}
+
 /**
  * Fait passer à `active` les versions programmées dont la date est échue. Idempotent : une version déjà appliquée
- * n'est plus `programmee`. Le programme a été journalisé (réauthentifié) au moment de la programmation. Renvoie le
- * nombre de versions appliquées.
+ * n'est plus `programmee`. Le programme a été journalisé (réauthentifié) au moment de la programmation. Chaque version
+ * est REVALIDÉE avant d'être appliquée (cohérence, impact acquitté) : si elle ne l'est plus, elle n'est pas appliquée,
+ * elle devient `remplacee` (jamais active : la contrainte de statuts n'a pas d'autre état terminal) et une ligne
+ * `version.programmer` à `statut = non_applicable` (raison `COHERENCE` ou `IMPACT_CHANGE`) en garde la trace. Renvoie
+ * le nombre de versions appliquées.
  */
 export async function appliquerVersionsProgrammees(maintenant: Date = new Date()): Promise<number> {
   const dues = await db
@@ -625,23 +693,38 @@ export async function appliquerVersionsProgrammees(maintenant: Date = new Date()
     .orderBy(asc(configurationVersions.effectiveA))
   let appliquees = 0
   for (const due of dues) {
-    const appliquee = await db.transaction(async (tx) => {
+    const issue = await db.transaction(async (tx): Promise<'appliquee' | 'ignoree' | 'non_applicable'> => {
       await verrouillerConfiguration(tx, due.categorie, due.cle)
       const [encoreProgrammee] = await tx
-        .select({ id: configurationVersions.id })
+        .select()
         .from(configurationVersions)
         .where(and(eq(configurationVersions.id, due.id), eq(configurationVersions.statut, 'programmee')))
         .for('update')
         .limit(1)
-      if (!encoreProgrammee) return false
+      if (!encoreProgrammee) return 'ignoree'
+      const { raison, adminId } = await raisonNonApplicable(tx, encoreProgrammee)
+      if (raison !== null) {
+        await tx.update(configurationVersions).set({ statut: 'remplacee' }).where(eq(configurationVersions.id, due.id))
+        await enregistrer(tx, {
+          adminId,
+          action: ADMIN_ACTIONS.versionProgrammer,
+          cibleType: ADMIN_CIBLES.version,
+          cibleId: due.id,
+          avant: etatConfiguration(encoreProgrammee),
+          apres: etatConfiguration({ ...encoreProgrammee, statut: STATUT_NON_APPLICABLE }, { raison }),
+          motif: MOTIF_NON_APPLICABLE,
+          ip: IP_JOB,
+        })
+        return 'non_applicable'
+      }
       await tx
         .update(configurationVersions)
         .set({ statut: 'remplacee' })
         .where(and(eq(configurationVersions.categorie, due.categorie), eq(configurationVersions.cle, due.cle), eq(configurationVersions.statut, 'active')))
       await tx.update(configurationVersions).set({ statut: 'active' }).where(eq(configurationVersions.id, due.id))
-      return true
+      return 'appliquee'
     })
-    if (appliquee) appliquees += 1
+    if (issue === 'appliquee') appliquees += 1
   }
   if (appliquees > 0) viderCacheConfiguration()
   return appliquees

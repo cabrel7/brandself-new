@@ -5,11 +5,11 @@
 import { sql } from 'drizzle-orm'
 import type { SQL } from 'drizzle-orm'
 import { IA_TYPES_QUOTA } from '../../../shared/ia'
-import { ABONNEMENT_GRACE_JOURS } from '../../../shared/plans'
 import type { PlanId } from '../../../shared/plans'
 import type { ImpactPlan, ValeursPlan } from '../../../shared/schemas/admin-versions'
 import { vitrines } from '../../../shared/db/schema'
 import { db } from '../../utils/db'
+import { lireGraceJours } from '../plans'
 import { sqlVitrinePublique } from '../visibilite'
 
 type ExecuteurImpact = Pick<typeof db, 'execute'>
@@ -21,8 +21,9 @@ type RessourceMasquage = keyof typeof TABLES_MASQUAGE
 const STATUTS_RESERVATION_COMPTES = ['en_attente', 'confirmee', 'terminee'] as const
 
 /** Comptes du plan concerné : gratuits = sans abonnement ou grâce écoulée ; payants = abonnement ou grâce en cours. */
-function sqlComptesDuPlan(plan: PlanId): SQL {
-  const grace = sql`make_interval(days => ${ABONNEMENT_GRACE_JOURS})`
+function sqlComptesDuPlan(plan: PlanId, graceJours: number): SQL {
+  // R2 : durée de grâce = réglage `abonnement.grace_jours` (`lireGraceJours`), lue par l'appelant.
+  const grace = sql`make_interval(days => ${graceJours}::int)`
   return plan === 'gratuit'
     ? sql`SELECT u.id, u.fuseau FROM users u LEFT JOIN abonnements a ON a.user_id = u.id WHERE a.user_id IS NULL OR a.expire_le + ${grace} <= now()`
     : sql`SELECT u.id, u.fuseau FROM users u JOIN abonnements a ON a.user_id = u.id WHERE a.expire_le + ${grace} > now()`
@@ -35,9 +36,10 @@ async function impactMasquage(
   limite: number | null,
 ): Promise<{ comptes: number, elementsMasques: number }> {
   if (limite === null) return { comptes: 0, elementsMasques: 0 }
+  const graceJours = await lireGraceJours()
   const table = sql.raw(TABLES_MASQUAGE[ressource])
   const resultat = await executeur.execute<{ comptes: string, elements_masques: string }>(sql`
-    WITH comptes_plan AS (${sqlComptesDuPlan(plan)}),
+    WITH comptes_plan AS (${sqlComptesDuPlan(plan, graceJours)}),
     vitrines_visibles AS (
       SELECT vitrines.id, vitrines.user_id FROM vitrines
       JOIN comptes_plan c ON c.id = vitrines.user_id
@@ -57,8 +59,9 @@ async function impactMasquage(
 
 async function impactReservations(executeur: ExecuteurImpact, plan: PlanId, limite: number | null): Promise<{ comptes: number }> {
   if (limite === null) return { comptes: 0 }
+  const graceJours = await lireGraceJours()
   const resultat = await executeur.execute<{ comptes: string }>(sql`
-    WITH comptes_plan AS (${sqlComptesDuPlan(plan)}),
+    WITH comptes_plan AS (${sqlComptesDuPlan(plan, graceJours)}),
     usage AS (
       SELECT v.id, v.user_id, count(r.id) AS total
       FROM vitrines v
@@ -75,8 +78,9 @@ async function impactReservations(executeur: ExecuteurImpact, plan: PlanId, limi
 
 async function impactIa(executeur: ExecuteurImpact, plan: PlanId, limite: number | null): Promise<{ comptes: number }> {
   if (limite === null) return { comptes: 0 }
+  const graceJours = await lireGraceJours()
   const resultat = await executeur.execute<{ comptes: string }>(sql`
-    WITH comptes_plan AS (${sqlComptesDuPlan(plan)}),
+    WITH comptes_plan AS (${sqlComptesDuPlan(plan, graceJours)}),
     usage AS (
       SELECT c.id AS user_id, count(g.id) AS total
       FROM comptes_plan c

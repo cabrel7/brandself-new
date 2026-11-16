@@ -10,6 +10,7 @@ import type { ListeVitrinesQuery, PaginationAdmin } from '../../../shared/schema
 import { ConflictError, NotFoundError } from '../../exceptions/http'
 import { planifierRafraichissementCacheMedias } from '../../jobs/rafraichir-cache-medias'
 import { db } from '../../utils/db'
+import { lireGraceJours } from '../plans'
 import {
   baseVitrines,
   normaliserRecherche,
@@ -29,10 +30,10 @@ export interface VitrineFicheVue extends VitrineLigneVue {
   compteurs: { services: number, realisations: number, temoignages: number, liens: number }
 }
 
-function conditionsFiltres(filtres: Partial<ListeVitrinesQuery>, now: Date): (SQL | undefined)[] {
+function conditionsFiltres(filtres: Partial<ListeVitrinesQuery>, now: Date, graceJours: number): (SQL | undefined)[] {
   return [
     filtres.q === undefined ? undefined : sqlRechercheVitrine(normaliserRecherche(filtres.q)),
-    filtres.plan === undefined ? undefined : sql`${sqlPlanAbonnement(now)} = ${filtres.plan}`,
+    filtres.plan === undefined ? undefined : sql`${sqlPlanAbonnement(now, graceJours)} = ${filtres.plan}`,
     filtres.statut === 'publiee'
       ? sql`${vitrines.publieeLe} IS NOT NULL AND ${vitrines.blocageAdmin} = false`
       : undefined,
@@ -62,7 +63,8 @@ export async function listerVitrines(
 ): Promise<PageAdmin<VitrineLigneVue>> {
   const page = pagination.page ?? filtres.page ?? 1
   const limite = pagination.limite ?? filtres.limite ?? ADMIN_LISTE_LIMITE_DEFAUT
-  const condition = toutesLesConditions(conditionsFiltres(filtres, now))
+  const graceJours = await lireGraceJours()
+  const condition = toutesLesConditions(conditionsFiltres(filtres, now, graceJours))
   const [lignes, [total]] = await Promise.all([
     baseVitrines()
       .where(condition)
@@ -76,13 +78,14 @@ export async function listerVitrines(
       .leftJoin(abonnements, eq(abonnements.userId, users.id))
       .where(condition),
   ])
-  return { elements: lignes.map((ligne) => versLigneVitrine(ligne, now)), total: total?.total ?? 0, page, limite }
+  return { elements: lignes.map((ligne) => versLigneVitrine(ligne, now, graceJours)), total: total?.total ?? 0, page, limite }
 }
 
 /** Fiche d'une vitrine : 404 `VITRINE_INTROUVABLE`. Jamais de réservation, demande, message ni témoignage en contenu. */
 export async function getFicheVitrine(id: string, now: Date = new Date()): Promise<VitrineFicheVue> {
   const [brute] = await baseVitrines().where(eq(vitrines.id, id)).limit(1)
   if (!brute) throw new NotFoundError('VITRINE_INTROUVABLE')
+  const graceJours = await lireGraceJours()
   const [nbServices, nbRealisations, nbTemoignages, nbLiens] = await Promise.all([
     db.$count(services, eq(services.vitrineId, id)),
     db.$count(realisations, eq(realisations.vitrineId, id)),
@@ -90,7 +93,7 @@ export async function getFicheVitrine(id: string, now: Date = new Date()): Promi
     db.$count(liens, eq(liens.vitrineId, id)),
   ])
   return {
-    ...versLigneVitrine(brute, now),
+    ...versLigneVitrine(brute, now, graceJours),
     publieeLe: brute.publieeLe,
     compteurs: { services: nbServices, realisations: nbRealisations, temoignages: nbTemoignages, liens: nbLiens },
   }

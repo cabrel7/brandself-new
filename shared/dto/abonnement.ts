@@ -28,6 +28,12 @@ export interface PrixPeriodeDTO {
    * l'API ; optionnel dans le type pour les constructions de `prixPeriodes` (calcul pur, sans barème de frais).
    */
   montantAffiche?: number
+  /**
+   * Montant TTC PAR MOYEN de la devise (clé = `MoyenPaiementDTO.id`) : les frais dépendent du moyen (fournisseur et
+   * méthode), le prix à afficher et à renvoyer en `prixAffiche` est celui du moyen CHOISI. `montantAffiche` reste le
+   * montant du premier moyen de la devise (repli quand aucun moyen n'est encore choisi). Additif, optionnel.
+   */
+  montantAfficheParMoyen?: Record<string, number>
   montantParMois: number
   /** Pourcentage entier, 0 sans remise. */
   remisePct: number

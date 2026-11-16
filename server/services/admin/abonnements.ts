@@ -20,7 +20,7 @@ import {
   OCCURRENCE_RAPPEL_MANUEL_PREFIXE,
   construireOccurrenceRappelManuel,
 } from '../notifications/pertinence'
-import { resoudrePlanEffectif } from '../plans'
+import { lireGraceJours, resoudrePlanEffectif } from '../plans'
 import { enregistrer } from './audit'
 import type { ActeurAdmin } from './paiements-journal'
 
@@ -36,9 +36,9 @@ export interface FenetreOnglet {
  *  - grâce : `now - 7 j < expire_le <= now` ;
  *  - expirés : `now - 37 j < expire_le <= now - 7 j`.
  */
-export function fenetreOnglet(onglet: AbonnementOnglet, now: Date): FenetreOnglet {
+export function fenetreOnglet(onglet: AbonnementOnglet, now: Date, graceJours: number = ABONNEMENT_GRACE_JOURS): FenetreOnglet {
   const instant = now.getTime()
-  const finGrace = instant - ABONNEMENT_GRACE_JOURS * JOUR_MS
+  const finGrace = instant - graceJours * JOUR_MS
   switch (onglet) {
     case 'renouvellement':
       return { apres: now, jusqua: new Date(instant + ADMIN_ABONNEMENT_RENOUVELLEMENT_JOURS * JOUR_MS) }
@@ -50,10 +50,10 @@ export function fenetreOnglet(onglet: AbonnementOnglet, now: Date): FenetreOngle
 }
 
 /** Onglet d'un abonnement à cet instant, ou `null` (échéance lointaine ou expirée depuis trop longtemps). PURE. */
-export function ongletAbonnement(expireLe: Date, now: Date): AbonnementOnglet | null {
+export function ongletAbonnement(expireLe: Date, now: Date, graceJours: number = ABONNEMENT_GRACE_JOURS): AbonnementOnglet | null {
   const echeance = expireLe.getTime()
   return ABONNEMENT_ONGLETS.find((onglet) => {
-    const { apres, jusqua } = fenetreOnglet(onglet, now)
+    const { apres, jusqua } = fenetreOnglet(onglet, now, graceJours)
     return echeance > apres.getTime() && echeance <= jusqua.getTime()
   }) ?? null
 }
@@ -79,7 +79,8 @@ export interface ListeAbonnementsAdmin {
 
 export async function listerAbonnements(query: ListeAbonnementsQuery, now: Date = new Date()): Promise<ListeAbonnementsAdmin> {
   const { onglet, page, limite } = query
-  const { apres, jusqua } = fenetreOnglet(onglet, now)
+  const graceJours = await lireGraceJours()
+  const { apres, jusqua } = fenetreOnglet(onglet, now, graceJours)
   const where = and(gt(abonnements.expireLe, apres), lte(abonnements.expireLe, jusqua))
   // Les plus proches de l'échéance d'abord, sauf les expirés (les plus récemment échus d'abord).
   const ordre = onglet === 'expires' ? desc(abonnements.expireLe) : asc(abonnements.expireLe)
@@ -115,7 +116,7 @@ export async function listerAbonnements(query: ListeAbonnementsQuery, now: Date 
     plan: ligne.plan,
     devise: ligne.deviseCompte,
     expireLe: ligne.expireLe,
-    etat: resoudrePlanEffectif({ plan: ligne.plan, expireLe: ligne.expireLe }, now, ligne.fuseau).etat,
+    etat: resoudrePlanEffectif({ plan: ligne.plan, expireLe: ligne.expireLe }, now, ligne.fuseau, graceJours).etat,
     origine: ligne.origine,
     dernierPaiement: ligne.paiementId !== null && ligne.paiementStatut !== null && ligne.paiementMontant !== null
       && ligne.paiementDevise !== null && ligne.paiementCreeLe !== null
