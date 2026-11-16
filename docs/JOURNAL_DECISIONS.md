@@ -97,3 +97,12 @@ Décisions prises sans l'utilisateur, à relire au retour. Format : date · déc
 
 - Sur `ADMIN_HOST`, une URL non administrative (`/studio`, `/@dr-cabrel`, `/connexion`, `/`…) demandée par un NAVIGATEUR (`Accept: text/html`) répond 302 vers `/admin/connexion` (avec `Cache-Control: no-store`) ; une requête API ou JSON répond 404 uniforme. Aucun contenu du studio ni d'une vitrine n'est servi : la séparation tient. La spec A1 (CA03) disait « 404 » ; décision : on garde la redirection (une personne qui tape l'hôte admin arrive sur la connexion) et les tests e2e acceptent « 404, ou 302 vers `/admin/connexion` ».
 - Le test e2e `admin-surfaces` « studio et accueil ne répondent pas sur l'hôte admin » est à aligner sur cette règle.
+
+## DÉCISION (utilisateur, 2026-11-16) : rien ne reste accessible pour un compte suspendu ou une vitrine bloquée
+
+Règle : un compte suspendu et une vitrine bloquée par l'administration ne servent AUCUN contenu, images comprises, sans exception pour le propriétaire. Remplace les trois options de la décision ouverte sur le cache nginx `/medias/`.
+- **Application** : `readMediaVariant` et `readPartageJpeg` refusent (404 identique à « introuvable », `Cache-Control: no-store`) quand le titulaire est suspendu (`users.banned`) OU a une vitrine avec `blocage_admin = true`. Aucune exception propriétaire (le studio d'un propriétaire dont la vitrine est bloquée n'affiche plus ses images tant qu'elle l'est).
+- **Éviction immédiate du cache nginx** : à la suspension, au blocage (dépublication admin) et à leur levée, une tâche de fond (file `maintenance`) redemande chaque variante d'image du compte à nginx avec l'en-tête `X-Cache-Refresh: <secret>`. nginx contourne le cache (`proxy_cache_bypass`), l'application répond 404, nginx enregistre ce 404 (`proxy_cache_valid 404 1m`) à la place de l'ancien 200. Pas de module de purge, pas d'accès au disque du cache. Secret en configuration (`runtimeConfig`, validé au démarrage, jamais en dur ; côté nginx, valeur déposée au déploiement hors dépôt).
+- **Correction nginx** : `add_header Cache-Control "public, immutable" always` du bloc `/medias/` ne s'applique qu'aux réponses 200 (un 404 ne doit jamais être `immutable`).
+- **Limite assumée** : une copie déjà téléchargée par un navigateur de visiteur ne se révoque pas. 
+- **Non vérifiable en local** : nginx absent de cette machine ; configuration testée par texte, comportement réel à valider sur le VPS (script de vérification fourni dans `docs/exploitation-admin.md`).

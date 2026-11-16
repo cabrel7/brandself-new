@@ -14,6 +14,7 @@ import {
   connecterAvecCode,
   creerCompte,
   creerSuperadmin,
+  creerSuperadminJetable,
   demanderCodeConnexion,
   fermerAdmin,
   jobsConnexionPour,
@@ -63,7 +64,7 @@ test.describe('administration : accès, hôtes et sessions', () => {
     // Le compte ordinaire ne peut pas se connecter sur l'hôte admin : sa session est ouverte sur le site public.
     sessionOrdinaire = await ouvrirSession(ordinaire, 'public')
     // Un superadmin qui se connecte sur le site public obtient une session ORDINAIRE (admin = false).
-    adminSurSitePublic = await ouvrirSession(await creerSuperadmin(), 'public')
+    adminSurSitePublic = await ouvrirSession(await creerSuperadminJetable(), 'public')
   })
 
   test.afterAll(async () => {
@@ -109,7 +110,7 @@ test.describe('administration : accès, hôtes et sessions', () => {
 
       test(`CA01 ${titre} : superadmin sur l'hôte d'administration, ${entree.statutSucces}`, async () => {
         // Une route qui met fin à la session détruit celle qu'on lui présente : elle reçoit la sienne.
-        const session = entree.terminaLaSession ? await ouvrirSession(await creerSuperadmin(), 'admin') : sessionAdmin
+        const session = entree.terminaLaSession ? await ouvrirSession(await creerSuperadminJetable(), 'admin') : sessionAdmin
 
         const reponse = await appel(session.cookie)
 
@@ -125,7 +126,7 @@ test.describe('administration : accès, hôtes et sessions', () => {
     }
 
     test('CA01 la déconnexion supprime la session : le même cookie ne passe plus (404) et la ligne a disparu', async () => {
-      const session = await ouvrirSession(await creerSuperadmin(), 'admin')
+      const session = await ouvrirSession(await creerSuperadminJetable(), 'admin')
       expect((await appeler({ chemin: '/api/admin/session', cookie: session.cookie })).status).toBe(200)
 
       const deconnexion = await appeler({ methode: 'POST', chemin: '/api/admin/deconnexion', cookie: session.cookie, corps: undefined })
@@ -268,6 +269,17 @@ test.describe('administration : accès, hôtes et sessions', () => {
       }
     })
 
+    test('CA03 navigation navigateur (Accept: text/html) vers le studio, une vitrine, la connexion ou l\'accueil : 404 ou 302 vers /admin/connexion', async () => {
+      for (const chemin of ['/studio', '/@dr-cabrel', '/dr-cabrel', '/connexion', '/']) {
+        const reponse = await appeler({ chemin, entetes: { accept: 'text/html' } })
+        expect([404, 302], chemin).toContain(reponse.status)
+        if (reponse.status === 302) {
+          expect(String(reponse.headers.location), chemin).toMatch(/\/admin\/connexion$/)
+          expect(String(reponse.headers['cache-control']), chemin).toMatch(/no-store/)
+        }
+      }
+    })
+
     test('CA03 la liste blanche d\'authentification reste servie : get-session répond 200', async () => {
       const reponse = await appeler({ chemin: '/api/auth/get-session', cookie: sessionAdmin.cookie })
 
@@ -348,7 +360,7 @@ test.describe('administration : accès, hôtes et sessions', () => {
 
     test('CA05 superadmin suspendu : 200 et aucun job', async () => {
       await libererLimitesOtp()
-      const suspendu = await creerSuperadmin({ suspendu: true })
+      const suspendu = await creerSuperadminJetable({ suspendu: true })
 
       const reponse = await demanderCodeConnexion(suspendu.email, 'admin')
       await new Promise((resolve) => setTimeout(resolve, ATTENTE_ABSENCE_JOB_MS))
@@ -448,7 +460,7 @@ test.describe('administration : accès, hôtes et sessions', () => {
     })
 
     test('CA09 une session créée il y a 8 h 01 ne donne plus accès (404) et sa ligne est supprimée', async () => {
-      const vieux = await ouvrirSession(await creerSuperadmin(), 'admin')
+      const vieux = await ouvrirSession(await creerSuperadminJetable(), 'admin')
       const controle = await appeler({ chemin: '/api/admin/session', cookie: vieux.cookie })
       expect(controle.status).toBe(200)
       await vieillirSession(vieux.sessionId, 8 + 1 / 60)
@@ -460,7 +472,7 @@ test.describe('administration : accès, hôtes et sessions', () => {
     })
 
     test('CA09 une session de 7 h 59 passe encore', async () => {
-      const jeune = await ouvrirSession(await creerSuperadmin(), 'admin')
+      const jeune = await ouvrirSession(await creerSuperadminJetable(), 'admin')
       await vieillirSession(jeune.sessionId, 8 - 1 / 60)
 
       const reponse = await appeler({ chemin: '/api/admin/session', cookie: jeune.cookie })
@@ -482,7 +494,7 @@ test.describe('administration : accès, hôtes et sessions', () => {
     })
 
     test('CA11 un superadmin suspendu depuis l\'ouverture de sa session perd l\'accès immédiatement (404)', async () => {
-      const compte = await creerSuperadmin()
+      const compte = await creerSuperadminJetable()
       const session = await ouvrirSession(compte, 'admin')
       expect((await appeler({ chemin: '/api/admin/session', cookie: session.cookie })).status).toBe(200)
 
@@ -498,7 +510,7 @@ test.describe('administration : accès, hôtes et sessions', () => {
     })
 
     test('CA12 un superadmin qui a perdu son rôle depuis l\'ouverture de sa session perd l\'accès (404)', async () => {
-      const compte = await creerSuperadmin()
+      const compte = await creerSuperadminJetable()
       const session = await ouvrirSession(compte, 'admin')
       await db().query("UPDATE users SET role = 'user' WHERE id = $1", [compte.id])
 
@@ -508,7 +520,7 @@ test.describe('administration : accès, hôtes et sessions', () => {
 
   test.describe('CA20 demande de code de réauthentification : 5 par 15 minutes, puis 429', () => {
     test('CA20 la sixième demande est refusée (429) ; les cinq premières répondent 202 { expireLe }', async () => {
-      const limite = await ouvrirSession(await creerSuperadmin(), 'admin')
+      const limite = await ouvrirSession(await creerSuperadminJetable(), 'admin')
       const demander = (i: number) => appeler({ chemin: '/api/admin/reauth/code', cookie: limite.cookie, corps: { action: 'compte.supprimer', cibleType: 'user', cibleId: `cible-${i}` } })
 
       const acceptees: ReponseAdmin[] = []
@@ -524,7 +536,7 @@ test.describe('administration : accès, hôtes et sessions', () => {
     })
 
     test('CA20 le budget est propre à chaque administrateur', async () => {
-      const autre = await ouvrirSession(await creerSuperadmin(), 'admin')
+      const autre = await ouvrirSession(await creerSuperadminJetable(), 'admin')
 
       const reponse = await appeler({ chemin: '/api/admin/reauth/code', cookie: autre.cookie, corps: { action: 'compte.supprimer', cibleType: 'user' } })
 
@@ -532,7 +544,7 @@ test.describe('administration : accès, hôtes et sessions', () => {
     })
 
     test('CA20 la réponse ne contient jamais le code', async () => {
-      const compte = await ouvrirSession(await creerSuperadmin(), 'admin')
+      const compte = await ouvrirSession(await creerSuperadminJetable(), 'admin')
 
       const reponse = await appeler({ chemin: '/api/admin/reauth/code', cookie: compte.cookie, corps: { action: 'compte.supprimer', cibleType: 'user' } })
 

@@ -52,20 +52,22 @@ test.describe('abonnements : onglets et rappel', () => {
 
     await page.goto(`${URL_ADMIN}/admin/abonnements`)
     await attendreHydration(page)
-    await expect(page.getByRole('table', { name: /renouvel|7 jours/i })).toContainText(renouvellement.email)
+    // Les listes sont des <ul> de lignes (AdminAbonnementLigne) dans `main`, plus des tableaux.
+    await expect(page.getByRole('main')).toContainText(renouvellement.email)
 
     await page.getByRole('tab', { name: /en grâce/i }).click()
     await expect(page).toHaveURL(/onglet=grace/)
-    await expect(page.getByRole('table').first()).toContainText(grace.email)
-    await expect(page.getByRole('table').first()).not.toContainText(renouvellement.email)
+    await expect(page.getByRole('main')).toContainText(grace.email)
+    await expect(page.getByRole('main')).not.toContainText(renouvellement.email)
 
-    await page.getByRole('tab', { name: /expirés récemment/i }).click()
+    await page.getByRole('tab', { name: /^expirés/i }).click()
     await expect(page).toHaveURL(/onglet=expires/)
-    await expect(page.getByRole('table').first()).toContainText(expire.email)
+    await expect(page.getByRole('main')).toContainText(expire.email)
   })
 
   test('envoie un rappel avec un motif, puis refuse un second rappel dans les 24 heures avec un message clair', async ({ page }) => {
-    const compte = await abonneA(10)
+    // « À renouveler » = échéance dans les 7 prochains jours (server/services/admin/abonnements.ts) : 10 jours n'y figurait pas.
+    const compte = await abonneA(5)
     await page.goto(`${URL_ADMIN}/admin/abonnements?onglet=renouvellement`)
     await attendreHydration(page)
 
@@ -124,9 +126,10 @@ test.describe('paiements : liste, tiroir et revérification', () => {
 
     await page.getByRole('button', { name: 'Marquer comme payé' }).click()
     await page.getByLabel('Motif').fill('Paiement reçu hors de K-PAY')
-    await page.getByRole('button', { name: 'Marquer comme payé' }).last().click()
-
-    await expect(page.getByRole('alert')).toBeVisible()
+    // Étape 1 : le code est demandé par e-mail ; étape 2 : le bouton « Marquer comme payé » reste désactivé sans code complet.
+    await page.getByRole('button', { name: 'Recevoir le code' }).click()
+    await expect(page.getByText('Saisissez le code à 6 chiffres')).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Marquer comme payé' })).toBeDisabled()
     const manuels = await db().query("SELECT count(*)::int AS n FROM paiements WHERE user_id = $1 AND source = 'manuel'", [payeur.id])
     expect(manuels.rows[0]?.n).toBe(0)
   })
@@ -139,14 +142,16 @@ test.describe('paiements : liste, tiroir et revérification', () => {
 
     await page.getByRole('button', { name: 'Exporter en CSV' }).click()
     await page.getByLabel('Motif').fill('Rapprochement comptable mensuel')
+    const avant = await db().query("SELECT count(*)::int AS n FROM journal_admin WHERE action = 'export.paiements'")
     const [telechargement] = await Promise.all([
       page.waitForEvent('download'),
-      page.getByRole('button', { name: /exporter/i }).last().click(),
+      page.getByRole('button', { name: 'Télécharger le fichier' }).click(),
     ])
 
     expect(telechargement.suggestedFilename()).toMatch(/^paiements-.*\.csv$/)
     const journal = await db().query("SELECT count(*)::int AS n FROM journal_admin WHERE action = 'export.paiements'")
-    expect(journal.rows[0]?.n).toBe(1)
+    // Le journal est conservé entre les runs : on compare à l'état d'avant le téléchargement.
+    expect(journal.rows[0]?.n).toBe((avant.rows[0]?.n ?? 0) + 1)
   })
 })
 
@@ -166,9 +171,11 @@ test.describe('revenus et vue d\'ensemble', () => {
     await page.goto(`${URL_ADMIN}/admin`)
     await attendreHydration(page)
 
-    const banniere = page.getByRole('alert').filter({ hasText: /paiement/i })
+    // L'alerte (AlerteVueEnsemble) est un `status` « N points à examiner » ; aucune alerte d'erreur ne doit s'afficher.
+    const banniere = page.getByRole('status').filter({ hasText: /points? à examiner/ })
     await expect(banniere).toHaveCount(1, { timeout: DELAI_ALERTE_MS })
-    await expect(page.getByRole('alert')).toHaveCount(1)
+    await expect(banniere).toContainText(/paiements? ouverts?/)
+    await expect(page.getByRole('alert')).toHaveCount(0)
     await expect(page.getByText(`Bonjour, ${NOM_ADMIN}`)).toBeVisible()
   })
 })

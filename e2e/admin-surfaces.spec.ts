@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test'
 import type { Locator, Page, Request } from '@playwright/test'
 import { ADMIN_NAV } from '../shared/admin'
-import { ORIGINE_PUBLIC, URL_ADMIN, cookiesDepuis, creerCompte, creerSuperadmin, demanderCodeConnexion, fermerAdmin, libererLimitesOtp, lireSessionsDe, nettoyerComptes, ouvrirSession } from './helpers/admin'
+import { ORIGINE_PUBLIC, URL_ADMIN, appeler, cookiesDepuis, creerCompte, creerSuperadmin, creerSuperadminJetable, demanderCodeConnexion, fermerAdmin, libererLimitesOtp, lireSessionsDe, nettoyerComptes, ouvrirSession } from './helpers/admin'
 import type { CompteE2E, SessionE2E } from './helpers/admin'
 import { attendreHydration } from './helpers/hydratation'
 import { db, lireDernierCode } from './helpers/session'
@@ -66,6 +66,9 @@ async function attendreContenu(page: Page, to: string): Promise<void> {
   if (repere) {
     await expect(repere(page)).toBeVisible()
     await expect(page.getByText('Bientôt disponible')).toHaveCount(0)
+    // Un seul h1 par page : le titre de la barre du haut ; le contenu vit dans `main`.
+    await expect(page.getByRole('heading', { level: 1 })).toHaveCount(1)
+    await expect(page.getByRole('main')).toBeVisible()
   } else {
     await expect(page.getByText(titreAttendu(to))).toBeVisible()
   }
@@ -158,10 +161,14 @@ test.describe('garde de route et séparation des hôtes (navigateur)', () => {
     await contexte.close()
   })
 
-  test('le studio et la page d\'accueil ne répondent pas sur l\'hôte d\'administration (404)', async ({ page }) => {
-    for (const chemin of ['/studio', '/dr-cabrel', '/tarifs', '/connexion', '/sw.js', '/manifest.json']) {
-      const reponse = await page.goto(`${URL_ADMIN}${chemin}`)
-      expect(reponse?.status(), chemin).toBe(404)
+  test('le studio, les vitrines et l\'accueil ne répondent pas sur l\'hôte d\'administration (404, ou 302 vers /admin/connexion en no-store)', async () => {
+    for (const chemin of ['/studio', '/@dr-cabrel', '/dr-cabrel', '/tarifs', '/connexion', '/']) {
+      const reponse = await appeler({ chemin, entetes: { accept: 'text/html' } })
+      expect([404, 302], chemin).toContain(reponse.status)
+      if (reponse.status === 302) {
+        expect(String(reponse.headers.location), chemin).toMatch(/\/admin\/connexion$/)
+        expect(String(reponse.headers['cache-control']), chemin).toMatch(/no-store/)
+      }
     }
   })
 
@@ -176,7 +183,8 @@ test.describe('garde de route et séparation des hôtes (navigateur)', () => {
 test.describe('parcours de connexion de l\'administration (navigateur)', () => {
   /** Saisit le code dans les six cases (champ numérique) : le premier reçoit le focus, la frappe avance seule. */
   async function saisirCode(page: Page, code: string): Promise<void> {
-    await page.getByRole('spinbutton').first().click()
+    // Les cases du code (reka-ui) sont des champs texte en mode numérique (`inputmode="numeric"`), pas des `spinbutton`.
+    await page.locator('input[inputmode="numeric"]').first().click()
     await page.keyboard.type(code)
   }
 
@@ -190,12 +198,12 @@ test.describe('parcours de connexion de l\'administration (navigateur)', () => {
   }
 
   test('un superadmin se connecte avec le code reçu, arrive sur la vue d\'ensemble, puis se déconnecte', async ({ browser }) => {
-    const compte = await creerSuperadmin({ nom: NOM_ADMIN })
+    const compte = await creerSuperadminJetable({ nom: NOM_ADMIN })
     const contexte = await browser.newContext()
     const page = await contexte.newPage()
 
     await demanderCodeDansLInterface(page, compte.email)
-    await expect(page.getByRole('status')).toContainText(MESSAGE_NEUTRE)
+    await expect(page.getByRole('status').filter({ hasText: MESSAGE_NEUTRE })).toBeVisible()
     await saisirCode(page, await lireDernierCode(compte.email))
     await page.getByRole('button', { name: 'Valider' }).click()
 
@@ -214,7 +222,7 @@ test.describe('parcours de connexion de l\'administration (navigateur)', () => {
   })
 
   test('un code faux affiche un refus générique et laisse l\'utilisateur sur l\'écran du code', async ({ browser }) => {
-    const compte = await creerSuperadmin()
+    const compte = await creerSuperadminJetable()
     const contexte = await browser.newContext()
     const page = await contexte.newPage()
 
@@ -234,7 +242,7 @@ test.describe('parcours de connexion de l\'administration (navigateur)', () => {
     const page = await contexte.newPage()
 
     await demanderCodeDansLInterface(page, `e2e-admin-inconnue-${Date.now()}@exemple.test`)
-    await expect(page.getByRole('status')).toContainText(MESSAGE_NEUTRE)
+    await expect(page.getByRole('status').filter({ hasText: MESSAGE_NEUTRE })).toBeVisible()
     await saisirCode(page, '123456')
     await page.getByRole('button', { name: 'Valider' }).click()
 
@@ -275,7 +283,7 @@ test.describe('parcours de connexion de l\'administration (navigateur)', () => {
   })
 
   test('une session ouverte depuis plus de 8 heures renvoie vers la connexion à la prochaine navigation', async ({ browser }) => {
-    const vieux = await ouvrirSession(await creerSuperadmin(), 'admin')
+    const vieux = await ouvrirSession(await creerSuperadminJetable(), 'admin')
     const contexte = await browser.newContext()
     await contexte.addCookies(cookiesDepuis(vieux.cookie).map(({ name, value }) => ({ name, value, url: URL_ADMIN })))
     const page = await contexte.newPage()

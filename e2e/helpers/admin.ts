@@ -189,7 +189,26 @@ export async function creerCompte(options: OptionsCompte = {}): Promise<CompteE2
   return { id, email }
 }
 
-export const creerSuperadmin = (options: Omit<OptionsCompte, 'role'> = {}): Promise<CompteE2E> => creerCompte({ ...options, role: 'superadmin' })
+/** Superadmin FIXE des specs : `journal_admin` est append-only (FK RESTRICT sur `admin_id`), un admin qui a écrit ne se supprime plus. */
+export const EMAIL_SUPERADMIN_FIXE = `${PREFIXE_EMAIL}fixe@exemple.test`
+
+/**
+ * Compte superadmin FIXE, créé s'il manque et JAMAIS supprimé (les specs qui écrivent dans le journal l'utilisent).
+ * Remis dans un état sain à chaque appel (rôle superadmin, non suspendu). Un test qui doit suspendre, rétrograder ou
+ * épuiser le budget de réauthentification d'un administrateur utilise `creerSuperadminJetable`.
+ */
+export async function creerSuperadmin(options: { nom?: string } = {}): Promise<CompteE2E> {
+  const resultat = await db().query<{ id: string }>(
+    `INSERT INTO users (id, name, email, email_verified, role, suspendu) VALUES ($1, $2, $3, true, 'superadmin', false)
+     ON CONFLICT (email) DO UPDATE SET role = 'superadmin', suspendu = false, name = EXCLUDED.name
+     RETURNING id`,
+    [randomUUID(), options.nom ?? 'Administrateur de test', EMAIL_SUPERADMIN_FIXE],
+  )
+  return { id: resultat.rows[0]!.id, email: EMAIL_SUPERADMIN_FIXE }
+}
+
+/** Superadmin éphémère (supprimé au nettoyage) : pour suspension, perte de rôle, budgets de code. Ne doit écrire aucun journal. */
+export const creerSuperadminJetable = (options: Omit<OptionsCompte, 'role'> = {}): Promise<CompteE2E> => creerCompte({ ...options, role: 'superadmin' })
 
 /** Envoie un code de connexion par e-mail sur l'hôte voulu ; attend la fenêtre de limitation une seule fois si besoin. */
 export async function demanderCodeConnexion(email: string, hote: Hote): Promise<ReponseAdmin> {
@@ -270,7 +289,13 @@ export async function vieillirSession(sessionId: string, heures: number): Promis
 /** Supprime les comptes créés par les specs d'administration (sessions et réauthentifications en cascade). */
 export async function nettoyerComptes(): Promise<void> {
   await db().query("DELETE FROM verifications WHERE identifier LIKE $1", [`%${PREFIXE_EMAIL}%`])
-  await db().query('DELETE FROM users WHERE email LIKE $1', [`${PREFIXE_EMAIL}%`])
+  // Le superadmin fixe est conservé (journal append-only) : on ne retire que ses sessions. Tout autre compte qui a écrit dans
+  // `journal_admin` (reliquat d'anciens runs) est conservé aussi : la FK est en RESTRICT.
+  await db().query('DELETE FROM sessions WHERE user_id IN (SELECT id FROM users WHERE email = $1)', [EMAIL_SUPERADMIN_FIXE])
+  await db().query(
+    'DELETE FROM users WHERE email LIKE $1 AND email <> $2 AND id NOT IN (SELECT admin_id FROM journal_admin)',
+    [`${PREFIXE_EMAIL}%`, EMAIL_SUPERADMIN_FIXE],
+  )
 }
 
 /** À appeler dans `afterAll` : referme Redis, la file et la base pour que Playwright se termine. */

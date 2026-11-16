@@ -15,6 +15,7 @@ import {
   ouvrirSession,
 } from './helpers/admin'
 import type { CompteE2E, SessionE2E } from './helpers/admin'
+import { attendreHydration } from './helpers/hydratation'
 import { BASE_URL, db, lireEnv } from './helpers/session'
 
 // A2 (CA01, CA02, CA04, CA05, CA09), parcours de bout en bout sur le serveur réel (`pnpm dev`, base et Redis de `.env`).
@@ -115,7 +116,7 @@ test.describe('administration A2 : utilisateurs et vitrines', () => {
 
     // Visiteur : page, créneaux, réservation, message, vue -> 404 ; la vitrine disparaît du sitemap (dans les 10 s du cache).
     expect((await pagePublique(pro.username)).status).toBe(404)
-    const message = await appeler({ hote: 'public', chemin: `/api/public/${pro.username}/messages`, corps: { nom: 'Visiteur', email: 'visiteur@exemple.test', sujet: 'autre', message: 'Bonjour' } })
+    const message = await appeler({ hote: 'public', chemin: `/api/public/${pro.username}/messages`, corps: { nom: 'Visiteur', email: 'visiteur@exemple.test', sujet: 'demande_information', message: 'Bonjour', siteWeb: '' } })
     expect(message.status).toBe(404)
     const vue = await appeler({ hote: 'public', chemin: `/api/public/${pro.username}/vue`, corps: { chemin: `/${pro.username}` } })
     expect(vue.status).toBe(404)
@@ -157,9 +158,14 @@ test.describe('administration A2 : utilisateurs et vitrines', () => {
 
     // Studio : UN bandeau unique (motif + moyen de contact) remplace le bouton « Publier », désactivé.
     await page.goto(`${BASE_URL}/studio`)
-    const bandeau = page.getByRole('alert').filter({ hasText: MOTIF_DEPUBLICATION })
-    await expect(bandeau).toHaveCount(1)
-    await expect(page.getByRole('button', { name: /^Publier/ })).toBeDisabled()
+    // Studio rendu côté client : en dev, le premier chargement (compilation, hydratation) dépasse 15 s.
+    await attendreHydration(page)
+    // Le bandeau est une région nommée (StudioVitrineBloqueeBandeau : <section aria-labelledby>), pas une alerte.
+    const bandeau = page.getByRole('region', { name: 'Votre vitrine est bloquée.' })
+    await expect(bandeau).toHaveCount(1, { timeout: 60_000 })
+    await expect(bandeau).toContainText(MOTIF_DEPUBLICATION)
+    // Le bandeau REMPLACE les boutons de publication (VitrineBloqueeBandeau.vue) : plus aucun bouton « Publier ».
+    await expect(page.getByRole('button', { name: /^Publier/ })).toHaveCount(0)
 
     const republication = await post(`/api/admin/vitrines/${pro.vitrineId}/republier`, { motif: 'Contenu corrigé par le professionnel' })
     expect(republication.status, republication.corps).toBe(200)
