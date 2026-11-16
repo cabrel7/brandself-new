@@ -62,6 +62,13 @@ export const LIBELLES_ONGLETS: Record<AbonnementOnglet, string> = {
   expires: 'Expirés récemment (30 jours)',
 }
 
+/** Libellés courts des onglets (390 px) ; le libellé complet s'affiche sous les onglets. */
+export const LIBELLES_ONGLETS_COURTS: Record<AbonnementOnglet, string> = {
+  renouvellement: 'À renouveler',
+  grace: 'En grâce',
+  expires: 'Expirés',
+}
+
 export const LIBELLES_VIDE_ONGLET: Record<AbonnementOnglet, string> = {
   renouvellement: 'Aucun abonnement n’arrive à échéance dans les 7 prochains jours.',
   grace: 'Aucun abonnement n’est en période de grâce.',

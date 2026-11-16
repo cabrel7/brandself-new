@@ -3,6 +3,7 @@ import { ERROR_CODES } from '../../../shared/erreurs'
 import { PAIEMENT_SOURCES } from '../../../shared/admin-paiements'
 import { PAIEMENT_STATUTS } from '../../../shared/paiements'
 import type { AlertesDto } from '../../../shared/schemas/admin-paiements'
+import { compterFiltresActifs } from '../../../app/utils/admin-ui'
 import { listerAlertes } from '../../../app/utils/admin-alertes'
 import {
   COULEURS_STATUT,
@@ -137,5 +138,12 @@ describe('A3 UI : lignes d’alerte', () => {
   it('accord au singulier', () => {
     const [ligne] = listerAlertes({ ...vide, encaissementsTardifs: 1 })
     expect(ligne?.libelle).toContain('1 encaissement tardif ignoré')
+  })
+})
+
+describe('A3 UI : compteur de filtres actifs', () => {
+  it('ignore la recherche, le tri et les valeurs absentes', () => {
+    expect(compterFiltresActifs({ q: 'awa', tri: 'email', ordre: 'asc', plan: 'payant', du: '2026-11-01' }, ['q', 'tri', 'ordre'])).toBe(2)
+    expect(compterFiltresActifs({ plan: undefined }, [])).toBe(0)
   })
 })

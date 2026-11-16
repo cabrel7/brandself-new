@@ -1,13 +1,7 @@
 <script setup lang="ts">
-import type { TableColumn } from '@nuxt/ui'
 import { REVENUS_MENTION_INCERTITUDE } from '#shared/admin-paiements'
-import type { PaiementDto } from '#shared/schemas/admin-paiements'
-import {
-  formaterDateHeureAdmin,
-  formaterMontantAdmin,
-  formaterNombre,
-  LIBELLES_SOURCE,
-} from '~/utils/admin-paiements'
+import { UI_PAGINATION_TACTILE } from '~/utils/admin-ui'
+import { formaterNombre } from '~/utils/admin-paiements'
 import { accorder } from '~/utils/pluriel'
 
 definePageMeta({ layout: 'admin', middleware: 'admin' })
@@ -23,15 +17,6 @@ const revenus = useAdminRevenus()
 
 const { ready: squeletteVisible } = useTimeout(200, { controls: true })
 
-const colonnes: TableColumn<PaiementDto>[] = [
-  { id: 'creeLe', header: 'Date' },
-  { id: 'utilisateur', header: 'Utilisateur' },
-  { id: 'montant', header: 'Montant' },
-  { id: 'statut', header: 'Statut' },
-  { id: 'source', header: 'Source' },
-  { id: 'actions', header: '' },
-]
-
 const chargement = computed(() => status.value === 'pending' || status.value === 'idle')
 const revenusEnChargement = computed(() => revenus.status.value === 'pending' || revenus.status.value === 'idle')
 
@@ -44,6 +29,8 @@ const filtresModele = computed({
   get: () => filtres.value,
   set: (valeur) => void appliquerFiltres(valeur),
 })
+
+const nombreFiltres = computed(() => Object.keys(filtres.value).length)
 
 const exportOuvert = ref(false)
 
@@ -67,9 +54,8 @@ async function actualiser(): Promise<void> {
 
 <template>
   <div class="flex flex-col gap-8">
-    <div class="flex flex-wrap items-center justify-between gap-4">
-      <h1 class="font-(family-name:--font-titre) text-(length:--fs-24) leading-[1.15] font-bold">Paiements</h1>
-      <UButton color="neutral" variant="outline" size="lg" icon="i-ph-download-simple" @click="ouvrirExport">
+    <div class="flex justify-end">
+      <UButton color="neutral" variant="outline" size="lg" icon="i-ph-download-simple" class="min-h-(--cible-tactile)" @click="ouvrirExport">
         Exporter en CSV
       </UButton>
     </div>
@@ -89,7 +75,7 @@ async function actualiser(): Promise<void> {
           description="Nous n’avons pas pu charger les revenus."
           class="w-full"
         />
-        <UButton color="neutral" variant="outline" size="lg" icon="i-ph-arrow-counter-clockwise" @click="() => revenus.refresh()">
+        <UButton color="neutral" variant="outline" size="lg" icon="i-ph-arrow-counter-clockwise" class="min-h-(--cible-tactile)" @click="() => revenus.refresh()">
           Réessayer
         </UButton>
       </div>
@@ -98,12 +84,12 @@ async function actualiser(): Promise<void> {
       </p>
       <template v-else>
         <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
-          <RevenusCarte v-for="revenu in revenus.data.value.devises" :key="revenu.devise" :revenu="revenu" />
+          <AdminRevenusCarte v-for="revenu in revenus.data.value.devises" :key="revenu.devise" :revenu="revenu" />
         </div>
         <p class="text-muted">
-          Jours offerts : {{ formaterNombre(revenus.data.value.offerts.jours) }}
+          Jours offerts depuis le début : {{ formaterNombre(revenus.data.value.offerts.jours) }}
           ({{ formaterNombre(revenus.data.value.offerts.nombre) }}
-          {{ accorder(revenus.data.value.offerts.nombre, 'offre', 'offres') }}).
+          {{ accorder(revenus.data.value.offerts.nombre, 'attribution', 'attributions') }}).
           {{ REVENUS_MENTION_INCERTITUDE }}.
         </p>
       </template>
@@ -112,7 +98,9 @@ async function actualiser(): Promise<void> {
     <section aria-labelledby="titre-liste" class="flex flex-col gap-4">
       <h2 id="titre-liste" class="font-(family-name:--font-titre) text-(length:--fs-20) font-bold">Liste des paiements</h2>
 
-      <PaiementFiltres v-model="filtresModele" :desactive="chargement" />
+      <AdminFiltresRepliables :actifs="nombreFiltres">
+        <AdminPaiementFiltres v-model="filtresModele" :desactive="chargement" />
+      </AdminFiltresRepliables>
 
       <div v-if="chargement" class="flex flex-col gap-3" aria-busy="true">
         <template v-if="squeletteVisible">
@@ -131,7 +119,7 @@ async function actualiser(): Promise<void> {
           description="Nous n’avons pas pu charger les paiements."
           class="w-full"
         />
-        <UButton color="neutral" variant="outline" size="lg" icon="i-ph-arrow-counter-clockwise" @click="() => refresh()">
+        <UButton color="neutral" variant="outline" size="lg" icon="i-ph-arrow-counter-clockwise" class="min-h-(--cible-tactile)" @click="() => refresh()">
           Réessayer
         </UButton>
       </div>
@@ -140,46 +128,32 @@ async function actualiser(): Promise<void> {
         v-else-if="data.elements.length === 0"
         icon="i-ph-receipt"
         :title="filtresActifs ? 'Aucun paiement ne correspond à ces filtres.' : 'Aucun paiement pour le moment.'"
-        :actions="filtresActifs ? [{ label: 'Réinitialiser les filtres', color: 'neutral', variant: 'outline', size: 'lg', onClick: () => appliquerFiltres({}) }] : undefined"
+        :actions="filtresActifs ? [{ label: 'Réinitialiser les filtres', color: 'neutral', variant: 'outline', size: 'lg', class: 'min-h-(--cible-tactile)', onClick: () => appliquerFiltres({}) }] : undefined"
       />
 
       <template v-else>
-        <UTable :data="data.elements" :columns="colonnes" aria-label="Paiements">
-          <template #creeLe-cell="{ row }">{{ formaterDateHeureAdmin(row.original.creeLe) }}</template>
-          <template #utilisateur-cell="{ row }">
-            <span class="break-all">{{ row.original.utilisateur?.email ?? 'Compte supprimé' }}</span>
-          </template>
-          <template #montant-cell="{ row }">{{ formaterMontantAdmin(row.original.montant, row.original.devise) }}</template>
-          <template #statut-cell="{ row }"><PaiementStatutBadge :statut="row.original.statut" /></template>
-          <template #source-cell="{ row }">{{ LIBELLES_SOURCE[row.original.source] }}</template>
-          <template #actions-cell="{ row }">
-            <UButton
-              color="neutral"
-              variant="outline"
-              size="lg"
-              icon="i-ph-arrow-square-out"
-              :aria-label="`Voir le paiement de ${row.original.utilisateur?.email ?? 'un compte supprimé'}`"
-              @click="ouvrirDetail(row.original.id)"
-            >
-              Détail
-            </UButton>
-          </template>
-        </UTable>
+        <ul class="m-0 flex list-none flex-col divide-y divide-bordure border-y border-bordure p-0">
+          <li v-for="paiement in data.elements" :key="paiement.id">
+            <AdminPaiementLigne :paiement="paiement" @detail="ouvrirDetail" />
+          </li>
+        </ul>
 
         <UPagination
           v-if="data.total > data.limite"
           v-model:page="pagination"
           :total="data.total"
           :items-per-page="data.limite"
-          size="lg"
+          :sibling-count="1"
+          size="xl"
+          :ui="UI_PAGINATION_TACTILE"
           class="self-center"
         />
       </template>
     </section>
 
-    <PaiementDetail :id="idDetail" @fermer="fermerDetail" @modifie="actualiser" />
+    <AdminPaiementDetail :id="idDetail" @fermer="fermerDetail" @modifie="actualiser" />
 
-    <PaiementMotifDialog
+    <AdminPaiementMotifDialog
       v-model:open="exportOuvert"
       titre="Exporter les paiements"
       description="Le fichier reprend les filtres affichés. Le motif est conservé dans le journal."

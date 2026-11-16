@@ -76,6 +76,7 @@ async function lancerMarquage(donnees: { motif: string, cleIdempotence: string, 
   <USlideover
     v-model:open="ouvert"
     side="right"
+    :close="{ class: 'min-h-(--cible-tactile) min-w-(--cible-tactile) justify-center' }"
     title="Détail du paiement"
     :description="paiement?.reference"
     :dismissible="!actionEnCours"
@@ -98,7 +99,7 @@ async function lancerMarquage(donnees: { motif: string, cleIdempotence: string, 
           description="Nous n’avons pas pu charger ce paiement."
           class="w-full"
         />
-        <UButton color="neutral" variant="outline" size="lg" icon="i-ph-arrow-counter-clockwise" @click="() => refresh()">
+        <UButton color="neutral" variant="outline" size="lg" icon="i-ph-arrow-counter-clockwise" class="min-h-(--cible-tactile)" @click="() => refresh()">
           Réessayer
         </UButton>
       </div>
@@ -106,7 +107,7 @@ async function lancerMarquage(donnees: { motif: string, cleIdempotence: string, 
       <div v-else class="flex flex-col gap-8">
         <dl class="grid grid-cols-[auto_1fr] gap-x-4 gap-y-3">
           <dt class="text-muted">Statut</dt>
-          <dd><PaiementStatutBadge :statut="paiement.statut" /></dd>
+          <dd><AdminPaiementStatutBadge :statut="paiement.statut" /></dd>
           <dt class="text-muted">Montant</dt>
           <dd class="font-medium">{{ formaterMontantAdmin(paiement.montant, paiement.devise) }}</dd>
           <dt class="text-muted">Frais K-PAY</dt>
@@ -172,7 +173,7 @@ async function lancerMarquage(donnees: { motif: string, cleIdempotence: string, 
             :description="erreurAction"
           />
 
-          <PaiementMotifForm
+          <AdminPaiementMotifForm
             v-if="action === 'reverifier'"
             libelle-action="Revérifier"
             :en-cours="actionEnCours"
@@ -180,7 +181,7 @@ async function lancerMarquage(donnees: { motif: string, cleIdempotence: string, 
             @confirmer="lancerReverification"
             @annuler="annulerAction"
           />
-          <PaiementReauth
+          <AdminPaiementReauth
             v-else-if="action === 'marquer'"
             :en-cours="actionEnCours"
             :erreur="erreurAction"
@@ -201,12 +202,13 @@ async function lancerMarquage(donnees: { motif: string, cleIdempotence: string, 
                 color="neutral"
                 variant="outline"
                 size="lg"
+                class="min-h-(--cible-tactile) justify-center"
                 icon="i-ph-arrows-clockwise"
                 @click="ouvrirAction('reverifier')"
               >
                 Revérifier auprès de K-PAY
               </UButton>
-              <UButton v-if="peutMarquerPaye(paiement)" size="lg" icon="i-ph-check-circle" @click="ouvrirAction('marquer')">
+              <UButton v-if="peutMarquerPaye(paiement)" size="lg" class="min-h-(--cible-tactile) justify-center" icon="i-ph-check-circle" @click="ouvrirAction('marquer')">
                 Marquer comme payé
               </UButton>
             </div>

@@ -3,6 +3,7 @@ import { PAIEMENT_SOURCES } from '#shared/admin-paiements'
 import { DEVISES } from '#shared/compte'
 import { PAIEMENT_STATUTS } from '#shared/paiements'
 import type { FiltresPaiements } from '#shared/schemas/admin-paiements'
+import { UI_CHAMP_TACTILE } from '~/utils/admin-ui'
 import { FILTRE_TOUS, LIBELLES_SOURCE, LIBELLES_STATUT, modifierFiltre, periodeInvalide } from '~/utils/admin-paiements'
 
 const MESSAGE_PERIODE = 'La date de début doit précéder la date de fin.'
@@ -11,15 +12,15 @@ const props = defineProps<{ modelValue: FiltresPaiements, desactive: boolean }>(
 const emit = defineEmits<{ 'update:modelValue': [filtres: FiltresPaiements] }>()
 
 const optionsStatut = [
-  { label: 'Tous les statuts', value: FILTRE_TOUS },
+  { label: 'Tous', value: FILTRE_TOUS },
   ...PAIEMENT_STATUTS.map((statut) => ({ label: LIBELLES_STATUT[statut], value: statut })),
 ]
 const optionsSource = [
-  { label: 'Toutes les sources', value: FILTRE_TOUS },
+  { label: 'Toutes', value: FILTRE_TOUS },
   ...PAIEMENT_SOURCES.map((source) => ({ label: LIBELLES_SOURCE[source], value: source })),
 ]
 const optionsDevise = [
-  { label: 'Toutes les devises', value: FILTRE_TOUS },
+  { label: 'Toutes', value: FILTRE_TOUS },
   ...DEVISES.map((devise) => ({ label: devise, value: devise })),
 ]
 
@@ -57,6 +58,7 @@ const actifs = computed(() => Object.keys(props.modelValue).length > 0)
       <USelect
         :model-value="modelValue.statut ?? FILTRE_TOUS"
         :items="optionsStatut"
+        :ui="UI_CHAMP_TACTILE"
         :disabled="desactive"
         class="w-full"
         @update:model-value="changerListe('statut', String($event))"
@@ -66,6 +68,7 @@ const actifs = computed(() => Object.keys(props.modelValue).length > 0)
       <USelect
         :model-value="modelValue.source ?? FILTRE_TOUS"
         :items="optionsSource"
+        :ui="UI_CHAMP_TACTILE"
         :disabled="desactive"
         class="w-full"
         @update:model-value="changerListe('source', String($event))"
@@ -75,6 +78,7 @@ const actifs = computed(() => Object.keys(props.modelValue).length > 0)
       <USelect
         :model-value="modelValue.devise ?? FILTRE_TOUS"
         :items="optionsDevise"
+        :ui="UI_CHAMP_TACTILE"
         :disabled="desactive"
         class="w-full"
         @update:model-value="changerListe('devise', String($event))"
@@ -84,6 +88,7 @@ const actifs = computed(() => Object.keys(props.modelValue).length > 0)
       <UInput
         :model-value="du"
         type="date"
+        :ui="UI_CHAMP_TACTILE"
         :disabled="desactive"
         :max="au || undefined"
         class="w-full"
@@ -94,6 +99,7 @@ const actifs = computed(() => Object.keys(props.modelValue).length > 0)
       <UInput
         :model-value="au"
         type="date"
+        :ui="UI_CHAMP_TACTILE"
         :disabled="desactive"
         :min="du || undefined"
         class="w-full"
@@ -106,7 +112,7 @@ const actifs = computed(() => Object.keys(props.modelValue).length > 0)
         variant="link"
         size="lg"
         icon="i-ph-x"
-        class="-ml-3 font-medium"
+        class="-ml-3 min-h-(--cible-tactile) font-medium"
         :disabled="desactive"
         @click="emit('update:modelValue', {})"
       >

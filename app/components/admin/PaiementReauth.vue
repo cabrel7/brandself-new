@@ -59,10 +59,10 @@ function confirmer(): void {
     </UFormField>
     <UAlert v-if="erreur" role="alert" color="error" variant="soft" icon="i-ph-warning-circle" :description="erreur" />
     <div class="flex flex-wrap justify-end gap-3">
-      <UButton color="neutral" variant="outline" size="lg" :disabled="enCours" @click="emit('annuler')">
+      <UButton color="neutral" variant="outline" size="lg" class="min-h-(--cible-tactile)" :disabled="enCours" @click="emit('annuler')">
         Annuler
       </UButton>
-      <UButton type="submit" size="lg" :loading="enCours">
+      <UButton type="submit" size="lg" class="min-h-(--cible-tactile)" :loading="enCours">
         Recevoir le code
       </UButton>
     </div>
@@ -87,17 +87,17 @@ function confirmer(): void {
       color="neutral"
       variant="link"
       size="lg"
-      class="-ml-3 self-start font-medium underline underline-offset-4"
+      class="-ml-3 min-h-(--cible-tactile) self-start font-medium underline underline-offset-4"
       :disabled="enCours"
       @click="envoyerCode"
     >
       Renvoyer le code
     </UButton>
     <div class="flex flex-wrap justify-end gap-3">
-      <UButton color="neutral" variant="outline" size="lg" :disabled="enCours" @click="emit('annuler')">
+      <UButton color="neutral" variant="outline" size="lg" class="min-h-(--cible-tactile)" :disabled="enCours" @click="emit('annuler')">
         Annuler
       </UButton>
-      <UButton type="submit" size="lg" :loading="enCours" :disabled="!codeComplet">
+      <UButton type="submit" size="lg" class="min-h-(--cible-tactile)" :loading="enCours" :disabled="!codeComplet">
         Marquer comme payé
       </UButton>
     </div>

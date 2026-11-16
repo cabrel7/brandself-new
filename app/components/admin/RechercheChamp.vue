@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ADMIN_RECHERCHE_MAX, ADMIN_RECHERCHE_MIN } from '#shared/admin-a2'
+import { UI_CHAMP_TACTILE } from '~/utils/admin-ui'
 
 // Champ de recherche d'une liste : libellé réel, aide quand la saisie est trop courte, bouton d'effacement.
 defineProps<{
@@ -19,6 +20,7 @@ const idAide = useId()
       type="search"
       icon="i-ph-magnifying-glass"
       size="lg"
+      :ui="UI_CHAMP_TACTILE"
       class="w-full"
       autocomplete="off"
       :placeholder="placeholder"

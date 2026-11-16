@@ -4,6 +4,7 @@ import { ADMIN_STATUTS_VITRINE, ADMIN_VITRINES_TRI_DEFAUT, ADMIN_VITRINES_TRIS }
 import type { ListeVitrinesDto } from '#shared/schemas/admin-a2'
 import { PLAN_IDS } from '#shared/plans'
 import { messageDepuisErreurApi, termeRecherche } from '~/utils/admin-a2'
+import { UI_CHAMP_TACTILE, UI_PAGINATION_TACTILE, compterFiltresActifs } from '~/utils/admin-ui'
 import { FILTRE_TOUS, formaterNombre, libellePlan } from '~/utils/admin-paiements'
 
 definePageMeta({ layout: 'admin', middleware: 'admin' })
@@ -41,6 +42,7 @@ const optionsStatut = [
 ]
 const optionsTri = ADMIN_VITRINES_TRIS.map((valeur) => ({ label: LIBELLES_TRI[valeur], value: valeur }))
 
+const nombreFiltres = computed(() => compterFiltresActifs(filtres.value, ['q', 'tri', 'ordre']))
 const ordre = computed(() => filtres.value.ordre ?? 'desc')
 // Valeur de l'URL validée contre la liste blanche, repli sur le tri par défaut.
 const tri = computed(() => ADMIN_VITRINES_TRIS.find((valeur) => valeur === filtres.value.tri) ?? ADMIN_VITRINES_TRI_DEFAUT)
@@ -66,25 +68,27 @@ const messageErreur = computed(() => (error.value ? messageDepuisErreurApi(error
         :trop-courte="tropCourte"
       />
 
-      <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <UFormField label="Plan">
-          <USelect :model-value="filtreOuTous('plan')" :items="optionsPlan" size="lg" class="w-full" @update:model-value="changerFiltre('plan', $event)" />
-        </UFormField>
-        <UFormField label="Statut">
-          <USelect :model-value="filtreOuTous('statut')" :items="optionsStatut" size="lg" class="w-full" @update:model-value="changerFiltre('statut', $event)" />
-        </UFormField>
-      </div>
+      <AdminFiltresRepliables :actifs="nombreFiltres">
+        <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <UFormField label="Plan">
+            <USelect :model-value="filtreOuTous('plan')" :items="optionsPlan" size="lg" :ui="UI_CHAMP_TACTILE" class="w-full" @update:model-value="changerFiltre('plan', $event)" />
+          </UFormField>
+          <UFormField label="Statut">
+            <USelect :model-value="filtreOuTous('statut')" :items="optionsStatut" size="lg" :ui="UI_CHAMP_TACTILE" class="w-full" @update:model-value="changerFiltre('statut', $event)" />
+          </UFormField>
+        </div>
+      </AdminFiltresRepliables>
 
       <div class="flex flex-wrap items-end gap-3">
         <UFormField label="Trier par" class="min-w-0 flex-1">
-          <USelect :model-value="tri" :items="optionsTri" size="lg" class="w-full" @update:model-value="maj({ tri: $event })" />
+          <USelect :model-value="tri" :items="optionsTri" size="lg" :ui="UI_CHAMP_TACTILE" class="w-full" @update:model-value="maj({ tri: $event })" />
         </UFormField>
         <UButton
           color="neutral"
           variant="outline"
           size="lg"
           :icon="ordre === 'asc' ? 'i-ph-sort-ascending' : 'i-ph-sort-descending'"
-          class="min-h-(--cible-tactile)"
+          class="min-h-(--cible-tactile) min-w-(--cible-tactile) justify-center"
           :aria-label="ordre === 'asc' ? 'Ordre croissant, passer en décroissant' : 'Ordre décroissant, passer en croissant'"
           @click="maj({ ordre: ordre === 'asc' ? 'desc' : 'asc' })"
         />
@@ -126,6 +130,7 @@ const messageErreur = computed(() => (error.value ? messageDepuisErreurApi(error
           :total="total"
           :sibling-count="1"
           size="xl"
+          :ui="UI_PAGINATION_TACTILE"
           class="self-center"
         />
       </div>

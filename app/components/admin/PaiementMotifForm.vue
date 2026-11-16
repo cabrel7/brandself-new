@@ -29,10 +29,10 @@ function soumettre(): void {
     </UFormField>
     <UAlert v-if="erreur" role="alert" color="error" variant="soft" icon="i-ph-warning-circle" :description="erreur" />
     <div class="flex flex-wrap justify-end gap-3">
-      <UButton color="neutral" variant="outline" size="lg" :disabled="enCours" @click="emit('annuler')">
+      <UButton color="neutral" variant="outline" size="lg" class="min-h-(--cible-tactile)" :disabled="enCours" @click="emit('annuler')">
         Annuler
       </UButton>
-      <UButton type="submit" size="lg" :loading="enCours">
+      <UButton type="submit" size="lg" class="min-h-(--cible-tactile)" :loading="enCours">
         {{ libelleAction }}
       </UButton>
     </div>

@@ -34,16 +34,16 @@ const { ready: squeletteVisible } = useTimeout(200, { controls: true })
       description="Nous n’avons pas pu charger la vue d’ensemble."
       class="w-full"
     />
-    <UButton color="neutral" variant="outline" size="lg" icon="i-ph-arrow-counter-clockwise" @click="() => refresh()">
+    <UButton color="neutral" variant="outline" size="lg" icon="i-ph-arrow-counter-clockwise" class="min-h-(--cible-tactile)" @click="() => refresh()">
       Réessayer
     </UButton>
   </div>
 
   <div v-else class="flex flex-col gap-8">
-    <h1 class="font-(family-name:--font-titre) text-(length:--fs-24) leading-[1.15] font-bold">
+    <h2 class="font-(family-name:--font-titre) text-(length:--fs-24) leading-[1.15] font-bold">
       Bonjour, {{ data.admin.nom }}
-    </h1>
-    <AlerteVueEnsemble :alertes="data.alertes" />
-    <VueEnsembleCompteurs :vue="data" />
+    </h2>
+    <AdminAlerteVueEnsemble :alertes="data.alertes" />
+    <AdminVueEnsembleCompteurs :vue="data" />
   </div>
 </template>

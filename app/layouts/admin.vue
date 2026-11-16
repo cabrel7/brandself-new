@@ -60,7 +60,7 @@ const titrePage = computed(() => navigation.find((entree) => estActive(entree.to
         :ui="{ root: 'min-h-0 bg-fond' }"
       >
         <template #header>
-          <UDashboardSidebarCollapse class="max-lg:hidden" />
+          <UDashboardSidebarCollapse class="min-h-(--cible-tactile) min-w-(--cible-tactile) justify-center max-lg:hidden" />
         </template>
 
         <template #default="{ collapsed }">
@@ -77,14 +77,18 @@ const titrePage = computed(() => navigation.find((entree) => estActive(entree.to
 
       <UDashboardPanel class="min-h-0">
         <template #header>
-          <UDashboardNavbar :title="titrePage">
+          <UDashboardNavbar
+            :title="titrePage"
+            :toggle="{ class: 'min-h-(--cible-tactile) min-w-(--cible-tactile) justify-center' }"
+            :ui="{ left: 'min-w-0 flex-1', title: 'truncate', right: 'shrink-0' }">
             <template #right>
               <AdminRechercheGlobale />
               <UUser
                 v-if="session"
                 :name="session.nom"
                 size="sm"
-                class="max-w-32 min-w-0 sm:max-w-64"
+                class="hidden max-w-64 min-w-0 sm:flex"
+                :title="session.nom"
                 :ui="{ wrapper: 'min-w-0', name: 'truncate' }"
               />
               <UButton

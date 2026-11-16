@@ -15,7 +15,7 @@ const ouvert = defineModel<boolean>('open', { required: true })
 <template>
   <UModal v-model:open="ouvert" :title="titre" :description="description" :dismissible="!enCours">
     <template #body>
-      <PaiementMotifForm
+      <AdminPaiementMotifForm
         :libelle-action="libelleAction"
         :en-cours="enCours"
         :erreur="erreur"
