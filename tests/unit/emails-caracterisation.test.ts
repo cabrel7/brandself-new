@@ -237,6 +237,27 @@ function casPaiementConfirme(fuseau: Fuseau): Cas[] {
   ]
 }
 
+function casAdminCompte(type: 'utilisateur_suspendu' | 'utilisateur_depubliee', fuseau: Fuseau): Cas[] {
+  return [
+    { label: 'avec prénom et motif', contenu: { ...baseAbonnement(fuseau), type, motif: 'Contenu signalé par plusieurs visiteurs.' } },
+    { label: 'sans prénom', contenu: { ...baseAbonnement(fuseau, ''), type, motif: 'Usurpation d’identité signalée.' } },
+  ]
+}
+
+function casJoursOfferts(fuseau: Fuseau): Cas[] {
+  return [
+    { label: '7 jours offerts', contenu: { ...baseAbonnement(fuseau), type: 'utilisateur_jours_offerts', jours: 7, expireLe: EXPIRE_LE } },
+    { label: '1 jour offert, sans prénom', contenu: { ...baseAbonnement(fuseau, ''), type: 'utilisateur_jours_offerts', jours: 1, expireLe: EXPIRE_LE } },
+  ]
+}
+
+function casReactivation(fuseau: Fuseau): Cas[] {
+  return [
+    { label: 'avec prénom', contenu: { ...baseAbonnement(fuseau), type: 'utilisateur_reactive' } },
+    { label: 'sans prénom', contenu: { ...baseAbonnement(fuseau, ''), type: 'utilisateur_reactive' } },
+  ]
+}
+
 const CAS_PAR_TYPE: Record<TransactionalEmailType, (fuseau: Fuseau) => Cas[]> = {
   reservation_visiteur_recue: (f) => casReservation('reservation_visiteur_recue', f),
   reservation_visiteur_confirmee: (f) => casReservation('reservation_visiteur_confirmee', f),
@@ -251,6 +272,11 @@ const CAS_PAR_TYPE: Record<TransactionalEmailType, (fuseau: Fuseau) => Cas[]> = 
   utilisateur_resume_hebdo: casResume,
   abonnement_rappel: casAbonnementRappel,
   paiement_confirme: casPaiementConfirme,
+  // A2 : e-mails d'administration.
+  utilisateur_suspendu: (f) => casAdminCompte('utilisateur_suspendu', f),
+  utilisateur_depubliee: (f) => casAdminCompte('utilisateur_depubliee', f),
+  utilisateur_jours_offerts: casJoursOfferts,
+  utilisateur_reactive: casReactivation,
 }
 
 /** Rend visibles les espaces insécables d'Intl (sinon invisibles dans un diff) ; l'échappement est réversible. */

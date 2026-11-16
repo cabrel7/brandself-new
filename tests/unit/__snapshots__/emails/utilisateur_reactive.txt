@@ -1,0 +1,87 @@
+==========
+type: utilisateur_reactive | cas: avec prénom | fuseau: Africa/Douala
+==========
+to: cabrel.pro@exemple.test
+subject: Votre compte jesuis.pro est de nouveau actif
+headers:
+  (aucun)
+attachments:
+  (aucun)
+--- text ---
+Bonjour Cabrel,
+
+Votre compte jesuis.pro est de nouveau actif. Vous pouvez vous reconnecter, et votre vitrine est de nouveau visible si elle était publiée.
+
+Me connecter : https://jesuis.pro/connexion
+
+Cordialement,
+jesuis.pro
+
+—
+C'est un message de service concernant votre compte : il ne peut pas être désactivé.
+
+==========
+type: utilisateur_reactive | cas: sans prénom | fuseau: Africa/Douala
+==========
+to: cabrel.pro@exemple.test
+subject: Votre compte jesuis.pro est de nouveau actif
+headers:
+  (aucun)
+attachments:
+  (aucun)
+--- text ---
+Bonjour,
+
+Votre compte jesuis.pro est de nouveau actif. Vous pouvez vous reconnecter, et votre vitrine est de nouveau visible si elle était publiée.
+
+Me connecter : https://jesuis.pro/connexion
+
+Cordialement,
+jesuis.pro
+
+—
+C'est un message de service concernant votre compte : il ne peut pas être désactivé.
+
+==========
+type: utilisateur_reactive | cas: avec prénom | fuseau: Europe/Paris
+==========
+to: cabrel.pro@exemple.test
+subject: Votre compte jesuis.pro est de nouveau actif
+headers:
+  (aucun)
+attachments:
+  (aucun)
+--- text ---
+Bonjour Cabrel,
+
+Votre compte jesuis.pro est de nouveau actif. Vous pouvez vous reconnecter, et votre vitrine est de nouveau visible si elle était publiée.
+
+Me connecter : https://jesuis.pro/connexion
+
+Cordialement,
+jesuis.pro
+
+—
+C'est un message de service concernant votre compte : il ne peut pas être désactivé.
+
+==========
+type: utilisateur_reactive | cas: sans prénom | fuseau: Europe/Paris
+==========
+to: cabrel.pro@exemple.test
+subject: Votre compte jesuis.pro est de nouveau actif
+headers:
+  (aucun)
+attachments:
+  (aucun)
+--- text ---
+Bonjour,
+
+Votre compte jesuis.pro est de nouveau actif. Vous pouvez vous reconnecter, et votre vitrine est de nouveau visible si elle était publiée.
+
+Me connecter : https://jesuis.pro/connexion
+
+Cordialement,
+jesuis.pro
+
+—
+C'est un message de service concernant votre compte : il ne peut pas être désactivé.

@@ -28,8 +28,8 @@ import {
   schemaDemandeReauth,
   schemaMotifAdmin,
   schemaReauthReponse,
-  schemaVueEnsembleDto,
 } from '../../../shared/schemas/admin'
+import { schemaVueEnsembleEnrichieDto } from '../../../shared/schemas/admin-paiements'
 
 // A1 : valeurs décidées (spec §1, §8) figées ici, pour qu'une modification soit volontaire, et contrats Zod stricts.
 
@@ -206,12 +206,30 @@ describe('schémas de réponse (listes blanches strictes)', () => {
     expect(schemaAdminSessionDto.safeParse({ id: 'u1', nom: 'A', email: 'a@exemple.test', expireLe: new Date() }).success).toBe(false)
   })
 
-  it('should accept exactly { admin: { nom }, genereLe } for the overview, without any counter (they come with A2)', () => {
-    const dto = { admin: { nom: 'Administrateur de test' }, genereLe: maintenant }
+  // A3 : MODIFIÉ. La vue d'ensemble d'A1 (« { admin: { nom }, genereLe } sans aucun compteur ») est remplacée par la vue
+  // enrichie `schemaVueEnsembleEnrichieDto` (shared/schemas/admin-paiements.ts) : compteurs, revenus, indicateur, alertes.
+  it('should accept exactly the enriched overview of A3 (counters, revenues, success indicator, alerts) and refuse any extra key', () => {
+    const dto = {
+      admin: { nom: 'Administrateur de test' },
+      compteurs: { inscrits: 12, vitrinesPubliees: 8, abonnesPayants: 3 },
+      revenus: [{ devise: 'XAF', encaisseMoisCourant: 47_000, nombre: 3 }],
+      indicateurReussite: { vitrinesActives: 5, vitrinesPubliees: 8 },
+      mention: 'Montant brut présumé, non confirmé par K-PAY',
+      alertes: {
+        paiementsEnAttente: { nombre: 0, ids: [] },
+        webhooksRefuses1h: 0,
+        incoherences: { paiementsSansProlongation: [], abonnementsSansPaiement: [] },
+        encaissementsTardifs: 0,
+        genereLe: maintenant,
+      },
+      genereLe: maintenant,
+    }
 
-    expect(schemaVueEnsembleDto.parse(dto)).toEqual(dto)
-    expect(schemaVueEnsembleDto.safeParse({ ...dto, utilisateurs: 12 }).success).toBe(false)
-    expect(schemaVueEnsembleDto.safeParse({ ...dto, admin: { nom: 'A', email: 'a@exemple.test' } }).success).toBe(false)
+    expect(schemaVueEnsembleEnrichieDto.parse(dto)).toEqual(dto)
+    expect(schemaVueEnsembleEnrichieDto.safeParse({ ...dto, utilisateurs: 12 }).success).toBe(false)
+    expect(schemaVueEnsembleEnrichieDto.safeParse({ ...dto, admin: { nom: 'A', email: 'a@exemple.test' } }).success).toBe(false)
+    expect(schemaVueEnsembleEnrichieDto.safeParse({ ...dto, compteurs: { ...dto.compteurs, inscrits: -1 } }).success).toBe(false)
+    expect(schemaVueEnsembleEnrichieDto.safeParse({ ...dto, mention: '' }).success).toBe(false)
   })
 
   it('should accept exactly { expireLe } for the re-authentication response (never the code)', () => {

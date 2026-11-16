@@ -3,8 +3,10 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { afterAll, describe, expect, it } from 'vitest'
 import { z } from 'zod'
-import * as schemasAdmin from '../../../shared/schemas/admin'
-import { CONTRAT, EXCEPTIONS_CLES_REPONSE } from '../../support/admin-contrat'
+import * as schemasAdminA1 from '../../../shared/schemas/admin'
+import * as schemasAdminA2 from '../../../shared/schemas/admin-a2'
+import * as schemasAdminA3 from '../../../shared/schemas/admin-paiements'
+import { CONTRAT_A2, CONTRAT_COMPLET as CONTRAT, EXCEPTIONS_CLES_REPONSE } from '../../support/admin-contrat'
 import type { EntreeContrat } from '../../support/admin-contrat'
 import {
   analyserSchema,
@@ -20,12 +22,16 @@ import type { SchemaZod } from './support/contrat'
 // compare à la table CONTRAT (tests/support/admin-contrat.ts) : une route nouvelle ne passe pas sous le radar.
 // Chaque schéma de réponse doit être strict (`.strict()`) et sans clé interdite (CLES_AUDIT_INTERDITES).
 
+// A2 : les schémas de réponse de shared/schemas/admin.ts (A1) ET de shared/schemas/admin-a2.ts sont contrôlés ; le
+// contrat est CONTRAT_COMPLET (A1 + A2) : une route de n'importe quel lot sans entrée fait échouer le test.
+const schemasAdmin: Record<string, unknown> = { ...schemasAdminA1, ...schemasAdminA2, ...schemasAdminA3 }
+
 const RACINE = path.resolve(import.meta.dirname, '../../..')
 const DOSSIER_ROUTES = path.join(RACINE, 'server/api/admin')
 
 const schemaExporte = (nom: string): SchemaZod => {
-  const valeur = (schemasAdmin as Record<string, unknown>)[nom]
-  if (typeof valeur !== 'object' || valeur === null || !('_zod' in valeur)) throw new Error(`shared/schemas/admin.ts n'exporte pas de schéma Zod « ${nom} ».`)
+  const valeur = schemasAdmin[nom]
+  if (typeof valeur !== 'object' || valeur === null || !('_zod' in valeur)) throw new Error(`shared/schemas/admin.ts n'exporte pas de schéma Zod (admin.ts, admin-a2.ts ni admin-paiements.ts) « ${nom} ».`)
   return valeur as SchemaZod
 }
 
@@ -57,13 +63,10 @@ describe('contrat de confidentialité : routes de server/api/admin/** (CA23)', (
     expect(source).not.toMatch(/return\s/)
   })
 
-  it('should declare exactly the four routes of A1', () => {
-    expect([...fichiers]).toEqual([
-      'deconnexion.post.ts',
-      'reauth/code.post.ts',
-      'session.get.ts',
-      'vue-ensemble.get.ts',
-    ])
+  it('should declare the four routes of A1 and the sixteen routes of A2 (spec A2 §5)', () => {
+    for (const fichier of ['deconnexion.post.ts', 'reauth/code.post.ts', 'session.get.ts', 'vue-ensemble.get.ts']) expect(fichiers).toContain(fichier)
+    expect(Object.keys(CONTRAT_A2)).toHaveLength(16)
+    for (const fichier of Object.keys(CONTRAT_A2)) expect(fichiers, fichier).toContain(fichier)
   })
 
   it.each(Object.entries(CONTRAT))('should have route %s guard first, wrap errors, and never touch the database directly', (fichier) => {
@@ -74,7 +77,7 @@ describe('contrat de confidentialité : routes de server/api/admin/** (CA23)', (
 
   it.each(Object.entries(CONTRAT))('should describe the response of %s with a strict schema without sensitive key', (_fichier, entree: EntreeContrat) => {
     if (entree.schema === null) {
-      expect(entree.statutSucces).toBe(204)
+      expect(entree.statutSucces).toBe(entree.corpsNonJson === true ? 200 : 204)
       return
     }
     const exceptions = EXCEPTIONS_CLES_REPONSE[entree.schema] ?? {}
@@ -108,16 +111,31 @@ describe('contrat de confidentialité : routes de server/api/admin/** (CA23)', (
     }
   })
 
-  it('should limit the exceptions to the administrator\'s own identity (name and e-mail), nothing about a visitor', () => {
+  it('should limit the exceptions to the identity of the administrator or of the account holder (name, e-mail, phone), nothing about a visitor', () => {
     const cles = new Set(Object.values(EXCEPTIONS_CLES_REPONSE).flatMap((e) => Object.keys(e)))
 
-    expect([...cles].sort()).toEqual(['email', 'nom'])
+    expect([...cles].sort()).toEqual(['email', 'nom', 'telephone'])
+  })
+
+  it('should tolerate the phone number only in the account sheet (schemaUtilisateurFicheDto), where it is the holder\'s own', () => {
+    const avecTelephone = Object.entries(EXCEPTIONS_CLES_REPONSE).filter(([, e]) => 'telephone' in e).map(([nom]) => nom)
+
+    expect(avecTelephone).toEqual(['schemaUtilisateurFicheDto'])
   })
 
   it('should not tolerate the sensitive keys of a visitor in any exception', () => {
     for (const exceptions of Object.values(EXCEPTIONS_CLES_REPONSE)) {
-      for (const cle of ['telephone', 'message', 'contenu', 'motif_visiteur', 'sujet', 'visiteur']) {
+      for (const cle of ['message', 'contenu', 'motif_visiteur', 'sujet', 'visiteur', 'ip', 'token', 'jeton', 'code']) {
         expect(exceptions).not.toHaveProperty(cle)
+      }
+    }
+  })
+
+  it('should justify every A2 exception by the account HOLDER (a professional), never by a visitor', () => {
+    for (const nom of Object.keys(CONTRAT_A2).map((f) => CONTRAT_A2[f]!.schema).filter((n): n is string => n !== null)) {
+      for (const [cle, raison] of Object.entries(EXCEPTIONS_CLES_REPONSE[nom] ?? {})) {
+        expect(raison, `${nom}.${cle}`).toMatch(/professionnel|titulaire/)
+        expect(raison, `${nom}.${cle}`).toMatch(/jamais/)
       }
     }
   })

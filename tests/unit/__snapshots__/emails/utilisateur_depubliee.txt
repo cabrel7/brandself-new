@@ -1,0 +1,95 @@
+==========
+type: utilisateur_depubliee | cas: avec prénom et motif | fuseau: Africa/Douala
+==========
+to: cabrel.pro@exemple.test
+subject: Votre vitrine n’est plus publiée
+headers:
+  (aucun)
+attachments:
+  (aucun)
+--- text ---
+Bonjour Cabrel,
+
+Notre équipe a retiré votre vitrine de la publication : elle n'est plus visible du public. Vos informations sont conservées.
+
+Motif : Contenu signalé par plusieurs visiteurs.
+
+Si vous pensez qu'il s'agit d'une erreur, répondez à cet e-mail.
+
+Cordialement,
+jesuis.pro
+
+—
+C'est un message de service concernant votre compte : il ne peut pas être désactivé.
+
+==========
+type: utilisateur_depubliee | cas: sans prénom | fuseau: Africa/Douala
+==========
+to: cabrel.pro@exemple.test
+subject: Votre vitrine n’est plus publiée
+headers:
+  (aucun)
+attachments:
+  (aucun)
+--- text ---
+Bonjour,
+
+Notre équipe a retiré votre vitrine de la publication : elle n'est plus visible du public. Vos informations sont conservées.
+
+Motif : Usurpation d’identité signalée.
+
+Si vous pensez qu'il s'agit d'une erreur, répondez à cet e-mail.
+
+Cordialement,
+jesuis.pro
+
+—
+C'est un message de service concernant votre compte : il ne peut pas être désactivé.
+
+==========
+type: utilisateur_depubliee | cas: avec prénom et motif | fuseau: Europe/Paris
+==========
+to: cabrel.pro@exemple.test
+subject: Votre vitrine n’est plus publiée
+headers:
+  (aucun)
+attachments:
+  (aucun)
+--- text ---
+Bonjour Cabrel,
+
+Notre équipe a retiré votre vitrine de la publication : elle n'est plus visible du public. Vos informations sont conservées.
+
+Motif : Contenu signalé par plusieurs visiteurs.
+
+Si vous pensez qu'il s'agit d'une erreur, répondez à cet e-mail.
+
+Cordialement,
+jesuis.pro
+
+—
+C'est un message de service concernant votre compte : il ne peut pas être désactivé.
+
+==========
+type: utilisateur_depubliee | cas: sans prénom | fuseau: Europe/Paris
+==========
+to: cabrel.pro@exemple.test
+subject: Votre vitrine n’est plus publiée
+headers:
+  (aucun)
+attachments:
+  (aucun)
+--- text ---
+Bonjour,
+
+Notre équipe a retiré votre vitrine de la publication : elle n'est plus visible du public. Vos informations sont conservées.
+
+Motif : Usurpation d’identité signalée.
+
+Si vous pensez qu'il s'agit d'une erreur, répondez à cet e-mail.
+
+Cordialement,
+jesuis.pro
+
+—
+C'est un message de service concernant votre compte : il ne peut pas être désactivé.

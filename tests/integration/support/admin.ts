@@ -3,7 +3,8 @@ import { desc, eq, sql } from 'drizzle-orm'
 import { betterAuth } from 'better-auth'
 import { Queue } from 'bullmq'
 import type { Job } from 'bullmq'
-import { vi } from 'vitest'
+import { afterEach, beforeAll, beforeEach, vi } from 'vitest'
+import { ADMIN_IDEMPOTENCE_ENTETE, ADMIN_REAUTH_ENTETE } from '../../../shared/admin'
 import { env } from '../../../shared/env'
 import { sessions, verifications } from '../../../shared/db/schema'
 import type { users } from '../../../shared/db/schema'
@@ -13,6 +14,7 @@ import { redis } from '../../../server/utils/redis'
 import type { EntreeAudit } from '../../../server/services/admin/audit'
 import type { ContexteAdmin } from '../../../server/utils/admin'
 import { fakeEvent } from '../../support/h3'
+import type { H3Event } from 'h3'
 import { createUser } from './fabriques'
 import type { SessionRow, UserRow } from './fabriques'
 
@@ -491,4 +493,132 @@ export async function sansDeclencheur<T>(declencheur: DeclencheurJournal, corps:
   } finally {
     await db.execute(sql`ALTER TABLE journal_admin ENABLE TRIGGER ${nom}`)
   }
+}
+
+// ---------------------------------------------------------------------------------------------
+// A2 : appel d'une ROUTE d'administration (handler Nitro réel, événement h3 réel, session Better Auth réelle).
+// ---------------------------------------------------------------------------------------------
+
+export interface PreparationSuiteAdmin {
+  auth: () => ReturnType<typeof betterAuth>
+}
+
+/**
+ * À appeler UNE fois par fichier, au niveau du module : instance Better Auth réelle, file `messages-auth` vidée,
+ * `getRequestSession` branchée sur cette instance avant chaque test et rétablie après.
+ */
+export function preparerSuiteAdmin(): PreparationSuiteAdmin {
+  let instance: ReturnType<typeof betterAuth> | undefined
+  beforeAll(async () => {
+    instance = await creerAuth()
+  })
+  beforeEach(async () => {
+    await viderFileMessagesAuth()
+    if (instance) brancherGardeSurAuth(instance)
+  })
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+  return {
+    auth: () => {
+      if (!instance) throw new Error('Instance Better Auth non initialisée.')
+      return instance
+    },
+  }
+}
+
+/** Superadmin avec une VRAIE session d'administration ouverte par le parcours de code (hôte d'administration). */
+export async function ouvrirAdmin(instance: ReturnType<typeof betterAuth>, surcharges: NouvelUtilisateur = {}): Promise<{ admin: UserRow, cookie: string }> {
+  const admin = await creerSuperadmin(surcharges)
+  const { cookie } = await ouvrirSession(instance, admin.email, 'admin')
+  if (cookie === '') throw new Error('Aucun cookie de session d\'administration obtenu.')
+  return { admin, cookie }
+}
+
+export interface AppelRouteAdmin {
+  methode: 'GET' | 'POST'
+  /** Chemin HTTP sans requête (`/api/admin/utilisateurs/abc/suspendre`). */
+  chemin: string
+  params?: Record<string, string>
+  query?: Record<string, string>
+  /** Corps JSON (sérialisé) ; une chaîne est envoyée telle quelle. */
+  corps?: unknown
+  cookie?: string
+  reauth?: string
+  cleIdempotence?: string
+  hote?: Hote
+  /** `null` : aucun en-tête Origin ; absent : l'origine de l'hôte visé. */
+  origine?: string | null
+  entetes?: Record<string, string>
+}
+
+export interface ReponseRouteAdmin {
+  status: number
+  /** Corps de succès, relu comme du JSON (les dates sont des chaînes). */
+  corps: unknown
+  code: string | undefined
+  data: Record<string, unknown> | undefined
+  message: string | undefined
+}
+
+export type ChargeurRoute = () => Promise<{ default: (event: H3Event) => unknown }>
+
+/** Un module de production absent (phase RED) est relancé tel quel : jamais présenté comme une réponse HTTP. */
+const MODULE_ABSENT = /Cannot find module|Failed to load url|Failed to resolve import|ERR_MODULE_NOT_FOUND/
+
+export async function appelerRouteAdmin(charger: ChargeurRoute, appel: AppelRouteAdmin): Promise<ReponseRouteAdmin> {
+  const { default: handler } = await charger()
+  const hote = appel.hote ?? 'admin'
+  const entetes: Record<string, string> = { host: HOTES[hote].host, ...appel.entetes }
+  if (appel.cookie) entetes.cookie = appel.cookie
+  if (appel.origine !== null) entetes.origin = appel.origine ?? HOTES[hote].origine
+  if (appel.reauth !== undefined) entetes[ADMIN_REAUTH_ENTETE] = appel.reauth
+  if (appel.cleIdempotence !== undefined) entetes[ADMIN_IDEMPOTENCE_ENTETE] = appel.cleIdempotence
+  const requete = new URLSearchParams(appel.query ?? {}).toString()
+  const event = fakeEvent({
+    method: appel.methode,
+    url: requete === '' ? appel.chemin : `${appel.chemin}?${requete}`,
+    headers: entetes,
+    params: appel.params,
+    ...(appel.corps === undefined ? {} : { body: typeof appel.corps === 'string' ? appel.corps : JSON.stringify(appel.corps) }),
+  })
+  try {
+    const corps = await handler(event)
+    const lu: unknown = corps === undefined || corps === null ? null : JSON.parse(JSON.stringify(corps))
+    return { status: event.node.res.statusCode, corps: lu, code: undefined, data: undefined, message: undefined }
+  } catch (erreur) {
+    if (erreur instanceof Error && MODULE_ABSENT.test(erreur.message)) throw erreur
+    const h3 = erreur as { statusCode?: number, data?: Record<string, unknown>, message?: string }
+    const code = h3.data?.code
+    return { status: h3.statusCode ?? -1, corps: undefined, code: typeof code === 'string' ? code : undefined, data: h3.data, message: h3.message }
+  }
+}
+
+// ---------------------------------------------------------------------------------------------
+// A2 : panne FORCÉE du journal (CA10). Un déclencheur de test fait échouer toute insertion dans `journal_admin` ;
+// il est retiré dans un `finally`. Aucun mock : c'est la vraie base qui refuse l'écriture du journal.
+// ---------------------------------------------------------------------------------------------
+
+const FONCTION_PANNE = 'test_a2_panne_journal'
+const DECLENCHEUR_PANNE = 'zz_test_a2_panne_journal'
+
+export async function retirerPanneJournal(): Promise<void> {
+  await db.execute(sql.raw(`DROP TRIGGER IF EXISTS ${DECLENCHEUR_PANNE} ON journal_admin`))
+  await db.execute(sql.raw(`DROP FUNCTION IF EXISTS ${FONCTION_PANNE}()`))
+}
+
+export async function avecJournalEnPanne<T>(corps: () => Promise<T>): Promise<T> {
+  await retirerPanneJournal()
+  await db.execute(sql.raw(`CREATE FUNCTION ${FONCTION_PANNE}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'panne de journal simulee'; END $$`))
+  await db.execute(sql.raw(`CREATE TRIGGER ${DECLENCHEUR_PANNE} BEFORE INSERT ON journal_admin FOR EACH ROW EXECUTE FUNCTION ${FONCTION_PANNE}()`))
+  try {
+    return await corps()
+  } finally {
+    await retirerPanneJournal()
+  }
+}
+
+/** Lignes de journal d'une action, dans l'ordre de la chaîne. */
+export async function journalDe(action: string): Promise<LigneJournal[]> {
+  return (await lireJournal()).filter((ligne) => ligne.action === action)
 }

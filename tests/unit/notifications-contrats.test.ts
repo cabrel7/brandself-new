@@ -130,6 +130,11 @@ describe('shared/jobs.ts : types d’e-mails et jobs (#81, #82)', () => {
       'utilisateur_rappel_journee',
       'abonnement_rappel',
       'paiement_confirme',
+      // A2 : e-mails d'administration (suspension, réactivation, jours offerts, dépublication).
+      'utilisateur_suspendu',
+      'utilisateur_reactive',
+      'utilisateur_jours_offerts',
+      'utilisateur_depubliee',
     ])
     expect(new Set(TRANSACTIONAL_EMAIL_TYPES).size).toBe(TRANSACTIONAL_EMAIL_TYPES.length)
   })
@@ -141,6 +146,11 @@ describe('shared/jobs.ts : types d’e-mails et jobs (#81, #82)', () => {
     expect(TRANSACTIONAL_EMAIL_TYPES.filter((type) => type.startsWith('utilisateur_'))).toEqual([
       'utilisateur_resume_hebdo',
       'utilisateur_rappel_journee',
+      // A2 : e-mails d'administration.
+      'utilisateur_suspendu',
+      'utilisateur_reactive',
+      'utilisateur_jours_offerts',
+      'utilisateur_depubliee',
     ])
   })
 
