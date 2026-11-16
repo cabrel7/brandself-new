@@ -198,6 +198,13 @@ async function apresAction(action: IdActionA2): Promise<void> {
           </ul>
         </section>
 
+        <section aria-labelledby="titre-capacite" class="flex flex-col gap-3">
+          <h3 id="titre-capacite" class="m-0 text-(length:--fs-20) font-semibold text-encre">
+            Capacité des assistants
+          </h3>
+          <AdminCapaciteMcp :utilisateur-id="data.id" :capacites="data.capacites" @modifie="() => refresh()" />
+        </section>
+
         <section aria-labelledby="titre-assistants" class="flex flex-col gap-3">
           <h3 id="titre-assistants" class="m-0 text-(length:--fs-20) font-semibold text-encre">
             Assistants connectés

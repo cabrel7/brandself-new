@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { METIERS_SUGGERES } from '#shared/onboarding'
 import {
-  displayName, METIER_MAX, NOM_MAX, PAYS, PRENOM_MAX, TITRE_LABELS, TITRES, VILLE_MAX,
+  displayName, METIER_MAX, NOM_MAX, PRENOM_MAX, TITRE_LABELS, TITRES, VILLE_MAX,
 } from '#shared/vitrine'
 import type { ErreursOnboarding } from '~/composables/useOnboarding'
 
@@ -18,7 +18,9 @@ const TITRE_ITEMS = [
   { label: 'Sans titre', value: TITRE_AUCUN },
   ...TITRES.map((titre) => ({ label: TITRE_LABELS[titre], value: titre })),
 ]
-const PAYS_ITEMS = PAYS.map((pays) => ({ label: pays.label, value: pays.code }))
+// Pays du catalogue géré par l'administration ; la liste du code sert de repli si la lecture échoue.
+const { referentiels } = useReferentiels()
+const PAYS_ITEMS = computed(() => optionsPays(referentiels.value))
 
 // Saisie libre : les suggestions sont typées `string[]` pour que `v-model` accepte toute chaîne.
 const METIER_ITEMS: string[] = [...METIERS_SUGGERES]

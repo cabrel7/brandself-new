@@ -37,6 +37,13 @@ const MESSAGE_TELEPHONE_OPERATEUR = 'Ce numéro ne correspond pas à l’opérat
 const MESSAGE_REFUS = 'L’opérateur a refusé la demande. Vérifiez le numéro.'
 const MESSAGE_MOYEN = 'Ce moyen de paiement n’est pas disponible.'
 const MESSAGE_EN_COURS = 'Un paiement est déjà en cours. Validez-le sur votre téléphone.'
+const MESSAGE_PRIX_CHANGE = 'Le prix a changé. Vérifiez-le, puis validez à nouveau.'
+
+/** `PRIX_CHANGE` : le message nomme le nouveau prix si le serveur l'a fourni (sinon le texte reste valable sans montant). */
+export function messagePrixChange(prixActuel: unknown, devise: string | null, exposant: number): string {
+  if (typeof prixActuel !== 'number' || devise === null) return MESSAGE_PRIX_CHANGE
+  return `Le prix a changé : il est maintenant de ${formaterMontant(prixActuel, devise, exposant)}. Vérifiez-le, puis validez à nouveau.`
+}
 
 /** Échecs de lecture consécutifs avant d'abandonner le suivi automatique. */
 const ECHECS_SUIVI_MAX = 3
@@ -69,7 +76,7 @@ function estPeriode(valeur: unknown): valeur is PeriodeMois {
  */
 export function usePaiementAbonnement(
   abonnement: Ref<AbonnementDTO | null>,
-  /** Appelé une fois le paiement réussi : recharge l'abonnement affiché. */
+  /** Recharge l'abonnement affiché (offre et prix compris) : après un paiement réussi, et quand le prix a changé. */
   surReussite: () => Promise<unknown>,
 ) {
   const route = useRoute()
@@ -244,6 +251,13 @@ export function usePaiementAbonnement(
       case 'MOYEN_PAIEMENT_INVALIDE':
         erreurs.value = { moyen: MESSAGE_MOYEN }
         return
+      case 'PRIX_CHANGE': {
+        const deviseRecue = typeof api.donnees.devise === 'string' ? api.donnees.devise : devise.value
+        erreurs.value = { general: messagePrixChange(api.donnees.prixActuel, deviseRecue, deviseOffre.value?.exposant ?? 0) }
+        // Les prix affichés sont rechargés : le client revoit le montant exact avant de confirmer.
+        await surReussite()
+        return
+      }
       case 'DEVISE_NON_PAYABLE':
         erreurs.value = { general: MESSAGE_DEVISE }
         return
@@ -293,6 +307,8 @@ export function usePaiementAbonnement(
           devise: devise.value,
           moyen: moyenChoisi.value.id,
           telephone: chiffresTelephone(telephone.value),
+          // Le montant TTC affiché au client : le serveur répond 409 `PRIX_CHANGE` s'il diffère du prix en vigueur.
+          prixAffiche: prixChoisi.value?.montant,
         },
       })
       if (paiementEstOuvert(reponse.paiement.statut)) suivre(reponse.paiement)

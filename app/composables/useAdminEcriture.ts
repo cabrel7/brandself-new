@@ -30,13 +30,14 @@ export function useAdminEcriture() {
 
   async function ecrire<T>(
     chemin: string,
-    corps: Record<string, string | number>,
-    options: { cle: string, code?: string },
+    corps: Record<string, unknown>,
+    // A5 : `methode` (POST par défaut) pour les modifications et suppressions du catalogue ; le corps peut être imbriqué.
+    options: { cle: string, code?: string, methode?: 'POST' | 'PATCH' | 'DELETE' },
   ): Promise<ResultatEcriture<T>> {
     const entetes: Record<string, string> = { [ADMIN_IDEMPOTENCE_ENTETE]: options.cle }
     if (options.code) entetes[ADMIN_REAUTH_ENTETE] = options.code
     try {
-      const donnees = await $fetch<T>(chemin, { method: 'POST', body: corps, headers: entetes })
+      const donnees = await $fetch<T>(chemin, { method: options.methode ?? 'POST', body: corps, headers: entetes })
       return { ok: true, donnees }
     } catch (e) {
       const lue = lireErreurApi(e)

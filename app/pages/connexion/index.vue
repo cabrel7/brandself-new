@@ -1,5 +1,7 @@
 <script setup lang="ts">
+import { ETAT_PUBLIC_CHEMIN } from '#shared/admin'
 import { MARQUE } from '#shared/brand'
+import type { EtatPublicDto } from '#shared/schemas/admin-a4'
 
 type Channel = 'email' | 'telephone'
 
@@ -13,6 +15,10 @@ const authClient = useAuthClient()
 const reprise = useRepriseOauth()
 const googleActif = useRuntimeConfig().public.googleActif
 
+// A4 : inscriptions fermées. Échec de lecture = pas de bandeau (le serveur reste l'autorité).
+const { data: etatPublic } = useFetch<EtatPublicDto>(ETAT_PUBLIC_CHEMIN, { key: 'etat-public-connexion', server: false, lazy: true })
+const inscriptionsFermees = computed(() => etatPublic.value?.inscriptions === false)
+
 const channel = ref<Channel>('email')
 const email = ref('')
 const countryCode = ref('+237')
@@ -25,28 +31,16 @@ const fieldInvalid = ref(false)
 const ERREUR_ENVOI = "Nous n'avons pas pu envoyer le code. Réessayez dans un instant."
 const ERREUR_PAGE = 'La page a rencontré un problème. Rechargez-la et réessayez.'
 
-const countryCodes = [
-  { code: '+237', country: 'Cameroun' },
-  { code: '+229', country: 'Bénin' },
-  { code: '+225', country: "Côte d'Ivoire" },
-  { code: '+221', country: 'Sénégal' },
-  { code: '+241', country: 'Gabon' },
-  { code: '+243', country: 'RD Congo' },
-  { code: '+226', country: 'Burkina Faso' },
-  { code: '+223', country: 'Mali' },
-  { code: '+228', country: 'Togo' },
-  { code: '+33', country: 'France' },
-  { code: '+32', country: 'Belgique' },
-  { code: '+41', country: 'Suisse' },
-  { code: '+1', country: 'Canada / États-Unis' },
-]
-
+// Indicatifs proposés : pays dont le SMS est ouvert (catalogue de l'administration), sinon la liste du code.
 // Le bouton affiche l'indicatif seul ; la liste ajoute le nom du pays.
-const countryItems = countryCodes.map((c) => ({
-  label: c.code,
-  value: c.code,
-  description: c.country,
-}))
+const { referentiels } = useReferentiels()
+const countryItems = computed(() => optionsIndicatifsSms(referentiels.value))
+const smsIndisponible = computed(() => countryItems.value.length === 0)
+
+// Un indicatif qui n'est plus proposé est remplacé par le premier de la liste.
+watch(countryItems, (items) => {
+  if (!items.some((item) => item.value === countryCode.value) && items[0]) countryCode.value = items[0].value
+}, { immediate: true })
 
 const channelItems = [
   { label: 'Email', value: 'email' },
@@ -173,6 +167,9 @@ async function continueWithGoogle(): Promise<void> {
         Connectez-vous ou créez votre vitrine en quelques instants.
       </p>
 
+      <!-- Un seul message à la fois : une erreur d'envoi remplace le bandeau. -->
+      <InscriptionsFermeesBandeau v-if="inscriptionsFermees && !error" />
+
       <UButton
         color="neutral"
         variant="outline"
@@ -279,7 +276,11 @@ async function continueWithGoogle(): Promise<void> {
           :description="error"
         />
 
-        <UButton type="submit" block :loading="loading">
+        <p v-if="channel === 'telephone' && smsIndisponible" class="text-sm text-muted">
+          Le code par SMS n’est pas disponible pour le moment. Utilisez votre adresse email.
+        </p>
+
+        <UButton type="submit" block :loading="loading" :disabled="channel === 'telephone' && smsIndisponible">
           {{ loading ? 'Envoi en cours…' : 'Recevoir un code' }}
         </UButton>
 
