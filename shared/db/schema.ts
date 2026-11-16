@@ -755,6 +755,13 @@ export const promptsIa = pgTable(
     parametres: jsonb('parametres').notNull().default({}),
     schemaSortie: text('schema_sortie').notNull(),
     actif: boolean('actif').notNull().default(false),
+    // A5 (migration 0032, D-A5-09) : pourquoi cette version a été créée et par qui (identifiant d'administrateur,
+    // `systeme` pour une migration). Nullables : `cree_par` reste NULL pour l'historique (0018, 0027) ; `motif` y est
+    // rempli par la migration. SEULS `actif` (et ces deux colonnes à la création) bougent : un déclencheur de la
+    // migration (`prompts_ia_figer`, non généré par drizzle-kit) fige systeme, gabarit, variables, parametres,
+    // schema_sortie, type, version et created_at, et interdit la suppression (42501).
+    motif: text('motif'),
+    creePar: text('cree_par'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
@@ -772,6 +779,8 @@ export const promptsIa = pgTable(
     check('prompts_ia_gabarit_check', sql`char_length(${table.gabarit}) BETWEEN 1 AND 5000`),
     check('prompts_ia_parametres_check', sql`jsonb_typeof(${table.parametres}) = 'object'`),
     check('prompts_ia_schema_sortie_check', sql`${table.schemaSortie} ~ '^[a-z0-9_]{1,60}$'`),
+    check('prompts_ia_motif_check', sql`${table.motif} IS NULL OR char_length(btrim(${table.motif})) BETWEEN 5 AND 500`),
+    check('prompts_ia_cree_par_check', sql`${table.creePar} IS NULL OR char_length(${table.creePar}) <= 64`),
   ],
 )
 
@@ -834,7 +843,7 @@ export const generationsIa = pgTable(
       'generations_ia_motif_check',
       sql`${table.motifRepli} IS NULL OR ${table.motifRepli} IN (
         'echec_fournisseur','delai_depasse','sortie_invalide','injection','sans_fournisseur',
-        'sans_prompt','file_indisponible','limiteur_indisponible','plafond_global','quota_atteint')`,
+        'sans_prompt','file_indisponible','limiteur_indisponible','plafond_global','quota_atteint','ia_coupee')`,
     ),
     check('generations_ia_motif_coherence_check', sql`(${table.statut} = 'repli') = (${table.motifRepli} IS NOT NULL)`),
     check(
@@ -1611,6 +1620,206 @@ export const statistiquesJourSources = pgTable(
   ],
 )
 
+// ─── A4 : supervision et registre des réglages (migration 0031, docs/specs/A4-supervision-reglages.md §3) ──────
+// Registre des réglages d'exploitation : UNE ligne par clé MODIFIÉE (pas de ligne = valeur du code, ou repli
+// restrictif par clé, D-A4-06). `valeur` est un scalaire JSON (nombre, booléen, texte) : un réglage, donc JSON
+// autorisé (CLAUDE.md §4.3) ; les bornes et la validation croisée vivent dans shared/reglages.ts, la base ne
+// garantit que la forme. Aucun secret ni URL (garde de test sur les clés). Journal de chaque écriture : journal_admin.
+export const reglages = pgTable(
+  'reglages',
+  {
+    cle: text('cle').primaryKey(),
+    valeur: jsonb('valeur').notNull(),
+    modifiePar: text('modifie_par')
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict' }),
+    modifieLe: timestamp('modifie_le', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    check('reglages_cle_check', sql`${table.cle} ~ '^[a-z][a-z0-9_.]{2,63}$'`),
+    check('reglages_valeur_check', sql`jsonb_typeof(${table.valeur}) IN ('number','boolean','string')`),
+  ],
+)
+
+// Capacité accordée à un compte hors plan (D-A4-11 : `mcp` seulement). Une ligne par octroi, jamais supprimée :
+// la révocation pose `revoque_le`. Au plus UNE capacité active par (compte, capacité) : index unique partiel.
+// Disparaît avec le compte (CASCADE) ; l'administrateur auteur est protégé (RESTRICT, comme `journal_admin`).
+// Source de la liste des capacités côté application : shared/plans.ts (CAPACITES_PAYANTES).
+export const capacitesAccordees = pgTable(
+  'capacites_accordees',
+  {
+    id: text('id').primaryKey(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    capacite: text('capacite').notNull(),
+    motif: text('motif').notNull(),
+    accordePar: text('accorde_par')
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict' }),
+    accordeLe: timestamp('accorde_le', { withTimezone: true }).notNull().defaultNow(),
+    revoqueLe: timestamp('revoque_le', { withTimezone: true }),
+  },
+  (table) => [
+    // Requête réelle : « ce compte a-t-il la capacité X ? » (consentement MCP et chaque appel d'outil, D-A4-11).
+    uniqueIndex('capacites_accordees_actives_unique')
+      .on(table.userId, table.capacite)
+      .where(sql`${table.revoqueLe} IS NULL`),
+    check('capacites_accordees_capacite_check', sql`${table.capacite} IN ('mcp')`),
+    check('capacites_accordees_motif_check', sql`char_length(btrim(${table.motif})) BETWEEN 5 AND 500`),
+    check('capacites_accordees_revocation_check', sql`${table.revoqueLe} IS NULL OR ${table.revoqueLe} >= ${table.accordeLe}`),
+  ],
+)
+
+// Journal d'envoi des codes de connexion (D-A4-15) : AUCUN identifiant, AUCUN numéro, AUCUN code, AUCUNE adresse.
+// Seulement le canal, le pays (indicatif résolu, NULL pour l'e-mail), le statut, le numéro de tentative et un code
+// d'erreur court. Écrit par le worker (best-effort : ne lève jamais), purgé à 90 jours.
+export const envoisCodes = pgTable(
+  'envois_codes',
+  {
+    id: bigint('id', { mode: 'number' }).primaryKey().generatedAlwaysAsIdentity(),
+    creeLe: timestamp('cree_le', { withTimezone: true }).notNull().defaultNow(),
+    canal: text('canal').notNull(),
+    pays: text('pays'),
+    statut: text('statut').notNull(),
+    tentative: smallint('tentative').notNull(),
+    codeErreur: text('code_erreur'),
+  },
+  (table) => [
+    // Requêtes réelles : agrégat des envois par canal et pays sur une fenêtre de temps, et purge à 90 jours.
+    index('envois_codes_cree_le_idx').on(table.creeLe, table.canal, table.pays),
+    check('envois_codes_canal_check', sql`${table.canal} IN ('sms','email','whatsapp')`),
+    check('envois_codes_pays_check', sql`${table.pays} IS NULL OR ${table.pays} ~ '^[A-Z]{2}$'`),
+    check('envois_codes_statut_check', sql`${table.statut} IN ('envoye','echec')`),
+    check('envois_codes_tentative_check', sql`${table.tentative} BETWEEN 1 AND 3`),
+    check('envois_codes_code_erreur_check', sql`${table.codeErreur} IS NULL OR char_length(${table.codeErreur}) <= 40`),
+  ],
+)
+
+// Battements du système (D-A4-16) : dernier instant connu d'un événement d'exploitation écrit par un script
+// extérieur (`sauvegarde_derniere_reussite`). Une ligne par clé ; absente = « inconnu » (jamais « bon »).
+export const battementsSysteme = pgTable(
+  'battements_systeme',
+  {
+    cle: text('cle').primaryKey(),
+    horodatage: timestamp('horodatage', { withTimezone: true }).notNull(),
+    ecritLe: timestamp('ecrit_le', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [check('battements_systeme_cle_check', sql`${table.cle} ~ '^[a-z_]{3,40}$'`)],
+)
+
+// ─── A5 : catalogues et versions de configuration (migration 0032, docs/specs/A5-catalogues-versions.md §4) ────
+// Devises que le produit sait gérer (codes fixés ; `actif` = ce qu'un compte peut CHOISIR, pas ce qui est PAYABLE,
+// D-A5-11). Pas de création depuis l'interface. Les décimales et l'affichage restent dans shared/devises.ts.
+export const devises = pgTable(
+  'devises',
+  {
+    code: text('code').primaryKey(),
+    actif: boolean('actif').notNull().default(true),
+    modifieLe: timestamp('modifie_le', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [check('devises_code_check', sql`${table.code} IN ('XAF','EUR','USD')`)],
+)
+
+// Pays proposés (clé = code ISO alpha-2). Créés par MIGRATION seulement (D-A5-10) : un pays exige un indicatif, des
+// fuseaux et un format de numéro. `vitrines.pays` n'a PAS de clé étrangère vers cette table (valeurs historiques :
+// la suppression d'un pays est refusée par le service dès qu'une vitrine le référence). L'indicatif n'est pas
+// unique (+1 : Canada et États-Unis). `fuseaux` : liste de fuseaux IANA, le premier est le fuseau de repli.
+// Canaux de connexion par pays (D-A5-13) : sms et whatsapp appliqués côté serveur, email informatif.
+export const pays = pgTable(
+  'pays',
+  {
+    code: text('code').primaryKey(),
+    libelle: text('libelle').notNull(),
+    indicatif: text('indicatif').notNull(),
+    actif: boolean('actif').notNull().default(true),
+    deviseDefaut: text('devise_defaut')
+      .notNull()
+      .references(() => devises.code),
+    fuseaux: text('fuseaux').array().notNull(),
+    canalSms: boolean('canal_sms').notNull().default(true),
+    canalWhatsapp: boolean('canal_whatsapp').notNull().default(false),
+    canalEmail: boolean('canal_email').notNull().default(true),
+    modifieLe: timestamp('modifie_le', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    check('pays_code_check', sql`${table.code} ~ '^[A-Z]{2}$'`),
+    check('pays_libelle_check', sql`char_length(${table.libelle}) BETWEEN 2 AND 80`),
+    check('pays_indicatif_check', sql`${table.indicatif} ~ '^[1-9][0-9]{0,3}$'`),
+    // Au moins un fuseau, sans élément NULL ni vide : `cardinality(...) >= 1` seul laisse passer ARRAY[NULL] et ARRAY[''].
+    check(
+      'pays_fuseaux_check',
+      sql`cardinality(${table.fuseaux}) >= 1 AND array_position(${table.fuseaux}, NULL) IS NULL AND array_position(${table.fuseaux}, '') IS NULL`,
+    ),
+  ],
+)
+
+// Noms d'adresse interdits en plus de la liste du code (shared/reserved.ts, `isReserved`). Ajout par le superadmin,
+// avec motif ; `cree_par` = identifiant d'administrateur (texte court, sans clé étrangère : journal de décision).
+export const usernamesBloques = pgTable(
+  'usernames_bloques',
+  {
+    valeur: text('valeur').primaryKey(),
+    motif: text('motif').notNull(),
+    creePar: text('cree_par').notNull(),
+    creeLe: timestamp('cree_le', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    check('usernames_bloques_valeur_check', sql`${table.valeur} ~ '^[a-z0-9][a-z0-9_-]{1,39}$'`),
+    check('usernames_bloques_motif_check', sql`char_length(btrim(${table.motif})) BETWEEN 5 AND 200`),
+    check('usernames_bloques_cree_par_check', sql`char_length(${table.creePar}) <= 64`),
+  ],
+)
+
+// Versions de configuration commerciale (D-A5-01, D-A5-02) : plan, prix, frais, moyens. UNE seule table, en
+// AJOUT SEUL : seuls `statut` et `validee_le` (une fois, NULL -> date) évoluent, et `effective_a` une fois posée
+// n'est plus modifiable. Le déclencheur `configuration_versions_proteger` (non généré par drizzle-kit, écrit dans la
+// migration) refuse tout autre UPDATE, tout DELETE et tout TRUNCATE (42501). Une seule version `active` et une
+// seule `programmee` par (categorie, cle), garanties par deux index uniques partiels. `valeurs` est un objet JSON
+// validé par Zod côté service (schéma strict par catégorie) : un réglage, donc JSON autorisé.
+// `cree_par` = identifiant d'administrateur ou `systeme` (seed) ; pas de clé étrangère (la version survit au compte).
+export const configurationVersions = pgTable(
+  'configuration_versions',
+  {
+    id: text('id').primaryKey(),
+    categorie: text('categorie').notNull(),
+    cle: text('cle').notNull(),
+    numero: integer('numero').notNull(),
+    valeurs: jsonb('valeurs').notNull(),
+    statut: text('statut').notNull(),
+    effectiveA: timestamp('effective_a', { withTimezone: true }),
+    valideeLe: timestamp('validee_le', { withTimezone: true }),
+    motif: text('motif').notNull(),
+    creePar: text('cree_par').notNull(),
+    creeLe: timestamp('cree_le', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    // Requête réelle : `lireVersionActive(categorie, cle)` (chemin chaud, cache 5 s) et garantie d'unicité.
+    uniqueIndex('configuration_versions_active_unique')
+      .on(table.categorie, table.cle)
+      .where(sql`${table.statut} = 'active'`),
+    // Requête réelle : balayage du job `versions-appliquer` (programmées échues) et garantie d'unicité.
+    uniqueIndex('configuration_versions_programmee_unique')
+      .on(table.categorie, table.cle)
+      .where(sql`${table.statut} = 'programmee'`),
+    // Historique d'une clé (numéro décroissant) : parcours de l'unique (categorie, cle, numero).
+    unique('configuration_versions_numero_unique').on(table.categorie, table.cle, table.numero),
+    check('configuration_versions_id_check', sql`char_length(${table.id}) BETWEEN 8 AND 64`),
+    check('configuration_versions_categorie_check', sql`${table.categorie} IN ('plan','prix','frais','moyens')`),
+    check('configuration_versions_cle_check', sql`${table.cle} ~ '^[a-z0-9_:.-]{1,60}$'`),
+    check('configuration_versions_numero_check', sql`${table.numero} >= 1`),
+    check('configuration_versions_valeurs_check', sql`jsonb_typeof(${table.valeurs}) = 'object'`),
+    check('configuration_versions_statut_check', sql`${table.statut} IN ('brouillon','programmee','active','remplacee')`),
+    check('configuration_versions_motif_check', sql`char_length(btrim(${table.motif})) BETWEEN 5 AND 500`),
+    check('configuration_versions_cree_par_check', sql`char_length(${table.creePar}) <= 64`),
+    check('configuration_versions_plan_cle_check', sql`${table.categorie} <> 'plan' OR ${table.cle} IN ('gratuit','payant')`),
+    // Un brouillon n'a pas de date d'effet, toute autre version en a une.
+    check('configuration_versions_effet_check', sql`(${table.statut} = 'brouillon') = (${table.effectiveA} IS NULL)`),
+    // Seule une grille de prix se valide (D-A5-07).
+    check('configuration_versions_validee_check', sql`${table.valideeLe} IS NULL OR ${table.categorie} = 'prix'`),
+  ],
+)
+
 export type Vue = typeof vues.$inferSelect
 export type NewVue = typeof vues.$inferInsert
 export type StatistiquesJour = typeof statistiquesJour.$inferSelect
@@ -1641,3 +1850,19 @@ export type JournalAdmin = typeof journalAdmin.$inferSelect
 export type NewJournalAdmin = typeof journalAdmin.$inferInsert
 export type AdminReauth = typeof adminReauth.$inferSelect
 export type NewAdminReauth = typeof adminReauth.$inferInsert
+export type Reglage = typeof reglages.$inferSelect
+export type NewReglage = typeof reglages.$inferInsert
+export type CapaciteAccordee = typeof capacitesAccordees.$inferSelect
+export type NewCapaciteAccordee = typeof capacitesAccordees.$inferInsert
+export type EnvoiCode = typeof envoisCodes.$inferSelect
+export type NewEnvoiCode = typeof envoisCodes.$inferInsert
+export type BattementSysteme = typeof battementsSysteme.$inferSelect
+export type NewBattementSysteme = typeof battementsSysteme.$inferInsert
+export type DeviseCatalogue = typeof devises.$inferSelect
+export type NewDeviseCatalogue = typeof devises.$inferInsert
+export type PaysCatalogue = typeof pays.$inferSelect
+export type NewPaysCatalogue = typeof pays.$inferInsert
+export type UsernameBloque = typeof usernamesBloques.$inferSelect
+export type NewUsernameBloque = typeof usernamesBloques.$inferInsert
+export type ConfigurationVersion = typeof configurationVersions.$inferSelect
+export type NewConfigurationVersion = typeof configurationVersions.$inferInsert

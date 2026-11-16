@@ -218,6 +218,20 @@
       "when": 1794692363718,
       "tag": "0030_a3_paiements_admin",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1794816300573,
+      "tag": "0031_a4_supervision_reglages",
+      "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1794816854168,
+      "tag": "0032_a5_catalogues_versions",
+      "breakpoints": true
     }
   ]
 }
