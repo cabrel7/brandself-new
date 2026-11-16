@@ -1520,6 +1520,9 @@ describe('realisations — suppression, ordre et liste (CA29 à CA33)', () => {
     await peupler(petite.user.id, petite.vitrine.id, 1)
     await peupler(grande.user.id, grande.vitrine.id, 6)
 
+    // Échauffement : la configuration des plans est lue avec un cache de 5 s ; sans cela, la première mesure peut inclure sa relecture
+    // (2 requêtes de plus) selon le moment, et le test devient instable.
+    await listOwnRealisations(petite.user.id)
     const requetesPetite = await compterRequetes(() => listOwnRealisations(petite.user.id))
     const requetesGrande = await compterRequetes(() => listOwnRealisations(grande.user.id))
 
