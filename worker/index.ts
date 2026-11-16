@@ -34,6 +34,7 @@ import { planifierVerificationsPaiements } from '../server/jobs/paiements'
 import { planifierNotificationsRepetees, planifierPurgeNotifications } from '../server/jobs/notifications'
 import { planifierPurgeIndisponibilites } from '../server/jobs/indisponibilites'
 import { planifierPurgeOauth } from '../server/jobs/oauth'
+import { traiterRafraichirCacheMedias } from '../server/jobs/rafraichir-cache-medias'
 import { planifierPurgeWebhooksRefuses } from '../server/jobs/webhooks-refuses'
 import { planifierAgregationStatistiques, planifierPurgeStatistiques } from '../server/jobs/statistiques'
 import { processTransactionalEmail } from '../server/services/email-outbox'
@@ -128,6 +129,14 @@ const workerMaintenance = new Worker(
     if (job.name === JOBS.purgerWebhooksRefuses) {
       const purgees = await purgerWebhooksRefuses(new Date())
       console.info(`[worker] purge webhooks refusés : ${purgees} ligne(s) supprimée(s)`)
+      return
+    }
+    // Éviction du cache nginx des images d'un compte suspendu / bloqué / rétabli (nombres seulement dans le journal).
+    if (job.name === JOBS.rafraichirCacheMedias) {
+      const bilan = await traiterRafraichirCacheMedias(job.data)
+      if (!bilan.saute) {
+        console.info(`[worker] cache des images : ${bilan.demandees} variante(s) redemandée(s), ${bilan.erreurs} en échec`)
+      }
       return
     }
     throw new Error(`Unknown job: ${job.name}`)

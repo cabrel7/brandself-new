@@ -8,6 +8,7 @@ import { ADMIN_VITRINES_TRI_DEFAUT } from '../../../shared/admin-a2'
 import { abonnements, liens, realisations, services, temoignages, users, vitrines } from '../../../shared/db/schema'
 import type { ListeVitrinesQuery, PaginationAdmin } from '../../../shared/schemas/admin-a2'
 import { ConflictError, NotFoundError } from '../../exceptions/http'
+import { planifierRafraichissementCacheMedias } from '../../jobs/rafraichir-cache-medias'
 import { db } from '../../utils/db'
 import {
   baseVitrines,
@@ -124,7 +125,7 @@ export async function depublier(
   deps: DepsEcritureReauth,
 ): Promise<void> {
   const maintenant = horloge(deps)
-  await db.transaction(async (tx) => {
+  const userId = await db.transaction(async (tx) => {
     const vitrine = await verrouillerVitrine(tx, vitrineId)
     await deps.reauth(tx)
     if (vitrine.blocageAdmin) throw new ConflictError('ETAT_DEJA_APPLIQUE')
@@ -140,7 +141,10 @@ export async function depublier(
       ip,
     })
     await emettreEmailAdmin(tx, { userId: vitrine.userId, type: 'utilisateur_depubliee', numeroJournal: journal.numero, maintenant })
+    return vitrine.userId
   })
+  // Après le COMMIT (jamais dans la transaction) : vide le cache nginx des images du titulaire. Ne lève jamais.
+  await planifierRafraichissementCacheMedias(userId)
 }
 
 /** Motif seul. Lève le blocage : si la vitrine était publiée par le professionnel, elle redevient visible. */
@@ -150,7 +154,7 @@ export async function republier(
   motif: string,
   ip: string,
 ): Promise<void> {
-  await db.transaction(async (tx) => {
+  const userId = await db.transaction(async (tx) => {
     const vitrine = await verrouillerVitrine(tx, vitrineId)
     if (!vitrine.blocageAdmin) throw new ConflictError('ETAT_DEJA_APPLIQUE')
     await tx.update(vitrines).set({ blocageAdmin: false, blocageMotif: null }).where(eq(vitrines.id, vitrineId))
@@ -164,5 +168,8 @@ export async function republier(
       motif,
       ip,
     })
+    return vitrine.userId
   })
+  // Après le COMMIT : les images du titulaire (404 en cache) sont redemandées et reviennent en 200.
+  await planifierRafraichissementCacheMedias(userId)
 }

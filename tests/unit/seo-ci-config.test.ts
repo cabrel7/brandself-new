@@ -86,7 +86,7 @@ describe('.github/workflows/ci.yml : job seo-perf', () => {
 
   it('should provide what shared/env.ts requires in production, for the build and the server', () => {
     // A1 (D-A1-02) : `ADMIN_HOST` est obligatoire en production (`pnpm build` échoue sans lui).
-    for (const cle of ['NODE_ENV: production', 'RESEND_API_KEY:', 'EMAIL_EXPEDITEUR:', 'NUXT_PUBLIC_SITE_URL: https://', 'NUXT_PUBLIC_SITE_ENV: production', 'ADMIN_HOST:']) {
+    for (const cle of ['NODE_ENV: production', 'RESEND_API_KEY:', 'EMAIL_EXPEDITEUR:', 'NUXT_PUBLIC_SITE_URL: https://', 'NUXT_PUBLIC_SITE_ENV: production', 'ADMIN_HOST:', 'MEDIAS_CACHE_REFRESH_SECRET:']) {
       expect(job, cle).toContain(cle)
     }
   })

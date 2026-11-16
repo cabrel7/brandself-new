@@ -46,6 +46,8 @@ jobs:
       NUXT_PUBLIC_SITE_URL: https://ci.example.test
       # A1 : ADMIN_HOST obligatoire en production, hôte seul, différent de celui de NUXT_PUBLIC_SITE_URL.
       ADMIN_HOST: admin.ci.example
+      # Obligatoire en production (éviction du cache d'images d'un compte suspendu) : valeur factice, 32 caractères ou plus.
+      MEDIAS_CACHE_REFRESH_SECRET: 0000000000000000000000000000000000000000000000000000000000ci0001
     steps:
       - uses: actions/checkout@v4
 
@@ -197,6 +199,8 @@ jobs:
       NUXT_PUBLIC_SITE_URL: https://ci.example.test
       # A1 : ADMIN_HOST obligatoire en production, hôte seul, différent de celui de NUXT_PUBLIC_SITE_URL.
       ADMIN_HOST: admin.ci.example
+      # Obligatoire en production (éviction du cache d'images d'un compte suspendu) : valeur factice, 32 caractères ou plus.
+      MEDIAS_CACHE_REFRESH_SECRET: 0000000000000000000000000000000000000000000000000000000000ci0001
       # Sans cette valeur, nuxt-site-config ne déduit pas « production » : robots.txt serait en Disallow: /.
       NUXT_PUBLIC_SITE_ENV: production
       # Un seul serveur de production, partagé par e2e:seo et Lighthouse (voir playwright.seo.config.ts, lighthouserc.cjs).

@@ -3,7 +3,7 @@ import { and, eq, notExists, sql } from 'drizzle-orm'
 import sharp from 'sharp'
 import { medias, progressionsInscription, realisationImages, realisations, services, users, vitrines } from '../../shared/db/schema'
 import { MEDIA_UPLOAD_LIMIT } from '../../shared/limites'
-import { MEDIA_MAX_BYTES, MEDIA_MAX_PIXELS, MEDIA_WIDTHS } from '../../shared/medias'
+import { MEDIA_MAX_BYTES, MEDIA_MAX_PIXELS, MEDIA_WIDTHS, mediaUrl, partageUrl } from '../../shared/medias'
 import type { MediaWidth } from '../../shared/medias'
 import {
   NotFoundError,
@@ -190,20 +190,47 @@ function isMediaWidth(width: number): width is MediaWidth {
 }
 
 /**
- * A2 (revue de sécurité) : média dont les octets peuvent être servis. Média absent OU titulaire suspendu
- * (`users.suspendu`) : même 404 `MEDIA_INTROUVABLE`, le visiteur ne voit jamais la raison (D-A2-10).
- * Limite connue : le cas `blocage_admin` n'est PAS filtré ici (le cache nginx de `/medias/`, `proxy_cache_valid 200 1y`
- * sans contournement par cookie, ne permet pas de réserver l'image au seul propriétaire connecté).
+ * Média dont les octets peuvent être servis. Décision du 2026-11-16 : rien ne reste accessible pour un compte suspendu
+ * (`users.banned`) ni pour une vitrine bloquée par l'administration (`blocage_admin`), SANS exception pour le
+ * propriétaire. Média absent, titulaire suspendu ou vitrine bloquée : même 404 `MEDIA_INTROUVABLE` (le visiteur ne
+ * voit jamais la raison, D-A2-10). Le cache nginx de `/medias/` est vidé par le job `rafraichirCacheMedias`.
  */
 async function trouverMediaServable(mediaId: string): Promise<{ userId: string }> {
   const [row] = await db
-    .select({ userId: medias.userId, suspendu: users.banned })
+    .select({
+      userId: medias.userId,
+      suspendu: users.banned,
+      bloquee: sql<boolean>`EXISTS (SELECT 1 FROM ${vitrines} WHERE ${vitrines.userId} = ${medias.userId} AND ${vitrines.blocageAdmin} = true)`,
+    })
     .from(medias)
     .innerJoin(users, eq(users.id, medias.userId))
     .where(eq(medias.id, mediaId))
     .limit(1)
-  if (!row || row.suspendu) throw new NotFoundError('MEDIA_INTROUVABLE')
+  if (!row || row.suspendu || row.bloquee) throw new NotFoundError('MEDIA_INTROUVABLE')
   return { userId: row.userId }
+}
+
+export interface UrlsMediasDuCompte {
+  /** Chemins (`/medias/<id>/<fichier>`) de chaque variante servie : 3 largeurs et la variante de partage par image. */
+  chemins: string[]
+  /** `true` si le compte a plus d'images que la borne : la liste est alors tronquée. */
+  tronque: boolean
+}
+
+/** Variantes d'image servies pour un compte (éviction du cache nginx). Au plus `maxUrls` chemins. */
+export async function listerCheminsMediasDuCompte(userId: string, maxUrls: number): Promise<UrlsMediasDuCompte> {
+  const parImage = MEDIA_WIDTHS.length + 1
+  const maxImages = Math.floor(maxUrls / parImage)
+  // Une ligne de plus que la borne : sa présence suffit à savoir que la liste est tronquée.
+  const lignes = await db
+    .select({ id: medias.id })
+    .from(medias)
+    .where(eq(medias.userId, userId))
+    .orderBy(medias.id)
+    .limit(maxImages + 1)
+  const ids = lignes.slice(0, maxImages).map((ligne) => ligne.id)
+  const chemins = ids.flatMap((id) => [...MEDIA_WIDTHS.map((largeur) => mediaUrl(id, largeur)), partageUrl(id)])
+  return { chemins, tronque: lignes.length > maxImages }
 }
 
 /** Octets d'une variante publique. Id mal formé, largeur non publiée, média absent : 404. */

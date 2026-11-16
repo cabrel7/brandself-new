@@ -94,6 +94,9 @@ export const JOBS = {
   sendAdminReauthEmail: 'send-admin-reauth-email',
   // A3 : purge du compteur des webhooks refusés (file `maintenance`).
   purgerWebhooksRefuses: 'webhooks-refuses-purger',
+  // Suspension / blocage d'un compte (et leur levée) : redemande les images du compte à nginx pour vider son cache
+  // (file `maintenance`, charge `{ userId }` seulement).
+  rafraichirCacheMedias: 'medias-cache-rafraichir',
 } as const
 
 export type JobName = (typeof JOBS)[keyof typeof JOBS]
@@ -150,6 +153,9 @@ export const PAIEMENT_EXPIRATION_MINUTES = 15
 export const WEBHOOKS_REFUSES_PURGE_SCHEDULER_ID = 'webhooks-refuses-purger'
 export const WEBHOOKS_REFUSES_PURGE_CRON = '30 4 * * *'
 export const WEBHOOKS_REFUSES_PURGE_LOT = 500
+
+export { mediasCacheRefreshJobDataSchema } from './medias-cache'
+export type { MediasCacheRefreshJobData } from './medias-cache'
 
 export const iaJobDataSchema = schemaIaJobData
 export type { IaJobData, SeoJobData }

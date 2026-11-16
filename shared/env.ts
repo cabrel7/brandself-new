@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { ADMIN_HOST_DEV_DEFAUT } from './admin'
 import { IA_CLE_API_LONGUEUR_MIN, IA_FOURNISSEURS, IA_HOTES_HTTP_AUTORISES, IA_MODELE_DEFAUT } from './ia'
 import type { IaFournisseur } from './ia'
+import { MEDIAS_CACHE_REFRESH_SECRET_FORMAT, MEDIAS_CACHE_REFRESH_SECRET_LONGUEUR_MIN } from './medias-cache'
 import { EMAIL_EXPEDITEUR_DEV_DEFAUT, SITE_URL_DEV_DEFAUT } from './notifications'
 import {
   KPAY_BASE_URL_DEFAUT,
@@ -135,6 +136,17 @@ const schemaEnv = z
     // A1 (D-A1-02) : hôte de l'administration. Obligatoire en production, différent de l'hôte public ;
     // absent hors production = `admin.localhost`.
     ADMIN_HOST: schemaAdminHost,
+    // Éviction du cache nginx de `/medias/` à la suspension / au blocage d'un compte : secret partagé avec nginx
+    // (en-tête `x-cache-refresh`). Obligatoire en production ; absent hors production = la tâche est sautée.
+    // Jamais journalisé ni renvoyé ; les messages d'erreur ne répètent pas la valeur.
+    MEDIAS_CACHE_REFRESH_SECRET: z.preprocess(
+      rognerOuAbsent,
+      z
+        .string()
+        .min(MEDIAS_CACHE_REFRESH_SECRET_LONGUEUR_MIN, `doit contenir au moins ${MEDIAS_CACHE_REFRESH_SECRET_LONGUEUR_MIN} caractères`)
+        .regex(MEDIAS_CACHE_REFRESH_SECRET_FORMAT, 'doit contenir uniquement des caractères ASCII imprimables, sans espace')
+        .optional(),
+    ),
   })
   .superRefine((env, ctx) => {
     if (env.IA_FOURNISSEUR === 'openai' && !env.IA_MODELE) {
@@ -187,6 +199,13 @@ const schemaEnv = z
         code: 'custom',
         path: ['ADMIN_HOST'],
         message: 'requis en production (hôte de l’administration, ex. admin.jesuis.pro)',
+      })
+    }
+    if (env.NODE_ENV === 'production' && !env.MEDIAS_CACHE_REFRESH_SECRET) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['MEDIAS_CACHE_REFRESH_SECRET'],
+        message: 'requis en production (éviction du cache nginx des images d’un compte suspendu ou d’une vitrine bloquée)',
       })
     }
     if (env.ADMIN_HOST && env.NUXT_PUBLIC_SITE_URL) {

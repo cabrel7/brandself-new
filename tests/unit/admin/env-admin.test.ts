@@ -18,6 +18,8 @@ const production = {
   EMAIL_EXPEDITEUR: 'Brandself <bonjour@jesuis.pro>',
   NUXT_PUBLIC_SITE_URL: 'https://jesuis.pro/',
   ADMIN_HOST: 'admin.jesuis.pro',
+  // Éviction du cache des images : obligatoire en production.
+  MEDIAS_CACHE_REFRESH_SECRET: 'secret-de-test-cache-images-0123456789',
 }
 
 function messageDe(source: Record<string, string | undefined>): string {

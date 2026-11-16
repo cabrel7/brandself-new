@@ -28,6 +28,7 @@ import {
 import type { PlanId } from '../../../shared/plans'
 import type { ListeUtilisateursQuery, PaginationAdmin } from '../../../shared/schemas/admin-a2'
 import { ConflictError, NotFoundError, UnprocessableError } from '../../exceptions/http'
+import { planifierRafraichissementCacheMedias } from '../../jobs/rafraichir-cache-medias'
 import { db } from '../../utils/db'
 import { activerPayantParAdmin, offrirJours as offrirJoursAbonnement, supprimerAbonnement } from '../abonnements-offrir'
 import { getIaQuota } from '../plans'
@@ -296,6 +297,8 @@ export async function suspendre(
     })
     await emettreEmailAdmin(tx, { userId: utilisateurId, type: 'utilisateur_suspendu', numeroJournal: journal.numero, maintenant })
   })
+  // Après le COMMIT (jamais dans la transaction) : vide le cache nginx des images du compte. Ne lève jamais.
+  await planifierRafraichissementCacheMedias(utilisateurId)
 }
 
 /** Motif seul. La vitrine et les écritures visiteur reviennent sans autre action (CA04). */
@@ -326,6 +329,8 @@ export async function reactiver(
     })
     await emettreEmailAdmin(tx, { userId: utilisateurId, type: 'utilisateur_reactive', numeroJournal: journal.numero, maintenant })
   })
+  // Après le COMMIT : les images du compte (404 en cache) sont redemandées et reviennent en 200.
+  await planifierRafraichissementCacheMedias(utilisateurId)
 }
 
 function dateJournal(valeur: unknown): Date {
