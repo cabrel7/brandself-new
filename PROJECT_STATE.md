@@ -35,8 +35,8 @@ L'ancien projet (Laravel + Nuxt, système de blocs polymorphique, ~60 tables, do
 | A1 | Administration : socle (`admin.jesuis.pro`, rôle, audit, accès par IP) | **implémenté, commité** (branche `sprint/admin-a1-a5`) | migration 0028 ; lint, typecheck, intégration A1 verts ; e2e A1 **non exécutés** ; spec `docs/specs/A1-socle-admin.md` |
 | A2 | Administration : utilisateurs, vitrines, assistants | **implémenté, commité** | migration 0029 ; prédicat central `sqlVitrinePublique` ; revue opus : 0 CRITICAL, 4 MAJOR traités (voir JOURNAL_DECISIONS) ; écrans jamais rendus, e2e `admin-a2` non exécutés |
 | A3 | Administration : abonnements, paiements, revenus | **implémenté, commité** | migration 0030 ; service unique `confirmerPaiement` ; `limit_req` nginx webhooks (non validé par `nginx -t`) ; e2e `admin-a3` non exécutés |
-| A4 | Administration : supervision et registre des réglages | à faire | idem |
-| A5 | Administration : catalogues (pays, devises, fuseaux) et versions (plans, prix, frais, prompts IA) | à faire | idem |
+| A4 | Administration : supervision et registre des réglages | **implémenté, commité (1fc45a3, a5f3dfb, 9121e17), CI en cours** | idem |
+| A5 | Administration : catalogues (pays, devises, fuseaux) et versions (plans, prix, frais, prompts IA) | **implémenté, commité (mêmes commits), CI en cours** | idem |
 
 ## 3. Décisions ouvertes (valeurs par défaut en attendant)
 

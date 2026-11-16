@@ -2,6 +2,8 @@
 managed-by: claude-system-v5
 name: database
 skills: [security]
+experimental:
+  cacheTtl: 1h
 description: >
   Spécialiste base de données (PostgreSQL/MySQL) : migrations réversibles, RLS multi-tenant,
   index, contraintes, intégrité, tests SQL. Seul agent autorisé à écrire les migrations.

@@ -45,3 +45,9 @@ Tout test livré s'accompagne de la SORTIE BRUTE d'exécution. Un run "vert" non
 
 ## Couverture cible
 Services 90% · endpoints 80% · helpers 95% · composants 70% (happy + error obligatoires).
+
+## Tests d'intégration partagés (génériques)
+- Une base et un Redis PAR worker (clone d'un gabarit) dès que les tests d'intégration tournent en parallèle ; sinon FK/deadlocks aléatoires.
+- Un seul lanceur de tests à la fois par projet (verrou `flock`) ; un lanceur oublié pollue la base partagée.
+- Ne jamais mocker la couche qu'un critère doit PROUVER ; un test sauté n'est pas un test réussi ; mesurer la durée par fichier avant d'élaguer.
+*Exemple (Brandself)* : `<base>_w<k>` clonée de `<base>_tpl`, gain mesuré de 62 %.

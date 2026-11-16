@@ -106,3 +106,15 @@ Règle : un compte suspendu et une vitrine bloquée par l'administration ne serv
 - **Correction nginx** : `add_header Cache-Control "public, immutable" always` du bloc `/medias/` ne s'applique qu'aux réponses 200 (un 404 ne doit jamais être `immutable`).
 - **Limite assumée** : une copie déjà téléchargée par un navigateur de visiteur ne se révoque pas. 
 - **Non vérifiable en local** : nginx absent de cette machine ; configuration testée par texte, comportement réel à valider sur le VPS (script de vérification fourni dans `docs/exploitation-admin.md`).
+
+## A4/A5 : décisions de l'implémentation (2026-11-16)
+
+- **Capacités des assistants (A4)** : une capacité est une option réservée aux offres payantes (aujourd'hui `mcp`). La fiche utilisateur n'affiche que « Accorder » si elle est absente et que « Révoquer » si elle est présente ; la fiche porte `capacites` (liste des capacités accordées actives).
+- **Inscriptions fermées (A4)** : `GET /api/public/etat` expose `inscriptions` (booléen, rien d'un compte). `/connexion` affiche un bandeau ; il disparaît si une erreur d'envoi de code s'affiche (un seul message à la fois). Lecture avec cache de 5 s côté page, sans cache côté `auth.config.ts`.
+- **Maintenance (A4)** : 503 `MAINTENANCE`, `Retry-After: 300`, hôte admin exempté ; la page de connexion reste accessible.
+- **Lien Versions (A4)** : rétabli dans la page Systèmes.
+- **Garde SMS par pays (A5, CA02)** : `sendOTP` (auth.config.ts) lit le catalogue des pays sans cache et répond 422 `CANAL_INDISPONIBLE` avant toute mise en file ; le plus restrictif s'applique pour un indicatif partagé (`+1`) ; pays inconnu ou table illisible : non bloqué. `auth.config.ts` n'importe que `node_modules` et `shared/` (logique commune dans `shared/pays-numero.ts`). ⚠️ En production, sans fournisseur SMS, `smsFournisseurConfigure()` est faux : le SMS est refusé pour tous les pays. À confirmer avec le choix du fournisseur.
+- **Réauthentification des écritures de catalogue (A5)** : exigée sur toute écriture (POST, PATCH, DELETE), plus stricte que la spec (qui la réservait aux versions). Gardée par prudence ; à relâcher seulement sur décision explicite.
+- **Route `catalogues/[nom]/[id]` en lecture** : supprimée (aucun consommateur, réponse dépendante du catalogue).
+- **Contrat de confidentialité** : exceptions bornées et justifiées pour `code` (code ISO pays/devise), `cle` (clé de version), `sortie` (JSON opaque d'un essai de prompt sur fixtures) ; `schemaReferentielsDto` (route publique) hors contrôle admin.
+- **Reste à traiter** : `abonnement.grace_jours` (réglage câblé seulement dans plans.ts ; a2-lignes.ts, admin/abonnements.ts, resources/abonnement.ts, notifications-contenus.ts restent à 7 jours) ; canal de l'alerte d'échecs (e-mail ou bandeau) ; `studio/profil.vue` utilise encore `PAYS` en dur ; `PrixPeriodeDTO.montantAffiche` (R12).

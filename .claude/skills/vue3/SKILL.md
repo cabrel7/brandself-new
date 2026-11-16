@@ -78,3 +78,7 @@ export const useUserStore = defineStore('user', () => {
   return { user: readonly(user), isLoading: readonly(isLoading), fetchUser }
 })
 ```
+
+## Pièges Nuxt/Vue (génériques)
+- Auto-import : deux symboles de même nom dans `utils/` et `composables/` se masquent ; composants imbriqués = préfixe du dossier dans le nom.
+- Un seul `h1` par page ; pas de logique métier dans un composant ni une page publique rendue côté serveur.

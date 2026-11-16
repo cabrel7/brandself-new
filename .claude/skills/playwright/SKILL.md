@@ -58,3 +58,9 @@ Utilise le Chromium préinstallé — ne lance PAS `playwright install`.
 - Un test = un parcours, indépendant (pas d'ordre implicite entre tests).
 - `beforeEach` pour l'état de départ, nettoyage explicite après.
 - Data-testid sur les éléments dynamiques à masquer en visual regression.
+
+## Pièges fréquents (génériques)
+- Composants de saisie de code (OTP) : cellules `input[inputmode="numeric"]` (type texte), pas `spinbutton`.
+- Attendre l'hydratation avant d'interagir (rendu serveur) ; ne jamais reposer sur un sélecteur d'une structure d'avant refonte.
+- Hôtes personnalisés en local : mapper via `--host-resolver-rules` plutôt que modifier le système.
+*Exemple (Brandself)* : hôte d'administration `admin.localhost` ; 1 worker, `reuseExistingServer`.

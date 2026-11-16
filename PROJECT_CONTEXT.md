@@ -280,3 +280,10 @@ Toutes les démos, maquettes et tests utilisent ce profil (jamais de lorem ipsum
 - **Demande** : formulaire sans créneau (atelier, prestation sur devis).
 - **Période** : durée prépayée de l'abonnement (1, 3 ou 12 mois).
 - **Palette** : ensemble cohérent de couleurs choisi par l'utilisateur.
+
+## 17. Exécution des contrôles (lu par les agents)
+
+- `CONTROLES_LOURDS=ci` : typecheck, lint global, suite complète et build tournent sur GitHub Actions (`.github/workflows/ci.yml`, branches `main` et `sprint/**`) ou dans le thread principal, jamais dans un agent. Raison : le poste de développement est bridé par le firmware (~0,85 GHz) ; la suite complète dépasse 25 minutes.
+- Agents : tests ciblés des seuls fichiers de leur périmètre, `flock /tmp/brandself-vitest.lock pnpm exec vitest run <fichiers>` (un seul lanceur à la fois ; bases par worker, voir `docs/tests.md`).
+- `GARDE_MASSE=1` : `sed -i`, `perl -pi` et remplacements sur plusieurs fichiers sont bloqués (règle projet §6.3).
+- Réglages lus depuis `.claude/settings.json` (`env`).
