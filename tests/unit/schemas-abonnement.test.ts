@@ -8,7 +8,8 @@ import {
 
 // S10 §3.5 : schémas stricts (champ inconnu = refus), jamais d'écho de la saisie.
 
-const VALIDE = { periodeMois: 12, devise: 'XAF', moyen: 'kpay:MTN_MOMO_CMR', telephone: '653456789' }
+// A5 (D-A5-07) : `prixAffiche` (montant TTC vu par le client, unité mineure) est obligatoire ; son contrôle est dans a5-schemas.test.ts.
+const VALIDE = { periodeMois: 12, devise: 'XAF', moyen: 'kpay:MTN_MOMO_CMR', telephone: '653456789', prixAffiche: 48_000 }
 
 describe('schemaPaiementInitier', () => {
   it('should accept a complete request', () => {

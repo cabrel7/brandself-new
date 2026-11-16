@@ -238,7 +238,7 @@ describe('createGeneration : dédoublonnage et replis transitoires (revue sécur
 
   it('should list the transient fallbacks in the shared constant (provider failure and timeout included)', () => {
     expect([...MOTIFS_REPLI_TRANSITOIRES].sort()).toEqual(
-      ['delai_depasse', 'echec_fournisseur', 'file_indisponible', 'limiteur_indisponible', 'plafond_global', 'quota_atteint'],
+      ['delai_depasse', 'echec_fournisseur', 'file_indisponible', 'ia_coupee', 'limiteur_indisponible', 'plafond_global', 'quota_atteint'],
     )
   })
 

@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { ADMIN_HOST_DEV_DEFAUT } from './admin'
+import { ADMIN_HOST_DEV_DEFAUT, APP_VERSION_DEFAUT, APP_VERSION_FORMAT } from './admin'
 import { IA_CLE_API_LONGUEUR_MIN, IA_FOURNISSEURS, IA_HOTES_HTTP_AUTORISES, IA_MODELE_DEFAUT } from './ia'
 import type { IaFournisseur } from './ia'
 import { MEDIAS_CACHE_REFRESH_SECRET_FORMAT, MEDIAS_CACHE_REFRESH_SECRET_LONGUEUR_MIN } from './medias-cache'
@@ -136,6 +136,13 @@ const schemaEnv = z
     // A1 (D-A1-02) : hôte de l'administration. Obligatoire en production, différent de l'hôte public ;
     // absent hors production = `admin.localhost`.
     ADMIN_HOST: schemaAdminHost,
+    // A4 (D-A4-22) : version de l'application affichée par la santé de l'administration (ex. identifiant de commit
+    // ou de release posé par le déploiement). Facultative ; absente = `inconnue`. Jamais un secret ; le message
+    // d'erreur ne répète pas la valeur.
+    APP_VERSION: z.preprocess(
+      rognerOuAbsent,
+      z.string().regex(APP_VERSION_FORMAT, 'doit contenir 1 à 64 caractères parmi lettres, chiffres, point, tiret, plus et souligné').optional(),
+    ),
     // Éviction du cache nginx de `/medias/` à la suspension / au blocage d'un compte : secret partagé avec nginx
     // (en-tête `x-cache-refresh`). Obligatoire en production ; absent hors production = la tâche est sautée.
     // Jamais journalisé ni renvoyé ; les messages d'erreur ne répètent pas la valeur.
@@ -274,6 +281,8 @@ const schemaEnv = z
     KPAY_BASE_URL: (env.KPAY_BASE_URL ?? KPAY_BASE_URL_DEFAUT).replace(/\/+$/, ''),
     // Garanti défini : requis en production par la validation ci-dessus, `admin.localhost` sinon.
     ADMIN_HOST: env.ADMIN_HOST ?? ADMIN_HOST_DEV_DEFAUT,
+    // Garanti défini : `inconnue` sinon (D-A4-22).
+    APP_VERSION: env.APP_VERSION ?? APP_VERSION_DEFAUT,
   }))
 
 export type Env = z.infer<typeof schemaEnv>

@@ -87,7 +87,7 @@ describe('constantes décidées de l\'administration', () => {
   })
 
   it('should use the Phosphor icon family only, and the user-facing vocabulary', () => {
-    expect(ADMIN_NAV.map((e) => e.id)).toEqual(['vue-ensemble', 'utilisateurs', 'vitrines', 'abonnements', 'systemes', 'reglages', 'journal'])
+    expect(ADMIN_NAV.map((e) => e.id)).toEqual(['vue-ensemble', 'utilisateurs', 'vitrines', 'abonnements', 'systemes', 'reglages', 'catalogues', 'versions', 'journal'])
     for (const entree of ADMIN_NAV) {
       expect(entree.icone, entree.id).toMatch(/^i-ph-[a-z-]+$/)
       expect(entree.to, entree.id).toMatch(/^\/admin(\/[a-z-]+)?$/)

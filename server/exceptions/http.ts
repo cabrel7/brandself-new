@@ -100,6 +100,24 @@ export const ERROR_MESSAGES: Record<ErrorCode, string> = {
   ABONNEMENT_INTROUVABLE: 'Cet abonnement est introuvable.',
   ABONNEMENT_ECHU: 'Cet abonnement est échu : un rappel n’est plus possible.',
   EXPORT_TROP_GRAND: 'Cet export dépasse la taille autorisée : réduisez la période.',
+  // A4 : supervision et réglages. `INSCRIPTIONS_FERMEES` reste neutre : il ne dit rien d'une adresse en particulier.
+  MAINTENANCE: 'Le service est en maintenance. Réessayez dans quelques minutes.',
+  INSCRIPTIONS_FERMEES: 'Les inscriptions sont momentanément fermées.',
+  REGLAGE_INCONNUE: 'Ce réglage est introuvable.',
+  REGLAGE_INVALIDE: 'Cette valeur n’est pas acceptée pour ce réglage.',
+  REGLAGE_LECTURE_SEULE: 'Ce réglage ne peut pas être modifié depuis l’administration.',
+  JOB_NON_RELANCABLE: 'Cette tâche ne peut pas être relancée.',
+  JOB_INTROUVABLE: 'Cette tâche est introuvable.',
+  // A5 : catalogues et versions de configuration.
+  CATALOGUE_ENTREE_UTILISEE: 'Cette entrée est utilisée par des vitrines : désactivez-la plutôt que de la supprimer.',
+  PRIX_CHANGE: 'Le prix a changé. Vérifiez le nouveau montant avant de payer.',
+  IMPACT_CHANGE: 'L’impact a changé depuis votre aperçu. Relisez-le avant d’activer cette version.',
+  CANAL_INDISPONIBLE: 'Ce moyen de recevoir un code n’est pas disponible pour ce pays. Choisissez-en un autre.',
+  VERSION_NON_ACTIVABLE: 'Cette version ne peut pas être activée dans son état actuel.',
+  VARIABLE_INCONNUE: 'Le gabarit contient une variable inconnue.',
+  ESSAI_LIMITE: 'Vous avez atteint la limite d’essais. Réessayez dans un moment.',
+  NOM_BLOQUE: 'Cette adresse n’est pas disponible. Choisissez-en une autre.',
+  FUSEAU_INCONNU: 'Ce fuseau horaire est inconnu.',
   ERREUR_INTERNE: 'Une erreur est survenue de notre côté. Réessayez dans un instant.',
 }
 

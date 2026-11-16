@@ -50,6 +50,24 @@ export const ADMIN_ACTIONS = {
   paiementMarquerPaye: 'paiement.marquer_paye',
   abonnementRappeler: 'abonnement.rappeler',
   exportPaiements: 'export.paiements',
+  // A4 : réglages, supervision des files, journal, capacités (docs/specs/A4-supervision-reglages.md §3).
+  reglageModifier: 'reglage.modifier',
+  jobRelancer: 'job.relancer',
+  jobPurger: 'job.purger',
+  journalExporter: 'journal.exporter',
+  capaciteAccorder: 'capacite.accorder',
+  capaciteRevoquer: 'capacite.revoquer',
+  // A5 : catalogues et versions de configuration (docs/specs/A5-catalogues-versions.md §5).
+  catalogueCreer: 'catalogue.creer',
+  catalogueModifier: 'catalogue.modifier',
+  catalogueSupprimer: 'catalogue.supprimer',
+  versionCreer: 'version.creer',
+  versionProgrammer: 'version.programmer',
+  versionActiver: 'version.activer',
+  versionRetour: 'version.retour',
+  versionValiderPrix: 'version.valider_prix',
+  /** Essai à blanc d'un prompt : lecture seule, JAMAIS journalisé (aucune écriture) ; l'action existe pour le libellé. */
+  promptEssai: 'prompt.essai',
 } as const
 export type AdminAction = (typeof ADMIN_ACTIONS)[keyof typeof ADMIN_ACTIONS]
 
@@ -61,6 +79,11 @@ export const ADMIN_CIBLES = {
   paiement: 'paiement',
   abonnement: 'abonnement',
   export: 'export',
+  reglage: 'reglage',
+  job: 'job',
+  journal: 'journal',
+  catalogue: 'catalogue',
+  version: 'version',
 } as const
 export type AdminCible = (typeof ADMIN_CIBLES)[keyof typeof ADMIN_CIBLES]
 
@@ -97,6 +120,110 @@ export const CLES_AUDIT_INTERDITES: readonly string[] = [
   'mot_de_passe', 'token', 'jeton', 'secret', 'code', 'cle', 'ip',
 ]
 
+// --- A4 : supervision, réglages, journal (docs/specs/A4-supervision-reglages.md) ---
+
+/** Fenêtre des agrégats IA, PWA et assistants : 30 jours au plus (`generations_ia` est purgée à 30 jours, D-A4-17). */
+export const ADMIN_SUPERVISION_JOURS_MIN = 1
+export const ADMIN_SUPERVISION_JOURS_DEFAUT = 30
+export const ADMIN_SUPERVISION_JOURS_MAX = 30
+/** Envois de codes : 7 jours par défaut ; au plus la rétention du journal d'envoi (`ENVOIS_CODES_RETENTION_JOURS`). */
+export const ADMIN_ENVOIS_JOURS_DEFAUT = 7
+/** Identifiant d'un job BullMQ pris en charge (≤ 64 : il sert de `cible_id` du journal). */
+export const ADMIN_JOB_ID_FORMAT = /^[A-Za-z0-9._:-]{1,64}$/
+/** Top des consommateurs d'IA et des assistants listés au plus. */
+export const ADMIN_SUPERVISION_TOP_MAX = 10
+export const ADMIN_SUPERVISION_ERREURS_TOP_MAX = 10
+export const ADMIN_SUPERVISION_ASSISTANTS_MAX = 20
+
+/** Santé (D-A4-16) : états d'un contrôle et de la dernière sauvegarde (`inconnue` n'est JAMAIS présentée comme bonne). */
+export const SANTE_ETATS = ['ok', 'degrade', 'indisponible'] as const
+export type SanteEtat = (typeof SANTE_ETATS)[number]
+export const SAUVEGARDE_ETATS = ['ok', 'ancienne', 'inconnue'] as const
+export type SauvegardeEtat = (typeof SAUVEGARDE_ETATS)[number]
+/** Délai de la requête `SELECT 1` de santé. */
+export const SANTE_BASE_TIMEOUT_MS = 2_000
+
+/** D-A4-22 : version de l'application (`APP_VERSION`, facultative) ; texte sûr, jamais un secret. */
+export const APP_VERSION_DEFAUT = 'inconnue'
+export const APP_VERSION_FORMAT = /^[A-Za-z0-9._+-]{1,64}$/
+
+/** D-A4-08 : la maintenance refuse (503 `MAINTENANCE`, `Retry-After`) ces chemins ; le reste reste ouvert. */
+export const MAINTENANCE_RETRY_AFTER_S = 300
+/** `/api/studio/**` : toute requête sauf `GET`. */
+export const MAINTENANCE_PREFIXES_STUDIO: readonly string[] = ['/api/studio']
+/** Connexion et inscription : toutes méthodes. Les vitrines publiques, l'administration et la lecture de session restent ouvertes. */
+export const MAINTENANCE_PREFIXES_AUTH: readonly string[] = [
+  '/api/auth/sign-in',
+  '/api/auth/email-otp',
+  '/api/auth/phone-number',
+]
+/** État public (maintenance en cours ou non) : lu par le studio, jamais refusé. */
+export const ETAT_PUBLIC_CHEMIN = '/api/public/etat'
+
+/** D-A4-18 : `GET journal/verifier` limité à 5 par minute et par administrateur (recalcul de toute la chaîne). */
+export const ADMIN_JOURNAL_VERIFICATION_LIMIT: RateLimit = { limit: 5, windowS: 60 }
+export const ADMIN_JOURNAL_VERIFICATION_CLE_PREFIXE = 'admin-journal-verif:'
+/** Export CSV du journal : colonnes dans cet ordre (jamais d'adresse IP ni de clé d'idempotence). */
+export const EXPORT_JOURNAL_COLONNES = [
+  'numero',
+  'creeLe',
+  'adminId',
+  'action',
+  'cibleType',
+  'cibleId',
+  'motif',
+  'avant',
+  'apres',
+  'empreinte',
+] as const
+export type ExportJournalColonne = (typeof EXPORT_JOURNAL_COLONNES)[number]
+export const EXPORT_JOURNAL_NOM_FICHIER_PREFIXE = 'journal-admin-'
+export const EXPORT_JOURNAL_CONTENT_TYPE = 'text/csv; charset=utf-8'
+
+// --- A5 : catalogues et versions de configuration (docs/specs/A5-catalogues-versions.md) ---
+
+/** `[nom]` des routes `/api/admin/catalogues/[nom]`. */
+export const ADMIN_CATALOGUES = ['pays', 'devises', 'noms-bloques'] as const
+export type AdminCatalogue = (typeof ADMIN_CATALOGUES)[number]
+/** Pays : code ISO alpha-2, indicatif sans `+` (non unique : `+1`), libellé, fuseaux (le premier sert de repli). */
+export const PAYS_CODE_FORMAT = /^[A-Z]{2}$/
+export const PAYS_INDICATIF_FORMAT = /^[1-9][0-9]{0,3}$/
+export const PAYS_LIBELLE_MIN = 2
+export const PAYS_LIBELLE_MAX = 80
+export const PAYS_FUSEAUX_MAX = 10
+/** Noms d'adresse bloqués en plus de `shared/reserved.ts` ; motif de 5 à 200 caractères (CHECK de `usernames_bloques`). */
+export const NOM_BLOQUE_FORMAT = /^[a-z0-9][a-z0-9_-]{1,39}$/
+export const CATALOGUE_MOTIF_MAX = 200
+
+/** `[type]` des routes `/api/admin/versions/[type]`. Les prompts vivent dans `prompts_ia`, les autres dans `configuration_versions`. */
+export const ADMIN_VERSION_TYPES = ['plans', 'prix', 'frais', 'moyens', 'prompts'] as const
+export type AdminVersionType = (typeof ADMIN_VERSION_TYPES)[number]
+/** CHECK `configuration_versions_categorie_check`. */
+export const VERSION_CATEGORIES = ['plan', 'prix', 'frais', 'moyens'] as const
+export type VersionCategorie = (typeof VERSION_CATEGORIES)[number]
+export const VERSION_CATEGORIE_PAR_TYPE: Record<Exclude<AdminVersionType, 'prompts'>, VersionCategorie> = {
+  plans: 'plan',
+  prix: 'prix',
+  frais: 'frais',
+  moyens: 'moyens',
+}
+/** CHECK `configuration_versions_statut_check` : brouillon, puis programmee ou active, puis remplacee. */
+export const VERSION_STATUTS = ['brouillon', 'programmee', 'active', 'remplacee'] as const
+export type VersionStatut = (typeof VERSION_STATUTS)[number]
+/** Un prompt n'a que `actif` en base : active, ou inactive (jamais activée ou remplacée). */
+export const VERSION_PROMPT_STATUTS = ['active', 'inactive'] as const
+export type VersionPromptStatut = (typeof VERSION_PROMPT_STATUTS)[number]
+/** CHECK `configuration_versions_cle_check`. */
+export const VERSION_CLE_FORMAT = /^[a-z0-9_:.-]{1,60}$/
+/** D-A5-05 : limite d'un plan, de 0 à 10 000 (ou `null` = illimité). */
+export const VERSION_PLAN_LIMITE_MAX = 10_000
+/** Moyens actifs listés au plus dans une version `moyens`. */
+export const VERSION_MOYENS_MAX = 50
+/** Mention affichée avec l'aperçu d'impact (R7). */
+export const VERSION_IMPACT_MENTION = 'Estimation : la période de grâce est comptée à une journée près.'
+/** D-A5-15 : cache de la lecture publique `GET /api/referentiels`, en secondes. */
+export const REFERENTIELS_CACHE_S = 60
+
 export interface ElementNavAdmin {
   id: string
   libelle: string
@@ -112,6 +239,8 @@ export const ADMIN_NAV: readonly ElementNavAdmin[] = [
   { id: 'abonnements', libelle: 'Abonnements', to: '/admin/abonnements', icone: 'i-ph-credit-card' },
   { id: 'systemes', libelle: 'Systèmes', to: '/admin/systemes', icone: 'i-ph-heartbeat' },
   { id: 'reglages', libelle: 'Réglages', to: '/admin/reglages', icone: 'i-ph-sliders' },
+  { id: 'catalogues', libelle: 'Catalogues', to: '/admin/catalogues', icone: 'i-ph-globe-hemisphere-west' },
+  { id: 'versions', libelle: 'Versions', to: '/admin/versions', icone: 'i-ph-clock-counter-clockwise' },
   { id: 'journal', libelle: 'Journal', to: '/admin/journal', icone: 'i-ph-scroll' },
 ]
 

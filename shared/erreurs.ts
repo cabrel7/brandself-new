@@ -1,4 +1,5 @@
 import type { PlanId, RessourceQuota } from './plans'
+import type { ImpactPlan } from './schemas/admin-versions'
 
 export const ERROR_CODES = [
   'VALIDATION',
@@ -98,6 +99,24 @@ export const ERROR_CODES = [
   'ABONNEMENT_INTROUVABLE',
   'ABONNEMENT_ECHU',
   'EXPORT_TROP_GRAND',
+  // A4 : supervision et réglages (docs/specs/A4-supervision-reglages.md §4).
+  'MAINTENANCE',
+  'INSCRIPTIONS_FERMEES',
+  'REGLAGE_INCONNUE',
+  'REGLAGE_INVALIDE',
+  'REGLAGE_LECTURE_SEULE',
+  'JOB_NON_RELANCABLE',
+  'JOB_INTROUVABLE',
+  // A5 : catalogues et versions de configuration (docs/specs/A5-catalogues-versions.md §5).
+  'CATALOGUE_ENTREE_UTILISEE',
+  'PRIX_CHANGE',
+  'IMPACT_CHANGE',
+  'CANAL_INDISPONIBLE',
+  'VERSION_NON_ACTIVABLE',
+  'VARIABLE_INCONNUE',
+  'ESSAI_LIMITE',
+  'NOM_BLOQUE',
+  'FUSEAU_INCONNU',
   'ERREUR_INTERNE',
 ] as const
 
@@ -195,6 +214,24 @@ export const ERROR_STATUS: Record<ErrorCode, number> = {
   ABONNEMENT_INTROUVABLE: 404,
   ABONNEMENT_ECHU: 409,
   EXPORT_TROP_GRAND: 422,
+  // A4. `MAINTENANCE` porte `Retry-After` ; `INSCRIPTIONS_FERMEES` reste neutre (aucun oracle sur l'existence d'un compte).
+  MAINTENANCE: 503,
+  INSCRIPTIONS_FERMEES: 403,
+  REGLAGE_INCONNUE: 404,
+  REGLAGE_INVALIDE: 422,
+  REGLAGE_LECTURE_SEULE: 422,
+  JOB_NON_RELANCABLE: 422,
+  JOB_INTROUVABLE: 404,
+  // A5.
+  CATALOGUE_ENTREE_UTILISEE: 409,
+  PRIX_CHANGE: 409,
+  IMPACT_CHANGE: 409,
+  CANAL_INDISPONIBLE: 422,
+  VERSION_NON_ACTIVABLE: 422,
+  VARIABLE_INCONNUE: 422,
+  ESSAI_LIMITE: 429,
+  NOM_BLOQUE: 422,
+  FUSEAU_INCONNU: 422,
   ERREUR_INTERNE: 500,
 }
 
@@ -212,4 +249,11 @@ export interface ErrorData {
   plan?: PlanId
   /** PAIEMENT_EN_COURS : paiement ouvert le plus récent, à suivre plutôt que d'en créer un autre. */
   paiementId?: string
+  /** MAINTENANCE : message de l'administrateur (texte brut, 280 caractères au plus), absent s'il est vide. */
+  messageMaintenance?: string
+  /** PRIX_CHANGE : montant TTC actuel (unité mineure de `devise`), à afficher avant de renvoyer la demande. */
+  prixActuel?: number
+  devise?: string
+  /** IMPACT_CHANGE : impact recalculé au moment de l'activation, à relire avant de confirmer. */
+  impact?: ImpactPlan
 }

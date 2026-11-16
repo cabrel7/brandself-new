@@ -116,7 +116,7 @@ describe('constantes IA (shared/ia)', () => {
     expect(IA_MODELE_DEFAUT).toBe('claude-haiku-5-5')
   })
 
-  it('should list the ten fallback reasons (nine S8 + quota_atteint, S10)', () => {
+  it('should list the eleven fallback reasons (nine S8 + quota_atteint, S10 + ia_coupee, A4)', () => {
     expect([...MOTIFS_REPLI]).toEqual([
       'echec_fournisseur',
       'delai_depasse',
@@ -128,6 +128,7 @@ describe('constantes IA (shared/ia)', () => {
       'limiteur_indisponible',
       'plafond_global',
       'quota_atteint',
+      'ia_coupee',
     ])
   })
 

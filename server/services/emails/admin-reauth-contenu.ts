@@ -36,6 +36,21 @@ const LIBELLES_ACTION: Readonly<Record<string, string>> = {
   'paiement.marquer_paye': 'confirmation manuelle d’un paiement',
   'abonnement.rappeler': 'envoi d’un rappel d’abonnement',
   'export.paiements': 'export des paiements',
+  'reglage.modifier': 'modification d’un réglage',
+  'job.relancer': 'relance d’une tâche en échec',
+  'job.purger': 'purge des tâches en échec',
+  'journal.exporter': 'export du journal d’administration',
+  'capacite.accorder': 'octroi d’une capacité à un compte',
+  'capacite.revoquer': 'retrait d’une capacité à un compte',
+  'catalogue.creer': 'ajout d’une entrée de catalogue',
+  'catalogue.modifier': 'modification d’une entrée de catalogue',
+  'catalogue.supprimer': 'suppression d’une entrée de catalogue',
+  'version.creer': 'création d’une version de configuration',
+  'version.programmer': 'programmation d’une version de configuration',
+  'version.activer': 'activation d’une version de configuration',
+  'version.retour': 'retour à la version précédente d’une configuration',
+  'version.valider_prix': 'validation de la grille de prix',
+  'prompt.essai': 'essai à blanc d’un prompt',
 }
 
 export function libelleAction(action: string): string {

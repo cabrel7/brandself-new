@@ -97,6 +97,11 @@ export const JOBS = {
   // Suspension / blocage d'un compte (et leur levée) : redemande les images du compte à nginx pour vider son cache
   // (file `maintenance`, charge `{ userId }` seulement).
   rafraichirCacheMedias: 'medias-cache-rafraichir',
+  // A4 : contrôle des échecs définitifs par file (alerte) et purge du journal d'envoi des codes (file `maintenance`).
+  controlerEchecsFiles: 'supervision-echecs-controler',
+  purgerEnvois: 'envois-codes-purger',
+  // A5 : fait passer à `active` les versions de configuration programmées dont la date est échue (file `maintenance`).
+  appliquerVersions: 'versions-appliquer',
 } as const
 
 export type JobName = (typeof JOBS)[keyof typeof JOBS]
@@ -153,6 +158,68 @@ export const PAIEMENT_EXPIRATION_MINUTES = 15
 export const WEBHOOKS_REFUSES_PURGE_SCHEDULER_ID = 'webhooks-refuses-purger'
 export const WEBHOOKS_REFUSES_PURGE_CRON = '30 4 * * *'
 export const WEBHOOKS_REFUSES_PURGE_LOT = 500
+
+// A4 (docs/specs/A4-supervision-reglages.md §1, §4) : supervision des files, journal d'envoi des codes, battements.
+/** Files que l'administration supervise (la file `emails` d'avant la séparation n'a plus de producteur : exclue). */
+export const FILES_SUPERVISEES = [
+  FILE_SYSTEM,
+  FILE_MAINTENANCE,
+  FILE_MESSAGES_AUTH,
+  FILE_EMAILS_NOTIFICATIONS,
+  FILE_IA,
+  FILE_IA_FOND,
+  FILE_PAIEMENTS,
+] as const
+export type FileSupervisee = (typeof FILES_SUPERVISEES)[number]
+/** D-A4-02 : les jobs de `messages-auth` portent un code de connexion : jamais relancés depuis l'administration. */
+export const FILES_NON_RELANCABLES: readonly FileSupervisee[] = [FILE_MESSAGES_AUTH]
+/** Échecs listés au plus par file (leur contenu n'est jamais lu : ni `job.data`, ni message d'erreur brut). */
+export const SUPERVISION_ECHECS_LISTES_MAX = 20
+/** D-A4-02 : jobs `failed` supprimés au plus par purge. */
+export const SUPERVISION_PURGE_LIMITE_MAX = 1_000
+
+/**
+ * D-A4-03 : le worker incrémente `supervision:echecs:{file}:{tranche}` à chaque échec DÉFINITIF (tranche = horodatage
+ * en secondes divisé par `SUPERVISION_TRANCHE_S`), avec expiration `SUPERVISION_ECHECS_TTL_S`, fail-open.
+ * Le contrôle somme les `SUPERVISION_FENETRE_TRANCHES` dernières tranches (3 x 5 min = 15 min).
+ */
+export const SUPERVISION_ECHECS_CLE_PREFIXE = 'supervision:echecs:'
+export const SUPERVISION_TRANCHE_S = 300
+export const SUPERVISION_FENETRE_TRANCHES = 3
+export const SUPERVISION_ECHECS_TTL_S = 3_600
+/** Une alerte au plus par heure (clé `supervision:alerte`, posée à l'envoi). */
+export const SUPERVISION_ALERTE_CLE = 'supervision:alerte'
+export const SUPERVISION_ALERTE_INTERVALLE_S = 3_600
+/** Ordonnanceur répété du contrôle (file `maintenance`) : toutes les 5 minutes. */
+export const SUPERVISION_CONTROLE_SCHEDULER_ID = 'supervision-echecs-controler'
+export const SUPERVISION_CONTROLE_INTERVALLE_MS = 300_000
+
+/** D-A4-15 : journal d'envoi des codes (`envois_codes`) : canal, pays, statut, tentative, code d'erreur court. */
+export const ENVOIS_CODES_CANAUX = ['sms', 'email', 'whatsapp'] as const
+export type EnvoiCodeCanal = (typeof ENVOIS_CODES_CANAUX)[number]
+export const ENVOIS_CODES_STATUTS = ['envoye', 'echec'] as const
+export type EnvoiCodeStatut = (typeof ENVOIS_CODES_STATUTS)[number]
+/** CHECK `envois_codes_pays_check` : code ISO alpha-2 en majuscules (NULL pour l'e-mail). */
+export const ENVOIS_CODES_PAYS_FORMAT = /^[A-Z]{2}$/
+/** CHECK `envois_codes_tentative_check` : de 1 au nombre de tentatives d'un job OTP. */
+export const ENVOIS_CODES_TENTATIVE_MAX = OTP_JOB_MAX_ATTEMPTS
+/** CHECK `envois_codes_code_erreur_check`. */
+export const ENVOIS_CODES_CODE_ERREUR_MAX = 40
+/** Jours de conservation (purge quotidienne, par lots). */
+export const ENVOIS_CODES_RETENTION_JOURS = 90
+export const ENVOIS_CODES_PURGE_SCHEDULER_ID = 'envois-codes-purger'
+export const ENVOIS_CODES_PURGE_CRON = '45 4 * * *'
+export const ENVOIS_CODES_PURGE_LOT = 1_000
+
+/** D-A4-16 : battements écrits par un script extérieur (`battements_systeme.cle`, format `^[a-z_]{3,40}$`). */
+export const BATTEMENT_CLE_FORMAT = /^[a-z_]{3,40}$/
+export const BATTEMENT_SAUVEGARDE = 'sauvegarde_derniere_reussite'
+/** Heures : au-delà, la dernière sauvegarde réussie est jugée trop ancienne (alerte). */
+export const SAUVEGARDE_ALERTE_HEURES = 26
+
+// A5 (D-A5-03) : application des versions programmées, toutes les 60 secondes (idempotent).
+export const VERSIONS_APPLIQUER_SCHEDULER_ID = 'versions-appliquer'
+export const VERSIONS_APPLIQUER_INTERVALLE_MS = 60_000
 
 export { mediasCacheRefreshJobDataSchema } from './medias-cache'
 export type { MediasCacheRefreshJobData } from './medias-cache'

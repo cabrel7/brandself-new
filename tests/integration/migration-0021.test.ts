@@ -381,7 +381,8 @@ describe('migration 0021 : fichier, journal et synchronisation avec shared/', ()
   })
 
   it('recopie exactement MOTIFS_REPLI dans la CHECK des motifs de repli', () => {
-    expect(valeursContrainte('generations_ia_motif_check')).toEqual([...MOTIFS_REPLI])
+    // `ia_coupee` est ajouté par la migration 0031 (A4) : prouvé dans migration-0031.test.ts.
+    expect(valeursContrainte('generations_ia_motif_check')).toEqual(MOTIFS_REPLI.filter((motif) => motif !== 'ia_coupee'))
     expect(valeursContrainte('generations_ia_motif_check')).toEqual([...MOTIFS_REPLI_AVANT, 'quota_atteint'])
   })
 
