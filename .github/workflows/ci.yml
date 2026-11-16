@@ -65,6 +65,15 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
+      # `pnpm db:seed` (testé par seed-statistiques) lance `node --env-file=.env` : le fichier doit exister.
+      - name: Créer .env de test
+        run: |
+          {
+            echo "DATABASE_URL=$DATABASE_URL"
+            echo "REDIS_URL=$REDIS_URL"
+            echo "NUXT_BETTER_AUTH_SECRET=$NUXT_BETTER_AUTH_SECRET"
+          } > .env
+
       - run: pnpm lint
 
       - run: pnpm typecheck

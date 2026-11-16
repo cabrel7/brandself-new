@@ -28,6 +28,9 @@ function resoudreH3(): string | undefined {
 }
 const h3 = resoudreH3()
 
+// Hôte d'administration des tests : fixé ici (hermétique). Sans cela les tests dépendent du `.env` du poste (local) ou de la valeur de la CI.
+const ADMIN_HOST_TEST = 'admin.localhost'
+
 /** Dossier de stockage des médias pour les tests d'intégration (vidé entre les tests). */
 const MEDIAS_DIR_TEST = path.join(tmpdir(), 'brandself-tests-medias')
 
@@ -79,6 +82,7 @@ export default defineConfig({
             DATABASE_URL: 'postgresql://test:test@localhost:5432/test',
             REDIS_URL: 'redis://localhost:6379',
             NUXT_BETTER_AUTH_SECRET: SECRET_FACTICE,
+            ADMIN_HOST: ADMIN_HOST_TEST,
           },
         },
       },
@@ -103,6 +107,7 @@ export default defineConfig({
           sequence: { groupOrder: 1 },
           env: {
             NUXT_BETTER_AUTH_SECRET: SECRET_FACTICE,
+            ADMIN_HOST: ADMIN_HOST_TEST,
             MEDIAS_DIR: MEDIAS_DIR_TEST,
             [VARIABLE_NB_BASES]: modeSerie ? '0' : String(nbWorkers),
           },
@@ -126,6 +131,7 @@ export default defineConfig({
               sequence: { groupOrder: 2 },
               env: {
                 NUXT_BETTER_AUTH_SECRET: SECRET_FACTICE,
+                ADMIN_HOST: ADMIN_HOST_TEST,
                 MEDIAS_DIR: `${MEDIAS_DIR_TEST}-serie`,
                 [VARIABLE_NB_BASES]: '0',
               },

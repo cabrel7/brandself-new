@@ -137,7 +137,8 @@ describe('processOtpJob : clé d’idempotence de l’OTP e-mail', () => {
   it('should wire cleIdempotenceOtp(job.queueName, job.id, job.timestamp) from the worker to processOtpJob (both queues)', () => {
     const source = readFileSync(path.resolve(__dirname, '../../worker/index.ts'), 'utf8')
 
-    expect(source).toMatch(/processOtpJobData\(job\.name, job\.data, cleIdempotenceOtp\(job\.queueName, job\.id, job\.timestamp\)\)/)
+    // A4 : le numéro de tentative (`job.attemptsMade + 1`) est transmis en 5e argument pour le journal d'envoi des codes.
+    expect(source).toMatch(/processOtpJobData\(job\.name, job\.data, cleIdempotenceOtp\(job\.queueName, job\.id, job\.timestamp\), undefined, job\.attemptsMade \+ 1\)/)
     expect(source).toMatch(/FILE_MESSAGES_AUTH,\s+processOtpJob,/)
     expect(source).toContain('await processOtpJob(job)')
     expect(source).not.toContain('`otp-email:${job.id}`')
