@@ -29,7 +29,7 @@ import {
   ADMIN_VITRINES_TRI_DEFAUT,
   ABONNEMENT_ORIGINES,
 } from '../admin-a2'
-import { ETATS_ABONNEMENT, PLAN_IDS } from '../plans'
+import { CAPACITES_PAYANTES, ETATS_ABONNEMENT, PLAN_IDS } from '../plans'
 import { schemaMotifAdmin } from './admin'
 
 // --- Briques communes (réutilisées par A3) ---
@@ -181,6 +181,8 @@ export const schemaUtilisateurFicheDto = schemaUtilisateurLigneDto.extend({
   iaMois: schemaCompteur,
   sessionsActives: z.array(schemaSessionActive).max(ADMIN_FICHE_LIGNES_MAX),
   assistants: z.array(schemaAssistantDto).max(ADMIN_FICHE_LIGNES_MAX),
+  /** A4 : capacités accordées par l'administration à ce compte (hors plan), pour n'afficher que l'action utile. */
+  capacites: z.array(z.enum(CAPACITES_PAYANTES)).max(CAPACITES_PAYANTES.length),
 })
 export type UtilisateurFicheDto = z.infer<typeof schemaUtilisateurFicheDto>
 

@@ -2,7 +2,9 @@ import { randomUUID } from 'node:crypto'
 import { and, eq, sql } from 'drizzle-orm'
 import { disponibilites, liens, medias, realisations, services, temoignages, users, vitrines } from '../../shared/db/schema'
 import { USERNAME_CHECK_LIMIT } from '../../shared/limites'
+import { REGLAGE_CLES } from '../../shared/reglages'
 import { isReserved } from '../../shared/reserved'
+import { verifierNomUtilisateur } from './configuration/catalogues'
 import type { UsernameChangeInput, VitrineCreateInput, VitrineUpdateInput } from '../../shared/schemas/vitrine'
 import { NEXT_STEPS } from '../../shared/vitrine'
 import type { NextStep, PublicationField } from '../../shared/vitrine'
@@ -16,6 +18,7 @@ import { seoIaARegenerer, signatureEntreesSeo } from './ia/seo-regles'
 import { deleteMediaIfUnreferenced } from './medias'
 import type { MediaRow } from './medias'
 import { getPlanPublic, sqlIdsVisibles } from './plan-visibilite'
+import { Reglages } from './reglages'
 import { getTotaux7J } from './statistiques'
 import { sqlVitrinePublique } from './visibilite'
 import { computeMissingForPublication, computeNextStep } from './vitrines-regles'
@@ -83,12 +86,19 @@ function rethrowUniqueViolation(error: unknown): never {
 }
 
 export async function createVitrine(userId: string, input: VitrineCreateInput): Promise<VitrineAvecPhoto> {
+  // A5 (CA16) : nom réservé par le code ou bloqué par l'administration : 422 `NOM_BLOQUE`.
+  await verifierNomUtilisateur(input.username)
+  // A4 (D-A4-14) : défauts d'agenda pilotés, appliqués aux NOUVELLES vitrines seulement.
+  const preavisHeures = await Reglages.lire(REGLAGE_CLES.agendaPreavisDefautHeures)
+  const horizonJours = await Reglages.lire(REGLAGE_CLES.agendaHorizonDefautJours)
   try {
     const [vitrine] = await db
       .insert(vitrines)
       .values({
         id: randomUUID(),
         userId,
+        preavisHeures,
+        horizonJours,
         username: input.username,
         titre: input.titre,
         prenom: input.prenom,
@@ -178,6 +188,8 @@ export async function updateVitrine(userId: string, patch: VitrineUpdateInput): 
 }
 
 export async function changeUsername(userId: string, username: UsernameChangeInput['username']): Promise<VitrineAvecPhoto> {
+  // A5 (CA16) : les vitrines existantes ne sont jamais modifiées ; seul un NOUVEAU choix est contrôlé.
+  await verifierNomUtilisateur(username)
   try {
     await db.transaction(async (tx) => {
       const [current] = await tx
@@ -391,6 +403,11 @@ export async function checkUsernameAvailability(userId: string, rawUsername: str
   const username = normalizeUsername(rawUsername)
   if (!hasValidUsernameFormat(username)) return { username, disponible: false, raison: 'format' }
   if (isReserved(username)) return { username, disponible: false, raison: 'reserve' }
+  try {
+    await verifierNomUtilisateur(username)
+  } catch {
+    return { username, disponible: false, raison: 'reserve' }
+  }
   const [owner] = await db
     .select({ userId: vitrines.userId })
     .from(vitrines)

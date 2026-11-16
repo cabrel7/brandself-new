@@ -4,7 +4,7 @@ import { z } from 'zod'
 import { generationsIa, medias, progressionsInscription, services, users, vitrines } from '../../shared/db/schema'
 import type { ProgressionInscription } from '../../shared/db/schema'
 import { GENERATION_EXPIRATION_MS, GENERATION_STATUTS_TERMINAUX } from '../../shared/ia'
-import { ONBOARDING_ABANDON_RETENTION_JOURS } from '../../shared/onboarding'
+import { REGLAGE_CLES } from '../../shared/reglages'
 import type { OnboardingEtape, OnboardingManquant } from '../../shared/onboarding'
 import { ONBOARDING_TERMINER_CLE_PREFIXE, ONBOARDING_TERMINER_LIMIT } from '../../shared/limites'
 import { schemaPropositionRepli, schemaSeoIa } from '../../shared/schemas/ia'
@@ -28,6 +28,7 @@ import type { CreationResultat } from './ia/generations'
 import { detecterInjection, entreeOnboarding, nettoyerTexte } from './ia/nettoyage'
 import type { EntreeOnboarding } from './ia/entrees'
 import type { MediaRow } from './medias'
+import { verifierNomUtilisateur } from './configuration/catalogues'
 import { getPlanEffectif, limiteDe } from './plans'
 import {
   computeEtapeReprise,
@@ -40,6 +41,7 @@ import {
 import type { IdentiteProgression, ServiceBrouillon } from './onboarding-regles'
 import { checkServiceCoherence, normalizeServiceState, pickAvailableSlug, slugFromTitle } from './services-regles'
 import type { ServiceState } from './services-regles'
+import { Reglages } from './reglages'
 import { cleanupMedias, requireOwnedMedias } from './vitrine-acces'
 import type { Transaction } from './vitrine-acces'
 
@@ -560,11 +562,18 @@ async function creerVitrineEtServices(
     throw incomplet(['proposition'])
   }
 
+  // A5 (CA16) : nom réservé ou bloqué (relu dans la transaction).
+  await verifierNomUtilisateur(input.username, tx)
   const vitrineId = randomUUID()
   // Décision #24 : la signature porte sur l'accroche CHOISIE (celle écrite dans la vitrine), pas sur les trois proposées.
   const seoIa = await lireSeoGenere(tx, userId, ligne.generationId)
+  // A4 (D-A4-14) : défauts d'agenda pilotés, appliqués aux NOUVELLES vitrines seulement.
+  const preavisHeures = await Reglages.lire(REGLAGE_CLES.agendaPreavisDefautHeures)
+  const horizonJours = await Reglages.lire(REGLAGE_CLES.agendaHorizonDefautJours)
   await tx.insert(vitrines).values({
     id: vitrineId,
+    preavisHeures,
+    horizonJours,
     userId,
     username: input.username,
     ...identite,
@@ -680,7 +689,8 @@ const LOG_PURGE = 'purge-onboarding'
  * Une progression terminée est déjà vidée de son identité par `terminer`. Idempotent. Renvoie le nombre supprimé.
  */
 export async function purgeProgressionsAbandonnees(now: Date = new Date()): Promise<number> {
-  const limite = new Date(now.getTime() - ONBOARDING_ABANDON_RETENTION_JOURS * MS_PAR_JOUR)
+  const retentionJours = await Reglages.lire(REGLAGE_CLES.retentionInscriptionsAbandonneesJours)
+  const limite = new Date(now.getTime() - retentionJours * MS_PAR_JOUR)
   const supprimees = await db
     .delete(progressionsInscription)
     .where(and(isNull(progressionsInscription.termineLe), lt(progressionsInscription.updatedAt, limite)))

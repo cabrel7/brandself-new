@@ -10,13 +10,11 @@ import {
   oauthConsents,
   oauthRefreshTokens,
 } from '../../shared/db/schema'
-import {
-  OAUTH_CLIENT_ORPHELIN_JOURS,
-  OAUTH_JETON_EXPIRE_MARGE_JOURS,
-  OAUTH_PURGE_LOT,
-} from '../../shared/mcp'
+import { OAUTH_JETON_EXPIRE_MARGE_JOURS, OAUTH_PURGE_LOT } from '../../shared/mcp'
+import { REGLAGE_CLES } from '../../shared/reglages'
 import { JOUR_MS } from '../../shared/temps'
 import { db } from '../utils/db'
+import { Reglages } from './reglages'
 
 export interface BilanPurgeOauth {
   clients: number
@@ -30,8 +28,8 @@ export interface BilanPurgeOauth {
  * Utilisée dans la sous-requête de sélection ET dans la suppression : si un consentement arrive entre les deux,
  * la ligne n'est plus supprimée. Supprimer un client emporte (ON DELETE CASCADE) ses jetons expirés ou révoqués.
  */
-function conditionOrphelin(now: Date): SQL | undefined {
-  const limite = new Date(now.getTime() - OAUTH_CLIENT_ORPHELIN_JOURS * JOUR_MS)
+function conditionOrphelin(now: Date, joursOrphelin: number): SQL | undefined {
+  const limite = new Date(now.getTime() - joursOrphelin * JOUR_MS)
   return and(
     lt(oauthClients.createdAt, limite),
     notExists(db.select({ un: oauthConsents.id }).from(oauthConsents).where(eq(oauthConsents.clientId, oauthClients.clientId))),
@@ -63,12 +61,14 @@ function conditionOrphelin(now: Date): SQL | undefined {
 }
 
 export async function purgerClientsOauthOrphelins(now: Date = new Date()): Promise<number> {
+  // A4 : délai pilotable (`retention.oauth_orphelins_jours`).
+  const joursOrphelin = await Reglages.lire(REGLAGE_CLES.retentionOauthOrphelinsJours)
   const supprimes = await db
     .delete(oauthClients)
     .where(
       and(
-        inArray(oauthClients.id, db.select({ id: oauthClients.id }).from(oauthClients).where(conditionOrphelin(now)).limit(OAUTH_PURGE_LOT)),
-        conditionOrphelin(now),
+        inArray(oauthClients.id, db.select({ id: oauthClients.id }).from(oauthClients).where(conditionOrphelin(now, joursOrphelin)).limit(OAUTH_PURGE_LOT)),
+        conditionOrphelin(now, joursOrphelin),
       ),
     )
     .returning({ id: oauthClients.id })

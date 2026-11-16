@@ -34,6 +34,8 @@ import {
   OAUTH_PORTEES,
 } from '../shared/mcp'
 import * as schema from '../shared/db/schema'
+import { paysDuNumero, smsFournisseurConfigure } from '../shared/pays-numero'
+import { REGLAGE_CLES, REGLAGES } from '../shared/reglages'
 
 export type OptionsAuth = Omit<BetterAuthOptions, 'secret' | 'baseURL' | 'basePath'>
 
@@ -135,6 +137,72 @@ async function roleDe(userId: string): Promise<string | null> {
   return ligne?.role ?? null
 }
 
+// A4 (D-A4-06, D-A4-09) : inscriptions fermées. Ce fichier ne peut importer que node_modules et shared/ : la lecture du
+// réglage `inscriptions.ouvertes` est refaite ici (même table, SANS cache : création de compte et envoi de code sont rares et déjà limités ; délai de 300 ms). Pas de ligne =
+// ouvertes (valeur du code) ; ligne invalide, table illisible ou délai dépassé = FERMÉES (repli restrictif du registre).
+const INSCRIPTIONS_LECTURE_TIMEOUT_MS = 300
+const MESSAGE_CANAL_INDISPONIBLE = 'L\'envoi de code par SMS est momentanément indisponible pour ce pays.'
+const MESSAGE_INSCRIPTIONS_FERMEES = 'Les inscriptions sont momentanément fermées.'
+const CLE_INSCRIPTIONS = REGLAGE_CLES.inscriptionsOuvertes
+const definitionInscriptions = REGLAGES[CLE_INSCRIPTIONS]
+
+async function lireInscriptionsOuvertes(): Promise<boolean> {
+  let ouvertes: boolean = definitionInscriptions.repliFerme
+  try {
+    const lecture = dbAuth
+      .select({ valeur: schema.reglages.valeur })
+      .from(schema.reglages)
+      .where(eq(schema.reglages.cle, CLE_INSCRIPTIONS))
+      .limit(1)
+    const [ligne] = await Promise.race([
+      lecture,
+      new Promise<never>((_, rejeter) => setTimeout(() => rejeter(new Error('REGLAGES_DELAI')), INSCRIPTIONS_LECTURE_TIMEOUT_MS)),
+    ])
+    if (ligne === undefined) ouvertes = definitionInscriptions.defaut
+    else if (typeof ligne.valeur === 'boolean') ouvertes = ligne.valeur
+  } catch {
+    console.error('[auth] réglage des inscriptions illisible : repli fermé (INSCRIPTIONS_LECTURE_ECHEC)')
+  }
+  return ouvertes
+}
+
+/** Compte existant (adresse en minuscules, ou numéro) : un compte existant se connecte toujours, inscriptions fermées ou non. */
+async function compteExiste(champ: 'email' | 'telephone', valeur: string): Promise<boolean> {
+  const colonne = champ === 'email' ? schema.users.email : schema.users.phoneNumber
+  const [ligne] = await dbAuth
+    .select({ id: schema.users.id })
+    .from(schema.users)
+    .where(eq(colonne, champ === 'email' ? valeur.toLowerCase() : valeur))
+    .limit(1)
+  return ligne !== undefined
+}
+
+/** Vrai : aucun code ne doit être envoyé (inscriptions fermées ET adresse inconnue). La réponse du client reste identique. */
+async function envoiRefuseInscriptionsFermees(champ: 'email' | 'telephone', valeur: string): Promise<boolean> {
+  if (await lireInscriptionsOuvertes()) return false
+  try {
+    return !(await compteExiste(champ, valeur))
+  } catch {
+    return true
+  }
+}
+
+/**
+ * A5 (CA02) : le canal SMS est-il coupé pour le pays de ce numéro ? Lecture du catalogue SANS cache (envoi de code rare et déjà
+ * limité), le plus restrictif s'applique quand l'indicatif est partagé (`+1`). Un numéro d'un pays inconnu n'est pas bloqué ;
+ * une table illisible ne bloque pas la connexion (coupure d'exploitation, pas une règle de sécurité). Même règle que
+ * `exigerCanalDisponible` (server/services/configuration/catalogues.ts) : ce fichier ne peut importer que `shared/`.
+ */
+async function canalSmsIndisponible(numero: string): Promise<boolean> {
+  try {
+    const catalogue = await dbAuth.select({ indicatif: schema.pays.indicatif, canalSms: schema.pays.canalSms }).from(schema.pays)
+    return paysDuNumero(numero, catalogue).some((p) => !(p.canalSms && smsFournisseurConfigure()))
+  } catch {
+    console.error('[auth] catalogue des pays illisible : canal SMS laissé ouvert (CANAL_LECTURE_ECHEC)')
+    return false
+  }
+}
+
 // Hors production, l'hôte d'administration se joint en HTTP sur le port du serveur de développement.
 const ORIGINES_CONFIANCE_ADMIN: string[] = [
   `https://${env.ADMIN_HOST}`,
@@ -186,6 +254,10 @@ export const optionsAuth: OptionsAuth = {
       create: {
         async before(_utilisateur, ctx: ContexteRequete | null) {
           if (surHoteAdmin(ctx)) throw APIError.from('FORBIDDEN', { message: MESSAGE_ACCES_REFUSE, code: 'ACCES_REFUSE' })
+          // A4 (D-A4-09) : inscriptions fermées = aucune création de compte (e-mail, téléphone, Google), message neutre.
+          if (!(await lireInscriptionsOuvertes())) {
+            throw APIError.from('FORBIDDEN', { message: MESSAGE_INSCRIPTIONS_FERMEES, code: 'INSCRIPTIONS_FERMEES' })
+          }
         },
       },
     },
@@ -212,6 +284,8 @@ export const optionsAuth: OptionsAuth = {
         // D-A1-06 : sur l'hôte d'administration, rien n'est envoyé ni mis en file pour une adresse qui n'est pas
         // celle d'un superadmin actif ; la réponse reste identique (aucun oracle sur les comptes).
         if (surHoteAdmin(ctx) && !(await estSuperadminActif(email))) return
+        // A4 (D-A4-09) : inscriptions fermées, adresse inconnue : aucun envoi, réponse identique (aucun oracle).
+        if (!surHoteAdmin(ctx) && (await envoiRefuseInscriptionsFermees('email', email))) return
         await enqueueOtpEmail(email, otp)
       },
     }),
@@ -234,7 +308,13 @@ export const optionsAuth: OptionsAuth = {
       signUpOnVerification: {
         getTempEmail: (tel) => `${tel.replace(/[^+\d]/g, '')}@${TEMP_EMAIL_DOMAIN}`,
       },
-      sendOTP: async ({ phoneNumber: tel, code }) => {
+      sendOTP: async ({ phoneNumber: tel, code }, ctx?: ContexteRequete) => {
+        // A4 (D-A4-09) : inscriptions fermées, numéro inconnu : aucun envoi, réponse identique (aucun oracle).
+        if (!surHoteAdmin(ctx) && (await envoiRefuseInscriptionsFermees('telephone', tel))) return
+        // A5 (CA02) : canal SMS coupé pour ce pays = 422 avant toute mise en file.
+        if (await canalSmsIndisponible(tel)) {
+          throw APIError.from('UNPROCESSABLE_ENTITY', { message: MESSAGE_CANAL_INDISPONIBLE, code: 'CANAL_INDISPONIBLE' })
+        }
         await enqueueOtpSms(tel, code)
       },
     }),

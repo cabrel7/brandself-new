@@ -140,6 +140,8 @@ export const schemaEtatPublicDto = z
   .strictObject({
     maintenance: z.boolean(),
     message: z.string().max(MAINTENANCE_MESSAGE_LONGUEUR_MAX).nullable(),
+    /** Faux quand les inscriptions sont fermées (réglage d'accès) : la connexion le dit sans rien révéler d'un compte. */
+    inscriptions: z.boolean(),
   })
   .refine((etat) => etat.maintenance || etat.message === null, { message: 'Aucun message hors maintenance.' })
 export type EtatPublicDto = z.infer<typeof schemaEtatPublicDto>

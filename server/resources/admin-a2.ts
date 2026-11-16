@@ -128,6 +128,7 @@ export function toUtilisateurFiche(fiche: UtilisateurFicheVue): UtilisateurFiche
       expireLe: enIso(session.expireLe),
     })),
     assistants: fiche.assistants.map((ligne) => assistant(ligne)),
+    capacites: [...fiche.capacites],
   })
 }
 

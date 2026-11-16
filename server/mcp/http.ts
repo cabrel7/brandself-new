@@ -7,10 +7,11 @@ import { requireMcpAuth } from '@better-auth/mcp'
 import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js'
 import { setResponseHeader } from 'h3'
 import type { H3Event } from 'h3'
-import { env } from '../../shared/env'
 import { MCP_CORPS_MAX_OCTETS, MCP_PORTEES } from '../../shared/mcp'
+import { REGLAGE_CLES } from '../../shared/reglages'
 import { ContentTooLargeError } from '../exceptions/http'
 import { adresseServeurMcp } from '../services/assistants'
+import { Reglages } from '../services/reglages'
 import { lireCorpsBorne } from '../services/webhooks-paiement'
 import { compteSuspendu, lireIdentiteJeton, résoudrePortées, verifierMcpActif } from './auth'
 import { entetesDe, urlDe } from './requete'
@@ -52,7 +53,7 @@ async function lireCorps(event: H3Event): Promise<string> {
 }
 
 export async function gererRequeteMcp(event: H3Event): Promise<Response> {
-  verifierMcpActif(env.MCP_ACTIF)
+  verifierMcpActif(await Reglages.lire(REGLAGE_CLES.mcpActif))
   setResponseHeader(event, 'Cache-Control', 'no-store')
 
   const url = urlDe(event)

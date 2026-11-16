@@ -1,5 +1,14 @@
 import { Queue } from 'bullmq'
-import { FILE_EMAILS_NOTIFICATIONS, FILE_IA, FILE_IA_FOND, FILE_MAINTENANCE, FILE_MESSAGES_AUTH, FILE_SYSTEM } from '../../shared/jobs'
+import {
+  FILE_EMAILS_NOTIFICATIONS,
+  FILE_IA,
+  FILE_IA_FOND,
+  FILE_MAINTENANCE,
+  FILE_MESSAGES_AUTH,
+  FILE_PAIEMENTS,
+  FILE_SYSTEM,
+} from '../../shared/jobs'
+import type { FileSupervisee } from '../../shared/jobs'
 import { redis } from '../utils/redis'
 
 // Les OTP de connexion sont produits par server/auth.config.ts (fichier limité à node_modules et shared/, il ne peut
@@ -11,6 +20,7 @@ const g = globalThis as typeof globalThis & {
   __fileIaBrandself?: Queue
   __fileIaFondBrandself?: Queue
   __fileMessagesAuthBrandself?: Queue
+  __filePaiementsBrandself?: Queue
 }
 
 function createQueue(name: string): Queue {
@@ -54,4 +64,24 @@ export function getMessagesAuthQueue(): Queue {
   const queue = g.__fileMessagesAuthBrandself ?? createQueue(FILE_MESSAGES_AUTH)
   g.__fileMessagesAuthBrandself = queue
   return queue
+}
+
+/** A4 : file des paiements, lue par la supervision (le producteur du tick vit dans le worker). */
+export function getPaiementsQueue(): Queue {
+  const queue = g.__filePaiementsBrandself ?? createQueue(FILE_PAIEMENTS)
+  g.__filePaiementsBrandself = queue
+  return queue
+}
+
+/** A4 : la file BullMQ d'une file supervisée (lecture et actions de l'administration, par l'API native de BullMQ). */
+export function getQueueSupervisee(file: FileSupervisee): Queue {
+  switch (file) {
+    case FILE_SYSTEM: return getSystemQueue()
+    case FILE_MAINTENANCE: return getMaintenanceQueue()
+    case FILE_MESSAGES_AUTH: return getMessagesAuthQueue()
+    case FILE_EMAILS_NOTIFICATIONS: return getEmailsNotificationsQueue()
+    case FILE_IA: return getIaQueue()
+    case FILE_IA_FOND: return getIaFondQueue()
+    case FILE_PAIEMENTS: return getPaiementsQueue()
+  }
 }

@@ -8,11 +8,13 @@ import {
   SEO_IA_LIMITE_CLE_PREFIXE,
   SEO_IA_VITRINE_LIMIT,
 } from '../../../shared/limites'
+import { REGLAGE_CLES } from '../../../shared/reglages'
 import { schemaSeoIa } from '../../../shared/schemas/ia'
 import type { SeoIa } from '../../../shared/schemas/ia'
 import { ServiceUnavailableError } from '../../exceptions/http'
 import { db } from '../../utils/db'
 import { hitLimit, releaseLimit } from '../limiteur'
+import { Reglages } from '../reglages'
 import { executeGeneration } from './generations'
 import { detecterInjection, empreinte, entreeSeo } from './nettoyage'
 import type { EntreeSeo } from './entrees'
@@ -35,6 +37,7 @@ export type MotifSeo =
   | 'sans_fournisseur'
   | 'injection'
   | 'limite_vitrine'
+  | 'ia_coupee'
   | 'plafond_global'
   | 'limiteur_indisponible'
   | 'sans_proposition'
@@ -79,7 +82,7 @@ async function chercherDejaGeneree(userId: string, empreinteEntree: string): Pro
   return seo.success ? seo.data : null
 }
 
-type Reservation = { ok: true } | { ok: false, motif: 'limite_vitrine' | 'plafond_global' | 'limiteur_indisponible' }
+type Reservation = { ok: true } | { ok: false, motif: 'limite_vitrine' | 'plafond_global' | 'limiteur_indisponible' | 'ia_coupee' }
 
 /**
  * Compteur de la vitrine PUIS plafond global (jamais le compteur de l'utilisateur). Redis indisponible = pas d'appel
@@ -87,13 +90,17 @@ type Reservation = { ok: true } | { ok: false, motif: 'limite_vitrine' | 'plafon
  */
 async function reserverLimites(vitrineId: string): Promise<Reservation> {
   const cleVitrine = `${SEO_IA_LIMITE_CLE_PREFIXE}${vitrineId}`
+  // A4 (D-A4-10) : IA coupée par l'administration : aucun appel au fournisseur, aucun compteur consommé.
+  if (!(await Reglages.lire(REGLAGE_CLES.iaActive))) return { ok: false, motif: 'ia_coupee' }
+  const limiteVitrine = await Reglages.lire(REGLAGE_CLES.seoLimiteVitrineJour)
+  const plafondGlobal = await Reglages.lire(REGLAGE_CLES.iaPlafondGlobalJour)
   try {
-    const parVitrine = await hitLimit(cleVitrine, SEO_IA_VITRINE_LIMIT.limit, SEO_IA_VITRINE_LIMIT.windowS, { failClosed: true })
+    const parVitrine = await hitLimit(cleVitrine, limiteVitrine, SEO_IA_VITRINE_LIMIT.windowS, { failClosed: true })
     if (!parVitrine.allowed) {
       await releaseLimit(cleVitrine)
       return { ok: false, motif: 'limite_vitrine' }
     }
-    const global = await hitLimit(IA_LIMITE_CLE_GLOBALE, IA_GLOBAL_LIMIT.limit, IA_GLOBAL_LIMIT.windowS, { failClosed: true })
+    const global = await hitLimit(IA_LIMITE_CLE_GLOBALE, plafondGlobal, IA_GLOBAL_LIMIT.windowS, { failClosed: true })
     if (!global.allowed) {
       await releaseLimit(cleVitrine)
       return { ok: false, motif: 'plafond_global' }

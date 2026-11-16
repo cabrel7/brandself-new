@@ -2,7 +2,7 @@
 // (jamais de donnée de visiteur : des NOMBRES seulement). Écritures : UNE transaction chacune = verrou du compte,
 // réauthentification (si exigée), changement d'état, entrée de journal, ligne d'outbox de l'e-mail au titulaire.
 // Si l'une des étapes échoue, aucune n'existe (CA10).
-import { and, asc, count, desc, eq, gte, lt, sql } from 'drizzle-orm'
+import { and, asc, count, desc, eq, gte, isNull, lt, sql } from 'drizzle-orm'
 import type { SQL } from 'drizzle-orm'
 import { ADMIN_ACTIONS, ADMIN_CIBLES, ADMIN_LISTE_LIMITE_DEFAUT } from '../../../shared/admin'
 import {
@@ -13,6 +13,7 @@ import {
 import type { AbonnementOrigine } from '../../../shared/admin-a2'
 import {
   abonnements,
+  capacitesAccordees,
   demandes,
   liens,
   messages,
@@ -25,7 +26,7 @@ import {
   vitrines,
   vues,
 } from '../../../shared/db/schema'
-import type { PlanId } from '../../../shared/plans'
+import type { CapacitePayante, PlanId } from '../../../shared/plans'
 import type { ListeUtilisateursQuery, PaginationAdmin } from '../../../shared/schemas/admin-a2'
 import { ConflictError, NotFoundError, UnprocessableError } from '../../exceptions/http'
 import { planifierRafraichissementCacheMedias } from '../../jobs/rafraichir-cache-medias'
@@ -73,6 +74,8 @@ export interface UtilisateurFicheVue extends UtilisateurLigneVue {
   iaMois: number
   sessionsActives: { id: string, creeLe: Date, expireLe: Date }[]
   assistants: AssistantVue[]
+  /** Capacités ACCORDÉES par l'administration (actives, non révoquées), hors plan. */
+  capacites: CapacitePayante[]
 }
 
 export interface ResultatOffreJours {
@@ -182,7 +185,7 @@ export async function getFicheUtilisateur(id: string, now: Date = new Date()): P
   const [abonnement] = await db.select().from(abonnements).where(eq(abonnements.userId, id)).limit(1)
   const depuis = new Date(now.getTime() - ADMIN_ACTIVITE_JOURS * MS_PAR_JOUR)
   const vitrineId = brute.vitrineId
-  const [compteurs, activite, iaMois, sessionsActives, assistants] = await Promise.all([
+  const [compteurs, activite, iaMois, sessionsActives, assistants, capacites] = await Promise.all([
     compterContenus(vitrineId),
     compterActivite(vitrineId, depuis),
     getIaQuota(id, now).then((quota) => quota.utilisees),
@@ -193,10 +196,16 @@ export async function getFicheUtilisateur(id: string, now: Date = new Date()): P
       .orderBy(desc(sessions.createdAt))
       .limit(ADMIN_FICHE_LIGNES_MAX),
     lireAssistants(db, id),
+    db
+      .select({ capacite: capacitesAccordees.capacite })
+      .from(capacitesAccordees)
+      .where(and(eq(capacitesAccordees.userId, id), isNull(capacitesAccordees.revoqueLe)))
+      .orderBy(capacitesAccordees.capacite),
   ])
 
   return {
     ...ligne,
+    capacites: capacites.map((c) => c.capacite as CapacitePayante),
     telephone: detail.telephone,
     pays: detail.pays,
     devise: detail.devise,

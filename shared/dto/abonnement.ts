@@ -20,8 +20,14 @@ export interface LimitePlanDTO {
 
 export interface PrixPeriodeDTO {
   periodeMois: PeriodeMois
-  /** Unité mineure de la devise. */
+  /** Unité mineure de la devise : le prix du plan (HORS frais éventuels à la charge du client). */
   montant: number
+  /**
+   * A5 (R12) : montant TTC que le client paiera, frais compris quand il les supporte, en unité mineure de la devise.
+   * C'est la valeur à renvoyer telle quelle en `prixAffiche` à l'initiation. Toujours présent dans l'offre servie par
+   * l'API ; optionnel dans le type pour les constructions de `prixPeriodes` (calcul pur, sans barème de frais).
+   */
+  montantAffiche?: number
   montantParMois: number
   /** Pourcentage entier, 0 sans remise. */
   remisePct: number

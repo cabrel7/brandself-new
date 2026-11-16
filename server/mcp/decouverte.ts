@@ -6,7 +6,8 @@
 
 import { createError } from 'h3'
 import type { H3Event } from 'h3'
-import { env } from '../../shared/env'
+import { REGLAGE_CLES } from '../../shared/reglages'
+import { Reglages } from '../services/reglages'
 import { entetesDe, urlDe } from './requete'
 
 export const CHEMIN_SERVEUR_AUTORISATION = '/.well-known/oauth-authorization-server/api/auth'
@@ -14,7 +15,7 @@ export const CHEMIN_RESSOURCE_PROTEGEE = '/.well-known/oauth-protected-resource'
 export const CHEMIN_RESSOURCE_PROTEGEE_MCP = '/.well-known/oauth-protected-resource/mcp'
 
 export async function servirDecouverte(event: H3Event, chemin: string): Promise<Response> {
-  if (!env.MCP_ACTIF) throw createError({ statusCode: 404, statusMessage: 'Not Found' })
+  if (!(await Reglages.lire(REGLAGE_CLES.mcpActif))) throw createError({ statusCode: 404, statusMessage: 'Not Found' })
   const requete = new Request(new URL(chemin, urlDe(event)), { method: event.method, headers: entetesDe(event) })
   return serverAuth(event).handler(requete)
 }

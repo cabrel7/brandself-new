@@ -3,9 +3,9 @@ import type { SQL } from 'drizzle-orm'
 import type { realisations, services, temoignages } from '../../shared/db/schema'
 import type { LimitePlanDTO } from '../../shared/dto/abonnement'
 import type { EtatAbonnement, PlanId, RessourceMasquable } from '../../shared/plans'
-import { PLANS } from '../config/plans'
 import type { ConfigPlan } from '../config/plans'
 import { db } from '../utils/db'
+import { lirePlanConfig } from './configuration/lecture'
 import type { Compteurs } from './listes-regles'
 import { getPlanEffectif, limiteDe } from './plans'
 import { construireLimitePlan, idsMasquesParPlan } from './plans-regles'
@@ -38,7 +38,8 @@ export async function getPlanPublic(
   executor: Executor = db,
 ): Promise<PlanPublic> {
   const effectif = await getPlanEffectif(proprietaire.userId, now, executor)
-  const limites = PLANS[effectif.plan]
+  // A5 : version ACTIVE du plan (cache de 5 s, rafraîchi par `getPlanEffectif`), repli sur le code.
+  const limites = lirePlanConfig(effectif.plan)
   return { plan: effectif.plan, etat: effectif.etat, limites, badge: limites.badge }
 }
 

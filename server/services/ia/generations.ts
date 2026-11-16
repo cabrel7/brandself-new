@@ -8,7 +8,6 @@ import {
   IA_ATTENTE_BASE_MS,
   IA_DELAI_TENTATIVE_MS,
   IA_DELAI_TOTAL_MS,
-  IA_RETENTION_JOURS,
   IA_TENTATIVES_MAX,
   IA_TYPES,
   IA_TYPES_QUOTA,
@@ -21,12 +20,14 @@ import {
   IA_LIMITE_CLE_UTILISATEUR_PREFIXE,
   IA_UTILISATEUR_LIMIT,
 } from '../../../shared/limites'
+import { REGLAGE_CLES } from '../../../shared/reglages'
 import { ServiceUnavailableError, NotFoundError } from '../../exceptions/http'
 import { enqueueGeneration } from '../../jobs/ia'
 import { getIaQueue } from '../../jobs/queues'
 import { db } from '../../utils/db'
 import { enforceLimit, hitLimit, releaseLimit } from '../limiteur'
 import { assertQuota, mesurerQuotaVerrouille } from '../plans'
+import { Reglages } from '../reglages'
 import { schemaEntreeAmelioration, schemaEntreeOnboarding, schemaEntreeSeo } from './entrees'
 import type { EntreeAmelioration, EntreeIa, EntreeOnboarding, EntreeSeo } from './entrees'
 import { empreinte } from './nettoyage'
@@ -172,11 +173,15 @@ interface Reservation {
 
 async function reserverLimites(userId: string): Promise<Reservation> {
   const cles: string[] = []
+  // A4 (D-A4-10) : IA coupée par l'administration : repli déterministe, aucun compteur consommé, aucun appel.
+  if (!(await Reglages.lire(REGLAGE_CLES.iaActive))) return { motif: 'ia_coupee', cles }
+  const limiteUtilisateur = await Reglages.lire(REGLAGE_CLES.iaLimiteUtilisateurHeure)
+  const plafondGlobal = await Reglages.lire(REGLAGE_CLES.iaPlafondGlobalJour)
   const cleUtilisateur = `${IA_LIMITE_CLE_UTILISATEUR_PREFIXE}${userId}`
   try {
-    await enforceLimit(cleUtilisateur, IA_UTILISATEUR_LIMIT.limit, IA_UTILISATEUR_LIMIT.windowS, { failClosed: true })
+    await enforceLimit(cleUtilisateur, limiteUtilisateur, IA_UTILISATEUR_LIMIT.windowS, { failClosed: true })
     cles.push(cleUtilisateur)
-    const global = await hitLimit(IA_LIMITE_CLE_GLOBALE, IA_GLOBAL_LIMIT.limit, IA_GLOBAL_LIMIT.windowS, {
+    const global = await hitLimit(IA_LIMITE_CLE_GLOBALE, plafondGlobal, IA_GLOBAL_LIMIT.windowS, {
       failClosed: true,
     })
     cles.push(IA_LIMITE_CLE_GLOBALE)
@@ -496,7 +501,8 @@ export async function getOwnGeneration(userId: string, id: string, now: Date = n
  * un hachage aléatoire de même forme. Sans effet sur le dédoublonnage (il exige une sortie, purgée ici).
  */
 export async function purgeGenerations(now: Date = new Date()): Promise<number> {
-  const limite = new Date(now.getTime() - IA_RETENTION_JOURS * MS_PAR_JOUR)
+  const retentionJours = await Reglages.lire(REGLAGE_CLES.retentionIaJours)
+  const limite = new Date(now.getTime() - retentionJours * MS_PAR_JOUR)
   const purgees = await db
     .update(generationsIa)
     .set({

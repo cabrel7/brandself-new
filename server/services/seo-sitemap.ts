@@ -6,7 +6,7 @@ import { abonnements, realisations, services, vitrines } from '../../shared/db/s
 import { db } from '../utils/db'
 import { resoudrePlanEffectif } from './plans'
 import { sqlVitrinePublique } from './visibilite'
-import { PLANS } from '../config/plans'
+import { assurerInstantane, lirePlanConfig } from './configuration/lecture'
 import type { ConfigPlan } from '../config/plans'
 import type { PlanId } from '../../shared/plans'
 import type { SitemapUrlDTO } from '../../shared/dto/media'
@@ -45,13 +45,15 @@ async function listerVitrinesPubliees(now: Date, limite: number): Promise<Vitrin
     .where(inArray(abonnements.userId, userIds))
   const abosParUser = new Map(abos.map((a) => [a.userId, a]))
 
+  // A5 : limites lues sur la version active du plan (cache de 5 s).
+  await assurerInstantane()
   const resultats: VitrineSitemap[] = []
   for (const ligne of lignes) {
     const abo = abosParUser.get(ligne.userId)
     const effectif = abo
       ? resoudrePlanEffectif({ plan: abo.plan, expireLe: abo.expireLe }, now)
       : resoudrePlanEffectif(null, now)
-    const config = PLANS[effectif.plan]
+    const config = lirePlanConfig(effectif.plan)
     resultats.push({
       id: ligne.id,
       userId: ligne.userId,

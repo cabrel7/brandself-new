@@ -178,8 +178,10 @@ export function getFraisPaiement(fournisseur: FournisseurPaiement, methode: Meth
  * Vrai en production tant que la grille de prix est provisoire (#106) : le paiement n'est alors ni proposé
  * (`paiementDisponible = false`) ni accepté (503 `PAIEMENT_INDISPONIBLE`).
  */
-export function paiementVerrouille(env: Pick<Env, 'NODE_ENV'>, prixStatut: PrixStatut = PRIX_STATUT): boolean {
-  return env.NODE_ENV === 'production' && prixStatut === 'a_valider'
+export function paiementVerrouille(env: Pick<Env, 'NODE_ENV'>, prix: PrixStatut | boolean = PRIX_STATUT): boolean {
+  // A5 (D-A5-07) : `prix` = grille validée (booléen, `validee_le` de la version active) ou, historiquement, son statut.
+  const validee = typeof prix === 'boolean' ? prix : prix === 'valide'
+  return env.NODE_ENV === 'production' && !validee
 }
 
 /** Éléments contrôlés au démarrage ; injectables pour les tests. */

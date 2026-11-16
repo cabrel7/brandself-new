@@ -4,8 +4,7 @@
 // Le REFUS reste toujours permis. Aucune règle de plan dans auth.config.ts (projet tsconfig.node).
 
 import { DomainError } from '../exceptions/http'
-import { PLAN_PAYANT_ID } from '../config/plans'
-import { getPlanEffectif } from '../services/plans'
+import { aCapaciteMcp } from '../services/plans'
 
 export const CHEMIN_CONSENTEMENT = '/api/auth/oauth2/consent'
 
@@ -33,8 +32,8 @@ export function corpsAccepte(corps: string | undefined, contentType: string | un
 
 /** 403 `PLAN_PAYANT_REQUIS` si l'utilisateur n'a pas le plan payant (actif ou en grâce, comme à chaque appel MCP). */
 export async function exigerPlanPayantPourConsentement(userId: string): Promise<void> {
-  const plan = await getPlanEffectif(userId)
-  if (plan.plan !== PLAN_PAYANT_ID) {
+  // A4 (D-A4-11) : plan payant OU capacité `mcp` accordée par l'administration.
+  if (!(await aCapaciteMcp(userId))) {
     throw new DomainError('PLAN_PAYANT_REQUIS', MESSAGE_PLAN_PAYANT_CONSENTEMENT, 403)
   }
 }

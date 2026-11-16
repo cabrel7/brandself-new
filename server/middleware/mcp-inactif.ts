@@ -1,5 +1,6 @@
 import { createError, defineEventHandler } from 'h3'
-import { env } from '../../shared/env'
+import { REGLAGE_CLES } from '../../shared/reglages'
+import { Reglages } from '../services/reglages'
 import { estSousChemin, normaliserChemin } from '../mcp/chemin'
 
 // S16 : serveur MCP livré désactivé (MCP_ACTIF=false). Les routes OAuth du plugin `mcp()` sont montées sous
@@ -15,9 +16,9 @@ export function estCheminOauth(cheminBrut: string): boolean {
   return PREFIXES_OAUTH.some((prefixe) => estSousChemin(chemin, prefixe))
 }
 
-export default defineEventHandler((event) => {
-  if (env.MCP_ACTIF) return
-  if (estCheminOauth(event.path)) {
-    throw createError({ statusCode: 404, statusMessage: 'Not Found' })
-  }
+export default defineEventHandler(async (event) => {
+  // A4 : coupure globale pilotée à chaud ; repli FERMÉ si la table est illisible (D-A4-06). Lecture seulement pour un chemin OAuth.
+  if (!estCheminOauth(event.path)) return
+  if (await Reglages.lire(REGLAGE_CLES.mcpActif)) return
+  throw createError({ statusCode: 404, statusMessage: 'Not Found' })
 })

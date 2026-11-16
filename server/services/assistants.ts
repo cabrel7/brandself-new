@@ -3,10 +3,12 @@ import { journalAssistant, oauthAccessTokens, oauthClients, oauthConsents, oauth
 import { env } from '../../shared/env'
 import { MCP_CHEMIN, MCP_JOURNAL_LIMITE, MCP_PORTEES } from '../../shared/mcp'
 import type { McpPortee } from '../../shared/mcp'
+import { REGLAGE_CLES } from '../../shared/reglages'
 import { PLAN_PAYANT_ID } from '../config/plans'
 import { NotFoundError } from '../exceptions/http'
 import { db } from '../utils/db'
-import { getPlanEffectif } from './plans'
+import { aCapaciteAccordee, getPlanEffectif } from './plans'
+import { Reglages } from './reglages'
 
 // S16 : assistants connectés (consentements OAuth Better Auth) et journal de leurs actions.
 // Les consentements, clients et jetons sont des tables du plugin `mcp()` ; ce service est le seul endroit
@@ -93,9 +95,10 @@ export async function getAssistantsView(userId: string): Promise<AssistantsVue> 
   const derniereParAssistant = new Map(activites.map((ligne) => [ligne.assistantId, ligne.derniere]))
 
   return {
-    actif: env.MCP_ACTIF,
+    actif: await Reglages.lire(REGLAGE_CLES.mcpActif),
     adresse: adresseServeurMcp(),
-    planPayant: plan.plan === PLAN_PAYANT_ID,
+    // A4 : une capacité `mcp` accordée par l'administration ouvre la même page qu'un plan payant.
+    planPayant: plan.plan === PLAN_PAYANT_ID || (await aCapaciteAccordee(userId, 'mcp')),
     assistants: consentements.map((ligne) => ({
       id: ligne.id,
       clientId: ligne.clientId,

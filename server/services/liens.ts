@@ -22,6 +22,7 @@ import { enforceLimit } from './limiteur'
 import { LIEN_CLIC_LIMIT } from '../../shared/limites'
 import { lockVitrineId, requireVitrineId } from './vitrine-acces'
 import type { Executor, Transaction } from './vitrine-acces'
+import { lirePaysFuseauRepli } from './configuration/catalogues'
 import { getPublicVitrine } from './vitrines'
 import type { VitrineRow } from './vitrines'
 
@@ -243,7 +244,7 @@ export async function recordLienClic(rawUsername: string, slug: string, ip: stri
   const { vitrine } = await getPublicVitrine(rawUsername)
   const semaineDebut = getIsoWeekStartUtc(reference)
   // Jour civil dans le fuseau de la vitrine : la clé de l'agrégat est locale, pas UTC.
-  const local = Temporal.Instant.fromEpochMilliseconds(reference.getTime()).toZonedDateTimeISO(vitrine.fuseau ?? 'Africa/Douala')
+  const local = Temporal.Instant.fromEpochMilliseconds(reference.getTime()).toZonedDateTimeISO(vitrine.fuseau ?? await lirePaysFuseauRepli(vitrine.pays))
   const jour = local.toPlainDate().toString()
 
   await db.transaction(async (tx) => {

@@ -10,8 +10,7 @@ import { MCP_PORTEES } from '../../shared/mcp'
 import type { McpPortee } from '../../shared/mcp'
 import { db } from '../utils/db'
 import { ForbiddenError } from '../exceptions/http'
-import { PLAN_PAYANT_ID } from '../config/plans'
-import { getPlanEffectif } from '../services/plans'
+import { aCapaciteMcp } from '../services/plans'
 import { getPortéesConsenties } from '../services/assistants'
 
 export type Scope = McpPortee
@@ -66,8 +65,8 @@ export async function compteSuspendu(userId: string): Promise<boolean> {
 export async function verifierPlanPayant(userId: string): Promise<void> {
   // Code `MCP_INACTIF` (403) : pour l'assistant, le serveur est fermé pour ce compte, sans révéler la suspension.
   if (await compteSuspendu(userId)) throw new ForbiddenError('MCP_INACTIF')
-  const plan = await getPlanEffectif(userId)
-  if (plan.plan !== PLAN_PAYANT_ID) {
+  // A4 (D-A4-11) : plan payant OU capacité `mcp` accordée par l'administration, lue à chaque appel.
+  if (!(await aCapaciteMcp(userId))) {
     throw new ForbiddenError('PLAN_PAYANT_REQUIS')
   }
 }

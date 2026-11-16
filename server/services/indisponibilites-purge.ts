@@ -6,14 +6,15 @@ import { inArray, lt } from 'drizzle-orm'
 import {
   INDISPONIBILITE_PURGE_LOT,
   INDISPONIBILITE_PURGE_LOTS_MAX,
-  INDISPONIBILITE_RETENTION_JOURS,
 } from '../../shared/agenda'
 import { indisponibilites } from '../../shared/db/schema'
+import { REGLAGE_CLES } from '../../shared/reglages'
 import { db } from '../utils/db'
+import { Reglages } from './reglages'
 import { dateLimitePurge } from './agenda-regles'
 
 export async function purgerIndisponibilites(now: Date = new Date()): Promise<number> {
-  const limite = dateLimitePurge(now, INDISPONIBILITE_RETENTION_JOURS)
+  const limite = dateLimitePurge(now, await Reglages.lire(REGLAGE_CLES.retentionIndisponibilitesJours))
   let total = 0
   for (let lot = 0; lot < INDISPONIBILITE_PURGE_LOTS_MAX; lot += 1) {
     const supprimees = await db

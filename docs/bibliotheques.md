@@ -33,3 +33,4 @@ Tableau tenu à jour à chaque ajout de dépendance (règle 4.12 de `CLAUDE.md` 
 | `openai` (SDK officiel) | second adaptateur de `IaProvider` (S8) : parle l'API « compatible OpenAI » que Gemini, Groq, Mistral, DeepSeek, OpenRouter et Ollama exposent aussi ; adresse par `IA_BASE_URL` (HTTPS), modèle obligatoire par `IA_MODELE` |
 | `@better-auth/mcp` | plugin Better Auth MCP, authentification OAuth 2.1 pour le serveur MCP (S16) |
 | `@modelcontextprotocol/sdk` | SDK officiel du protocole MCP, serveur McpServer et types (S16) |
+| `libphonenumber-js` | pays d'un numéro de téléphone (indicatif résolu en code ISO alpha-2) pour le journal d'envoi des codes (A4, D-A4-15) : bibliothèque maintenue, TypeScript natif, sans dépendance ; seul le code pays est conservé, jamais le numéro. Utilisée dans le worker (build « min » des métadonnées) |
