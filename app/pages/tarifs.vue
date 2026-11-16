@@ -50,13 +50,13 @@ const periodeTexte = computed({
 const prixGratuit = computed(() => (devise.value ? formaterMontant(0, devise.value, exposant.value) : null))
 const prixPayant = computed(() => {
   const choisi = prixChoisi.value
-  return choisi && devise.value ? formaterMontant(choisi.montantParMois, devise.value, exposant.value) : null
+  return choisi && devise.value ? formaterMontant(montantParMoisPaye(choisi), devise.value, exposant.value) : null
 })
 const precisionPayant = computed(() => {
   const choisi = prixChoisi.value
   if (!choisi || !devise.value) return undefined
   if (choisi.periodeMois === 1) return 'par mois'
-  return `par mois, facturé ${formaterMontant(choisi.montant, devise.value, exposant.value)} pour ${libellePeriode(choisi.periodeMois)}`
+  return `par mois, facturé ${formaterMontant(montantPaye(choisi), devise.value, exposant.value)} pour ${libellePeriode(choisi.periodeMois)}`
 })
 
 // Connecté : sa carte Abonnement s'ouvre, la durée choisie ici est présélectionnée. Visiteur : il commence par se connecter

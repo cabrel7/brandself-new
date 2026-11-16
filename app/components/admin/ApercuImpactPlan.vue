@@ -5,19 +5,20 @@ import { impactNonNul, lignesImpact, phraseImpact } from '~/utils/admin-versions
 // Aperçu de ce que change un plan, avant activation (lecture seule). Le calcul vient du serveur ; ce bloc l'affiche,
 // signale les contenus qui seront masqués (jamais supprimés) et recueille l'acquittement explicite de CET impact.
 // L'impact peut être remplacé de l'extérieur (le serveur en recalcule un autre à l'activation) : l'acquittement retombe.
-const props = defineProps<{ cle: string, valeurs: ValeursPlan, desactive?: boolean }>()
+// `charger` à faux : l'impact est déjà fourni par le serveur (retour arrière refusé en 409 `IMPACT_CHANGE`), seul l'acquittement reste.
+const props = withDefaults(defineProps<{ cle: string, valeurs: ValeursPlan, desactive?: boolean, charger?: boolean }>(), { charger: true })
 const impact = defineModel<ImpactPlan | null>('impact', { required: true })
 const acquitte = defineModel<boolean>('acquitte', { required: true })
 
 const { apercuImpact } = useAdminVersionsEcritures()
-const enCours = ref(true)
+const enCours = ref(props.charger)
 const erreur = ref('')
 const mention = ref('')
 
 const lignes = computed(() => (impact.value ? lignesImpact(impact.value) : []))
 const concerne = computed(() => (impact.value ? impactNonNul(impact.value) : false))
 
-async function charger(): Promise<void> {
+async function chargerApercu(): Promise<void> {
   enCours.value = true
   erreur.value = ''
   acquitte.value = false
@@ -37,7 +38,9 @@ watch(impact, () => {
   acquitte.value = false
 })
 
-onMounted(charger)
+onMounted(() => {
+  if (props.charger) void chargerApercu()
+})
 </script>
 
 <template>
@@ -52,7 +55,7 @@ onMounted(charger)
 
     <div v-else-if="erreur" class="flex flex-col items-start gap-3">
       <UAlert role="alert" color="error" variant="soft" icon="i-ph-warning-circle" :description="erreur" class="w-full" />
-      <UButton color="neutral" variant="outline" size="lg" icon="i-ph-arrow-counter-clockwise" class="min-h-(--cible-tactile)" @click="charger">
+      <UButton color="neutral" variant="outline" size="lg" icon="i-ph-arrow-counter-clockwise" class="min-h-(--cible-tactile)" @click="chargerApercu">
         Recalculer
       </UButton>
     </div>

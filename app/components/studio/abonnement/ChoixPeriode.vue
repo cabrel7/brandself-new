@@ -8,6 +8,8 @@ const props = defineProps<{
   devise: string
   /** Décimales de l'unité mineure de la devise (0 pour XAF). */
   exposant: number
+  /** Moyen choisi : ses frais, s'ils sont à la charge du client, changent le prix affiché. */
+  moyen?: string
   /** Légende du groupe : « Renouveler pour » ou « Choisir la durée ». */
   legende: string
   disabled?: boolean
@@ -39,7 +41,7 @@ const valeur = computed({
 const items = computed(() => props.prix.map((p) => ({
   value: String(p.periodeMois),
   label: libellePeriode(p.periodeMois),
-  description: detailPeriode(p, props.devise, props.exposant),
+  description: detailPeriode(p, props.devise, props.exposant, props.moyen),
 })))
 </script>
 

@@ -12,7 +12,7 @@ const route = useRoute()
 const { abonnement, enChargement, enErreur, refresh } = useAbonnement()
 const {
   periode, moyenId, telephone, paiement, etape, erreurs, signalErreur, devise, deviseOffre, devisesProposees,
-  prixChoisi, moyens, moyenChoisi, payer, reessayer, verifierEncore, viderErreur,
+  montantAPayer, moyens, moyenChoisi, payer, reessayer, verifierEncore, viderErreur,
 } = usePaiementAbonnement(abonnement, refresh)
 
 // Le squelette n'apparaît qu'après 200 ms : pas de flash sur un chargement rapide.
@@ -51,7 +51,8 @@ const abonne = computed(() => etat.value !== 'gratuit')
 const legende = computed(() => (abonne.value ? 'Renouveler pour' : 'Choisir la durée'))
 const action = computed(() => {
   if (abonne.value) return 'Renouveler maintenant'
-  return prixChoisi.value && devise.value ? `Payer ${formaterMontant(prixChoisi.value.montant, devise.value, exposant.value)}` : 'Payer'
+  // Le bouton annonce le montant TTC réellement débité (A5 R12), celui renvoyé en `prixAffiche`.
+  return montantAPayer.value !== null && devise.value ? `Payer ${formaterMontant(montantAPayer.value, devise.value, exposant.value)}` : 'Payer'
 })
 const afficherMention = computed(() => abonne.value || formulaireVisible.value)
 

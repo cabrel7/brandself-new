@@ -107,11 +107,48 @@ export function libellePeriode(mois: PeriodeMois | number): string {
   return `${mois} mois`
 }
 
-/** Seconde ligne d'un choix de durée : le prix de la période, puis l'avantage s'il y en a un. */
-export function detailPeriode(prix: PrixPeriodeDTO, devise: string, exposant: number): string {
-  const montant = formaterMontant(prix.montant, devise, exposant)
+/**
+ * Montant TTC réellement payé pour une durée : frais compris quand le client les supporte (`montantAffiche`), sinon le
+ * prix du plan (`montant`). C'est ce montant qui s'affiche partout où le client paie, et qui part en `prixAffiche`.
+ */
+export function montantPaye(prix: PrixPeriodeDTO, moyenId?: string): number {
+  // Les frais dépendent du moyen : le montant du moyen choisi prime, puis celui du premier moyen, puis le prix du plan.
+  const parMoyen = moyenId === undefined || moyenId === '' ? undefined : prix.montantAfficheParMoyen?.[moyenId]
+  return parMoyen ?? prix.montantAffiche ?? prix.montant
+}
+
+/** Prix mensuel réellement payé : le TTC lissé sur la période (égal à `montantParMois` quand aucun frais n'est ajouté). */
+export function montantParMoisPaye(prix: PrixPeriodeDTO, moyenId?: string): number {
+  const paye = montantPaye(prix, moyenId)
+  return paye === prix.montant ? prix.montantParMois : Math.round(paye / prix.periodeMois)
+}
+
+/** Seconde ligne d'un choix de durée : le prix payé pour la période, puis l'avantage s'il y en a un. */
+export function detailPeriode(prix: PrixPeriodeDTO, devise: string, exposant: number, moyenId?: string): string {
+  const montant = formaterMontant(montantPaye(prix, moyenId), devise, exposant)
   if (prix.miseEnAvant) return `${montant} · le plus avantageux`
   return prix.remisePct > 0 ? `${montant} · plus avantageux` : montant
+}
+
+/** 409 `PRIX_CHANGE` : le prix est rechargé, le client le revoit avant de payer. Aucun paiement n'a été créé. */
+export const MESSAGE_PRIX_CHANGE = 'Le prix a changé. Veuillez vérifier le nouveau montant avant de payer.'
+/** Corps refusé alors que la page affichait un formulaire valide : page ouverte avant un déploiement. */
+export const MESSAGE_ACTUALISER_PAGE = 'Veuillez actualiser la page.'
+
+/** Corps de `POST /api/studio/abonnement/paiements` : `prixAffiche` est le montant que le client a sous les yeux. */
+export function corpsInitiationPaiement(saisie: {
+  prix: PrixPeriodeDTO
+  devise: string
+  moyen: string
+  telephone: string
+}): { periodeMois: PeriodeMois, devise: string, moyen: string, telephone: string, prixAffiche: number } {
+  return {
+    periodeMois: saisie.prix.periodeMois,
+    devise: saisie.devise,
+    moyen: saisie.moyen,
+    telephone: chiffresTelephone(saisie.telephone),
+    prixAffiche: montantPaye(saisie.prix, saisie.moyen),
+  }
 }
 
 /** Chiffres seuls d'une saisie de numéro : espaces, points, tirets et « + » retirés. */

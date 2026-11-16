@@ -180,6 +180,14 @@ export function impactNonNul(impact: ImpactPlan): boolean {
   return lignesImpact(impact).some((ligne) => ligne.comptes > 0)
 }
 
+/**
+ * Corps d'un retour arrière : le motif, plus l'impact acquitté une fois que le serveur l'a présenté (409 `IMPACT_CHANGE`,
+ * le retour rétablit une version qui baisse des limites). Sans impact présenté, le corps ne contient que le motif.
+ */
+export function corpsRetourVersion(motif: string, impactAcquitte: ImpactPlan | null): { motif: string, impactAcquitte?: ImpactPlan } {
+  return impactAcquitte === null ? { motif } : { impactAcquitte, motif }
+}
+
 export function phraseImpact(ligne: LigneImpact): string {
   const comptes = `${ligne.comptes} ${ligne.comptes > 1 ? 'comptes' : 'compte'}`
   if (ligne.elementsMasques === null) return comptes
