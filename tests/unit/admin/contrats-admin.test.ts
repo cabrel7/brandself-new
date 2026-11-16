@@ -4,9 +4,11 @@ import {
   ADMIN_ACTION_FORMAT,
   ADMIN_CIBLE_ID_MAX,
   ADMIN_CIBLE_TYPE_FORMAT,
+  ADMIN_JOURNAL_VERIFICATION_LIMIT,
   ADMIN_MOTIF_MAX,
   ADMIN_MOTIF_MIN,
   ADMIN_NAV,
+  MAINTENANCE_RETRY_AFTER_S,
   ADMIN_REAUTH_CODE_FORMAT,
   ADMIN_REAUTH_ENTETE,
   ADMIN_REAUTH_ESSAIS,
@@ -22,7 +24,16 @@ import {
 } from '../../../shared/admin'
 import { ERROR_CODES, ERROR_STATUS } from '../../../shared/erreurs'
 import { ERROR_MESSAGES } from '../../../server/exceptions/http'
-import { JOBS } from '../../../shared/jobs'
+import {
+  ENVOIS_CODES_RETENTION_JOURS,
+  FILES_NON_RELANCABLES,
+  FILE_MESSAGES_AUTH,
+  JOBS,
+  SAUVEGARDE_ALERTE_HEURES,
+  SUPERVISION_FENETRE_TRANCHES,
+  SUPERVISION_PURGE_LIMITE_MAX,
+  SUPERVISION_TRANCHE_S,
+} from '../../../shared/jobs'
 import {
   schemaAdminSessionDto,
   schemaDemandeReauth,
@@ -272,5 +283,30 @@ describe('JOBS', () => {
 
     expect(new Set(noms).size).toBe(noms.length)
     expect(JOBS.sendAdminReauthEmail).toBe('send-admin-reauth-email')
+  })
+})
+
+// A4 : valeurs décidées (spec A4 §1) figées ici, pour qu'une modification soit volontaire.
+describe('A4 : valeurs décidées de la supervision et des réglages', () => {
+  it('should pin the alert window to 3 slices of 5 minutes (15 minutes), the backup alert to 26 hours, the delivery log retention to 90 days', () => {
+    expect(SUPERVISION_TRANCHE_S * SUPERVISION_FENETRE_TRANCHES).toBe(15 * 60)
+    expect(SAUVEGARDE_ALERTE_HEURES).toBe(26)
+    expect(ENVOIS_CODES_RETENTION_JOURS).toBe(90)
+  })
+
+  it('should pin the maintenance Retry-After to 300 s, the purge to 1 000 jobs, the chain check to 5 per minute, and forbid retrying messages-auth only', () => {
+    expect(MAINTENANCE_RETRY_AFTER_S).toBe(300)
+    expect(SUPERVISION_PURGE_LIMITE_MAX).toBe(1_000)
+    expect(ADMIN_JOURNAL_VERIFICATION_LIMIT).toEqual({ limit: 5, windowS: 60 })
+    expect([...FILES_NON_RELANCABLES]).toEqual([FILE_MESSAGES_AUTH])
+  })
+
+  it('should name the six A4 journal actions domain.verb and give every A4 job its own name', () => {
+    for (const action of ['reglage.modifier', 'job.relancer', 'job.purger', 'journal.exporter', 'capacite.accorder', 'capacite.revoquer']) {
+      expect(Object.values(ADMIN_ACTIONS)).toContain(action)
+      expect(action).toMatch(ADMIN_ACTION_FORMAT)
+    }
+    expect(JOBS.controlerEchecsFiles).toBe('supervision-echecs-controler')
+    expect(JOBS.purgerEnvois).toBe('envois-codes-purger')
   })
 })

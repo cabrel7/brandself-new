@@ -553,11 +553,12 @@ describe('sortie d’un réglage', () => {
 
 describe('état public (maintenance)', () => {
   it('should give the message only during a maintenance', () => {
-    expect(schemas.schemaEtatPublicDto.safeParse({ maintenance: true, message: 'Retour dans 10 minutes.' }).success).toBe(true)
-    expect(schemas.schemaEtatPublicDto.safeParse({ maintenance: false, message: null }).success).toBe(true)
-    expect(schemas.schemaEtatPublicDto.safeParse({ maintenance: false, message: 'Texte oublié' }).success).toBe(false)
-    expect(schemas.schemaEtatPublicDto.safeParse({ maintenance: true, message: 'a'.repeat(281) }).success).toBe(false)
-    expect(schemas.schemaEtatPublicDto.safeParse({ maintenance: true, message: null, inscriptions: true }).success).toBe(false)
+    expect(schemas.schemaEtatPublicDto.safeParse({ maintenance: true, message: 'Retour dans 10 minutes.', inscriptions: true }).success).toBe(true)
+    expect(schemas.schemaEtatPublicDto.safeParse({ maintenance: false, message: null, inscriptions: false }).success).toBe(true)
+    expect(schemas.schemaEtatPublicDto.safeParse({ maintenance: false, message: null }).success).toBe(false)
+    expect(schemas.schemaEtatPublicDto.safeParse({ maintenance: false, message: 'Texte oublié', inscriptions: true }).success).toBe(false)
+    expect(schemas.schemaEtatPublicDto.safeParse({ maintenance: true, message: 'a'.repeat(281), inscriptions: true }).success).toBe(false)
+    expect(schemas.schemaEtatPublicDto.safeParse({ maintenance: true, message: null, inscriptions: true, autre: true }).success).toBe(false)
   })
 
   it('should block the studio writes and the sign-in routes, never the public pages, the administration or the state itself (D-A4-08)', () => {

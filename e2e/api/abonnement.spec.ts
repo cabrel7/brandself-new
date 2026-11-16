@@ -88,8 +88,12 @@ test.describe.serial('abonnement, paiements, tarifs et webhook', () => {
 
   test('POST /api/studio/abonnement/paiements refuses invalid bodies with 400 VALIDATION and creates nothing', async () => {
     const avant = await db().query<{ n: string }>('SELECT count(*)::text AS n FROM paiements WHERE user_id = $1', [session.userId])
-    const valide = { periodeMois: 1, devise: 'XAF', moyen: 'kpay:MTN_MOMO_CMR', telephone: '653456789' }
+    // A5 (D-A5-07) : `prixAffiche` (montant TTC vu par le client, ici 1 mois en XAF) est obligatoire ; sans lui une requête par ailleurs valide est refusée.
+    const valide = { periodeMois: 1, devise: 'XAF', moyen: 'kpay:MTN_MOMO_CMR', telephone: '653456789', prixAffiche: 5000 }
+    const { prixAffiche: _prix, ...sansPrix } = valide
     const invalides: Array<[string, Record<string, unknown>]> = [
+      ['a missing displayed price', sansPrix],
+      ['a non-integer displayed price', { ...valide, prixAffiche: 5000.5 }],
       ['an unsupported duration', { ...valide, periodeMois: 6 }],
       ['a mass-assigned amount', { ...valide, montant: 1 }],
       ['a mass-assigned user id', { ...valide, userId: autre.userId }],

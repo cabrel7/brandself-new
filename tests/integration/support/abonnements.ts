@@ -66,6 +66,9 @@ export const ENTREE_PAIEMENT: PaiementInitierInput = {
   devise: 'XAF',
   moyen: 'kpay:MTN_MOMO_CMR',
   telephone: '653456789',
+  // A5 (D-A5-07) : montant TTC affiché au client, OBLIGATOIRE. 12 mois XAF, frais à la charge du marchand : montant = prix du plan.
+  // `initier` le recalcule d'après la durée, la devise et la configuration injectée quand l'appelant ne le fixe pas.
+  prixAffiche: 48_000,
 }
 /** Numéro complet et nombre de chiffres du numéro de l'entrée par défaut : ne doit apparaître NULLE PART. */
 export const NUMERO_NATIONAL = '653456789'
@@ -315,6 +318,23 @@ export async function ouLeNumeroApparait(...numeros: string[]): Promise<string[]
 
 export type DepsInitiation = InitiationDeps
 
+/**
+ * Montant TTC que verrait le client pour cette entrée : grille de PRIX_PLANS (= version 1 seedée) ou injectée, frais de
+ * FRAIS_PAIEMENT ou injectés, calcul de `calculerMontants` (fonction pure partagée avec le serveur). Repli sur 1 quand la
+ * devise ou la durée n'ont pas de prix : le service refuse alors pour un autre motif, avant de comparer les prix.
+ */
+async function prixAfficheAttendu(input: Omit<PaiementInitierInput, 'prixAffiche'>, deps: DepsInitiation): Promise<number> {
+  const { PRIX_PLANS, PLAN_PAYANT_ID } = await import('../../../server/config/plans')
+  const { FRAIS_PAIEMENT } = await import('../../../server/config/paiements')
+  const { calculerMontants } = await import('../../../server/services/paiements/montants')
+  const { prixDeDevise } = await import('../../../server/services/paiements/offre')
+  const grille = deps.config?.prix ?? PRIX_PLANS[PLAN_PAYANT_ID]
+  const prixPlan = prixDeDevise(grille, input.devise)?.[input.periodeMois]
+  const frais = (deps.config?.frais ?? FRAIS_PAIEMENT).kpay?.mobile_money
+  if (prixPlan === undefined || frais === undefined) return 1
+  return calculerMontants({ prixPlan, tauxPb: frais.tauxPointsBase, supporteur: frais.supporteur }).montant
+}
+
 /** Appelle le vrai service avec une entrée validée par le vrai schéma Zod ; renvoie le résultat brut. */
 export async function initier(
   userId: string,
@@ -323,7 +343,10 @@ export async function initier(
   deps: DepsInitiation = {},
 ) {
   const { initierPaiement } = await moduleAbonnements()
-  const input = schemaPaiementInitier.parse({ ...ENTREE_PAIEMENT, ...surcharges })
+  const { prixAffiche: _defaut, ...base } = ENTREE_PAIEMENT
+  const sansPrix = { ...base, ...surcharges }
+  const prixAffiche = surcharges.prixAffiche ?? await prixAfficheAttendu(sansPrix, deps)
+  const input = schemaPaiementInitier.parse({ ...sansPrix, prixAffiche })
   return initierPaiement(userId, input, now, deps)
 }
 

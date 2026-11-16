@@ -7,6 +7,8 @@
 //
 // Aucun import de zod ni de code serveur : ce fichier est lu aussi par Playwright.
 
+import { CONTRAT_A5 } from './admin-contrat-a5'
+
 export type MethodeAdmin = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
 
 export interface EntreeContrat {
@@ -127,12 +129,47 @@ export const CONTRAT_A3: Readonly<Record<string, EntreeContrat>> = {
   },
 }
 
+const MOTIF_A4 = { motif: MOTIF_CONTRAT, cleIdempotence: 'cle-idempotence-contrat-0001' }
+const entree = (methode: MethodeAdmin, chemin: string, schema: string | null, corps?: Readonly<Record<string, unknown>>): EntreeContrat => ({
+  methode,
+  chemin,
+  schema,
+  statutSucces: 200,
+  ...(corps === undefined ? {} : { corps }),
+  reserveeAuTestUnitaire: true,
+  ...(schema === null ? { corpsNonJson: true as const } : {}),
+})
+
 /**
- * CONTRAT COMPLET (A1 + A2 + A3), lu par les tests unitaires de confidentialité (A1, A2, A3). Les entrées d'A2 et d'A3
- * portent `reserveeAuTestUnitaire` : e2e/admin-acces.spec.ts doit les ignorer (chemins à `:id`, schémas d'un autre fichier).
- * Une route sans entrée fait échouer le test.
+ * A4 (spec A4 §4, §6) : réglages, supervision des files, agrégats, santé, capacités, journal. Schémas : shared/schemas/admin-a4.ts
+ * (la relance répond `schemaActionAdminReponse`, d'A2). Les noms de fichiers suivent la convention d'A2/A3 (`index.get.ts` pour une
+ * liste, `[x].put.ts`, `<verbe>.post.ts`) : si le backend en choisit d'autres, corriger ICI et dans tests/integration/support/admin-a4.ts.
+ * `GET /api/public/etat` n'est pas sous `server/api/admin/` : hors de ce contrat.
  */
-export const CONTRAT: Readonly<Record<string, EntreeContrat>> = { ...CONTRAT_A1, ...CONTRAT_A2, ...CONTRAT_A3 }
+export const CONTRAT_A4: Readonly<Record<string, EntreeContrat>> = {
+  'reglages/index.get.ts': lecture('/api/admin/reglages', 'schemaListeReglagesDto'),
+  'reglages/[cle].put.ts': entree('PUT', '/api/admin/reglages/:cle', 'schemaModifierReglageReponse', { valeur: 20, ...MOTIF_A4 }),
+  'systemes/jobs/index.get.ts': lecture('/api/admin/systemes/jobs', 'schemaEtatFilesDto'),
+  'systemes/jobs/relancer.post.ts': entree('POST', '/api/admin/systemes/jobs/relancer', 'schemaActionAdminReponse', { file: 'ia-fond', id: '1', ...MOTIF_A4 }),
+  'systemes/jobs/purger.post.ts': entree('POST', '/api/admin/systemes/jobs/purger', 'schemaPurgeFilesReponse', { file: 'ia-fond', motif: MOTIF_CONTRAT, limite: 10 }),
+  'systemes/envois.get.ts': lecture('/api/admin/systemes/envois', 'schemaEnvoisDto'),
+  'systemes/ia.get.ts': lecture('/api/admin/systemes/ia', 'schemaAgregatsIaDto'),
+  'systemes/pwa.get.ts': lecture('/api/admin/systemes/pwa', 'schemaAgregatsPwaDto'),
+  'systemes/sante.get.ts': lecture('/api/admin/systemes/sante', 'schemaSanteDto'),
+  'systemes/assistants.get.ts': lecture('/api/admin/systemes/assistants', 'schemaAgregatsAssistantsDto'),
+  'utilisateurs/[id]/capacites/index.post.ts': entree('POST', '/api/admin/utilisateurs/:id/capacites', 'schemaCapaciteReponse', { capacite: 'mcp', motif: MOTIF_CONTRAT }),
+  'utilisateurs/[id]/capacites/[capacite].delete.ts': entree('DELETE', '/api/admin/utilisateurs/:id/capacites/:capacite', 'schemaActionAdminReponse', { motif: MOTIF_CONTRAT }),
+  'journal/index.get.ts': lecture('/api/admin/journal', 'schemaListeJournalDto'),
+  'journal/verifier.get.ts': lecture('/api/admin/journal/verifier', 'schemaJournalVerificationDto'),
+  'journal/export.post.ts': entree('POST', '/api/admin/journal/export', null, { motif: MOTIF_CONTRAT, filtres: {} }),
+}
+
+/**
+ * CONTRAT COMPLET (A1 à A5), lu par les tests unitaires de confidentialité. Les entrées d'A2, A3 et A4 portent
+ * `reserveeAuTestUnitaire` : e2e/admin-acces.spec.ts doit les ignorer (chemins à `:id`, schémas d'un autre fichier).
+ * Une route sans entrée fait échouer le test. A5 : `CONTRAT_A5` (tests/support/admin-contrat-a5.ts).
+ */
+export const CONTRAT: Readonly<Record<string, EntreeContrat>> = { ...CONTRAT_A1, ...CONTRAT_A2, ...CONTRAT_A3, ...CONTRAT_A4, ...CONTRAT_A5 }
 export const CONTRAT_COMPLET: Readonly<Record<string, EntreeContrat>> = CONTRAT
 
 /**
@@ -185,4 +222,27 @@ export const EXCEPTIONS_CLES_REPONSE: Readonly<Record<string, Readonly<Record<st
     nom: 'nom du professionnel (compte ou vitrine) trouvé par la recherche, jamais celui d\'un visiteur',
     email: 'adresse du professionnel trouvé par la recherche, jamais celle d\'un visiteur',
   },
+  // A4 : `cle` = clé du REGISTRE des réglages (ex. `ia.active`), jamais un secret (garde anti-secret du registre, CA06) ;
+  // `nom` = nom TECHNIQUE d'un job de file (ex. `send-transactional-email`), jamais le nom d'une personne.
+  schemaReglageDto: { cle: 'clé du registre des réglages d\'exploitation (ex. ia.active), jamais un secret ni une variable d\'environnement' },
+  schemaListeReglagesDto: { cle: 'liste de schemaReglageDto : clé du registre des réglages d\'exploitation, jamais un secret' },
+  schemaModifierReglageReponse: { cle: 'schemaReglageDto embarqué : clé du registre des réglages d\'exploitation, jamais un secret' },
+  schemaJobEchecDto: { nom: 'nom technique du job de la file (ex. send-transactional-email), jamais le nom d\'une personne' },
+  schemaEtatFileDto: { nom: 'liste de schemaJobEchecDto : nom technique du job de la file, jamais le nom d\'une personne' },
+  schemaEtatFilesDto: { nom: 'liste de schemaEtatFileDto : nom technique du job de la file, jamais le nom d\'une personne' },  // A5 : `code` = code ISO du pays ou de la devise (catalogue), jamais un code à usage unique ; `cle` = clé d'un plan ou d'un
+  // prompt versionné ; `nom` = nom du catalogue (pays, devises, noms bloqués) ; `sortie` = sortie JSON d'un essai de prompt
+  // sur des fixtures synthétiques FIXÉES dans le code (jamais une donnée utilisateur).
+  schemaPaysDto: { code: 'code ISO du pays du catalogue (ex. CM), jamais un code à usage unique' },
+  schemaDeviseDto: { code: 'code ISO de la devise du catalogue (ex. XAF), jamais un code à usage unique' },
+  schemaListeCatalogueDto: {
+    nom: 'nom du catalogue demandé (pays, devises ou noms bloqués), jamais le nom d\'une personne',
+    code: 'liste de schemaPaysDto / schemaDeviseDto : code ISO du pays ou de la devise, jamais un code à usage unique',
+  },
+  schemaPaysReponse: { code: 'schemaPaysDto embarqué : code ISO du pays du catalogue, jamais un code à usage unique' },
+  schemaDeviseReponse: { code: 'schemaDeviseDto embarqué : code ISO de la devise du catalogue, jamais un code à usage unique' },
+  schemaVersionPromptDto: { cle: 'clé du prompt versionné (type d\'appel IA), jamais un secret' },
+  schemaVersionDto: { cle: 'clé de la version de configuration (plan, type de prompt ou période de prix), jamais un secret' },
+  schemaListeVersionsDto: { cle: 'liste de schemaVersionDto : clé de la version de configuration, jamais un secret' },
+  schemaVersionReponse: { cle: 'schemaVersionDto embarqué : clé de la version de configuration, jamais un secret' },
+  schemaEssaiPromptDto: { sortie: 'OPAQUE: sortie JSON d\'un essai de prompt sur des fixtures synthétiques fixées dans le code, jamais une donnée utilisateur' },
 }

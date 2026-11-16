@@ -168,8 +168,10 @@ describe('sorties : liste blanche stricte', () => {
       telephone: null, pays: null, devise: 'XAF', fuseau: 'Africa/Douala', motifSuspension: null, abonnement: null,
       compteurs: { services: 0, realisations: 0, temoignages: 0, liens: 0 }, activite30j: { vues: 0, reservations: 0, demandes: 0, messages: 0 }, iaMois: 0,
       sessionsActives: [{ id: 's', creeLe: INSTANT, expireLe: INSTANT }], assistants: [{ id: 'c', client: 'Claude', portees: ['vitrine:lecture'], dernierUsage: null }],
+      capacites: ['mcp'],
     }
     expect(schemaUtilisateurFicheDto.safeParse(fiche).success).toBe(true)
+    expect(schemaUtilisateurFicheDto.safeParse({ ...fiche, capacites: ['inconnue'] }).success).toBe(false)
     expect(schemaUtilisateurFicheDto.safeParse({ ...fiche, sessionsActives: [{ id: 's', creeLe: INSTANT, expireLe: INSTANT, token: 'x' }] }).success).toBe(false)
     expect(schemaUtilisateurFicheDto.safeParse({ ...fiche, sessionsActives: [{ id: 's', creeLe: INSTANT, expireLe: INSTANT, ipAddress: '1.2.3.4' }] }).success).toBe(false)
     expect(schemaAssistantDto.safeParse({ id: 'c', client: 'Claude', portees: [], dernierUsage: null, clientId: 'abc' }).success).toBe(false)

@@ -6,7 +6,11 @@ import { z } from 'zod'
 import * as schemasAdminA1 from '../../../shared/schemas/admin'
 import * as schemasAdminA2 from '../../../shared/schemas/admin-a2'
 import * as schemasAdminA3 from '../../../shared/schemas/admin-paiements'
-import { CONTRAT_A2, CONTRAT_COMPLET as CONTRAT, EXCEPTIONS_CLES_REPONSE } from '../../support/admin-contrat'
+import * as schemasAdminA4 from '../../../shared/schemas/admin-a4'
+import * as schemasAdminCatalogues from '../../../shared/schemas/admin-catalogues'
+import * as schemasAdminVersions from '../../../shared/schemas/admin-versions'
+import { AUDIT_CLE_FORMAT, AUDIT_VALEUR_TEXTE_MAX } from '../../../shared/admin'
+import { CONTRAT_A2, CONTRAT_A4, CONTRAT_COMPLET as CONTRAT, EXCEPTIONS_CLES_REPONSE } from '../../support/admin-contrat'
 import type { EntreeContrat } from '../../support/admin-contrat'
 import {
   analyserSchema,
@@ -24,7 +28,21 @@ import type { SchemaZod } from './support/contrat'
 
 // A2 : les schémas de réponse de shared/schemas/admin.ts (A1) ET de shared/schemas/admin-a2.ts sont contrôlés ; le
 // contrat est CONTRAT_COMPLET (A1 + A2) : une route de n'importe quel lot sans entrée fait échouer le test.
-const schemasAdmin: Record<string, unknown> = { ...schemasAdminA1, ...schemasAdminA2, ...schemasAdminA3 }
+// A4 : `schemaEtatPublicDto` (route PUBLIQUE `GET /api/public/etat`, hors server/api/admin) porte le message de maintenance de
+// l'administrateur, pas un message de visiteur : il n'est pas analysé ici (a4-schemas.test.ts le fige à { maintenance, message }).
+const { schemaEtatPublicDto: _etatPublic, ...schemasAdminA4Contrat } = schemasAdminA4
+void _etatPublic
+// A5 : `schemaReferentielsDto` décrit la route PUBLIQUE `GET /api/public/referentiels` (hors server/api/admin) : listes de pays et
+// devises du catalogue, sans donnée de compte ; il n'est pas analysé ici.
+const { schemaReferentielsDto: _referentiels, ...schemasAdminCataloguesContrat } = schemasAdminCatalogues
+void _referentiels
+const schemasAdmin: Record<string, unknown> = { ...schemasAdminA1, ...schemasAdminA2, ...schemasAdminA3, ...schemasAdminA4Contrat, ...schemasAdminCataloguesContrat, ...schemasAdminVersions }
+
+/**
+ * Entrée du journal : `avant` et `apres` sont des objets PLATS à clés libres (liste noire appliquée à l'ÉCRITURE par le service
+ * d'audit, D-A1-09) : l'analyseur structurel refuse tout dictionnaire, ces deux schémas ont donc un contrôle dédié (plus bas).
+ */
+const SCHEMAS_JOURNAL_A_CLES_LIBRES: readonly string[] = ['schemaJournalEntreeDto', 'schemaListeJournalDto']
 
 const RACINE = path.resolve(import.meta.dirname, '../../..')
 const DOSSIER_ROUTES = path.join(RACINE, 'server/api/admin')
@@ -40,6 +58,7 @@ const schemaExporte = (nom: string): SchemaZod => {
 const ROUTES_HORS_CONTRAT: readonly string[] = ['[...].ts']
 
 const NOMS_SCHEMAS_REPONSE = Object.keys(schemasAdmin).filter((nom) => /^schema.*(Dto|Reponse)$/.test(nom))
+const NOMS_SCHEMAS_ANALYSES = NOMS_SCHEMAS_REPONSE.filter((nom) => !SCHEMAS_JOURNAL_A_CLES_LIBRES.includes(nom))
 
 describe('contrat de confidentialité : routes de server/api/admin/** (CA23)', () => {
   // La route attrape-tout `[...].ts` est VOLONTAIREMENT hors contrat : elle ne renvoie aucune donnée (404 uniforme).
@@ -63,10 +82,12 @@ describe('contrat de confidentialité : routes de server/api/admin/** (CA23)', (
     expect(source).not.toMatch(/return\s/)
   })
 
-  it('should declare the four routes of A1 and the sixteen routes of A2 (spec A2 §5)', () => {
+  it('should declare the four routes of A1, the sixteen routes of A2 (spec A2 §5) and the fifteen routes of A4 (spec A4 §4)', () => {
     for (const fichier of ['deconnexion.post.ts', 'reauth/code.post.ts', 'session.get.ts', 'vue-ensemble.get.ts']) expect(fichiers).toContain(fichier)
     expect(Object.keys(CONTRAT_A2)).toHaveLength(16)
     for (const fichier of Object.keys(CONTRAT_A2)) expect(fichiers, fichier).toContain(fichier)
+    expect(Object.keys(CONTRAT_A4)).toHaveLength(15)
+    for (const fichier of Object.keys(CONTRAT_A4)) expect(fichiers, fichier).toContain(fichier)
   })
 
   it.each(Object.entries(CONTRAT))('should have route %s guard first, wrap errors, and never touch the database directly', (fichier) => {
@@ -80,6 +101,7 @@ describe('contrat de confidentialité : routes de server/api/admin/** (CA23)', (
       expect(entree.statutSucces).toBe(entree.corpsNonJson === true ? 200 : 204)
       return
     }
+    if (SCHEMAS_JOURNAL_A_CLES_LIBRES.includes(entree.schema)) return
     const exceptions = EXCEPTIONS_CLES_REPONSE[entree.schema] ?? {}
 
     const { violations } = analyserSchema(schemaExporte(entree.schema), exceptions)
@@ -89,7 +111,7 @@ describe('contrat de confidentialité : routes de server/api/admin/** (CA23)', (
 
   it('should check EVERY response schema exported by shared/schemas/admin.ts, covered by a route or not', () => {
     expect(NOMS_SCHEMAS_REPONSE.length).toBeGreaterThan(0)
-    for (const nom of NOMS_SCHEMAS_REPONSE) {
+    for (const nom of NOMS_SCHEMAS_ANALYSES) {
       const { violations } = analyserSchema(schemaExporte(nom), EXCEPTIONS_CLES_REPONSE[nom] ?? {})
       expect(violations, nom).toEqual([])
     }
@@ -111,10 +133,32 @@ describe('contrat de confidentialité : routes de server/api/admin/** (CA23)', (
     }
   })
 
-  it('should limit the exceptions to the identity of the administrator or of the account holder (name, e-mail, phone), nothing about a visitor', () => {
+  it('should limit the exceptions to the identity of the administrator or of the account holder (name, e-mail, phone) and, for A4, to the registry key of a setting and the technical name of a job, nothing about a visitor', () => {
     const cles = new Set(Object.values(EXCEPTIONS_CLES_REPONSE).flatMap((e) => Object.keys(e)))
 
-    expect([...cles].sort()).toEqual(['email', 'nom', 'telephone'])
+    expect([...cles].sort()).toEqual(['cle', 'code', 'email', 'nom', 'sortie', 'telephone'])
+    const avecCle = Object.entries(EXCEPTIONS_CLES_REPONSE).filter(([, e]) => 'cle' in e).map(([nom]) => nom)
+    expect(avecCle.sort()).toEqual(['schemaListeReglagesDto', 'schemaListeVersionsDto', 'schemaModifierReglageReponse', 'schemaReglageDto', 'schemaVersionDto', 'schemaVersionPromptDto', 'schemaVersionReponse'])
+    // A5 : `code` = code ISO d'un catalogue seulement ; `sortie` = sortie opaque d'un essai de prompt, rien d'autre.
+    const avecCode = Object.entries(EXCEPTIONS_CLES_REPONSE).filter(([, e]) => 'code' in e).map(([nom]) => nom)
+    expect(avecCode.sort()).toEqual(['schemaDeviseDto', 'schemaDeviseReponse', 'schemaListeCatalogueDto', 'schemaPaysDto', 'schemaPaysReponse'])
+    const avecSortie = Object.entries(EXCEPTIONS_CLES_REPONSE).filter(([, e]) => 'sortie' in e).map(([nom]) => nom)
+    expect(avecSortie).toEqual(['schemaEssaiPromptDto'])
+  })
+
+  it('should keep the journal entry whitelisted: flat objects with lowercase keys and short values only, no IP address, no idempotency key', () => {
+    const entree = {
+      id: 'e1', numero: 1, adminId: 'a1', action: 'reglage.modifier', cibleType: 'reglage', cibleId: 'ia.active', motif: 'Motif valide',
+      avant: { valeur: true }, apres: { valeur: false }, creeLe: new Date().toISOString(), empreinte: 'a'.repeat(64),
+    }
+    const schema = schemasAdminA4.schemaJournalEntreeDto
+
+    expect(schema.safeParse(entree).success).toBe(true)
+    for (const extra of [{ ip: '203.0.113.9' }, { cleIdempotence: 'cle-secrete-001' }, { ipAddress: '203.0.113.9' }]) expect(schema.safeParse({ ...entree, ...extra }).success, JSON.stringify(extra)).toBe(false)
+    expect(schema.safeParse({ ...entree, avant: { Majuscule: 1 } }).success).toBe(false)
+    expect(schema.safeParse({ ...entree, avant: { texte_long: 'x'.repeat(AUDIT_VALEUR_TEXTE_MAX + 1) } }).success).toBe(false)
+    expect(schema.safeParse({ ...entree, avant: { imbrique: { a: 1 } } }).success).toBe(false)
+    expect(AUDIT_CLE_FORMAT.test('longueur')).toBe(true)
   })
 
   it('should tolerate the phone number only in the account sheet (schemaUtilisateurFicheDto), where it is the holder\'s own', () => {
@@ -124,8 +168,11 @@ describe('contrat de confidentialité : routes de server/api/admin/** (CA23)', (
   })
 
   it('should not tolerate the sensitive keys of a visitor in any exception', () => {
-    for (const exceptions of Object.values(EXCEPTIONS_CLES_REPONSE)) {
+    // A5 : `code` n'est toléré que pour le code ISO d'un pays ou d'une devise du catalogue (liste fermée vérifiée plus haut).
+    const SCHEMAS_CODE_ISO = ['schemaDeviseDto', 'schemaDeviseReponse', 'schemaListeCatalogueDto', 'schemaPaysDto', 'schemaPaysReponse']
+    for (const [nomSchema, exceptions] of Object.entries(EXCEPTIONS_CLES_REPONSE)) {
       for (const cle of ['message', 'contenu', 'motif_visiteur', 'sujet', 'visiteur', 'ip', 'token', 'jeton', 'code']) {
+        if (cle === 'code' && SCHEMAS_CODE_ISO.includes(nomSchema)) continue
         expect(exceptions).not.toHaveProperty(cle)
       }
     }

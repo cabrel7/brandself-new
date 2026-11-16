@@ -87,6 +87,9 @@ export interface ResultatSchema {
 }
 
 /** Parcourt un schéma de réponse : tout objet doit être strict, aucune clé sensible hors exception. */
+/** Préfixe d'une exception qui désigne une valeur JSON opaque (non parcourue). */
+export const PREFIXE_OPAQUE = 'OPAQUE:'
+
 export function analyserSchema(schema: SchemaZod, exceptions: Readonly<Record<string, string>> = {}): ResultatSchema {
   const violations: string[] = []
   const utilisees = new Set<string>()
@@ -104,6 +107,12 @@ export function analyserSchema(schema: SchemaZod, exceptions: Readonly<Record<st
           if (interdites.has(cleCanonique(cle)) || interdites.has(cle)) {
             if (cle in exceptions) utilisees.add(cle)
             else violations.push(`${emplacement} : clé interdite dans une réponse d'administration`)
+          }
+          // A5 : une exception préfixée `OPAQUE:` déclare une valeur JSON produite par le serveur sur des données synthétiques
+          // (sortie d'un essai de prompt) ; le contenu n'est pas parcouru (z.json() est récursif), mais la clé reste nommée et justifiée.
+          if (exceptions[cle]?.startsWith(PREFIXE_OPAQUE)) {
+            utilisees.add(cle)
+            continue
           }
           visiter(enfant, emplacement)
         }
