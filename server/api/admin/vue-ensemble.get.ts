@@ -1,9 +1,9 @@
 import { defineApiHandler } from '#server/utils/api'
 import { requireSuperadmin } from '#server/utils/admin'
-import { toVueEnsemble } from '#server/resources/admin'
-import { lireVueEnsemble } from '#server/services/admin/vue-ensemble'
+import { toVueEnsembleEnrichie } from '#server/resources/admin-paiements'
+import { lireVueEnsembleEnrichie } from '#server/services/admin/revenus-vue-ensemble'
 
 export default defineApiHandler(async (event) => {
   const admin = await requireSuperadmin(event)
-  return toVueEnsemble(lireVueEnsemble(admin))
+  return toVueEnsembleEnrichie(await lireVueEnsembleEnrichie(admin))
 })

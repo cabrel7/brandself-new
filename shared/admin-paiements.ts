@@ -62,5 +62,5 @@ export const EXPORT_PAIEMENTS_CONTENT_TYPE = 'text/csv; charset=utf-8'
 export const EXPORT_CARACTERES_FORMULE: readonly string[] = ['=', '+', '-', '@', '\t', '\r']
 export const EXPORT_NEUTRALISATION = '\''
 
-/** D-A3-07 : occurrence d'un rappel manuel, `manuel:<ISO>` (type `abonnement_rappel`). */
-export const RAPPEL_MANUEL_OCCURRENCE_PREFIXE = 'manuel:'
+/** D-A3-07 : occurrence d'un rappel manuel, `MANUEL:<ISO>` (majuscules : CHECK d’occurrence) (type `abonnement_rappel`). */
+export const RAPPEL_MANUEL_OCCURRENCE_PREFIXE = 'MANUEL:'

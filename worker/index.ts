@@ -34,6 +34,7 @@ import { planifierVerificationsPaiements } from '../server/jobs/paiements'
 import { planifierNotificationsRepetees, planifierPurgeNotifications } from '../server/jobs/notifications'
 import { planifierPurgeIndisponibilites } from '../server/jobs/indisponibilites'
 import { planifierPurgeOauth } from '../server/jobs/oauth'
+import { planifierPurgeWebhooksRefuses } from '../server/jobs/webhooks-refuses'
 import { planifierAgregationStatistiques, planifierPurgeStatistiques } from '../server/jobs/statistiques'
 import { processTransactionalEmail } from '../server/services/email-outbox'
 import { planifierNotifications } from '../server/services/notifications/planification'
@@ -44,6 +45,7 @@ import { regenererSeoVitrine } from '../server/services/ia/seo'
 import type { ExecutionDeps } from '../server/services/ia/types'
 import { purgerIndisponibilites } from '../server/services/indisponibilites-purge'
 import { purgerOauth } from '../server/services/oauth-purge'
+import { purgerWebhooksRefuses } from '../server/services/webhooks-refuses'
 import { agregerStatistiques, purgerStatistiques } from '../server/services/statistiques'
 import { verifierPaiementsDus } from '../server/services/abonnements'
 import { purgeProgressionsAbandonnees } from '../server/services/onboarding'
@@ -120,6 +122,12 @@ const workerMaintenance = new Worker(
     if (job.name === JOBS.purgerIndisponibilites) {
       const purgees = await purgerIndisponibilites(new Date())
       console.info(`[worker] purge indisponibilités : ${purgees} ligne(s) supprimée(s)`)
+      return
+    }
+    // A3 : compteur des webhooks refusés de plus de 90 jours (nombre seulement dans le journal).
+    if (job.name === JOBS.purgerWebhooksRefuses) {
+      const purgees = await purgerWebhooksRefuses(new Date())
+      console.info(`[worker] purge webhooks refusés : ${purgees} ligne(s) supprimée(s)`)
       return
     }
     throw new Error(`Unknown job: ${job.name}`)
@@ -304,6 +312,10 @@ planifierPurgeOauth(maintenanceQueue).catch(() => {
 
 planifierPurgeIndisponibilites(maintenanceQueue).catch(() => {
   console.error('[worker] unavailability purge scheduling failed (INDISPONIBILITES_PURGE_SCHEDULE_FAILED)')
+})
+
+planifierPurgeWebhooksRefuses(maintenanceQueue).catch(() => {
+  console.error('[worker] refused webhooks purge scheduling failed (WEBHOOKS_REFUSES_PURGE_SCHEDULE_FAILED)')
 })
 
 // S9 : tick de planification sur la file `system`, idempotent au redémarrage.
