@@ -5,6 +5,7 @@ import { JOBS } from '../../../shared/jobs'
 import { schemaListeCatalogueDto, schemaNomBloqueReponse, schemaPaysReponse, schemaReferentielsDto } from '../../../shared/schemas/admin-catalogues'
 import { db } from '../../../server/utils/db'
 import { avecJournalEnPanne, compterJournal, demanderCodeTelephone, journalDe, ouvrirAdmin, preparerSuiteAdmin, tousLesJobs } from '../support/admin'
+import { poserReglage } from '../support/admin-a4'
 import {
   CHARGEURS_A5,
   appelerA5,
@@ -112,6 +113,21 @@ describe('canal SMS par pays (CA02)', () => {
     expect(avant).toHaveLength(0)
     expect(acceptee.status).toBe(200)
     await vi.waitFor(async () => expect((await jobsSms()).length).toBeGreaterThan(0), { timeout: 5_000, interval: 100 })
+  })
+
+  it('should answer a known and an unknown number IDENTICALLY when the inscriptions are closed and the SMS channel is off (no account oracle)', async () => {
+    const connu = '+237653000222'
+    const inconnu = '+237653000333'
+    await createUser({ phoneNumber: connu, phoneNumberVerified: true })
+    await modifierPays('CM', { canalSms: false })
+    await poserReglage('inscriptions.ouvertes', false, connecte.admin.id)
+
+    const reponseConnu = await demanderCodeTelephone(suite.auth(), connu, 'public')
+    const reponseInconnu = await demanderCodeTelephone(suite.auth(), inconnu, 'public')
+
+    expect(reponseInconnu.status).toBe(reponseConnu.status)
+    expect(reponseInconnu.corps).toEqual(reponseConnu.corps)
+    expect(await jobsSms()).toHaveLength(0)
   })
 })
 

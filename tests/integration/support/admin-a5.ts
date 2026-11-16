@@ -271,11 +271,11 @@ export async function activer(connecte: AdminA5, type: string, id: string, optio
   })
 }
 
-export async function retourArriere(connecte: AdminA5, type: string, id: string, options: { reauth?: string | null, motif?: string } = {}): Promise<ReponseRouteAdmin> {
+export async function retourArriere(connecte: AdminA5, type: string, id: string, options: { reauth?: string | null, motif?: string, impactAcquitte?: ActiverVersion['impactAcquitte'] } = {}): Promise<ReponseRouteAdmin> {
   const reauth = options.reauth === null ? undefined : (options.reauth ?? await codeReauthVersion(connecte.admin.id, 'versionRetour', id))
   return appelerA5('versionRetour', connecte, {
     params: { type, id },
-    corps: { motif: options.motif ?? MOTIF_A5 },
+    corps: { motif: options.motif ?? MOTIF_A5, ...(options.impactAcquitte === undefined ? {} : { impactAcquitte: options.impactAcquitte }) },
     ...(reauth === undefined ? {} : { reauth }),
     cleIdempotence: cleUnique(),
   })
