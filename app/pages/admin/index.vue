@@ -1,25 +1,19 @@
 <script setup lang="ts">
 import { ADMIN_PREFIXE_API } from '#shared/admin'
-import type { VueEnsembleDto } from '#shared/schemas/admin'
+import type { VueEnsembleEnrichieDto } from '#shared/schemas/admin-paiements'
 
 definePageMeta({ layout: 'admin', middleware: 'admin' })
 useSeoMeta({ title: 'Vue d’ensemble · Administration' })
 
-const { expirer } = useAdminSession()
-
-const { data, status, error, refresh } = useFetch<VueEnsembleDto>(`${ADMIN_PREFIXE_API}/vue-ensemble`, {
+const { data, status, error, refresh } = useFetch<VueEnsembleEnrichieDto>(`${ADMIN_PREFIXE_API}/vue-ensemble`, {
   key: 'admin-vue-ensemble',
   server: false,
   lazy: true,
 })
+useAdminSessionExpiree(error)
 
 // Le squelette n'apparaît qu'après 200 ms : pas de flash sur un chargement rapide.
 const { ready: squeletteVisible } = useTimeout(200, { controls: true })
-
-// Session refusée en cours d'usage (404 uniforme du serveur) : retour à la connexion.
-watch(error, (erreur) => {
-  if (lireErreurApi(erreur).statut === 404) void expirer()
-})
 </script>
 
 <template>
@@ -27,10 +21,11 @@ watch(error, (erreur) => {
     <template v-if="squeletteVisible">
       <USkeleton class="h-6 w-48" />
       <USkeleton class="h-4 w-72 max-w-full" />
+      <USkeleton class="h-24 w-full" />
     </template>
   </div>
 
-  <div v-else-if="error" class="flex flex-col items-start gap-4">
+  <div v-else-if="error || !data" class="flex flex-col items-start gap-4">
     <UAlert
       role="alert"
       color="error"
@@ -44,10 +39,11 @@ watch(error, (erreur) => {
     </UButton>
   </div>
 
-  <UEmpty
-    v-else-if="data"
-    icon="i-ph-gauge"
-    :title="`Bonjour, ${data.admin.nom}`"
-    description="Les indicateurs seront affichés ici."
-  />
+  <div v-else class="flex flex-col gap-8">
+    <h1 class="font-(family-name:--font-titre) text-(length:--fs-24) leading-[1.15] font-bold">
+      Bonjour, {{ data.admin.nom }}
+    </h1>
+    <AlerteVueEnsemble :alertes="data.alertes" />
+    <VueEnsembleCompteurs :vue="data" />
+  </div>
 </template>

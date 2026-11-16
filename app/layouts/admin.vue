@@ -1,8 +1,14 @@
 <script setup lang="ts">
 import type { NavigationMenuItem } from '@nuxt/ui'
 import { ADMIN_NAV, ADMIN_PREFIXE_PAGES } from '#shared/admin'
+import type { ElementNavAdmin } from '#shared/admin'
 
 const LIBELLE_BANDEAU = 'Administration'
+// A3 : « Paiements » n'est pas encore dans `ADMIN_NAV` (shared/, test de contrat figé) ; elle suit « Abonnements ».
+const ENTREE_PAIEMENTS: ElementNavAdmin = { id: 'paiements', libelle: 'Paiements', to: '/admin/paiements', icone: 'i-ph-receipt' }
+const navigation: readonly ElementNavAdmin[] = ADMIN_NAV.flatMap((entree) =>
+  entree.id === 'abonnements' ? [entree, ENTREE_PAIEMENTS] : [entree],
+)
 
 const route = useRoute()
 const { session, deconnexionEnCours, deconnecter } = useAdminSession()
@@ -16,7 +22,7 @@ function estActive(to: string): boolean {
 }
 
 const entrees = computed<NavigationMenuItem[]>(() =>
-  ADMIN_NAV.map((entree) => ({
+  navigation.map((entree) => ({
     label: entree.libelle,
     icon: entree.icone,
     to: entree.to,
@@ -24,7 +30,7 @@ const entrees = computed<NavigationMenuItem[]>(() =>
   })),
 )
 
-const titrePage = computed(() => ADMIN_NAV.find((entree) => estActive(entree.to))?.libelle ?? LIBELLE_BANDEAU)
+const titrePage = computed(() => navigation.find((entree) => estActive(entree.to))?.libelle ?? LIBELLE_BANDEAU)
 </script>
 
 <template>
@@ -73,6 +79,7 @@ const titrePage = computed(() => ADMIN_NAV.find((entree) => estActive(entree.to)
         <template #header>
           <UDashboardNavbar :title="titrePage">
             <template #right>
+              <AdminRechercheGlobale />
               <UUser
                 v-if="session"
                 :name="session.nom"
@@ -85,10 +92,12 @@ const titrePage = computed(() => ADMIN_NAV.find((entree) => estActive(entree.to)
                 variant="outline"
                 size="lg"
                 icon="i-ph-sign-out"
+                aria-label="Déconnexion"
+                class="min-h-(--cible-tactile) min-w-(--cible-tactile) justify-center"
                 :loading="deconnexionEnCours"
                 @click="deconnecter"
               >
-                Déconnexion
+                <span class="hidden sm:inline">Déconnexion</span>
               </UButton>
             </template>
           </UDashboardNavbar>

@@ -45,6 +45,12 @@ watch(partageOuvert, async (ouvert) => {
   if (!carteEtape.value && document.activeElement === document.body) titreListe.value?.focus()
 })
 
+// Blocage par l'administration (A2) : le motif est visible du professionnel seulement.
+const blocage = computed(() => {
+  const v = vitrine.value
+  return v?.blocageAdmin ? { motif: v.blocageMotif } : null
+})
+
 const manquants = computed(() => resume.value?.manquantsPourPublier ?? [])
 
 function pluriel(nombre: number, singulier: string, pluralise: string): string {
@@ -171,7 +177,7 @@ async function publier(): Promise<void> {
           >
             <span class="hidden sm:inline">Partager</span>
           </UButton>
-          <template v-if="!vitrine.publiee">
+          <template v-if="!vitrine.publiee && !blocage">
             <UButton
               v-if="manquants.length > 0"
               label="Compléter mon profil"
@@ -192,7 +198,9 @@ async function publier(): Promise<void> {
         </div>
       </header>
 
-      <div v-if="messagePublication" class="flex flex-col items-start gap-1 md:col-span-2">
+      <StudioVitrineBloqueeBandeau v-if="blocage" :motif="blocage.motif" />
+
+      <div v-else-if="messagePublication" class="flex flex-col items-start gap-1 md:col-span-2">
         <p role="alert" class="message-erreur">
           <UIcon name="i-ph-warning-circle" class="size-5 shrink-0" aria-hidden="true" />
           <span>{{ messagePublication }}</span>
