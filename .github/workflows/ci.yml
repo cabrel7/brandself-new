@@ -2,14 +2,17 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    # Les branches de sprint sont aussi vérifiées à chaque envoi : lint, typecheck, tests et build tournent sur les
+    # machines de la CI (le poste de développement est trop lent pour la suite complète).
+    branches: [main, 'sprint/**']
   pull_request:
   workflow_dispatch:
 
 jobs:
   verification:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    # La suite complète (unitaires, intégration parallèle par worker, migrations en série) dépasse 25 minutes.
+    timeout-minutes: 90
     # Les tests d'intégration (vrai PostgreSQL, vrai Redis, vrai disque) tournent ici : sans ces
     # services, `pnpm test` échoue (le globalSetup exige une base `*_test` et Redis /15).
     services:
