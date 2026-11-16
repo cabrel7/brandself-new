@@ -20,7 +20,8 @@ const form = defineModel<FormPrompt>('form', { required: true })
 const { essaiPrompt } = useAdminVersionsEcritures()
 const essaiEnCours = ref(false)
 const essaiErreur = ref('')
-const essai = ref<EssaiPromptDto | null>(null)
+// shallowRef : la sortie d'essai est un JSON récursif (z.json()) ; `ref` en déroulerait le type à l'infini (TS2589).
+const essai = shallowRef<EssaiPromptDto | null>(null)
 
 const variables = computed(() => variablesDuGabarit(form.value.gabarit))
 const sortieTexte = computed(() => (essai.value?.sortie == null ? '' : JSON.stringify(essai.value.sortie, null, 2)))

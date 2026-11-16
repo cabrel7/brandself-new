@@ -7,7 +7,9 @@ import { MAINTENANCE_MESSAGE_LONGUEUR_MAX } from '../../shared/reglages'
 import { schemaModifierReglage } from '../../shared/schemas/admin-a4'
 import { UnprocessableError } from '../exceptions/http'
 
-export function lireParametres<S extends z.ZodType>(event: H3Event, schema: S): z.output<S> {
+// Nom propre à A4 : `lireParametres` existe aussi dans admin-a5.ts, et deux exports de même nom dans server/utils se masquent
+// en silence (auto-import Nitro).
+export function lireParametresA4<S extends z.ZodType>(event: H3Event, schema: S): z.output<S> {
   const lu = schema.safeParse(getRouterParams(event))
   if (!lu.success) throw new UnprocessableError('VALIDATION')
   return lu.data

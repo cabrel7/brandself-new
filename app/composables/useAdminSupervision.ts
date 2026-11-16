@@ -98,7 +98,8 @@ export function useAdminSupervision() {
     })
     surveillerSessionAdmin(error)
     return {
-      data,
+      // useFetch<T> type `data` avec une condition (T extends void ? unknown : T) que TypeScript ne résout pas pour un T générique.
+      data: data as unknown as Ref<T | null | undefined>,
       chargement: computed(() => !data.value && !error.value && (status.value === 'pending' || status.value === 'idle')),
       erreur: computed(() => !!error.value),
       message: computed(() => (error.value ? messageDepuisErreurApi(error.value) : '')),
