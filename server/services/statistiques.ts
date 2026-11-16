@@ -1,6 +1,6 @@
 // S11 : service de statistiques de la vitrine.
 // Règle : aucune logique métier dans une route ; cette couche est appelée par les routes et les jobs.
-import { and, count, countDistinct, eq, gte, lt, lte, sql } from 'drizzle-orm'
+import { and, count, countDistinct, eq, gte, lt, lte } from 'drizzle-orm'
 import {
   reservations,
   statistiquesJour,
@@ -31,6 +31,7 @@ import {
   periodesAutorisees,
 } from './statistiques-regles'
 import { getPlanEffectif } from './plans'
+import { sqlVitrinePublique } from './visibilite'
 import { PLANS } from '../config/plans'
 import { Temporal } from '@js-temporal/polyfill'
 import { randomUUID } from 'node:crypto'
@@ -130,10 +131,9 @@ export async function enregistrerVue(input: VueInput): Promise<void> {
     .select({
       id: vitrines.id,
       fuseau: vitrines.fuseau,
-      publieeLe: vitrines.publieeLe,
     })
     .from(vitrines)
-    .where(and(eq(vitrines.username, input.username), sql`${vitrines.publieeLe} IS NOT NULL`))
+    .where(and(eq(vitrines.username, input.username), sqlVitrinePublique()))
     .limit(1)
   if (!vitrine) throw new NotFoundError('VITRINE_INTROUVABLE')
 

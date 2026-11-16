@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { and, desc, eq, isNotNull, sql } from 'drizzle-orm'
-import { generationsIa, vitrines } from '../../../shared/db/schema'
+import { estVitrinePublique } from '../../../shared/admin-visibilite'
+import { generationsIa, users, vitrines } from '../../../shared/db/schema'
 import {
   IA_GLOBAL_LIMIT,
   IA_LIMITE_CLE_GLOBALE,
@@ -172,7 +173,9 @@ async function ecrireSeo(
 export async function regenererSeoVitrine(vitrineId: string, deps: ExecutionDeps): Promise<ResultatSeo> {
   const [vitrine] = await db.select().from(vitrines).where(eq(vitrines.id, vitrineId)).limit(1)
   if (!vitrine) return termine(vitrineId, false, 'vitrine_absente')
-  if (vitrine.publieeLe === null) return termine(vitrineId, false, 'non_publiee')
+  // A2 : rien à générer pour une vitrine masquée (non publiée, bloquée par l'administration, titulaire suspendu).
+  const [proprietaire] = await db.select({ suspendu: users.banned }).from(users).where(eq(users.id, vitrine.userId)).limit(1)
+  if (!estVitrinePublique(vitrine, { suspendu: proprietaire?.suspendu ?? true })) return termine(vitrineId, false, 'non_publiee')
   if (estRenseigne(vitrine.seoTitre) && estRenseigne(vitrine.seoDescription)) return termine(vitrineId, false, 'saisies_completes')
   if (seoIaFraiche(vitrine) !== null) return termine(vitrineId, false, 'deja_frais')
 

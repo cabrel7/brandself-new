@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import { and, eq, isNotNull, sql } from 'drizzle-orm'
+import { and, eq, sql } from 'drizzle-orm'
 import { disponibilites, liens, medias, realisations, services, temoignages, users, vitrines } from '../../shared/db/schema'
 import { USERNAME_CHECK_LIMIT } from '../../shared/limites'
 import { isReserved } from '../../shared/reserved'
@@ -17,6 +17,7 @@ import { deleteMediaIfUnreferenced } from './medias'
 import type { MediaRow } from './medias'
 import { getPlanPublic, sqlIdsVisibles } from './plan-visibilite'
 import { getTotaux7J } from './statistiques'
+import { sqlVitrinePublique } from './visibilite'
 import { computeMissingForPublication, computeNextStep } from './vitrines-regles'
 
 export { computeMissingForPublication, computeNextStep } from './vitrines-regles'
@@ -207,6 +208,9 @@ export async function publishVitrine(userId: string): Promise<VitrineAvecPhoto> 
   const seoAPlanifier = await db.transaction(async (tx) => {
     const [current] = await tx.select().from(vitrines).where(eq(vitrines.userId, userId)).for('update')
     if (!current) throw new NotFoundError('VITRINE_INTROUVABLE')
+    // A2 (D-A2-02) : une vitrine dépubliée par l'administration ne se republie pas depuis le studio. Le motif est
+    // montré au professionnel (D-A2-13), jamais au visiteur.
+    if (current.blocageAdmin) throw new ConflictError('VITRINE_BLOQUEE_ADMIN', { motif: current.blocageMotif })
     const manquants = computeMissingForPublication(current)
     if (manquants.length > 0) throw new UnprocessableError('PUBLICATION_INCOMPLETE', { manquants })
     await tx
@@ -329,12 +333,12 @@ export async function getStudioView(userId: string): Promise<StudioView> {
   return { vitrine, resume: await summarize(vitrine) }
 }
 
-/** Vitrine publiée d'un username. Format invalide : introuvable, sans requête. */
+/** Vitrine visible du public (publiée, non bloquée, titulaire actif : visibilite.ts). Format invalide : introuvable, sans requête. */
 export async function getPublicVitrine(rawUsername: string): Promise<VitrineAvecPhoto> {
   const username = normalizeUsername(rawUsername)
   if (!hasValidUsernameFormat(username)) throw new NotFoundError('VITRINE_INTROUVABLE')
   const [row] = await selectWithPhoto()
-    .where(and(eq(vitrines.username, username), isNotNull(vitrines.publieeLe)))
+    .where(and(eq(vitrines.username, username), sqlVitrinePublique()))
     .limit(1)
   if (!row) throw new NotFoundError('VITRINE_INTROUVABLE')
   return row

@@ -5,7 +5,7 @@
 // Le serveur MCP est livré désactivé (MCP_ACTIF=false).
 
 import { eq } from 'drizzle-orm'
-import { vitrines } from '../../shared/db/schema'
+import { users, vitrines } from '../../shared/db/schema'
 import { MCP_PORTEES } from '../../shared/mcp'
 import type { McpPortee } from '../../shared/mcp'
 import { db } from '../utils/db'
@@ -53,8 +53,19 @@ export async function résoudrePortées(identite: IdentiteJeton): Promise<Scope[
   return consenties.filter((portee) => identite.portéesJeton.includes(portee))
 }
 
-/** Vérifie que l'utilisateur a un plan payant (actif ou en grâce). */
+/**
+ * A2 (CA03) : vrai si le compte est suspendu ou n'existe plus. Un jeton d'accès JWT n'a pas de ligne en base et reste
+ * valable jusqu'à son expiration : c'est CETTE lecture, faite à chaque appel, qui rend la suspension immédiate.
+ */
+export async function compteSuspendu(userId: string): Promise<boolean> {
+  const [compte] = await db.select({ suspendu: users.banned }).from(users).where(eq(users.id, userId)).limit(1)
+  return compte?.suspendu ?? true
+}
+
+/** Vérifie que l'utilisateur a un plan payant (actif ou en grâce) et que son compte n'est pas suspendu. */
 export async function verifierPlanPayant(userId: string): Promise<void> {
+  // Code `MCP_INACTIF` (403) : pour l'assistant, le serveur est fermé pour ce compte, sans révéler la suspension.
+  if (await compteSuspendu(userId)) throw new ForbiddenError('MCP_INACTIF')
   const plan = await getPlanEffectif(userId)
   if (plan.plan !== PLAN_PAYANT_ID) {
     throw new ForbiddenError('PLAN_PAYANT_REQUIS')
@@ -81,10 +92,13 @@ export interface VitrineMcp {
 /** Résout la vitrine de l'utilisateur pour le contexte MCP (une seule requête : identifiant, adresse, fuseau). */
 export async function resoudreVitrine(userId: string): Promise<VitrineMcp> {
   const [vitrine] = await db
-    .select({ id: vitrines.id, username: vitrines.username, fuseau: vitrines.fuseau })
+    .select({ id: vitrines.id, username: vitrines.username, fuseau: vitrines.fuseau, suspendu: users.banned })
     .from(vitrines)
+    .innerJoin(users, eq(users.id, vitrines.userId))
     .where(eq(vitrines.userId, userId))
     .limit(1)
   if (!vitrine) throw new ForbiddenError('VITRINE_INTROUVABLE')
-  return vitrine
+  // A2 : compte suspendu = aucun accès, même avec un jeton encore valable.
+  if (vitrine.suspendu) throw new ForbiddenError('MCP_INACTIF')
+  return { id: vitrine.id, username: vitrine.username, fuseau: vitrine.fuseau }
 }

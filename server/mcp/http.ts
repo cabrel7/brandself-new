@@ -12,12 +12,14 @@ import { MCP_CORPS_MAX_OCTETS, MCP_PORTEES } from '../../shared/mcp'
 import { ContentTooLargeError } from '../exceptions/http'
 import { adresseServeurMcp } from '../services/assistants'
 import { lireCorpsBorne } from '../services/webhooks-paiement'
-import { lireIdentiteJeton, résoudrePortées, verifierMcpActif } from './auth'
+import { compteSuspendu, lireIdentiteJeton, résoudrePortées, verifierMcpActif } from './auth'
 import { entetesDe, urlDe } from './requete'
 import { creerServeurMcp } from './server'
 
 const CHEMIN_METADONNEES_RESSOURCE = '/.well-known/oauth-protected-resource'
 const CODE_JSONRPC_NON_AUTORISE = -32001
+const CODE_JSONRPC_INTERDIT = -32003
+const STATUT_HTTP_INTERDIT = 403
 
 function jsonRpcErreur(statut: number, code: number, message: string, entetes: HeadersInit = {}): Response {
   return new Response(JSON.stringify({ jsonrpc: '2.0', error: { code, message }, id: null }), {
@@ -64,6 +66,10 @@ export async function gererRequeteMcp(event: H3Event): Promise<Response> {
       if (!identite) return reponseJetonRefuse()
       const portées = await résoudrePortées(identite)
       if (portées === null) return reponseJetonRefuse()
+      // A2 (CA03) : compte suspendu = 403 avant toute lecture du corps, jeton encore valable ou non. Message neutre.
+      if (await compteSuspendu(identite.userId)) {
+        return jsonRpcErreur(STATUT_HTTP_INTERDIT, CODE_JSONRPC_INTERDIT, 'Accès refusé.')
+      }
 
       const corps = await lireCorps(event)
       const requete = new Request(url, { method: 'POST', headers: entetesDe(event), body: corps })

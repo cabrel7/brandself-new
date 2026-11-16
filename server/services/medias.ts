@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
-import { and, eq, isNotNull, notExists, sql } from 'drizzle-orm'
+import { and, eq, notExists, sql } from 'drizzle-orm'
 import sharp from 'sharp'
-import { medias, progressionsInscription, realisationImages, realisations, services, vitrines } from '../../shared/db/schema'
+import { medias, progressionsInscription, realisationImages, realisations, services, users, vitrines } from '../../shared/db/schema'
 import { MEDIA_UPLOAD_LIMIT } from '../../shared/limites'
 import { MEDIA_MAX_BYTES, MEDIA_MAX_PIXELS, MEDIA_WIDTHS } from '../../shared/medias'
 import type { MediaWidth } from '../../shared/medias'
@@ -22,6 +22,7 @@ import {
   writeMediaVariant,
 } from '../utils/stockage'
 import { enforceLimit } from './limiteur'
+import { sqlVitrinePublique } from './visibilite'
 
 export type MediaRow = typeof medias.$inferSelect
 
@@ -188,15 +189,29 @@ function isMediaWidth(width: number): width is MediaWidth {
   return (MEDIA_WIDTHS as readonly number[]).includes(width)
 }
 
+/**
+ * A2 (revue de sécurité) : média dont les octets peuvent être servis. Média absent OU titulaire suspendu
+ * (`users.suspendu`) : même 404 `MEDIA_INTROUVABLE`, le visiteur ne voit jamais la raison (D-A2-10).
+ * Limite connue : le cas `blocage_admin` n'est PAS filtré ici (le cache nginx de `/medias/`, `proxy_cache_valid 200 1y`
+ * sans contournement par cookie, ne permet pas de réserver l'image au seul propriétaire connecté).
+ */
+async function trouverMediaServable(mediaId: string): Promise<{ userId: string }> {
+  const [row] = await db
+    .select({ userId: medias.userId, suspendu: users.banned })
+    .from(medias)
+    .innerJoin(users, eq(users.id, medias.userId))
+    .where(eq(medias.id, mediaId))
+    .limit(1)
+  if (!row || row.suspendu) throw new NotFoundError('MEDIA_INTROUVABLE')
+  return { userId: row.userId }
+}
+
 /** Octets d'une variante publique. Id mal formé, largeur non publiée, média absent : 404. */
 export async function readMediaVariant(mediaId: string, width: number): Promise<Buffer> {
   if (!MEDIA_ID_RE.test(mediaId) || !isMediaWidth(width)) {
     throw new NotFoundError('MEDIA_INTROUVABLE')
   }
-  const [row] = await db.select({ userId: medias.userId }).from(medias).where(eq(medias.id, mediaId)).limit(1)
-  if (!row) {
-    throw new NotFoundError('MEDIA_INTROUVABLE')
-  }
+  const row = await trouverMediaServable(mediaId)
   const data = await readMediaVariantFile(row.userId, mediaId, width)
   if (!data) {
     throw new NotFoundError('MEDIA_INTROUVABLE')
@@ -237,11 +252,11 @@ export async function getPartageVariant(mediaId: string, _vitrineId: string): Pr
     .limit(1)
   if (!row) throw new NotFoundError('MEDIA_INTROUVABLE')
 
-  // Vérifier que le média appartient à une vitrine publiée.
+  // Vérifier que le média appartient à une vitrine visible du public (A2 : publiée, non bloquée, titulaire actif).
   const [vitrine] = await db
     .select({ id: vitrines.id })
     .from(vitrines)
-    .where(and(eq(vitrines.photoMediaId, mediaId), isNotNull(vitrines.publieeLe)))
+    .where(and(eq(vitrines.photoMediaId, mediaId), sqlVitrinePublique()))
     .limit(1)
   if (!vitrine) throw new NotFoundError('MEDIA_INTROUVABLE')
 
@@ -274,8 +289,7 @@ export async function getPartageVariant(mediaId: string, _vitrineId: string): Pr
  */
 export async function readPartageJpeg(mediaId: string): Promise<Buffer> {
   if (!MEDIA_ID_RE.test(mediaId)) throw new NotFoundError('MEDIA_INTROUVABLE')
-  const [row] = await db.select({ userId: medias.userId }).from(medias).where(eq(medias.id, mediaId)).limit(1)
-  if (!row) throw new NotFoundError('MEDIA_INTROUVABLE')
+  const row = await trouverMediaServable(mediaId)
 
   const stockage = getStorage()
   const cle = partageKey(row.userId, mediaId)

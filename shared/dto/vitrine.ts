@@ -21,6 +21,9 @@ export interface VitrineStudioDTO {
   fuseau: string
   publiee: boolean
   publieeLe: string | null
+  /** A2 : vitrine bloquée par l'administration (le motif est visible du professionnel seulement). */
+  blocageAdmin: boolean
+  blocageMotif: string | null
   creeLe: string
   modifieLe: string
   /** Texte Google saisi par l'utilisateur (null = automatique). */

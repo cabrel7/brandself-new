@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { Temporal } from '@js-temporal/polyfill'
 import { and, asc, eq, gte, inArray, lt, lte, or, sql } from 'drizzle-orm'
+import { ADMIN_A2_EMAIL_TYPES } from '../../shared/admin-a2'
 import { TEMP_EMAIL_DOMAIN } from '../../shared/compte'
 import {
   abonnements,
@@ -35,6 +36,7 @@ import type { PeriodeMois } from '../../shared/plans'
 import { getMoyenPaiement } from '../config/paiements'
 import { db } from '../utils/db'
 import { signUnsubscribeToken } from './desabonnement'
+import { preparerEmailAdminCompte } from './admin/a2-emails'
 import { buildTransactionalEmail, publicReplyTo } from './emails/contenus'
 import type { TransactionalEmailContent } from './emails/contenus'
 import type { RendezVousJournee } from './emails/notifications-contenus'
@@ -45,7 +47,7 @@ import {
 import type { EmailMessage, EmailTransport } from './emails/transport'
 import { choisirSuggestion, compterActivite } from './notifications/activite'
 import { debutSemaineIso, journeeLocale, periodeResume } from './notifications/fenetres'
-import { analyserOccurrenceRappel, evaluerPertinence } from './notifications/pertinence'
+import { analyserOccurrenceRappel, analyserOccurrenceRappelManuel, evaluerPertinence, joursRappelManuel } from './notifications/pertinence'
 import { getCompteursResume } from './statistiques'
 
 const PROCESSING_LEASE_MS = 60_000
@@ -698,7 +700,10 @@ async function prepareRappelAbonnement(row: EmailOutboxRow, now: Date): Promise<
   }, now)
   if (code !== null) return { annule: code }
   const rappel = analyserOccurrenceRappel(row.occurrence)
-  if (!result || destinataire === null || rappel === null) return { annule: 'ENTITE_INTROUVABLE' }
+  // A3 : un rappel manuel (occurrence `MANUEL:<instant>`) n'a pas de palier planifié : le palier est déduit de l'échéance.
+  const manuel = analyserOccurrenceRappelManuel(row.occurrence) !== null
+  const jours = rappel?.jours ?? (manuel && result ? joursRappelManuel(result.expireLe, now, fuseauAffichage(result.fuseau)) : null)
+  if (!result || destinataire === null || jours === null) return { annule: 'ENTITE_INTROUVABLE' }
 
   // Lien de renouvellement : la dernière période payée est présélectionnée (repli : la plus courte).
   const derniere = result.dernierePeriode
@@ -712,7 +717,7 @@ async function prepareRappelAbonnement(row: EmailOutboxRow, now: Date): Promise<
       prenom: result.prenom ?? '',
       fuseau: fuseauAffichage(result.fuseau),
       siteUrl: env.NUXT_PUBLIC_SITE_URL,
-      jours: rappel.jours,
+      jours,
       expireLe: result.expireLe,
       periodeMois,
     },
@@ -783,6 +788,7 @@ async function preparePaiementConfirme(row: EmailOutboxRow, now: Date): Promise<
 async function prepareEmail(row: EmailOutboxRow, now: Date): Promise<Preparation> {
   if (!isTransactionalEmailType(row.type)) throw new EmailOutboxProcessingError('TYPE_EMAIL_INCONNU')
   assertEventMatchesEntity(row.type, row.entiteType as EmailEntityType)
+  if ((ADMIN_A2_EMAIL_TYPES as readonly string[]).includes(row.type)) return preparerEmailAdminCompte(db, row)
   if (row.type === 'abonnement_rappel') return prepareRappelAbonnement(row, now)
   if (row.type === 'paiement_confirme') return preparePaiementConfirme(row, now)
   if (row.type === 'reservation_visiteur_rappel') return prepareRappelVisiteur(row, now)

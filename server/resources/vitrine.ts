@@ -51,6 +51,8 @@ export function toVitrineStudioResource({ vitrine, photo }: VitrineAvecPhoto): V
     fuseau: vitrine.fuseau,
     publiee: vitrine.publieeLe !== null,
     publieeLe: vitrine.publieeLe?.toISOString() ?? null,
+    blocageAdmin: vitrine.blocageAdmin,
+    blocageMotif: vitrine.blocageAdmin ? vitrine.blocageMotif : null,
     creeLe: vitrine.createdAt.toISOString(),
     modifieLe: vitrine.updatedAt.toISOString(),
     seoTitre: vitrine.seoTitre,

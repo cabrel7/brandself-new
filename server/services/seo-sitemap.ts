@@ -1,10 +1,11 @@
 // S12 (#150) : génération du sitemap des vitrines publiées, paginé par lots.
 // Une URL par vitrine publiée + ses éléments visibles (services, réalisations) selon le plan effectif.
 // Toutes les requêtes sont groupées (≤ 4 par lot) pour respecter le budget de performance.
-import { and, desc, eq, inArray, isNotNull } from 'drizzle-orm'
+import { and, desc, eq, inArray } from 'drizzle-orm'
 import { abonnements, realisations, services, vitrines } from '../../shared/db/schema'
 import { db } from '../utils/db'
 import { resoudrePlanEffectif } from './plans'
+import { sqlVitrinePublique } from './visibilite'
 import { PLANS } from '../config/plans'
 import type { ConfigPlan } from '../config/plans'
 import type { PlanId } from '../../shared/plans'
@@ -19,7 +20,7 @@ export interface VitrineSitemap {
   config: ConfigPlan
 }
 
-/** Vitrines publiées, triées par date de modification décroissante.
+/** Vitrines visibles du public (publiées, non bloquées, titulaire non suspendu), triées par date de modification décroissante.
  * Les abonnements sont récupérés en une seule requête (pas une par vitrine). */
 async function listerVitrinesPubliees(now: Date, limite: number): Promise<VitrineSitemap[]> {
   const lignes = await db
@@ -30,7 +31,7 @@ async function listerVitrinesPubliees(now: Date, limite: number): Promise<Vitrin
       modifieLe: vitrines.updatedAt,
     })
     .from(vitrines)
-    .where(isNotNull(vitrines.publieeLe))
+    .where(sqlVitrinePublique())
     .orderBy(desc(vitrines.updatedAt))
     .limit(limite)
 
