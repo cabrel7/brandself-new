@@ -2,6 +2,8 @@
 import { MARQUE } from '#shared/brand'
 import { OG_IMAGE_DEFAUT, OG_IMAGE_HAUTEUR, OG_IMAGE_LARGEUR, SITE_DESCRIPTION, ogLocale, urlAbsolue, urlCanonique } from '#shared/seo'
 
+const MARGE_HYDRATATION_COMPRIS = '600px'
+
 // `site.url` (nuxt-site-config) : même source que la canonique du module. L'Organization et le WebSite
 // viennent de `schemaOrg.identity` (nuxt.config.ts) : rien à déclarer ici.
 const siteUrl = useSiteConfig().url ?? ''
@@ -29,15 +31,19 @@ useHead({ htmlAttrs: { class: 'page-accueil' } })
     <MarketingEntete />
     <main id="haut">
       <MarketingHero />
-      <MarketingTrouve />
-      <MarketingCompris />
-      <MarketingContact />
-      <MarketingPourQui />
-      <MarketingTarifs />
-      <MarketingFaq />
-      <MarketingCloture />
+      <!-- Sous la ligne de flottaison : HTML rendu par le serveur (SEO, lecture sans JS), JS hydraté à l'entrée à l'écran.
+           Un lien d'ancre fait défiler jusqu'à la cible, ce qui déclenche l'hydratation. La FAQ (`details` natifs) n'a besoin d'aucun JS. -->
+      <LazyMarketingTrouve hydrate-on-visible />
+      <!-- Compris masque ses étapes (CSS) jusqu'à son hydratation : elle démarre avant l'entrée à l'écran pour ne jamais montrer un vide. -->
+      <LazyMarketingCompris :hydrate-on-visible="{ rootMargin: MARGE_HYDRATATION_COMPRIS }" />
+      <LazyMarketingContact hydrate-on-visible />
+      <LazyMarketingPourQui hydrate-on-visible />
+      <LazyMarketingTarifs hydrate-on-visible />
+      <LazyMarketingFaq hydrate-never />
+      <LazyMarketingCloture hydrate-on-visible />
     </main>
-    <MarketingPied />
+    <!-- Pied : uniquement des liens (`<a>` natifs), aucun état : jamais hydraté. -->
+    <LazyMarketingPied hydrate-never />
   </div>
 </template>
 

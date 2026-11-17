@@ -21,11 +21,6 @@ const CADRES = [CadreServices, CadreRealisation, CadreTemoignages, CadreLienBio]
 const MARGE_LECTURE = '-45% 0px -45% 0px'
 const SEUIL_APPARITION = 0.18
 
-const mouvement = usePreferredReducedMotion()
-const monte = ref(false)
-// Effets progressifs : activés seulement après le montage et sans préférence de mouvement réduit.
-const animer = computed(() => monte.value && mouvement.value !== 'reduce')
-
 const etapeLue = ref(0)
 const etapesVues = ref<boolean[]>(ETAPES_COMPRIS.map(() => false))
 const etapes = useTemplateRef<HTMLElement[]>('refEtapes')
@@ -38,9 +33,12 @@ function indexDe(element: Element): number {
 }
 
 onMounted(() => {
-  monte.value = true
   const elements = etapes.value ?? []
-  if (typeof IntersectionObserver === 'undefined') return
+  if (typeof IntersectionObserver === 'undefined') {
+    // Sans observateur, rien ne déclencherait l'apparition : tout est montré.
+    etapesVues.value = etapesVues.value.map(() => true)
+    return
+  }
 
   observateurLecture = new IntersectionObserver(
     (entrees) => {
@@ -89,7 +87,7 @@ onBeforeUnmount(() => {
           :key="etape.titre"
           ref="refEtapes"
           class="etape"
-          :class="{ 'etape--anime': animer, 'etape--vue': etapesVues[i] }"
+          :class="{ 'etape--vue': etapesVues[i] }"
           :data-i="i"
         >
           <div class="texte">
@@ -106,7 +104,7 @@ onBeforeUnmount(() => {
               </li>
             </ul>
           </div>
-          <div class="cliche" :class="{ 'cliche--anime': animer, 'cliche--vue': etapesVues[i] }">
+          <div class="cliche" :class="{ 'cliche--vue': etapesVues[i] }">
             <div class="cliche-cadre">
               <component :is="CADRES[i]" />
             </div>
@@ -227,18 +225,21 @@ onBeforeUnmount(() => {
   background: var(--champ);
 }
 
-/* ---------- Apparition en cascade (sous 961 px, après montage, jamais en mouvement réduit) ---------- */
-/* La transition ne s'applique qu'à l'ENTRÉE (état « vue ») : le masquage initial est immédiat. Sinon, au montage, le contenu
-   déjà rendu par le serveur s'efface en 600 ms, et un lecteur d'écran ou un test d'accessibilité qui l'évalue pendant ce
-   fondu mesure un texte semi-transparent (contraste faussé). */
+/* ---------- Apparition en cascade (sous 961 px, jamais en mouvement réduit) ---------- */
+/* L'état initial (masqué) est posé par CSS dès le rendu serveur : plus de contenu visible puis masqué à l'hydratation.
+   Amélioration progressive : `scripting: enabled` n'est vrai que si le JavaScript peut s'exécuter ; sans JS (ou dans un
+   navigateur qui ne connaît pas cette condition, la requête est alors fausse), rien n'est masqué et tout le contenu reste lisible.
+   `prefers-reduced-motion: no-preference` est évalué en direct par le navigateur : aucun effet en mouvement réduit.
+   La transition ne s'applique qu'à l'ENTRÉE (état « vue ») : le masquage initial est immédiat, sans fondu qui fausserait
+   le contraste mesuré par un test d'accessibilité. */
 
-@media (max-width: 60rem) {
-  .etape--anime .texte {
+@media (max-width: 60rem) and (prefers-reduced-motion: no-preference) and (scripting: enabled) {
+  .etape:not(.etape--vue) .texte {
     opacity: 0;
     transform: translateY(1.125rem);
   }
 
-  .etape--anime.etape--vue .texte {
+  .etape.etape--vue .texte {
     opacity: 1;
     transform: none;
     transition:
@@ -246,16 +247,16 @@ onBeforeUnmount(() => {
       transform 600ms ease-out;
   }
 
-  .cliche--anime :deep(.cadre > *) {
+  .cliche:not(.cliche--vue) :deep(.cadre > *) {
     opacity: 0;
     transform: translateY(1.625rem);
   }
 
-  .cliche--anime :deep(.cadre > .principale) {
+  .cliche:not(.cliche--vue) :deep(.cadre > .principale) {
     transform: translateY(1.625rem) scale(0.92);
   }
 
-  .cliche--anime.cliche--vue :deep(.cadre > *) {
+  .cliche.cliche--vue :deep(.cadre > *) {
     opacity: 1;
     transform: none;
     transition:
@@ -343,13 +344,6 @@ onBeforeUnmount(() => {
 
 @media (prefers-reduced-motion: reduce) {
   .couche {
-    transition: none;
-  }
-
-  .etape--anime .texte,
-  .cliche--anime :deep(.cadre > *) {
-    opacity: 1;
-    transform: none;
     transition: none;
   }
 }

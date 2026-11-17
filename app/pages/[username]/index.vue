@@ -1,4 +1,7 @@
 <script setup lang="ts">
+// L'agenda s'hydrate avant d'entrer à l'écran : un appui rapide après le défilement n'est pas perdu.
+const MARGE_HYDRATATION = '400px'
+
 const route = useRoute()
 const username = String(route.params.username)
 
@@ -53,7 +56,8 @@ const agendaEnErreur = computed(() => Boolean(agendaErreur.value))
     <VitrineHero :vitrine="vitrine" :prochain-creneau="prochainCreneau" />
     <VitrineServicesALaUne v-if="total > 0 && aLaUne.length > 0" :username="vitrine.username" :services="aLaUne" :total="total" />
     <div v-if="contenus.agenda" class="mx-auto w-full max-w-6xl px-6 pb-12 md:pb-16">
-      <AgendaPublic
+      <LazyAgendaPublic
+        :hydrate-on-visible="{ rootMargin: MARGE_HYDRATATION }"
         :username="vitrine.username"
         :fuseau="vitrine.fuseau"
         :services="servicesReservables"
@@ -67,12 +71,14 @@ const agendaEnErreur = computed(() => Boolean(agendaErreur.value))
         @reessayer="rafraichirAgenda"
       />
     </div>
-    <VitrineALaUne
+    <LazyVitrineALaUne
       v-if="realisationsTotal > 0 && realisationALaUne"
+      hydrate-on-visible
       :username="vitrine.username"
       :realisation="realisationALaUne"
       :realisations-total="realisationsTotal"
     />
+    <!-- Hydratation normale : le bouton « Lire d'autres avis » doit répondre dès le premier clic (hydrate-on-idle laissait une fenêtre où il était perdu). -->
     <VitrineTemoignageALaUne v-if="temoignagesTotal > 0" :username="vitrine.username" />
   </VitrineCadre>
 </template>
