@@ -11,10 +11,11 @@ const TEXTES = {
   connexion: 'Connexion',
 } as const
 
-const COMPTE_LIENS = [
-  { libelle: TEXTES.creer, to: '#adresse-fin' },
+const { lienNav, lienCreer, lienLogo } = useLiensMarketing()
+const compteLiens = computed(() => [
+  { libelle: TEXTES.creer, to: lienCreer.value },
   { libelle: TEXTES.connexion, to: ROUTE_CONNEXION },
-] as const
+])
 
 // Année figée côté serveur : le client reprend la même valeur (pas de décalage d'hydratation).
 const annee = useState<number>('annee-courante', () => new Date().getFullYear())
@@ -27,7 +28,7 @@ const classeTitreColonne = 'm-0 mb-2 text-(length:--fs-14) font-bold tracking-wi
     <div class="mx-auto w-full max-w-290">
       <div class="grid gap-10 max-[960px]:grid-cols-2 min-[961px]:grid-cols-[1.4fr_1fr_1fr]">
         <div class="max-[960px]:col-span-2">
-          <NuxtLink to="#haut" :aria-label="`${MARQUE.nom}, accueil`" class="inline-flex min-h-(--cible-tactile) items-center">
+          <NuxtLink :to="lienLogo" :aria-label="`${MARQUE.nom}, accueil`" class="inline-flex min-h-(--cible-tactile) items-center">
             <BsLogo variante="wordmark" class="h-8" />
           </NuxtLink>
           <p class="m-0 mt-3 max-w-xs text-texte-secondaire">
@@ -40,7 +41,7 @@ const classeTitreColonne = 'm-0 mb-2 text-(length:--fs-14) font-bold tracking-wi
           </p>
           <ul class="m-0 list-none p-0">
             <li v-for="lien in NAV_LIENS" :key="lien.ancre">
-              <NuxtLink :to="lien.ancre" :class="classeLien">
+              <NuxtLink :to="lienNav(lien.ancre)" :class="classeLien">
                 {{ lien.libelle }}
               </NuxtLink>
             </li>
@@ -51,7 +52,7 @@ const classeTitreColonne = 'm-0 mb-2 text-(length:--fs-14) font-bold tracking-wi
             {{ TEXTES.compte }}
           </p>
           <ul class="m-0 list-none p-0">
-            <li v-for="lien in COMPTE_LIENS" :key="lien.to">
+            <li v-for="lien in compteLiens" :key="lien.libelle">
               <NuxtLink :to="lien.to" :class="classeLien">
                 {{ lien.libelle }}
               </NuxtLink>
