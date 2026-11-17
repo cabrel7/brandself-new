@@ -18,12 +18,36 @@ useSeoMeta({
   twitterCard: 'summary_large_image',
   twitterImage: imagePartage,
 })
+
+// Défilement doux et décalage des ancres sous la barre fixe : portés par `<html>` le temps de cette page seulement.
+useHead({ htmlAttrs: { class: 'page-accueil' } })
 </script>
 
 <template>
-  <section>
-    <MarketingPromesse />
-    <MarketingFonctions />
-    <MarketingTarifsResume />
-  </section>
+  <div class="bg-fond text-encre">
+    <MarketingEntete />
+    <main id="haut">
+      <MarketingHero />
+      <MarketingTrouve />
+      <MarketingCompris />
+      <MarketingContact />
+      <MarketingPourQui />
+      <MarketingTarifs />
+      <MarketingFaq />
+      <MarketingCloture />
+    </main>
+    <MarketingPied />
+  </div>
 </template>
+
+<style>
+html.page-accueil {
+  scroll-padding-top: 5.25rem;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  html.page-accueil {
+    scroll-behavior: smooth;
+  }
+}
+</style>

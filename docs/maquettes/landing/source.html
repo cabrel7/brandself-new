@@ -1,0 +1,896 @@
+<title>Landing jesuis.pro</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&display=swap">
+<style>
+/* Concept : la landing montre le produit au lieu de le décrire (vrai navigateur, vrai résultat de recherche, vraie vitrine,
+   agenda utilisable). Charte du projet : crème, encre brune, accent terracotta, Fraunces + Figtree, titres uniformes.
+   Le risque pris : la scène animée « Être trouvé » et la pile d'images « Pour qui ». Beaucoup d'air, peu d'éléments par écran. */
+:root {
+  --bg: #FBF7F0;
+  --surface: #F3EBDD;
+  --card: #FFFDF9;
+  --ink: #231F1C;
+  --muted: #6B5F55;
+  --accent: #B4532F;
+  --accent-dark: #9C4524;
+  --accent-soft: #F2DDD2;
+  --line: #E6DCCB;
+  --on-accent: #FFFFFF;
+  --on-ink: #FBF7F0;
+  --ok: #3F6B4F;
+  --err: #B3261E;
+  --font-title: "Fraunces", Georgia, "Times New Roman", serif;
+  --font-text: "Figtree", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --r: 14px;
+  --img-doc: url(__IMG_DOC__);
+  --img-med: url(__IMG_MED__);
+  --img-avo: url(__IMG_AVO__);
+  --img-coa: url(__IMG_COA__);
+  --img-pho: url(__IMG_PHO__);
+  --img-ste: url(__IMG_STE__);
+  color-scheme: light;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html { scroll-behavior: smooth; overflow-x: clip; scroll-padding-top: 84px; }
+body {
+  margin: 0; background: var(--bg); color: var(--ink);
+  font-family: var(--font-text); font-size: 17px; line-height: 1.6;
+  overflow-x: clip; -webkit-font-smoothing: antialiased;
+}
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 70; background: var(--bg); }
+h1, h2, h3, h4, p, ul { margin: 0; }
+ul { padding: 0; list-style: none; }
+h1, h2, h3, h4 { font-family: var(--font-title); font-weight: 500; letter-spacing: -0.012em; text-wrap: balance; }
+a { color: inherit; }
+img { display: block; }
+:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; border-radius: 6px; }
+.band { padding-block: 120px; }
+.in { width: 100%; max-width: 1160px; margin-inline: auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+.eyebrow { font-size: 13px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--accent); }
+.dark .eyebrow { color: #E8A98C; }
+.h2 { font-size: clamp(34px, 4.8vw, 58px); line-height: 1.06; }
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 48px; padding: 0 22px;
+  border: 1.5px solid transparent; border-radius: 12px; font: 600 16px/1 var(--font-text); cursor: pointer; text-decoration: none; white-space: nowrap;
+  transition: background .15s, border-color .15s, color .15s;
+}
+.btn-main { background: var(--accent); color: var(--on-accent); }
+.btn-main:hover { background: var(--accent-dark); }
+.btn-line { background: transparent; border-color: var(--accent); color: var(--accent); }
+.btn-line:hover { background: var(--accent-soft); }
+.btn:disabled { opacity: .45; cursor: not-allowed; }
+
+/* Barre de navigation */
+.nav-wrap { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 60; background: var(--bg); transition: box-shadow .2s; }
+.nav-wrap.scrolled { box-shadow: 0 1px 0 var(--line); }
+.nav { display: flex; align-items: center; justify-content: space-between; gap: 20px; min-height: 72px; }
+.logo { display: inline-flex; align-items: center; gap: 10px; font-family: var(--font-title); font-weight: 600; font-size: 24px; text-decoration: none; letter-spacing: -0.02em; }
+.logo-mark { width: 30px; height: 30px; border-radius: 9px; background: var(--accent); color: var(--on-accent); display: grid; place-items: center; font-size: 18px; line-height: 1; }
+.links { display: flex; align-items: center; gap: 6px; }
+.links a:not(.btn) { text-decoration: none; font-weight: 500; min-height: 44px; display: inline-flex; align-items: center; padding: 0 14px; border-radius: 10px; }
+.links a:not(.btn):hover { background: var(--surface); }
+.right { display: flex; align-items: center; gap: 8px; }
+.right .btn { min-height: 44px; padding: 0 18px; }
+.right .login { text-decoration: none; font-weight: 600; min-height: 44px; display: inline-flex; align-items: center; padding: 0 14px; border-radius: 10px; }
+.right .login:hover { background: var(--surface); }
+.burger { display: none; width: 44px; height: 44px; border: 1.5px solid var(--line); border-radius: 12px; background: transparent; color: var(--ink); cursor: pointer; place-items: center; }
+.menu { border-top: 1px solid var(--line); padding-block: 8px 20px; display: grid; }
+.menu a { text-decoration: none; font-family: var(--font-title); font-size: 26px; padding: 12px 0; border-bottom: 1px solid var(--line); }
+.menu .btn { margin-top: 18px; font-family: var(--font-text); font-size: 16px; padding: 0 22px; border-bottom: 1.5px solid transparent; }
+
+/* Champ d'adresse */
+.addr { display: grid; gap: 10px; }
+.addr-l { font-size: 14px; font-weight: 600; color: var(--muted); }
+.addr-row { display: flex; align-items: stretch; background: var(--card); border: 1.5px solid var(--ink); border-radius: 14px; overflow: hidden; }
+.addr-row:focus-within { outline: 3px solid var(--accent); outline-offset: 3px; }
+.addr-pre { display: flex; align-items: center; padding-left: 18px; font-weight: 600; color: var(--muted); white-space: nowrap; }
+.addr input { flex: 1; min-width: 0; border: 0; background: transparent; font: 600 18px var(--font-text); color: var(--ink); padding: 16px 6px; outline: none; }
+.addr input::placeholder { color: #A39689; font-weight: 500; }
+.addr button { border: 0; border-radius: 0; margin: 0; min-height: 56px; }
+.addr-s { font-size: 15px; min-height: 24px; color: var(--muted); }
+.addr-s.ok { color: var(--ok); font-weight: 600; }
+.addr-s.bad { color: var(--err); font-weight: 600; }
+
+/* 1. Accroche : centrée, sans rien d'autre */
+.hero { padding-block: 96px 120px; }
+.hero-in { max-width: 920px; text-align: center; display: grid; justify-items: center; }
+.hero h1 { font-size: clamp(42px, 7.4vw, 84px); line-height: 1.01; margin-block: 18px 26px; }
+.hero .lead { font-size: clamp(19px, 2.4vw, 24px); color: var(--muted); margin-bottom: 44px; }
+.hero .addr { width: 100%; max-width: 580px; text-align: left; }
+.hero .addr-s { text-align: center; }
+.hero .hint { margin-top: 6px; font-size: 15px; color: var(--muted); }
+
+/* 2. Être trouvé : navigateur animé */
+.found { background: var(--surface); }
+.sec-head { max-width: 800px; margin: 0 auto 64px; text-align: center; }
+.sec-head .h2 { margin-block: 14px 0; }
+.browser { background: #FFFFFF; border: 1px solid #CFC8BC; border-radius: 14px; overflow: hidden; box-shadow: 0 34px 70px -36px rgba(35,31,28,.55); max-width: 1000px; margin-inline: auto; position: relative; color: #202124; }
+.b-strip { display: flex; align-items: flex-end; gap: 8px; padding: 10px 12px 0; background: #DEE1E6; }
+.b-dots { display: flex; gap: 7px; padding-bottom: 14px; margin-right: 6px; }
+.b-dots i { width: 11px; height: 11px; border-radius: 50%; background: #B9BDC4; }
+.b-tab { display: flex; align-items: center; gap: 8px; max-width: 260px; min-width: 0; padding: 9px 14px; background: #FFFFFF; border-radius: 10px 10px 0 0; font-size: 13px; }
+.b-tab img { width: 16px; height: 16px; flex: none; }
+.b-tab span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.b-bar { display: flex; align-items: center; gap: 10px; padding: 8px 12px; background: #FFFFFF; border-bottom: 1px solid #E3E5E8; }
+.b-bar svg { flex: none; color: #5F6368; }
+.b-url { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; background: #F1F3F4; border-radius: 99px; padding: 8px 16px; font-size: 14px; color: #3C4043; }
+.b-url span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.b-body { position: relative; height: 560px; background: #FFFFFF; overflow: hidden; }
+.stage { position: absolute; inset: 0; opacity: 0; visibility: hidden; transition: opacity .45s, visibility .45s; }
+.browser[data-stage="home"] .st-home, .browser[data-stage="results"] .st-results, .browser[data-stage="site"] .st-site { opacity: 1; visibility: visible; }
+.st-home { display: grid; place-content: center; justify-items: center; gap: 28px; }
+.st-home .glogo { width: 220px; height: auto; }
+.gbox { display: flex; align-items: center; gap: 14px; width: min(560px, 86vw); background: #FFFFFF; border: 1px solid #DFE1E5; border-radius: 99px; padding: 13px 20px; font-size: 17px; box-shadow: 0 1px 6px rgba(32,33,36,.18); }
+.gbox svg { color: #9AA0A6; flex: none; }
+.gbox .q { flex: 1; min-width: 0; text-align: left; overflow: hidden; white-space: nowrap; }
+.gbox .q::after { content: ""; display: inline-block; width: 1.5px; height: 1.15em; background: #202124; margin-left: 1px; vertical-align: -3px; animation: blink 1s steps(1) infinite; }
+@keyframes blink { 50% { opacity: 0; } }
+.st-results { padding: 20px 28px 0; overflow: hidden; }
+.sr-top { display: flex; align-items: center; gap: 26px; }
+.sr-top .glogo { width: 92px; height: auto; flex: none; }
+.sr-top .gbox { width: min(580px, 100%); box-shadow: none; border-color: #DFE1E5; padding: 10px 18px; font-size: 16px; }
+.sr-tabs { display: flex; gap: 26px; margin: 16px 0 0 118px; font-size: 14px; color: #5F6368; border-bottom: 1px solid #E3E5E8; }
+.sr-tabs span { padding: 10px 0; }
+.sr-tabs .on { color: #1A73E8; border-bottom: 3px solid #1A73E8; font-weight: 500; }
+.sr-list { margin: 22px 0 0 118px; max-width: 620px; display: grid; gap: 26px; }
+.r { transition: opacity .5s, transform .5s; border-radius: 12px; }
+.r .site { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; font-size: 14px; color: #202124; }
+.r .site .fav { width: 26px; height: 26px; border-radius: 50%; background: #F1F3F4; display: grid; place-items: center; flex: none; }
+.r .site .fav.j { background: var(--accent); color: #FFFFFF; font-family: var(--font-title); font-weight: 600; font-size: 14px; }
+.r .site small { display: block; color: #4D5156; font-size: 12.5px; line-height: 1.3; }
+.r h4 { font-family: Arial, "Helvetica Neue", sans-serif; font-weight: 400; font-size: 20px; line-height: 1.3; color: #1A0DAB; margin: 4px 0 4px; letter-spacing: 0; }
+.r p { font-family: Arial, "Helvetica Neue", sans-serif; font-size: 14px; line-height: 1.58; color: #4D5156; }
+.r p b { color: #202124; font-weight: 700; }
+.r.dim h4 { color: #6E7DC8; }
+.r1 { padding: 10px 12px; margin: -10px -12px; }
+.r1.hot { background: #FCEFE8; box-shadow: 0 0 0 2px var(--accent); }
+[data-anim] .r { opacity: 0; transform: translateY(16px); }
+[data-anim] .r.in { opacity: 1; transform: none; }
+.st-site { overflow: hidden; background: #FFFFFF; }
+.st-site .tall { width: 100%; height: auto; transform: translateY(0); }
+.browser[data-stage="site"] .st-site .tall { animation: drift 16s ease-in-out .6s infinite alternate; }
+@keyframes drift { to { transform: translateY(calc(-1 * var(--dist, 900px))); } }
+.cursor { position: absolute; left: 0; top: 0; width: 26px; height: 26px; z-index: 5; opacity: 0; pointer-events: none; transition: transform .9s cubic-bezier(.5, 0, .2, 1), opacity .3s; filter: drop-shadow(0 2px 3px rgba(0,0,0,.35)); }
+.cursor.show { opacity: 1; }
+.ripple { position: absolute; width: 44px; height: 44px; margin: -22px 0 0 -22px; border-radius: 50%; border: 3px solid var(--accent); opacity: 0; z-index: 4; pointer-events: none; }
+.ripple.go { animation: rip .6s ease-out; }
+@keyframes rip { from { opacity: .9; transform: scale(.3); } to { opacity: 0; transform: scale(1.5); } }
+.scene-foot { max-width: 1000px; margin: 22px auto 0; display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; font-size: 14px; color: var(--muted); }
+.scene-foot .btn { min-height: 44px; }
+
+/* 3. Être compris : défilement avec vitrine collante */
+.cmpsec { padding-bottom: 0; }
+.sgrid { display: grid; grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr); gap: 64px; }
+.step { min-height: 78svh; display: flex; flex-direction: column; justify-content: center; gap: 12px; }
+.step h3 { font-size: clamp(32px, 3.6vw, 44px); }
+.step p { color: var(--muted); max-width: 22em; font-size: 19px; }
+.pts { display: grid; gap: 10px; margin-top: 10px; max-width: 24em; }
+.pts li { position: relative; padding-left: 26px; font-size: 16.5px; line-height: 1.4; }
+.pts li::before { content: ""; position: absolute; left: 2px; top: .38em; width: 12px; height: 7px; border-left: 2.5px solid var(--accent); border-bottom: 2.5px solid var(--accent); transform: rotate(-45deg); }
+.step .txt { display: flex; flex-direction: column; gap: 12px; }
+.step .shot { display: none; }
+.sstage { position: sticky; top: 72px; height: calc(100svh - 72px); display: flex; align-items: center; justify-content: center; min-width: 0; }
+.vf { position: relative; width: 100%; max-width: 520px; height: min(590px, 84svh); background: var(--card); border: 1px solid var(--line); border-radius: 24px; overflow: hidden; box-shadow: 0 30px 60px -38px rgba(35,31,28,.5); }
+.lay { position: absolute; inset: 0; padding: 24px; display: flex; flex-direction: column; gap: 12px; opacity: 0; transition: opacity .35s; pointer-events: none; }
+.lay.on { opacity: 1; pointer-events: auto; }
+.lbl { font-size: 13px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--accent); }
+.svc { border: 1px solid var(--line); background: var(--bg); border-radius: 16px; padding: 11px; display: grid; grid-template-columns: 84px minmax(0, 1fr) auto; gap: 14px; align-items: center; }
+.svc .th { width: 84px; height: 84px; border-radius: 12px; background-size: cover; background-position: center; }
+.svc .sb p { color: var(--muted); font-size: 14.5px; line-height: 1.4; margin: 3px 0 5px; }
+.svc b { display: block; font-family: var(--font-title); font-size: 20px; font-weight: 500; line-height: 1.2; }
+.svc small { color: var(--accent); font-size: 14px; font-weight: 600; }
+.svc .btn { min-height: 44px; padding: 0 16px; font-size: 15px; }
+.rea-img { height: clamp(120px, 22svh, 200px); border-radius: 16px; background-size: cover; background-position: center; }
+.rea-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.rea-row div { height: clamp(60px, 11svh, 96px); border-radius: 12px; background-size: cover; background-position: center; }
+.rea h4 { font-family: var(--font-title); font-weight: 500; font-size: 25px; line-height: 1.2; }
+.rea p { color: var(--muted); font-size: 15.5px; line-height: 1.45; }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.chips span { background: var(--surface); border: 1px solid var(--line); border-radius: 99px; padding: 5px 12px; font-size: 13.5px; font-weight: 600; }
+.bio { align-items: stretch; justify-content: center; gap: 12px; }
+.bio-head { display: flex; align-items: center; gap: 14px; margin-bottom: 4px; }
+.bio-av { width: 64px; height: 64px; border-radius: 50%; background-size: cover; background-position: 50% 25%; flex: none; }
+.bio-head b { display: block; font-family: var(--font-title); font-weight: 500; font-size: 24px; line-height: 1.15; }
+.bio-head small { color: var(--muted); font-size: 15px; }
+.bl { display: flex; align-items: center; justify-content: space-between; min-height: 52px; padding: 0 20px; border: 1.5px solid var(--line); border-radius: 99px; background: var(--bg); font-weight: 600; font-size: 16px; text-decoration: none; transition: background .2s, border-color .2s; }
+.bl:hover { border-color: var(--accent); background: var(--accent-soft); }
+.bl.main { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+.bl.main:hover { background: var(--accent-dark); }
+.bl i { font-style: normal; }
+.tes { background: var(--accent-soft); border-radius: 18px; padding: 20px 24px; display: grid; gap: 18px; }
+.tes q { font-family: var(--font-title); font-style: italic; font-size: 21px; line-height: 1.3; quotes: none; }
+.tes.sm { padding: 16px 22px; gap: 10px; background: var(--surface); }
+.tes.sm q { font-size: 17px; }
+.tes .who { display: flex; align-items: center; gap: 12px; color: var(--muted); font-size: 14.5px; line-height: 1.35; }
+.tes .who b { color: var(--ink); }
+.tes .av { width: 44px; height: 44px; border-radius: 50%; background: var(--accent); color: #FFFFFF; display: grid; place-items: center; font-family: var(--font-title); font-size: 19px; }
+.note { font-size: 13.5px; color: var(--muted); }
+
+/* 5. Être contacté */
+.dark { background: var(--ink); color: var(--on-ink); }
+.ag { background: var(--card); color: var(--ink); border-radius: 22px; padding: 32px; display: grid; grid-template-columns: minmax(0, .8fr) minmax(0, 1.1fr) minmax(0, 1fr); gap: 32px; }
+.ag h3 { font-size: 20px; margin-bottom: 14px; }
+.ag select { width: 100%; min-height: 48px; border: 1.5px solid var(--line); border-radius: 12px; background: var(--bg); font: 500 16px var(--font-text); padding: 0 14px; color: var(--ink); }
+.ag .meta { margin-top: 12px; color: var(--muted); font-size: 14.5px; }
+.days { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; }
+.day { min-height: 68px; border: 1.5px solid var(--line); border-radius: 12px; background: var(--bg); font: 500 14px var(--font-text); color: var(--muted); cursor: pointer; display: grid; place-items: center; align-content: center; gap: 2px; }
+.day strong { font-family: var(--font-title); font-size: 22px; color: var(--ink); font-weight: 500; }
+.day[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #FBE9DF; }
+.day[aria-pressed="true"] strong { color: var(--on-accent); }
+.slots { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.slot { min-height: 48px; border: 1.5px solid var(--line); border-radius: 12px; background: var(--bg); font: 600 16px var(--font-text); color: var(--ink); cursor: pointer; }
+.slot[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent); }
+.slot:disabled { opacity: .4; text-decoration: line-through; cursor: not-allowed; }
+.ag .go { grid-column: 1 / -1; display: flex; justify-content: flex-end; border-top: 1px solid var(--line); padding-top: 24px; }
+.done { grid-column: 1 / -1; background: var(--accent-soft); border-radius: 14px; padding: 26px; display: grid; gap: 12px; }
+.done b { font-family: var(--font-title); font-weight: 500; font-size: 24px; }
+
+/* 6. Pour qui : pile d'images */
+.deck { padding-bottom: 6svh; }
+.card {
+  --step: 56px;
+  position: sticky; top: calc(84px + var(--i) * var(--step)); height: max(400px, calc(100svh - 84px - 4 * var(--step) - 28px)); max-height: 640px; margin-bottom: 7svh;
+  border-radius: 20px; overflow: hidden; transform-origin: 50% 0; background-size: cover; background-position: center; background-color: var(--ink);
+  color: #FFFFFF; display: flex; flex-direction: column; justify-content: flex-end; padding: 28px; will-change: transform;
+}
+.card::before { content: ""; position: absolute; inset: 0; background: rgba(35,31,28,.46); }
+.card > * { position: relative; }
+.ghost { position: absolute !important; left: 22px; bottom: -0.16em; font-family: var(--font-title); font-weight: 600; font-size: clamp(88px, 20vw, 250px); line-height: 1; letter-spacing: -0.04em; color: #FFFFFF; opacity: .17; pointer-events: none; white-space: nowrap; }
+.card .tabl { position: absolute; left: 0; right: 0; top: 0; height: var(--step); display: flex; align-items: center; padding: 0 28px; gap: 10px; font-size: 14px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: #FFFFFF; background: rgba(35,31,28,.35); }
+.card .tabl em { font-style: normal; font-weight: 500; color: #F4ECE2; }
+.card .job { font-family: var(--font-title); font-size: clamp(36px, 5.4vw, 64px); line-height: 1.02; font-weight: 500; }
+.card .line { max-width: 24em; margin-top: 10px; font-size: 18px; color: #F4ECE2; }
+.c1 { background-image: var(--img-doc); background-position: 50% 30%; }
+.c2 { background-image: var(--img-med); background-position: 50% 25%; }
+.c3 { background-image: var(--img-avo); background-position: 50% 30%; }
+.c4 { background-image: var(--img-coa); background-position: 50% 25%; }
+.c5 { background-image: var(--img-pho); background-position: 50% 30%; }
+
+/* 7. Tarifs : deux cartes avec action */
+.price { background: var(--surface); }
+.plans { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 28px; max-width: 960px; margin-inline: auto; }
+.plan { background: var(--card); border: 1px solid var(--line); border-radius: 24px; padding: 40px; display: flex; flex-direction: column; gap: 26px; }
+.plan h3 { font-size: 32px; }
+.plan .pr { display: grid; gap: 4px; }
+.plan .pr b { font-family: var(--font-title); font-weight: 500; font-size: 44px; line-height: 1.05; }
+.plan .pr span { color: var(--muted); font-size: 15px; }
+.plan ul { display: grid; gap: 12px; flex: 1; }
+.plan li { display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 10px; align-items: start; }
+.plan li svg { margin-top: 4px; color: var(--ok); }
+.plan .btn { width: 100%; }
+.plan.pro { background: var(--ink); color: var(--on-ink); border-color: var(--ink); }
+.plan.pro .pr span { color: #CFC5B8; }
+.plan.pro li svg { color: #E8A98C; }
+.price .note { margin-top: 22px; }
+
+/* 8. Clôture */
+.end { background: var(--accent-soft); }
+.end-in { max-width: 640px; text-align: center; display: grid; gap: 40px; justify-items: center; }
+.end .addr { width: 100%; text-align: left; }
+.end .addr-s { text-align: center; }
+.faq .qa { max-width: 760px; margin-inline: auto; border-top: 1px solid var(--line); }
+.faq details { border-bottom: 1px solid var(--line); }
+.faq summary { list-style: none; cursor: pointer; display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 24px 0; font-family: var(--font-title); font-size: clamp(21px, 2.6vw, 26px); line-height: 1.25; min-height: 44px; }
+.faq summary::-webkit-details-marker { display: none; }
+.faq summary::after { content: ""; flex: none; width: 14px; height: 14px; border-right: 2.5px solid var(--accent); border-bottom: 2.5px solid var(--accent); transform: rotate(45deg); transition: transform .2s; margin-top: -6px; }
+.faq details[open] summary::after { transform: rotate(-135deg); margin-top: 6px; }
+.faq details p { padding: 0 40px 26px 0; color: var(--muted); font-size: 18px; }
+
+/* Pied de page */
+.foot { background: var(--bg); border-top: 1px solid var(--line); padding-block: 72px 36px; }
+.foot-grid { display: grid; grid-template-columns: minmax(0, 1.4fr) repeat(3, minmax(0, 1fr)); gap: 40px; }
+.foot-grid p { color: var(--muted); max-width: 22em; margin-top: 14px; }
+.foot h4 { font-family: var(--font-text); font-size: 13px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); margin-bottom: 14px; }
+.foot li a { display: inline-flex; align-items: center; min-height: 40px; text-decoration: none; }
+.foot li a:hover { color: var(--accent); text-decoration: underline; }
+.foot-bot { margin-top: 56px; padding-top: 24px; border-top: 1px solid var(--line); display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px 24px; font-size: 14.5px; color: var(--muted); }
+
+@media (max-width: 960px) {
+  .band { padding-block: 80px; }
+  .hero { padding-block: 56px 80px; }
+  .links, .right .login { display: none; }
+  .burger { display: grid; }
+  .sgrid { grid-template-columns: minmax(0, 1fr); gap: 0; }
+  .sstage { display: none; }
+  .step { min-height: 0; padding-block: 36px; }
+  .step .shot { display: block; margin-top: 14px; }
+  .step .shot .lay { position: static; opacity: 1; padding: 20px; border: 1px solid var(--line); border-radius: 22px; background: var(--card); pointer-events: auto; }
+  .cmpsec { padding-bottom: 40px; }
+  .step { border-top: 1px solid var(--line); }
+  .step:first-child { border-top: 0; }
+  /* Effets mobile et tablette : apparition échelonnée de chaque vitrine quand elle entre à l'écran */
+  .step .shot.fx .lay > * { opacity: 0; transform: translateY(26px); transition: opacity .65s ease, transform .65s cubic-bezier(.2, .7, .2, 1); transition-delay: calc(var(--k, 0) * 110ms); }
+  .step .shot.fx.in .lay > * { opacity: 1; transform: none; }
+  .step .shot.fx .rea-img { transform: translateY(26px) scale(.92); }
+  .step .shot.fx.in .rea-img { transform: none; }
+  .step .shot.fx .rea-img, .step .shot.fx .bl.main { transition-duration: .9s; }
+  .step .txt { transition: opacity .6s ease, transform .6s ease; }
+  .step.fx .txt { opacity: 0; transform: translateY(18px); }
+  .step.fx.in .txt { opacity: 1; transform: none; }
+  .ag { grid-template-columns: minmax(0, 1fr); padding: 22px; }
+  .ag .go { justify-content: stretch; }
+  .ag .go .btn { width: 100%; }
+  .plans { grid-template-columns: minmax(0, 1fr); }
+  .plan { padding: 30px; }
+  .foot-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .foot-grid > :first-child { grid-column: 1 / -1; }
+  .card { --step: 40px; padding: 22px; }
+  .b-body { height: 440px; }
+  .st-results { padding: 16px 16px 0; }
+  .sr-top .glogo { width: 64px; }
+  .sr-tabs, .sr-list { margin-left: 0; }
+  .sr-tabs { gap: 16px; overflow: hidden; }
+}
+@media (min-width: 680px) and (max-width: 960px) {
+  .step { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 32px; align-items: center; padding-block: 44px; }
+  .step .shot { margin-top: 0; }
+  .step:nth-child(even) .txt { order: 2; }
+}
+@media (max-width: 520px) {
+  .addr-row { flex-wrap: wrap; }
+  .addr-pre { padding-block: 14px 0; width: 100%; }
+  .addr input { padding-left: 18px; }
+  .addr button { width: 100%; }
+  .right .btn { padding: 0 14px; font-size: 15px; }
+  .logo { font-size: 21px; }
+  .svc { grid-template-columns: 64px minmax(0, 1fr); }
+  .svc .sb p { font-size: 14px; }
+  .svc .th { width: 64px; height: 64px; }
+  .svc .btn { grid-column: 1 / -1; }
+  .faq details p { padding-right: 0; }
+  .st-home .glogo { width: 160px; }
+  .b-dots { display: none; }
+  .b-body { height: 400px; }
+  .foot-grid { grid-template-columns: minmax(0, 1fr); }
+}
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  .gbox .q::after { animation: none; }
+  .card { will-change: auto; transform: none !important; filter: none !important; }
+  .browser[data-stage="site"] .st-site .tall { animation: none; }
+  .lay { transition: none; }
+  .step .shot.fx .lay > *, .step .shot.fx .rea-img, .step.fx .txt { opacity: 1 !important; transform: none !important; transition: none !important; }
+}
+</style>
+
+<div class="nav-wrap" id="navw">
+  <div class="in">
+    <div class="nav">
+      <a class="logo" href="#haut" aria-label="jesuis.pro, accueil"><span class="logo-mark" aria-hidden="true">j</span>jesuis.pro</a>
+      <nav class="links" aria-label="Navigation principale">
+        <a href="#trouve">Fonctionnement</a>
+        <a href="#compris">Votre vitrine</a>
+        <a href="#tarifs">Tarifs</a>
+        <a href="#faq">FAQ</a>
+      </nav>
+      <div class="right">
+        <a class="login" href="#adresse-fin">Connexion</a>
+        <a class="btn btn-main" href="#adresse-fin">Créer ma vitrine</a>
+        <button class="burger" id="burger" type="button" aria-expanded="false" aria-controls="menu" aria-label="Ouvrir le menu">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+        </button>
+      </div>
+    </div>
+    <div class="menu" id="menu" hidden>
+      <a href="#trouve">Fonctionnement</a>
+      <a href="#compris">Votre vitrine</a>
+      <a href="#tarifs">Tarifs</a>
+      <a href="#faq">FAQ</a>
+      <a href="#adresse-fin">Connexion</a>
+      <a class="btn btn-main" href="#adresse-fin">Créer ma vitrine</a>
+    </div>
+  </div>
+</div>
+
+<main id="haut">
+  <!-- 1. Accroche -->
+  <section class="hero">
+    <div class="in hero-in">
+      <p class="eyebrow">Pour les professionnels</p>
+      <h1>Votre vitrine en ligne, à votre nom.</h1>
+      <p class="lead">On vous trouve, on vous comprend, on vous réserve.</p>
+      <form class="addr" data-addr novalidate>
+        <label class="addr-l" for="addr1">Choisissez votre adresse</label>
+        <div class="addr-row">
+          <span class="addr-pre" aria-hidden="true">jesuis.pro/</span>
+          <input id="addr1" type="text" inputmode="url" autocomplete="off" autocapitalize="none" spellcheck="false" maxlength="30" placeholder="votre-nom" aria-describedby="s1">
+          <button class="btn btn-main" type="submit">Créer ma vitrine</button>
+        </div>
+        <p class="addr-s" id="s1" aria-live="polite"></p>
+      </form>
+      <p class="hint">Gratuit pour commencer.</p>
+    </div>
+  </section>
+
+  <!-- 2. Être trouvé : vrai navigateur, vrai moteur de recherche, scène animée -->
+  <section class="found band" id="trouve">
+    <div class="in">
+      <div class="sec-head">
+        <p class="eyebrow">Être trouvé</p>
+        <h2 class="h2">Quand on cherche « cardiologue Douala », c’est vous qu’on voit.</h2>
+      </div>
+      <div class="browser" id="br" data-stage="results" aria-label="Animation : recherche sur Google, puis ouverture de la vitrine">
+        <div class="b-strip">
+          <div class="b-dots" aria-hidden="true"><i></i><i></i><i></i></div>
+          <div class="b-tab"><img id="b-fav" src="__GLOGO_SMALL__" alt=""><span id="b-title">cardiologue douala - Recherche Google</span></div>
+        </div>
+        <div class="b-bar">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5m6-6l-6 6 6 6"/></svg>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14m-6-6l6 6-6 6"/></svg>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 12a8 8 0 11-2.34-5.66M20 4v5h-5"/></svg>
+          <div class="b-url"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 118 0v3"/></svg><span id="b-addr">google.com/search?q=cardiologue+douala</span></div>
+        </div>
+        <div class="b-body" id="b-body">
+          <div class="stage st-home" aria-hidden="true">
+            <img class="glogo" src="__GLOGO__" alt="Google">
+            <div class="gbox"><svg width="20" height="20" viewBox="0 0 256 256" fill="currentColor"><path d="M229.66 218.34l-50.07-50.06a88.11 88.11 0 10-11.31 11.31l50.06 50.07a8 8 0 0011.32-11.32zM40 112a72 72 0 1172 72 72.08 72.08 0 01-72-72z"/></svg><span class="q" id="q-home"></span></div>
+          </div>
+          <div class="stage st-results">
+            <div class="sr-top">
+              <img class="glogo" src="__GLOGO__" alt="Google">
+              <div class="gbox"><svg width="20" height="20" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M229.66 218.34l-50.07-50.06a88.11 88.11 0 10-11.31 11.31l50.06 50.07a8 8 0 0011.32-11.32zM40 112a72 72 0 1172 72 72.08 72.08 0 01-72-72z"/></svg><span style="flex:1">cardiologue douala</span></div>
+            </div>
+            <div class="sr-tabs" aria-hidden="true"><span class="on">Tous</span><span>Images</span><span>Maps</span><span>Actualités</span></div>
+            <div class="sr-list">
+              <div class="r r1 hot" id="r1">
+                <div class="site"><span class="fav j" aria-hidden="true">j</span><span>jesuis.pro<small>https://jesuis.pro › dr-cabrel</small></span></div>
+                <h4>Dr Cabrel Nguesso, cardiologue interventionnel à Douala</h4>
+                <p>Consultations, bilans et suivi <b>cardiovasculaire</b> à <b>Douala</b>. Réservez votre rendez-vous en ligne en quelques instants.</p>
+              </div>
+              <div class="r r2 dim">
+                <div class="site"><span class="fav" aria-hidden="true"></span><span>Annuaire de santé<small>annuaire-exemple.test › douala</small></span></div>
+                <h4>Liste de cardiologues à Douala</h4>
+                <p>Coordonnées et horaires des cabinets de cardiologie de la ville.</p>
+              </div>
+              <div class="r r3 dim">
+                <div class="site"><span class="fav" aria-hidden="true"></span><span>Cliniques de Douala<small>cliniques-exemple.test</small></span></div>
+                <h4>Cliniques et hôpitaux à Douala</h4>
+                <p>Services de cardiologie, urgences et consultations.</p>
+              </div>
+            </div>
+          </div>
+          <div class="stage st-site" aria-hidden="true"><img class="tall" id="site-img" src="__VIT_D__" alt=""></div>
+          <svg class="cursor" id="cursor" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 2l16 9-7 2-3 7z" fill="#202124" stroke="#FFFFFF" stroke-width="1.5" stroke-linejoin="round"/></svg>
+          <span class="ripple" id="ripple"></span>
+        </div>
+      </div>
+      <div class="scene-foot">
+        <span>Exemple : résultats fictifs.</span>
+        <button class="btn btn-line" id="replay" type="button">Rejouer la scène</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- 3. Être compris : défilement avec vitrine collante (effet d'origine), cartes redessinées -->
+  <section class="band cmpsec" id="compris">
+    <div class="in">
+      <div class="sec-head">
+        <p class="eyebrow">Être compris</p>
+        <h2 class="h2">Ce que vous faites, simplement dit.</h2>
+      </div>
+    </div>
+    <div class="in sgrid">
+      <div class="steps">
+        <div class="step" data-i="0">
+          <div class="txt"><h3>Vos services</h3>
+            <p>Chaque service a sa page : ce qu’il comprend, la durée, le prix. Le visiteur sait tout avant de réserver.</p>
+            <ul class="pts"><li>Une description claire et ce qui est inclus</li><li>Durée et tarif affichés</li><li>Un bouton pour réserver, sur chaque service</li></ul></div>
+          <div class="shot"></div>
+        </div>
+        <div class="step" data-i="1">
+          <div class="txt"><h3>Vos réalisations</h3>
+            <p>Vos travaux en images, avec votre rôle, le lieu et l’année. On voit ce que vous avez fait, pas seulement ce que vous dites faire.</p>
+            <ul class="pts"><li>Plusieurs photos par réalisation</li><li>Votre rôle et le contexte</li><li>Les trois plus belles en tête de vitrine</li></ul></div>
+          <div class="shot"></div>
+        </div>
+        <div class="step" data-i="2">
+          <div class="txt"><h3>Vos témoignages</h3>
+            <p>La parole de ceux que vous avez accompagnés, avec leur prénom et leur situation. Vous choisissez ce qui s’affiche.</p>
+            <ul class="pts"><li>Une citation, un nom, un contexte</li><li>Vous en mettez en avant, vous en masquez</li><li>Seuls les témoignages actifs sont visibles</li></ul></div>
+          <div class="shot"></div>
+        </div>
+        <div class="step" data-i="3">
+          <div class="txt"><h3>Votre lien en bio</h3>
+            <p>Une seule adresse à coller dans Instagram, TikTok ou WhatsApp : votre rendez-vous, vos services et vos coordonnées, à portée de pouce.</p>
+            <ul class="pts"><li>Prendre rendez-vous en un geste</li><li>Vos réseaux et votre WhatsApp</li><li>Une adresse courte, facile à retenir</li></ul></div>
+          <div class="shot"></div>
+        </div>
+      </div>
+      <div class="sstage">
+        <div class="vf" id="frame">
+          <div class="lay on" data-lay="0">
+            <p class="lbl">Services · à la une</p>
+            <div class="svc"><span class="th" style="background-image:var(--img-doc)"></span><div class="sb"><b>Consultation de cardiologie</b><p>Examen clinique, électrocardiogramme et compte rendu remis le jour même.</p><small>45 min · 15 000 XAF</small></div><a class="btn btn-main" href="#contact">Réserver</a></div>
+            <div class="svc"><span class="th" style="background-image:var(--img-med)"></span><div class="sb"><b>Bilan cardiovasculaire complet</b><p>Échographie cardiaque, épreuve d’effort et prise de sang, résultats commentés.</p><small>60 min · 35 000 XAF</small></div><a class="btn btn-main" href="#contact">Réserver</a></div>
+            <div class="svc"><span class="th" style="background-image:var(--img-ste)"></span><div class="sb"><b>Suivi après infarctus</b><p>Six séances sur trois mois : traitement, activité physique et alimentation.</p><small>6 séances · 60 000 XAF</small></div><a class="btn btn-main" href="#contact">Réserver</a></div>
+          </div>
+          <div class="lay rea" data-lay="1">
+            <p class="lbl">Réalisations · à la une</p>
+            <div class="rea-img" style="background-image:var(--img-ste)" role="img" aria-label="Photo provisoire d’un stéthoscope"></div>
+            <div class="rea-row"><div style="background-image:var(--img-doc)"></div><div style="background-image:var(--img-med)"></div></div>
+            <h4>Unité de cathétérisme, CHU de Douala</h4>
+            <p>Mise en place d’une unité de cardiologie interventionnelle : choix du matériel, formation de l’équipe, premiers patients pris en charge en trois mois.</p>
+            <div class="chips"><span>Chef de projet</span><span>Douala</span><span>2023</span></div>
+          </div>
+          <div class="lay" data-lay="2">
+            <p class="lbl">Témoignages · à la une</p>
+            <div class="tes"><q>J’ai enfin compris mon traitement. Le docteur a pris le temps de tout m’expliquer, et j’ai réservé en deux minutes depuis mon téléphone.</q><div class="who"><span class="av" aria-hidden="true">A</span><span><b>Armand T.</b><br>Patient suivi depuis 2022</span></div></div>
+            <div class="tes sm"><q>Un confrère d’une grande rigueur : des comptes rendus clairs, qui arrivent vite.</q><div class="who"><span class="av" aria-hidden="true">S</span><span><b>Dr Sandrine M.</b> · Médecin généraliste</span></div></div>
+            <div class="tes sm"><q>Ponctuelle, à l’écoute, rassurante. Je recommande.</q><div class="who"><span class="av" aria-hidden="true">M</span><span><b>Mireille K.</b> · Patiente</span></div></div>
+            <p class="note">Exemples fictifs, pour la démonstration.</p>
+          </div>
+          <div class="lay bio" data-lay="3">
+            <p class="lbl">Lien en bio</p>
+            <div class="bio-head"><span class="bio-av" style="background-image:var(--img-doc)" role="img" aria-label="Photo provisoire"></span><div><b>Dr Cabrel</b><small>Cardiologue · Douala</small></div></div>
+            <a class="bl main" href="#contact"><span>Prendre rendez-vous</span><i aria-hidden="true">→</i></a>
+            <a class="bl" href="#compris"><span>Voir mes services</span><i aria-hidden="true">→</i></a>
+            <a class="bl" href="#compris"><span>Écrire sur WhatsApp</span><i aria-hidden="true">→</i></a>
+            <a class="bl" href="#compris"><span>Mon profil LinkedIn</span><i aria-hidden="true">→</i></a>
+            <a class="bl" href="#compris"><span>Envoyer un e-mail</span><i aria-hidden="true">→</i></a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 5. Être contacté -->
+  <section class="dark contact band" id="contact">
+    <div class="in">
+      <div class="sec-head">
+        <p class="eyebrow">Être contacté</p>
+        <h2 class="h2">Un rendez-vous en quelques secondes.</h2>
+      </div>
+      <div class="ag" id="ag">
+        <div>
+          <h3>Service</h3>
+          <select id="svc" aria-label="Service">
+            <option value="45 min">Consultation de cardiologie</option>
+            <option value="60 min">Bilan cardiovasculaire complet</option>
+            <option value="30 min">Suivi après infarctus</option>
+          </select>
+          <p class="meta"><span id="dur">45 min</span> · heure de Douala</p>
+        </div>
+        <div>
+          <h3 id="mois">Jour</h3>
+          <div class="days" id="days" role="group" aria-label="Jours disponibles"></div>
+        </div>
+        <div>
+          <h3 id="hlabel">Heure</h3>
+          <div class="slots" id="slots" role="group" aria-label="Créneaux du jour"></div>
+        </div>
+        <div class="go" id="go">
+          <button class="btn btn-main" id="confirm" type="button">Confirmer</button>
+        </div>
+        <div class="done" id="done" hidden>
+          <b>C’est noté (exemple).</b>
+          <p>Rien n’est envoyé depuis cette maquette.</p>
+          <button class="btn btn-line" id="again" type="button" style="width:fit-content">Autre créneau</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 6. Pour qui : pile d'images -->
+  <section class="who band" id="pour-qui">
+    <div class="in">
+      <div class="sec-head">
+        <p class="eyebrow">Pour qui</p>
+        <h2 class="h2">Pour celles et ceux qui vendent leur expertise.</h2>
+      </div>
+    </div>
+    <div class="in deck" id="deck">
+      <article class="card c1" style="--i:0"><span class="ghost" aria-hidden="true">Douala</span><p class="tabl"><span>Cardiologue</span><em>Douala</em></p><div><p class="job">Cardiologue</p><p class="line">Consultations, bilans, suivi : on réserve en ligne.</p></div></article>
+      <article class="card c2" style="--i:1"><span class="ghost" aria-hidden="true">Yaoundé</span><p class="tabl"><span>Médecin</span><em>Yaoundé</em></p><div><p class="job">Médecin</p><p class="line">Horaires, tarifs et prise de rendez-vous au même endroit.</p></div></article>
+      <article class="card c3" style="--i:2"><span class="ghost" aria-hidden="true">Abidjan</span><p class="tabl"><span>Avocat</span><em>Abidjan</em></p><div><p class="job">Avocat</p><p class="line">Domaines d’intervention, honoraires, premier contact.</p></div></article>
+      <article class="card c4" style="--i:3"><span class="ghost" aria-hidden="true">Dakar</span><p class="tabl"><span>Coach</span><em>Dakar</em></p><div><p class="job">Coach</p><p class="line">Séances, ateliers et agenda partagé.</p></div></article>
+      <article class="card c5" style="--i:4"><span class="ghost" aria-hidden="true">Libreville</span><p class="tabl"><span>Photographe</span><em>Libreville</em></p><div><p class="job">Photographe</p><p class="line">Réalisations en grand, devis en un message.</p></div></article>
+      <p class="note" style="text-align:center">Métiers et villes en exemple.</p>
+    </div>
+  </section>
+
+  <!-- 7. Tarifs -->
+  <section class="price band" id="tarifs">
+    <div class="in">
+      <div class="sec-head">
+        <p class="eyebrow">Tarifs</p>
+        <h2 class="h2">Commencez gratuitement.</h2>
+      </div>
+      <div class="plans">
+        <article class="plan">
+          <h3>Gratuit</h3>
+          <div class="pr"><span>Pour présenter votre vitrine</span><b>0 XAF</b><span>&nbsp;</span></div>
+          <ul>
+            <li><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg><span>3 services, 3 réalisations, 3 témoignages</span></li>
+            <li><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg><span>10 réservations par mois</span></li>
+            <li><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg><span>Statistiques de visites sur 7 jours</span></li>
+            <li><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg><span>Mention « Créé avec jesuis.pro »</span></li>
+          </ul>
+          <a class="btn btn-line" href="#adresse-fin">Commencer gratuitement</a>
+        </article>
+        <article class="plan pro">
+          <h3>Payant</h3>
+          <div class="pr"><span>À partir de</span><b>4 000 XAF</b><span>par mois, facturé 48 000 XAF par an.</span></div>
+          <ul>
+            <li><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg><span>Services, réalisations et témoignages sans limite</span></li>
+            <li><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg><span>Réservations sans limite</span></li>
+            <li><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg><span>Statistiques de visites sur 90 jours</span></li>
+            <li><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg><span>Sans la mention « Créé avec jesuis.pro »</span></li>
+          </ul>
+          <a class="btn btn-main" href="#adresse-fin">Passer au payant</a>
+        </article>
+      </div>
+      <p class="note" style="text-align:center">Tarifs provisoires.</p>
+    </div>
+  </section>
+
+  <!-- 8. FAQ -->
+  <section class="band faq" id="faq">
+    <div class="in">
+      <div class="sec-head">
+        <p class="eyebrow">Questions</p>
+        <h2 class="h2">Les questions qu’on nous pose.</h2>
+      </div>
+      <div class="qa">
+        <details open><summary>Combien ça coûte ?</summary><p>Gratuit pour commencer. Le plan payant lève les limites.</p></details>
+        <details><summary>Faut-il un mot de passe ?</summary><p>Non. Vous recevez un code par e-mail ou par téléphone.</p></details>
+        <details><summary>Comment mes clients me trouvent-ils ?</summary><p>Sur Google : chaque vitrine a son titre, sa description et son adresse.</p></details>
+        <details><summary>Mes clients peuvent-ils réserver ?</summary><p>Oui. Ils choisissent un service, un jour et une heure.</p></details>
+        <details><summary>Puis-je choisir mon adresse ?</summary><p>Oui, tant qu’elle est libre : jesuis.pro/votre-nom.</p></details>
+        <details><summary>Et sur téléphone ?</summary><p>Les vitrines sont pensées d’abord pour le téléphone.</p></details>
+      </div>
+    </div>
+  </section>
+
+  <!-- 9. Clôture -->
+  <section class="end band" id="adresse-fin">
+    <div class="in end-in">
+      <h2 class="h2">Votre adresse vous attend.</h2>
+      <form class="addr" data-addr novalidate>
+        <label class="addr-l" for="addr2">Choisissez votre adresse</label>
+        <div class="addr-row">
+          <span class="addr-pre" aria-hidden="true">jesuis.pro/</span>
+          <input id="addr2" type="text" inputmode="url" autocomplete="off" autocapitalize="none" spellcheck="false" maxlength="30" placeholder="votre-nom" aria-describedby="s2">
+          <button class="btn btn-main" type="submit">Créer ma vitrine</button>
+        </div>
+        <p class="addr-s" id="s2" aria-live="polite"></p>
+      </form>
+    </div>
+  </section>
+</main>
+
+<footer class="foot">
+  <div class="in">
+    <div class="foot-grid">
+      <div>
+        <a class="logo" href="#haut"><span class="logo-mark" aria-hidden="true">j</span>jesuis.pro</a>
+        <p>Votre vitrine en ligne, à votre nom.</p>
+      </div>
+      <nav aria-label="Produit"><h4>Produit</h4><ul><li><a href="#trouve">Fonctionnement</a></li><li><a href="#compris">Votre vitrine</a></li><li><a href="#tarifs">Tarifs</a></li><li><a href="#faq">FAQ</a></li></ul></nav>
+      <nav aria-label="Compte"><h4>Compte</h4><ul><li><a href="#adresse-fin">Créer ma vitrine</a></li><li><a href="#adresse-fin">Connexion</a></li></ul></nav>
+      <nav aria-label="Informations"><h4>Informations</h4><ul><li><a href="#haut">Conditions d’utilisation</a></li><li><a href="#haut">Confidentialité</a></li><li><a href="#haut">Contact</a></li></ul></nav>
+    </div>
+    <div class="foot-bot"><span>© 2026 jesuis.pro</span><span>Maquette : photos provisoires (Unsplash).</span></div>
+  </div>
+</footer>
+
+<script>
+(function () {
+  "use strict";
+  var reduit = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  /* Barre de navigation : filet au défilement, menu mobile. */
+  var navw = document.getElementById("navw");
+  function onScroll() { navw.classList.toggle("scrolled", window.scrollY > 8); }
+  window.addEventListener("scroll", onScroll, { passive: true }); onScroll();
+  var burger = document.getElementById("burger"), menu = document.getElementById("menu");
+  burger.addEventListener("click", function () {
+    var open = menu.hidden;
+    menu.hidden = !open; burger.setAttribute("aria-expanded", String(open));
+    burger.setAttribute("aria-label", open ? "Fermer le menu" : "Ouvrir le menu");
+  });
+  menu.addEventListener("click", function (e) { if (e.target.closest("a")) { menu.hidden = true; burger.setAttribute("aria-expanded", "false"); } });
+
+  /* Champ d'adresse : disponibilité simulée, synchronisée entre les champs. */
+  var RESERVES = ["api","studio","connexion","inscription","onboarding","tarifs","l","admin","www","app","aide","contact","cgu","confidentialite","sitemap","robots","assets"];
+  var PRIS = ["dr-cabrel", "dr-martin", "maitre-diallo"];
+  function slug(v) {
+    return v.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase()
+      .replace(/[\s_]+/g, "-").replace(/[^a-z0-9-]/g, "").replace(/-+/g, "-").replace(/^-/, "").slice(0, 30);
+  }
+  var forms = Array.prototype.slice.call(document.querySelectorAll("[data-addr]"));
+  function verdict(s) {
+    if (!s) return { t: "", c: "" };
+    if (s.length < 3) return { t: "Au moins 3 caractères.", c: "bad" };
+    if (RESERVES.indexOf(s) !== -1) return { t: "Cette adresse est réservée. Essayez " + s + "-pro.", c: "bad" };
+    if (PRIS.indexOf(s) !== -1) return { t: "Cette adresse est déjà prise. Essayez " + s + "-douala.", c: "bad" };
+    return { t: "jesuis.pro/" + s + " est disponible.", c: "ok" };
+  }
+  function paint(s, source) {
+    forms.forEach(function (f) {
+      var input = f.querySelector("input"), out = f.querySelector(".addr-s");
+      if (f !== source) input.value = s;
+      var v = verdict(s);
+      if (s) { out.textContent = v.t; out.className = "addr-s " + v.c; }
+    });
+  }
+  forms.forEach(function (f) {
+    var input = f.querySelector("input"), out = f.querySelector(".addr-s");
+    input.addEventListener("input", function () { var s = slug(input.value); input.value = s; paint(s, f); });
+    f.addEventListener("submit", function (e) {
+      e.preventDefault();
+      var s = slug(input.value), v = verdict(s);
+      if (!s) { out.textContent = "Écrivez d’abord l’adresse que vous voulez."; out.className = "addr-s bad"; input.focus(); return; }
+      if (v.c === "bad") { out.textContent = v.t; out.className = "addr-s bad"; return; }
+      out.textContent = "Étape suivante : votre e-mail ou votre téléphone. Vous recevez un code, sans mot de passe.";
+      out.className = "addr-s ok";
+    });
+  });
+
+  /* Exemples d'adresses dans le champ vide (sans effet si l'on tape ou si l'animation est réduite). */
+  var EXEMPLES = ["dr-cabrel", "aminata-coach", "maitre-diallo", "studio-lumiere"], ex = 0;
+  if (!reduit) {
+    setInterval(function () {
+      ex = (ex + 1) % EXEMPLES.length;
+      forms.forEach(function (f) { var i = f.querySelector("input"); if (i.value === "" && document.activeElement !== i) i.placeholder = EXEMPLES[ex]; });
+    }, 2400);
+  }
+
+  /* Scène « Être trouvé » : saisie, résultats, clic, ouverture de la vitrine. L'état de repos montre déjà les résultats. */
+  var br = document.getElementById("br"), body = document.getElementById("b-body");
+  var qHome = document.getElementById("q-home"), cursor = document.getElementById("cursor"), ripple = document.getElementById("ripple");
+  var bAddr = document.getElementById("b-addr"), bTitle = document.getElementById("b-title");
+  var rs = [document.getElementById("r1"), document.querySelector(".r2"), document.querySelector(".r3")];
+  var timers = [], playing = false;
+  var QUERY = "cardiologue douala";
+  function T(ms, fn) { timers.push(setTimeout(fn, ms)); }
+  function clearT() { timers.forEach(clearTimeout); timers = []; }
+  function setStage(s) {
+    br.setAttribute("data-stage", s);
+    if (s === "home") { bAddr.textContent = "google.com"; bTitle.textContent = "Google"; }
+    if (s === "results") { bAddr.textContent = "google.com/search?q=cardiologue+douala"; bTitle.textContent = "cardiologue douala - Recherche Google"; }
+    if (s === "site") { bAddr.textContent = "jesuis.pro/dr-cabrel"; bTitle.textContent = "Dr Cabrel Nguesso"; }
+  }
+  function centerOf(el) {
+    var a = el.getBoundingClientRect(), b = body.getBoundingClientRect();
+    return { x: a.left - b.left + Math.min(a.width * 0.35, 220), y: a.top - b.top + 38 };
+  }
+  function play() {
+    if (reduit) return;
+    clearT(); playing = true;
+    br.setAttribute("data-anim", "1");
+    rs.forEach(function (r) { r.classList.remove("in"); });
+    rs[0].classList.remove("hot");
+    cursor.classList.remove("show"); cursor.style.transition = "none"; cursor.style.transform = "translate(60%, 90%)";
+    qHome.textContent = ""; setStage("home");
+    var t = 700;
+    for (var i = 1; i <= QUERY.length; i++) { (function (n) { T(t + n * 80, function () { qHome.textContent = QUERY.slice(0, n); }); })(i); }
+    t += QUERY.length * 80 + 650;
+    T(t, function () { setStage("results"); });
+    T(t + 300, function () { rs[0].classList.add("in"); });
+    T(t + 600, function () { rs[1].classList.add("in"); });
+    T(t + 800, function () { rs[2].classList.add("in"); });
+    t += 2100;
+    T(t, function () {
+      var c = centerOf(rs[0]);
+      cursor.style.transition = "none"; cursor.style.transform = "translate(" + (body.clientWidth - 140) + "px," + (body.clientHeight - 60) + "px)";
+      cursor.classList.add("show");
+      requestAnimationFrame(function () { requestAnimationFrame(function () {
+        cursor.style.transition = "transform .9s cubic-bezier(.5,0,.2,1), opacity .3s";
+        cursor.style.transform = "translate(" + c.x + "px," + c.y + "px)";
+      }); });
+    });
+    t += 1200;
+    T(t, function () { var c = centerOf(rs[0]); ripple.style.left = c.x + "px"; ripple.style.top = c.y + "px"; ripple.classList.remove("go"); void ripple.offsetWidth; ripple.classList.add("go"); });
+    t += 520;
+    T(t, function () { setStage("site"); cursor.classList.remove("show"); });
+    t += 600;
+    T(t, function () { br.removeAttribute("data-anim"); playing = false; });
+  }
+  function restState() { clearT(); br.removeAttribute("data-anim"); rs[0].classList.add("hot"); setStage("results"); }
+  restState();
+  var siteImg = document.getElementById("site-img");
+  function setDist() {
+    document.querySelectorAll(".tall").forEach(function (img) {
+      var box = img.parentElement, d = Math.max(0, img.clientHeight - box.clientHeight);
+      img.style.setProperty("--dist", d + "px");
+      img.style.setProperty("--dur", Math.max(20, Math.round(d / 55)) + "s");
+    });
+  }
+  window.addEventListener("load", setDist); window.addEventListener("resize", setDist);
+  Array.prototype.forEach.call(document.querySelectorAll(".tall"), function (im) { im.addEventListener("load", setDist); });
+  var actif = false;
+  if ("IntersectionObserver" in window && !reduit) {
+    new IntersectionObserver(function (en) {
+      var e = en[0];
+      if (e.isIntersecting) { if (!actif) { actif = true; play(); } }
+      else if (actif) { actif = false; restState(); }
+    }, { threshold: 0.6 }).observe(br);
+  }
+  document.getElementById("replay").addEventListener("click", function () { if (reduit) { restState(); } else { play(); } });
+
+  /* « Être compris » : la vitrine collante change avec l'étape lue (effet d'origine) ; sur mobile, chaque étape montre sa vitrine. */
+  var lays = Array.prototype.slice.call(document.querySelectorAll("#frame .lay"));
+  var steps = Array.prototype.slice.call(document.querySelectorAll(".step"));
+  steps.forEach(function (st) {
+    var i = +st.getAttribute("data-i"), holder = st.querySelector(".shot");
+    if (lays[i] && holder) { var c = lays[i].cloneNode(true); c.classList.remove("on"); c.removeAttribute("data-lay"); holder.appendChild(c); Array.prototype.forEach.call(c.children, function (el, k) { el.style.setProperty("--k", k); }); }
+  });
+  /* Mobile et tablette : apparition échelonnée quand l'étape entre à l'écran (jamais en mouvement réduit). */
+  if ("IntersectionObserver" in window && !reduit) {
+    var rv = new IntersectionObserver(function (entries) {
+      entries.forEach(function (en) { if (en.isIntersecting) { en.target.classList.add("in"); en.target.querySelectorAll(".shot").forEach(function (x) { x.classList.add("in"); }); rv.unobserve(en.target); } });
+    }, { threshold: 0.18 });
+    steps.forEach(function (st) { st.classList.add("fx"); var sh = st.querySelector(".shot"); if (sh) sh.classList.add("fx"); rv.observe(st); });
+  }
+  function showLay(i) { lays.forEach(function (l, k) { l.classList.toggle("on", k === i); }); }
+  if ("IntersectionObserver" in window) {
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (en) { if (en.isIntersecting) showLay(+en.target.getAttribute("data-i")); });
+    }, { rootMargin: "-45% 0px -45% 0px" });
+    steps.forEach(function (s) { io.observe(s); });
+  }
+
+  /* Agenda utilisable (aucune donnée envoyée). */
+  var dayEl = document.getElementById("days"), slotEl = document.getElementById("slots");
+  var HEURES = ["9 h", "10 h", "11 h 30", "14 h", "15 h 30", "16 h 30"];
+  var fmtCourt = new Intl.DateTimeFormat("fr-FR", { weekday: "short" });
+  var fmtLong = new Intl.DateTimeFormat("fr-FR", { weekday: "long", day: "numeric", month: "long" });
+  var fmtMois = new Intl.DateTimeFormat("fr-FR", { month: "long", year: "numeric" });
+  var jours = [], d = new Date();
+  d.setHours(12, 0, 0, 0);
+  while (jours.length < 5) { d.setDate(d.getDate() + 1); if (d.getDay() !== 0) jours.push(new Date(d.getTime())); }
+  var etat = { j: 0, h: 1 };
+  function pris(j, h) { return (j * 2 + h) % 5 === 3; }
+  function maj(s) { return s.replace(/^./, function (c) { return c.toUpperCase(); }); }
+  function dessiner() {
+    document.getElementById("mois").textContent = maj(fmtMois.format(jours[0]));
+    dayEl.innerHTML = "";
+    jours.forEach(function (dt, j) {
+      var b = document.createElement("button");
+      b.type = "button"; b.className = "day"; b.setAttribute("aria-pressed", String(j === etat.j));
+      b.innerHTML = "<span>" + fmtCourt.format(dt).replace(".", "") + "</span><strong>" + dt.getDate() + "</strong>";
+      b.addEventListener("click", function () { etat.j = j; if (pris(j, etat.h)) { for (var h = 0; h < HEURES.length; h++) { if (!pris(j, h)) { etat.h = h; break; } } } dessiner(); });
+      dayEl.appendChild(b);
+    });
+    slotEl.innerHTML = "";
+    HEURES.forEach(function (h, k) {
+      var b = document.createElement("button");
+      b.type = "button"; b.className = "slot"; b.textContent = h; b.disabled = pris(etat.j, k);
+      b.setAttribute("aria-pressed", String(k === etat.h));
+      b.addEventListener("click", function () { etat.h = k; dessiner(); });
+      slotEl.appendChild(b);
+    });
+    document.getElementById("hlabel").textContent = maj(fmtLong.format(jours[etat.j]));
+    document.getElementById("confirm").textContent = "Confirmer " + fmtLong.format(jours[etat.j]).split(" ")[0] + " à " + HEURES[etat.h];
+  }
+  dessiner();
+  document.getElementById("svc").addEventListener("change", function (e) { document.getElementById("dur").textContent = e.target.value; });
+  var go = document.getElementById("go"), done = document.getElementById("done");
+  document.getElementById("confirm").addEventListener("click", function () { go.hidden = true; done.hidden = false; });
+  document.getElementById("again").addEventListener("click", function () { done.hidden = true; go.hidden = false; });
+
+  /* Pile d'images : chaque carte se réduit à mesure que la suivante la recouvre. */
+  var cards = Array.prototype.slice.call(document.querySelectorAll("#deck .card"));
+  function clamp(v) { return Math.min(1, Math.max(0, v)); }
+  var tick = false;
+  function pile() {
+    tick = false;
+    var vh = window.innerHeight, small = window.innerWidth <= 960;
+    var base = 84, pas = small ? 40 : 56;
+    cards.forEach(function (c, i) {
+      var s = 0;
+      for (var j = i + 1; j < cards.length; j++) { s += clamp(1 - (cards[j].getBoundingClientRect().top - (base + j * pas)) / (vh * 0.55)); }
+      c.style.transform = "scale(" + (1 - 0.028 * s).toFixed(4) + ")";
+      c.style.filter = "brightness(" + (1 - 0.07 * s).toFixed(3) + ")";
+    });
+  }
+  if (!reduit) {
+    window.addEventListener("scroll", function () { if (!tick) { tick = true; requestAnimationFrame(pile); } }, { passive: true });
+    window.addEventListener("resize", pile);
+    pile();
+  }
+})();
+</script>
