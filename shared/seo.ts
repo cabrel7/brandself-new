@@ -187,7 +187,9 @@ export const BUDGET_TBT_MS = 300
 export const BUDGET_JS_KO = 200
 export const BUDGET_PAGE_KO = 900
 export const BUDGET_TTFB_P95_MS = 400
-export const BUDGET_SCORE_SEO = 0.95
+// 0,92 et non 0,95 : la directive `Content-Signal` de robots.txt (politique voulue pour les robots d'IA) est signalée « inconnue »
+// par l'audit robots-txt de Lighthouse, qui retire 0,02 au score SEO de chaque page.
+export const BUDGET_SCORE_SEO = 0.92
 export const BUDGET_SCORE_A11Y = 0.95
 export const BUDGET_SCORE_BONNES_PRATIQUES = 0.9
 export const BUDGET_SCORE_PERF = 0.85
