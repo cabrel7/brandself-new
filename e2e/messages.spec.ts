@@ -350,6 +350,8 @@ test.describe.serial('Contact et Messages S7-bis', () => {
     await page.setViewportSize(MOBILE)
     await ouvrirStudio(page, '/studio/messages')
     const boutons = page.locator('[data-message-id]')
+    // La liste se charge après l'hydratation : on attend qu'elle soit affichée avant de compter (un count() immédiat renvoie 0).
+    await expect(boutons.nth(1)).toBeVisible()
     const total = await boutons.count()
     expect(total).toBeGreaterThanOrEqual(2)
 

@@ -245,7 +245,7 @@ test.describe.serial('studio des services — vitrine fraîche (S3-CA45, CA46, C
     await expect(interrupteur).not.toBeChecked()
     await expect(liste.ligne('Consultation de cardiologie')).toContainText('Rendez-vous · 45 min · Payant · Masqué')
     await expect(liste.ligne('Consultation de cardiologie').getByText('En vedette', { exact: true })).toHaveCount(0)
-    await expect(page.getByText('3 visibles · 2 en vedette sur 3')).toBeVisible()
+    await expect(page.getByText('3 visibles · 1 brouillon · 2 en vedette sur 3')).toBeVisible()
     // Persisté : la lecture fraîche après rechargement donne le même état.
     await page.reload()
     await attendreHydration(page)
@@ -262,7 +262,7 @@ test.describe.serial('studio des services — vitrine fraîche (S3-CA45, CA46, C
     await formulaire.enregistrer.click()
     await expect(page).toHaveURL(/\/studio\/services$/)
     await expect(liste.ligne('Suivi à distance').getByText('En vedette', { exact: true })).toBeVisible()
-    await expect(page.getByText('3 visibles · 3 en vedette sur 3')).toBeVisible()
+    await expect(page.getByText('3 visibles · 1 brouillon · 3 en vedette sur 3')).toBeVisible()
   })
 
   test('modifier : le titre change, l’adresse publique (slug) reste stable', async () => {

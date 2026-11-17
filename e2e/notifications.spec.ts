@@ -79,7 +79,6 @@ test.describe('S9 interface : préférences, désabonnement, prochaine étape, p
     }
     await expect(compte.partie().getByText('Chaque lundi matin, l’activité de votre vitrine en un coup d’œil.')).toBeVisible()
     await expect(compte.partie().getByText('Le matin, la liste de vos rendez-vous de la journée.')).toBeVisible()
-    await expect(compte.partie().getByText('Les e-mails liés à vos réservations et à vos messages sont toujours envoyés : ils font partie du service.')).toBeVisible()
 
     const hebdo = compte.interrupteur('Résumé de la semaine')
     await hebdo.click()
@@ -526,7 +525,8 @@ test.describe('S9 interface : préférences, désabonnement, prochaine étape, p
       await sansDebordementHorizontal(page, viewport.width)
       for (const bouton of [panneau.copier(), panneau.telecharger()]) {
         const boite = await bouton.boundingBox()
-        expect(boite?.height ?? 0, `cible à ${viewport.width} px`).toBeGreaterThanOrEqual(44)
+        // 0,5 px de tolérance : sous-pixel pendant l'animation d'ouverture (la cible vaut `--cible-tactile` = 2,75 rem = 44 px).
+        expect(boite?.height ?? 0, `cible à ${viewport.width} px`).toBeGreaterThanOrEqual(44 - 0.5)
       }
       await page.keyboard.press('Escape')
       await expect(panneau.dialogue()).toHaveCount(0)

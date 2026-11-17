@@ -1,3 +1,4 @@
+import { MARQUE } from '../shared/brand'
 import { randomUUID } from 'node:crypto'
 import { expect, test } from '@playwright/test'
 import type { BrowserContext, Page } from '@playwright/test'
@@ -103,8 +104,8 @@ test.describe('vitrine publique dr-cabrel (S4-CA50 à CA53, CA55)', () => {
     await expect(page.getByRole('heading', { level: 1, name: 'Mes réalisations' })).toBeVisible()
     await expect(page.getByRole('article')).toHaveCount(3)
     await expect(page.getByRole('article').getByRole('heading', { level: 2 })).toHaveCount(3)
-    // Le gabarit de titre du site ajoute « | jesuis.pro ».
-    await expect(page).toHaveTitle(/^Réalisations — Dr Cabrel Nguesso( \| jesuis.pro)?$/)
+    // Titre SEO (shared/seo.ts) : « Réalisations — nom, métier à ville » ; le gabarit du site peut ajouter « | marque ».
+    await expect(page).toHaveTitle(new RegExp(`^Réalisations — Dr Cabrel Nguesso, Cardiologue interventionnel à Douala( \\| ${MARQUE.nom.replace('.', '\\.')})?$`))
     await page.getByRole('link', { name: 'Programme de réadaptation cardiaque' }).click()
     await expect(page).toHaveURL(/\/dr-cabrel\/realisations\/programme-de-readaptation-cardiaque$/)
   })

@@ -108,7 +108,7 @@ test.describe.serial('abonnement, limites du plan gratuit, tarifs et badge (S10 
 
   test('CA104 plan gratuit : quotas, prix de l’API, choix de durée en boutons radio au clavier, aucune case à cocher, renouvellement manuel', async () => {
     const offre = await lireOffre(session.api)
-    expect(offre.paiementDisponible, 'le paiement doit être configuré sur le serveur de test (clés K-PAY)').toBe(true)
+    expect(offre.paiementDisponible, 'le serveur de test doit recevoir des clés K-PAY de TEST (KPAY_API_KEY=kpay_test_…, KPAY_SECRET_KEY=64 hexadécimaux, KPAY_WEBHOOK_SECRET ≥ 16 caractères) : en CI, variables du job e2e de .github/workflows/ci.yml').toBe(true)
     const prix = offre.devises[0].prix
     const montant = (mois: number): number => prix.find((p) => p.periodeMois === mois)!.montant
 

@@ -773,7 +773,9 @@ test.describe.serial('Studio Agenda S7 - vitrine fraîche', () => {
       if (taille.width === MOBILE.width) {
         const boite = await navigation.boundingBox()
         expect(boite, 'la barre de navigation du bas doit être mesurable').not.toBeNull()
-        expect(Math.abs((boite?.y ?? 0) + (boite?.height ?? 0) - taille.height)).toBeLessThanOrEqual(1)
+        // Barre flottante (BsBottomNav : `bottom-[calc(0.75rem+env(safe-area-inset-bottom))]`) : 12 px au-dessus du bas de l'écran.
+        const ESPACE_BAS_PX = 12
+        expect(Math.abs(taille.height - ((boite?.y ?? 0) + (boite?.height ?? 0)) - ESPACE_BAS_PX)).toBeLessThanOrEqual(1)
       }
     }
   })

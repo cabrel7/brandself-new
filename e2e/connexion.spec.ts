@@ -16,14 +16,14 @@ function lireEnv(nom: string): string {
 
 const pool = new Pool({ connectionString: lireEnv('DATABASE_URL') })
 
-// Better Auth stocke l'identifiant préfixé pour l'email (`sign-in-otp-<email>`,
-// voir email-otp/utils.mjs) et brut pour le téléphone ; la valeur est
+// Better Auth stocke l'identifiant préfixé : `sign-in-otp-<email>` (email-otp) et
+// `phone-number-otp-<numéro>` (phone-number, version actuelle) ; la valeur est
 // `<code>:<essais>`.
 async function lireDernierCode(
   identifiant: string,
   canal: 'email' | 'telephone' = 'email',
 ): Promise<string> {
-  const cle = canal === 'email' ? `sign-in-otp-${identifiant}` : identifiant
+  const cle = canal === 'email' ? `sign-in-otp-${identifiant}` : `phone-number-otp-${identifiant}`
   const resultat = await pool.query(
     'SELECT value FROM verifications WHERE identifier = $1 ORDER BY created_at DESC LIMIT 1',
     [cle],

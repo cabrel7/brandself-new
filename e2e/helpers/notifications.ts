@@ -12,6 +12,7 @@ import { PROCHAINES_ETAPES } from '../../shared/prochaine-etape'
 import type { NextStep } from '../../shared/vitrine'
 import { attendreHydration, ouvrirStudio } from './hydratation'
 import { IDENTITE_TEST } from './ia'
+import { MARQUE } from '../../shared/brand'
 import { BASE_URL, db, lireEnv } from './session'
 import type { Session } from './session'
 
@@ -19,8 +20,8 @@ import type { Session } from './session'
 // l'IA : les vitrines sont créées par l'API, l'écran « C'est en ligne » par une progression écrite en base.
 // Aucun parcours ne dépend du worker non plus : on vérifie l'interface et la base, jamais l'envoi d'e-mails.
 
-/** Hôte public des vitrines (recopié de app/utils/onboarding.ts, non importable hors Nuxt). */
-export const HOTE_VITRINES = 'brandself.io'
+/** Hôte public des vitrines : source unique de la marque (S14), comme app/utils/onboarding.ts. */
+export const HOTE_VITRINES: string = MARQUE.domaine
 export const USERNAME_DEMO = 'dr-cabrel'
 export const ANNONCE_PREFERENCES = 'Préférences enregistrées.'
 export const ERREUR_ENREGISTREMENT = 'Nous n’avons pas pu enregistrer. Réessayez dans un instant.'

@@ -2,6 +2,8 @@ import { randomUUID } from 'node:crypto'
 import { expect, test } from '@playwright/test'
 import type { Locator, Page } from '@playwright/test'
 import { makePng } from '../tests/support/images'
+import { MARQUE } from '../shared/brand'
+import { buildShareMessage, whatsappShareUrl } from '../shared/partage'
 import { ONBOARDING_ETAPES, ONBOARDING_ETAPES_TOTAL, USERNAME_DEBOUNCE_MS } from '../shared/onboarding'
 import type { OnboardingEtape } from '../shared/onboarding'
 import { ouvrirStudio } from './helpers/hydratation'
@@ -29,7 +31,7 @@ const DELAI_SAISIE_REALISTE_MS = 60
 const SANS_DELAI = 0
 const DUREE_MAX_PARCOURS_MS = 10 * 60 * 1000
 const CIBLE_TACTILE_MIN_PX = 44
-const HOTE_VITRINES = 'jesuis.pro'
+const HOTE_VITRINES: string = MARQUE.domaine
 const NB_ACCROCHES = 3
 const NB_SERVICES = 3
 const MOTS_INTERDITS = /\b(espaces?|blocs?|modules?|widgets?|sections?)\b/i
@@ -278,7 +280,9 @@ test.describe('Inscription guidée (fournisseur d’IA faux)', () => {
     expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(`https://${adresse}`)
 
     const partage = page.getByRole('link', { name: 'Partager sur WhatsApp' })
-    await expect(partage).toHaveAttribute('href', `https://wa.me/?text=${encodeURIComponent(`Découvrez ma vitrine : https://${adresse}`)}`)
+    await expect(partage).toHaveAttribute('href', whatsappShareUrl(buildShareMessage({
+      prenom: 'Cabrel', metier: 'Cardiologue interventionnel', url: `https://${adresse}`, reservable: false,
+    })))
     await expect(page.getByRole('link', { name: 'Voir ma vitrine' })).toHaveAttribute('href', `/${username}`)
 
     // « Prochaine étape » : un titre de niveau 2, son texte, puis un lien nommé « Ouvrir ».

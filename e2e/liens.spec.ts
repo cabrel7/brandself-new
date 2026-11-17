@@ -118,8 +118,10 @@ test.describe.serial('studio liens — vitrine fraîche', () => {
 
     // Carte « Votre page de liens » (maquette Studio · Liens).
     await expect(page.getByText('Votre page de liens', { exact: true })).toBeVisible()
-    const urlPage = `${BASE_URL}/@${username}`
-    await expect(page.getByText(urlPage)).toBeVisible()
+    // L'adresse est affichée sans protocole (maquette) ; la copie et le partage gardent l'adresse complète.
+    const adresseAffichee = `${new URL(BASE_URL).host}/@${username}`
+    await expect(page.getByText(adresseAffichee, { exact: true })).toBeVisible()
+    await expect(page.getByText(`${BASE_URL}/@${username}`)).toHaveCount(0)
     await expect(page.getByRole('button', { name: /Copier/ })).toBeVisible()
     await expect(page.getByRole('button', { name: /Partager/ })).toBeVisible()
     await page.getByRole('button', { name: 'Copier l’adresse de votre page de liens' }).click()
@@ -275,7 +277,7 @@ test.describe.serial('studio liens — vitrine fraîche', () => {
     await ouvrirStudio(page, '/studio/liens')
     await expect(page.getByRole('heading', { level: 1, name: 'Liens', exact: true })).toBeVisible()
     await expect(page.getByText('Votre page de liens', { exact: true })).toBeVisible()
-    await expect(page.getByText(`${BASE_URL}/@${username}`)).toBeVisible()
+    await expect(page.getByText(`${new URL(BASE_URL).host}/@${username}`, { exact: true })).toBeVisible()
     await expect(page.getByRole('button', { name: 'Partager', exact: true })).toBeVisible()
     await expect(page.getByRole('button', { name: 'QR code', exact: true })).toBeVisible()
     await expect(page.getByRole('link', { name: 'Ajouter un lien', exact: true })).toBeVisible()
