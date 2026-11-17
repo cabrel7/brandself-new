@@ -122,12 +122,14 @@ const saisieValide = computed(() => {
 const motifPermis = computed(() => motifValide(motif.value) && motif.value.trim().length <= (motifMax.value ?? Number.POSITIVE_INFINITY))
 const peutEnvoyer = computed(() => saisieValide.value && motifPermis.value && code.value !== '' && !enCours.value)
 
+// Le serveur lie le code à `<catalogue>:<identifiant>` (routes /api/admin/catalogues/[nom]/** : `${nom}:${id}`) ; un code lié
+// au seul identifiant est refusé (« Ce code de confirmation n’est pas valide »).
 const reauth = computed(() => {
   const cible = props.cible
-  if (cible?.type === 'pays') return cibleReauthCatalogue(suppression.value ? ACTIONS_CATALOGUE.supprimer : ACTIONS_CATALOGUE.modifier, cible.pays.code)
-  if (cible?.type === 'devise') return cibleReauthCatalogue(ACTIONS_CATALOGUE.modifier, cible.devise.code)
-  if (cible?.type === 'nom-retrait') return cibleReauthCatalogue(ACTIONS_CATALOGUE.supprimer, cible.nom.valeur)
-  return cibleReauthCatalogue(ACTIONS_CATALOGUE.creer, normaliserNomBloque(nomSaisi.value) || 'nouveau')
+  if (cible?.type === 'pays') return cibleReauthCatalogue(suppression.value ? ACTIONS_CATALOGUE.supprimer : ACTIONS_CATALOGUE.modifier, `pays:${cible.pays.code}`)
+  if (cible?.type === 'devise') return cibleReauthCatalogue(ACTIONS_CATALOGUE.modifier, `devises:${cible.devise.code}`)
+  if (cible?.type === 'nom-retrait') return cibleReauthCatalogue(ACTIONS_CATALOGUE.supprimer, `noms-bloques:${cible.nom.valeur}`)
+  return cibleReauthCatalogue(ACTIONS_CATALOGUE.creer, `noms-bloques:${normaliserNomBloque(nomSaisi.value) || 'nouveau'}`)
 })
 
 const libelleAction = computed(() => {

@@ -3,7 +3,9 @@ import { defineConfig } from '@playwright/test'
 export default defineConfig({
   testDir: './e2e',
   // SEO et accessibilité s'exécutent sur le build de production (playwright.seo.config.ts, job `seo-perf`).
-  testIgnore: ['seo/**', 'a11y/**'],
+  // Les specs `capture-*` sont des outils de capture d'écran (maquettes, revues), pas des garanties : exclues de la CI,
+  // lançables en local (`pnpm exec playwright test e2e/capture-admin-a4.spec.ts`).
+  testIgnore: ['seo/**', 'a11y/**', ...(process.env.CI ? ['**/capture-*.spec.ts'] : [])],
   globalSetup: './e2e/global-setup.ts',
   timeout: 120_000,
   expect: {

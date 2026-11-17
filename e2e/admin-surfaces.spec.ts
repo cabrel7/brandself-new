@@ -48,30 +48,36 @@ function observer(page: Page): ObservationPage {
 
 const estVue = (requete: Request): boolean => requete.method() === 'POST' && /\/api\/public\/[^/]+\/vue$/.test(new URL(requete.url()).pathname)
 
-/** Texte attendu au centre de chaque page : la vue d'ensemble salue l'administrateur, les autres sont provisoires. */
-function titreAttendu(to: string): string {
-  return to === '/admin' ? `Bonjour, ${NOM_ADMIN}` : 'Bientôt disponible'
-}
+/** Repère de la vue d'ensemble : elle salue l'administrateur. Toutes les autres pages sont livrées (A2 à A5). */
+const TITRE_VUE_ENSEMBLE = `Bonjour, ${NOM_ADMIN}`
 
-/** Pages livrées (A2, A3) : un repère de la page elle-même. Les autres (systèmes, réglages, journal) restent provisoires. */
+/** Un repère propre à chaque page livrée (A2 à A5) : prouve que la vraie page est rendue, pas un texte de remplacement. */
 const REPERES_PAGES_LIVREES: Readonly<Record<string, (page: Page) => Locator>> = {
   '/admin/utilisateurs': (page) => page.getByRole('search', { name: 'Rechercher des utilisateurs' }),
   '/admin/vitrines': (page) => page.getByRole('search', { name: 'Rechercher des vitrines' }),
   '/admin/abonnements': (page) => page.getByRole('heading', { level: 1, name: 'Abonnements' }),
+  // A4 : supervision (parties à titre h2), registre des réglages (choix de catégorie), journal (vérification de la chaîne).
+  '/admin/systemes': (page) => page.getByRole('heading', { level: 2, name: 'Santé' }),
+  '/admin/reglages': (page) => page.getByRole('combobox', { name: 'Catégorie' }),
+  '/admin/journal': (page) => page.getByRole('button', { name: /vérifier la chaîne/i }),
+  // A5 : catalogues et versions (onglets).
+  '/admin/catalogues': (page) => page.getByRole('tab', { name: 'Pays' }),
+  '/admin/versions': (page) => page.getByRole('tab', { name: 'Plans' }),
 }
 
-/** Attend le contenu propre à la page (repère des pages livrées, sinon le texte provisoire). */
+/** Attend le contenu propre à la page : son repère, plus aucun texte de remplacement, un seul h1 et un `main`. */
 async function attendreContenu(page: Page, to: string): Promise<void> {
-  const repere = REPERES_PAGES_LIVREES[to]
-  if (repere) {
-    await expect(repere(page)).toBeVisible()
-    await expect(page.getByText('Bientôt disponible')).toHaveCount(0)
-    // Un seul h1 par page : le titre de la barre du haut ; le contenu vit dans `main`.
-    await expect(page.getByRole('heading', { level: 1 })).toHaveCount(1)
-    await expect(page.getByRole('main')).toBeVisible()
-  } else {
-    await expect(page.getByText(titreAttendu(to))).toBeVisible()
+  if (to === '/admin') {
+    await expect(page.getByText(TITRE_VUE_ENSEMBLE)).toBeVisible()
+    return
   }
+  const repere = REPERES_PAGES_LIVREES[to]
+  expect(repere, `un repère est déclaré pour ${to}`).toBeDefined()
+  await expect(repere!(page)).toBeVisible()
+  await expect(page.getByText('Bientôt disponible')).toHaveCount(0)
+  // Un seul h1 par page : le titre de la barre du haut ; le contenu vit dans `main`.
+  await expect(page.getByRole('heading', { level: 1 })).toHaveCount(1)
+  await expect(page.getByRole('main')).toBeVisible()
 }
 
 test.describe('CA22 pages /admin/* : noindex, no-store, aucune surface publique', () => {
@@ -99,14 +105,16 @@ test.describe('CA22 pages /admin/* : noindex, no-store, aucune surface publique'
     })
   }
 
-  test('CA22 le bandeau « Administration » est présent sur chaque page, sans bouton de fermeture', async ({ page }) => {
-    for (const entree of ADMIN_NAV) {
+  // Un test par page : une navigation avec hydratation dure plusieurs dizaines de secondes sur le serveur de développement,
+  // neuf navigations dans un seul test dépassaient le délai du test (120 s) sans qu'aucune page soit en cause.
+  for (const entree of ADMIN_NAV) {
+    test(`CA22 ${entree.to} : le bandeau « Administration » est présent, sans bouton de fermeture`, async ({ page }) => {
       await page.goto(`${URL_ADMIN}${entree.to}`)
       await attendreHydration(page)
-      await expect(page.getByText('Administration', { exact: true }).first(), entree.to).toBeVisible()
-    }
-    await expect(page.getByRole('button', { name: /fermer/i })).toHaveCount(0)
-  })
+      await expect(page.getByText('Administration', { exact: true }).first()).toBeVisible()
+      await expect(page.getByRole('button', { name: /fermer/i })).toHaveCount(0)
+    })
+  }
 
   test('CA22 la barre latérale mène à chaque page et la barre du haut montre le nom de l\'administrateur et la déconnexion', async ({ page }) => {
     await page.goto(`${URL_ADMIN}/admin`)
@@ -137,7 +145,7 @@ test.describe('garde de route et séparation des hôtes (navigateur)', () => {
     await contexte.close()
   })
 
-  test('sans session, une page provisoire renvoie aussi vers la connexion', async ({ browser }) => {
+  test('sans session, une page interne (journal) renvoie aussi vers la connexion', async ({ browser }) => {
     const contexte = await browser.newContext()
     const page = await contexte.newPage()
 

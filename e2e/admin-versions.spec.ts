@@ -1,53 +1,20 @@
 import { expect, test } from '@playwright/test'
-import type { Page } from '@playwright/test'
-import { Queue } from 'bullmq'
-import Redis from 'ioredis'
-import { FILE_MESSAGES_AUTH, JOBS } from '../shared/jobs'
 import { URL_ADMIN, cookiesDepuis, creerSuperadmin, fermerAdmin, libererLimitesOtp, nettoyerComptes, ouvrirSession } from './helpers/admin'
 import type { CompteE2E, SessionE2E } from './helpers/admin'
 import { attendreHydration } from './helpers/hydratation'
-import { db, lireEnv } from './helpers/session'
+import { demanderEtSaisirCode, fermerReauth } from './helpers/reauth-admin'
+import { db } from './helpers/session'
 
 // A5 (CA03, CA11), parcours en NAVIGATEUR des versions : plan gratuit (aperçu d'impact, activation réauthentifiée, retour arrière)
-// et prix (validation). ÉCRIT, NON EXÉCUTÉ dans ce sprint. Libellés des composants livrés (VersionsHistorique : « Nouvelle version »,
-// « Activer, version N », « Retour arrière, version N », « Valider les prix » ; VersionsConfirmation : « Motif »,
-// « Code de confirmation à 6 chiffres »). Le code de réauthentification est lu dans la file `messages-auth` (file mise en pause
-// le temps de la lecture, comme e2e/admin-a2.spec.ts). Les versions créées sont retirées en fin de fichier (déclencheurs
-// utilisateur levés le temps du nettoyage seulement). CI : non vérifié.
+// et prix (validation). Libellés des composants livrés (VersionsHistorique : « Nouvelle version », « Activer, version N »,
+// « Retour arrière, version N », « Valider les prix » ; VersionsConfirmation : « Motif », « Recevoir le code », six cases de code).
+// Le code de réauthentification est lu dans la file `messages-auth` (mise en pause le temps de la lecture : helpers/reauth-admin.ts,
+// comme e2e/admin-a2.spec.ts). Les versions créées sont retirées en fin de fichier (déclencheurs utilisateur levés le temps du
+// nettoyage seulement).
 
 const MOTIF = 'Revue trimestrielle des limites'
-const ATTENTE_JOB_MS = 8_000
 let admin: CompteE2E
 let session: SessionE2E
-let redis: Redis | undefined
-let file: Queue | undefined
-
-const fileAuth = (): Queue => {
-  redis ??= new Redis(lireEnv('REDIS_URL'), { maxRetriesPerRequest: 2 })
-  file ??= new Queue(FILE_MESSAGES_AUTH, { connection: redis })
-  return file
-}
-
-/** Lit le code de réauthentification demandé par l'interface (file en pause pour qu'aucun worker ne l'emporte), puis le saisit. */
-async function saisirCode(page: Page, declencher: () => Promise<void>): Promise<void> {
-  await fileAuth().pause()
-  try {
-    await declencher()
-    const fin = Date.now() + ATTENTE_JOB_MS
-    for (;;) {
-      const jobs = await fileAuth().getJobs(['wait', 'paused', 'delayed', 'active', 'prioritized'], 0, -1)
-      const job = jobs.reverse().find((j) => j.name === JOBS.sendAdminReauthEmail && typeof (j.data as { code?: unknown }).code === 'string')
-      if (job) {
-        await page.getByLabel('Code de confirmation à 6 chiffres').first().fill((job.data as { code: string }).code)
-        return
-      }
-      if (Date.now() > fin) throw new Error('Aucun code de réauthentification demandé par l’interface.')
-      await new Promise((resolve) => setTimeout(resolve, 100))
-    }
-  } finally {
-    await fileAuth().resume()
-  }
-}
 
 async function retirerVersionsDeTest(): Promise<void> {
   const client = db()
@@ -74,8 +41,7 @@ test.beforeAll(async () => {
 test.afterAll(async () => {
   await retirerVersionsDeTest()
   await nettoyerComptes()
-  await fileAuth().close()
-  await redis?.quit()
+  await fermerReauth()
   await fermerAdmin()
 })
 
@@ -93,24 +59,32 @@ test.describe('plans', () => {
     const edition = page.getByRole('dialog')
     await expect(edition).toBeVisible()
     await edition.getByLabel('Motif').fill(MOTIF)
-    await edition.getByRole('button', { name: /Enregistrer|Créer/ }).last().click()
+    await edition.getByRole('button', { name: 'Enregistrer le brouillon' }).click()
     await expect(page.getByText('Version 2').first()).toBeVisible()
 
     await page.getByRole('button', { name: 'Activer, version 2' }).click()
     const confirmation = page.getByRole('dialog')
-    await expect(confirmation.getByRole('button', { name: /Activer/ }).last(), 'désactivé tant que l\'aperçu ou le code manque').toBeDisabled()
+    const activer = confirmation.getByRole('button', { name: 'Activer', exact: true })
+    await expect(activer, 'désactivé tant que l\'aperçu ou le code manque').toBeDisabled()
     await expect(confirmation.getByText(/Estimation : la période de grâce/)).toBeVisible({ timeout: 30_000 })
     await confirmation.getByLabel('Motif').fill(MOTIF)
-    await saisirCode(page, async () => { await confirmation.getByRole('button', { name: /code/i }).first().click().catch(() => undefined) })
-    await confirmation.getByRole('button', { name: /Activer/ }).last().click()
+    // Si l'aperçu touche des comptes, l'activation exige d'acquitter CET impact (interrupteur) ; sinon il n'existe pas.
+    const acquittement = confirmation.getByRole('switch', { name: /pris connaissance de cet impact/ })
+    if (await acquittement.count() > 0) await acquittement.click()
+    await demanderEtSaisirCode(confirmation)
+    await expect(activer, 'activable une fois l\'aperçu chargé, le motif et le code saisis').toBeEnabled()
+    await activer.click()
     await expect(page.getByRole('dialog')).toHaveCount(0)
     expect(await numerosActifs('plan', 'gratuit')).toEqual([2])
 
-    await page.getByRole('button', { name: 'Retour arrière, version 1' }).click()
+    // Le retour arrière se demande sur la version ACTIVE (la 2) : il rétablit la précédente (la 1).
+    await page.getByRole('button', { name: 'Retour arrière, version 2' }).click()
     const retour = page.getByRole('dialog')
     await retour.getByLabel('Motif').fill(MOTIF)
-    await saisirCode(page, async () => { await retour.getByRole('button', { name: /code/i }).first().click().catch(() => undefined) })
-    await retour.getByRole('button', { name: /Retour arrière|Confirmer/ }).last().click()
+    const confirmerRetour = retour.getByRole('button', { name: 'Retour arrière', exact: true })
+    await expect(confirmerRetour, 'désactivé tant que le code manque').toBeDisabled()
+    await demanderEtSaisirCode(retour)
+    await confirmerRetour.click()
     await expect(page.getByRole('dialog')).toHaveCount(0)
     expect(await numerosActifs('plan', 'gratuit')).toEqual([1])
   })
@@ -125,8 +99,10 @@ test.describe('prix', () => {
     await page.getByRole('button', { name: /^Valider les prix/ }).click()
     const confirmation = page.getByRole('dialog')
     await confirmation.getByLabel('Motif').fill(MOTIF)
-    await saisirCode(page, async () => { await confirmation.getByRole('button', { name: /code/i }).first().click().catch(() => undefined) })
-    await confirmation.getByRole('button', { name: /Valider/ }).last().click()
+    const valider = confirmation.getByRole('button', { name: 'Valider les prix', exact: true })
+    await expect(valider, 'désactivé tant que le code manque').toBeDisabled()
+    await demanderEtSaisirCode(confirmation)
+    await valider.click()
     await expect(page.getByRole('dialog')).toHaveCount(0)
 
     const ligne = await db().query("SELECT validee_le FROM configuration_versions WHERE categorie = 'prix' AND statut = 'active'")

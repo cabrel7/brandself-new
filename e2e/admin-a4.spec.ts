@@ -54,7 +54,7 @@ test.describe('maintenance (CA02, CA03)', () => {
     expect(refusee.status()).toBe(503)
     expect(refusee.headers()['retry-after']).toBe('300')
     expect((await request.get(`${ORIGINE_PUBLIC}/api/public/etat`)).status()).toBe(200)
-    expect(await (await request.get(`${ORIGINE_PUBLIC}/api/public/etat`)).json()).toEqual({ maintenance: true, message: MESSAGE })
+    expect(await (await request.get(`${ORIGINE_PUBLIC}/api/public/etat`)).json()).toEqual({ maintenance: true, message: MESSAGE, inscriptions: true })
     const sessionAdmin = await request.get(`${ORIGINE_ADMIN}/api/admin/session`, { headers: { cookie: session.cookie } })
     expect(sessionAdmin.status()).toBe(200)
 
@@ -69,10 +69,18 @@ test.describe('réglages, systèmes et journal (écrans)', () => {
     await page.goto(`${URL_ADMIN}/admin/reglages`)
     await attendreHydration(page)
 
-    await page.getByLabel('Message de maintenance').fill(MESSAGE)
-    await page.getByRole('button', { name: /enregistrer/i }).first().click()
-    await page.getByLabel('Motif').fill('Préparation d’une opération')
-    await page.getByRole('button', { name: /confirmer|enregistrer/i }).last().click()
+    // Le message de maintenance est dans la catégorie « Accès et maintenance » (la page s'ouvre sur la première).
+    await page.getByRole('combobox', { name: 'Catégorie' }).click()
+    await page.getByRole('option', { name: 'Accès et maintenance' }).click()
+    const champ = page.getByLabel('Message de maintenance')
+    await champ.fill(MESSAGE)
+    // Chaque réglage a son propre formulaire et son propre « Enregistrer » : on prend celui du message.
+    await page.locator('form').filter({ has: champ }).getByRole('button', { name: 'Enregistrer' }).click()
+    const dialogue = page.getByRole('dialog')
+    await dialogue.getByLabel('Motif').fill('Préparation d’une opération')
+    // Ce réglage n'exige pas de code de réauthentification (`reauth: false`).
+    await expect(dialogue.getByText('Code de confirmation')).toHaveCount(0)
+    await dialogue.getByRole('button', { name: 'Enregistrer', exact: true }).click()
 
     await expect.poll(async () => (await db().query(`SELECT 1 FROM journal_admin WHERE action = 'reglage.modifier' AND cible_id = 'maintenance.message'`)).rowCount, { timeout: 10_000 }).toBe(1)
     await expect(page.getByRole('dialog')).toHaveCount(0)

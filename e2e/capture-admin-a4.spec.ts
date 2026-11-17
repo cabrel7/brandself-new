@@ -115,7 +115,7 @@ for (const vue of VUES) {
     })
 
     test('réglages : accès, IA, lecture seule, dialogue de confirmation', async ({ page }) => {
-      await capturer(page, 'reglages-acces', '/admin/reglages', async () => {
+      await capturer(page, 'reglages-acces', '/admin/reglages?categorie=acces', async () => {
         await expect(page.getByRole('switch').first()).toBeVisible()
       })
       await capturer(page, 'reglages-ia', '/admin/reglages?categorie=ia', async () => {
@@ -126,7 +126,8 @@ for (const vue of VUES) {
       }, async () => {
         const champ = page.getByRole('spinbutton').first()
         await champ.fill('4')
-        await page.getByRole('button', { name: 'Enregistrer' }).first().click()
+        // Chaque réglage a son formulaire et son « Enregistrer » (désactivé tant que rien n'a changé) : celui du champ modifié.
+        await page.locator('form').filter({ has: champ }).getByRole('button', { name: 'Enregistrer' }).click()
         await expect(page.getByRole('dialog')).toBeVisible()
       })
     })
