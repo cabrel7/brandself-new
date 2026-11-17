@@ -117,13 +117,14 @@ const indisponible = computed(() => Boolean(erreur.value) || !tarifs.value || ca
               {{ carte.titre }}
             </h3>
             <div class="flex flex-col gap-1">
-              <p class="m-0 min-h-6 text-(length:--fs-14)" :class="carte.sombre ? 'text-fond/80' : 'text-texte-secondaire'">
+              <!-- `opacity-80` et non `text-fond/80` : le modificateur d'opacité de Tailwind produit une couleur composée que l'audit d'accessibilité de Lighthouse ne sait pas lire. -->
+              <p class="m-0 min-h-6 text-(length:--fs-14)" :class="carte.sombre ? 'text-fond opacity-80' : 'text-texte-secondaire'">
                 {{ carte.accroche }}
               </p>
               <p v-if="carte.prix" class="m-0 font-(family-name:--font-titre) text-(length:--fs-48) leading-tight font-medium">
                 {{ carte.prix }}
               </p>
-              <p v-if="carte.precision" class="m-0 text-(length:--fs-14)" :class="carte.sombre ? 'text-fond/80' : 'text-texte-secondaire'">
+              <p v-if="carte.precision" class="m-0 text-(length:--fs-14)" :class="carte.sombre ? 'text-fond opacity-80' : 'text-texte-secondaire'">
                 {{ carte.precision }}
               </p>
             </div>
@@ -136,7 +137,7 @@ const indisponible = computed(() => Boolean(erreur.value) || !tarifs.value || ca
             <BsButton v-if="carte.action" :to="carte.action.to" :variant="carte.sombre ? 'principal' : 'contour'" block>
               {{ carte.action.label }}
             </BsButton>
-            <p v-else-if="carte.note" class="m-0 flex items-start gap-2 text-fond/80">
+            <p v-else-if="carte.note" class="m-0 flex items-start gap-2 text-fond opacity-80">
               <UIcon name="i-ph-clock" class="mt-0.5 size-5 shrink-0" aria-hidden="true" />
               <span>{{ carte.note }}</span>
             </p>
