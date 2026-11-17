@@ -312,7 +312,10 @@ async function autreCreneau() {
   margin: 1.25rem 0 0;
   font-size: var(--fs-14);
   text-align: center;
-  color: color-mix(in srgb, var(--fond) 78%, var(--encre));
+  /* Texte clair atténué sur fond sombre : opacité plutôt que `color-mix` (résolu en `color(srgb …)`, illisible par l'audit
+     d'accessibilité de Lighthouse). */
+  color: var(--fond);
+  opacity: 0.78;
 }
 
 @media (min-width: 60.0625rem) {

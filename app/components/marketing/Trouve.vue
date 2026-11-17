@@ -383,6 +383,8 @@ onBeforeUnmount(arreter)
 .trouve {
   /* Couleurs des interfaces tierces illustrées (Google, barre du navigateur). Seul endroit où elles existent. */
   --mock-page: #fff;
+  /* Résultat mis en avant : 60 % de --accent-doux sur --mock-page (valeur fixe, `color-mix` illisible par l'audit Lighthouse). */
+  --mock-surbrillance: #f7ebe4;
   --mock-texte: #202124;
   --mock-texte-doux: #4d5156;
   --mock-adresse-texte: #3c4043;
@@ -667,7 +669,7 @@ onBeforeUnmount(arreter)
 }
 
 .resultat--surligne {
-  background: color-mix(in srgb, var(--accent-doux) 60%, var(--mock-page));
+  background: var(--mock-surbrillance);
   box-shadow: 0 0 0 2px var(--accent);
 }
 

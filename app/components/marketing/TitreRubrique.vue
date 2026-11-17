@@ -37,7 +37,8 @@ defineProps<{
 }
 
 .entete--sombre .surtitre {
-  color: color-mix(in srgb, var(--accent) 55%, var(--fond));
+  /* Jeton plein, pas `color-mix` : résolu en `color(srgb …)`, il fait échouer l'audit d'accessibilité de Lighthouse. */
+  color: var(--accent-doux);
 }
 
 .titre {
