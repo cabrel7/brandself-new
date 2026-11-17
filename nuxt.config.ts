@@ -187,6 +187,11 @@ export default defineNuxtConfig({
     nitro: { externals: { trace: false } },
   },
   compatibilityDate: '2025-07-15',
+  // Production : les fichiers de `.output/public` (CSS, JS, SVG) sont précompressés au build (gzip et brotli) et servis avec
+  // `Content-Encoding` selon l'en-tête `Accept-Encoding`. Sans cela, le serveur Node les envoie bruts (mesuré par Lighthouse
+  // le 2026-11-17 : transfert = taille réelle, 779 Kio d'économie possible sur /tarifs) et seuls les hôtes nginx qui compressent
+  // eux-mêmes (deploy/nginx/admin.conf) en profitent.
+  nitro: { compressPublicAssets: { gzip: true, brotli: true } },
   // Désactivé : les Nuxt DevTools alourdissent fortement le dev sur 7 Go de RAM.
   // Réactiver ponctuellement avec `devtools: { enabled: true }`.
   devtools: { enabled: false },
