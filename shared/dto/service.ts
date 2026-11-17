@@ -28,6 +28,8 @@ export interface ServiceStudioDTO {
   ordre: number
   creeLe: string
   modifieLe: string
+  /** S16 : origine du contenu — 'utilisateur' (studio) ou 'assistant' (MCP). */
+  source: 'utilisateur' | 'assistant'
 }
 
 export interface ServicesCompteursDTO {

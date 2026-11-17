@@ -22,25 +22,27 @@ function executeur(reponses: Rangee[][]) {
 
 const FUTUR = new Date('2036-01-01T23:00:00.000Z')
 const NOW = new Date('2026-11-03T13:00:00.000Z')
+// A5 (D-A5-04) : sous verrou, la limite est relue SANS cache dans la transaction (1 lecture des versions actives) ; aucune ligne = repli sur le code.
+const VERSIONS_ACTIVES: Rangee[] = []
 
 describe('assertQuota : plan sans limite (CA90)', () => {
   it.each(['services', 'realisations', 'temoignages', 'reservations_mois', 'generations_ia_mois'] as const)('should not throw nor lock anything for %s on the paid plan', async (ressource) => {
     const { assertQuota } = await modulePlans()
-    const tx = executeur([[{ fuseau: 'Africa/Douala', plan: 'payant', expireLe: FUTUR }]])
+    const tx = executeur([[{ fuseau: 'Africa/Douala', plan: 'payant', expireLe: FUTUR }], VERSIONS_ACTIVES])
 
     const mesure = await assertQuota(tx as never, { userId: 'u', vitrineId: 'v' }, ressource, NOW)
 
     expect(mesure).toMatchObject({ plan: 'payant', limite: null, atteinte: false })
     expect(tx.execute).not.toHaveBeenCalled()
-    // Une seule lecture (le plan) : rien n'est compté quand la ressource est illimitée.
-    expect(tx.select).toHaveBeenCalledTimes(1)
+    // Deux lectures (le plan, puis les versions actives) : rien n'est compté quand la ressource est illimitée.
+    expect(tx.select).toHaveBeenCalledTimes(2)
   })
 })
 
 describe('assertQuota : plan gratuit', () => {
   it('should refuse with 403 LIMITE_PLAN_ATTEINTE carrying the usage when the limit is reached', async () => {
     const { assertQuota } = await modulePlans()
-    const tx = executeur([[{ fuseau: 'Africa/Douala', plan: null, expireLe: null }], [{ total: PLANS.gratuit.services }]])
+    const tx = executeur([[{ fuseau: 'Africa/Douala', plan: null, expireLe: null }], VERSIONS_ACTIVES, [{ total: PLANS.gratuit.services }]])
 
     const erreur = await echec(() => assertQuota(tx as never, { userId: 'u', vitrineId: 'v' }, 'services', NOW))
 
@@ -50,7 +52,7 @@ describe('assertQuota : plan gratuit', () => {
   it('should accept when usage is one below the limit', async () => {
     const { assertQuota } = await modulePlans()
     const limite = PLANS.gratuit.services as number
-    const tx = executeur([[{ fuseau: 'Africa/Douala', plan: null, expireLe: null }], [{ total: limite - 1 }]])
+    const tx = executeur([[{ fuseau: 'Africa/Douala', plan: null, expireLe: null }], VERSIONS_ACTIVES, [{ total: limite - 1 }]])
 
     const mesure = await assertQuota(tx as never, { userId: 'u', vitrineId: 'v' }, 'services', NOW)
 
@@ -59,7 +61,7 @@ describe('assertQuota : plan gratuit', () => {
 
   it.each(['reservations_mois', 'generations_ia_mois'] as const)('should take exactly one advisory lock for the limited resource %s', async (ressource) => {
     const { assertQuota } = await modulePlans()
-    const tx = executeur([[{ fuseau: 'Africa/Douala', plan: null, expireLe: null }], [{ total: 0 }]])
+    const tx = executeur([[{ fuseau: 'Africa/Douala', plan: null, expireLe: null }], VERSIONS_ACTIVES, [{ total: 0 }]])
 
     await assertQuota(tx as never, { userId: 'u', vitrineId: 'v' }, ressource, NOW)
 

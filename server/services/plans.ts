@@ -1,6 +1,7 @@
-import { and, count, eq, gt, gte, inArray, lt, or, sql } from 'drizzle-orm'
+import { and, count, eq, gt, gte, inArray, isNull, lt, or, sql } from 'drizzle-orm'
 import {
   abonnements,
+  capacitesAccordees,
   generationsIa,
   realisations,
   reservations,
@@ -11,16 +12,19 @@ import {
 } from '../../shared/db/schema'
 import type { QuotaDTO } from '../../shared/dto/abonnement'
 import type { QuotaIaDTO } from '../../shared/dto/ia'
-import { GENERATION_EXPIRATION_MS } from '../../shared/ia'
+import { GENERATION_EXPIRATION_MS, IA_TYPES_QUOTA } from '../../shared/ia'
 import {
   ABONNEMENT_FUSEAU_REPLI,
   ABONNEMENT_GRACE_JOURS,
   PLAN_IDS,
   RESSOURCES_QUOTA,
 } from '../../shared/plans'
-import type { EtatAbonnement, PlanId, RessourceQuota } from '../../shared/plans'
-import { LIMITE_CHAMP_PAR_RESSOURCE, PLANS, PLAN_GRATUIT_ID } from '../config/plans'
+import type { CapacitePayante, EtatAbonnement, PlanId, RessourceQuota } from '../../shared/plans'
+import { REGLAGE_CLES } from '../../shared/reglages'
+import { LIMITE_CHAMP_PAR_RESSOURCE, PLAN_GRATUIT_ID } from '../config/plans'
 import { db } from '../utils/db'
+import { assurerInstantane, lirePlanConfig, lirePlanConfigSansCache, lirePlanVersionne } from './configuration/lecture'
+import { Reglages } from './reglages'
 import { ajouterJoursLocaux, bornesMoisLocal, construireErreurLimite, dernierJourInclusLocal } from './plans-regles'
 import type { Executor, Transaction } from './vitrine-acces'
 
@@ -88,9 +92,10 @@ export function resoudrePlanEffectif(
   abonnement: AbonnementLu | null,
   now: Date,
   fuseau: string = ABONNEMENT_FUSEAU_REPLI,
+  graceJours: number = ABONNEMENT_GRACE_JOURS,
 ): PlanEffectif {
   if (abonnement === null || !estPlanVendu(abonnement.plan)) return planGratuit()
-  const graceJusquau = ajouterJoursLocaux(abonnement.expireLe, ABONNEMENT_GRACE_JOURS, fuseau)
+  const graceJusquau = ajouterJoursLocaux(abonnement.expireLe, graceJours, fuseau)
   const commun = {
     plan: abonnement.plan,
     expireLe: abonnement.expireLe,
@@ -103,6 +108,20 @@ export function resoudrePlanEffectif(
   return planGratuit()
 }
 
+/**
+ * Durée de la grâce (jours) : SOURCE UNIQUE, le réglage `abonnement.grace_jours`. Cache de 5 s (celui des réglages),
+ * repli sur `ABONNEMENT_GRACE_JOURS` si la lecture est impossible, jamais d'exception. Tout lecteur de la grâce
+ * (plan effectif, tarifs, sitemap, filtres d'administration, aperçu d'impact, e-mail) passe par ici.
+ */
+export async function lireGraceJours(): Promise<number> {
+  try {
+    const valeur = await Reglages.lire(REGLAGE_CLES.abonnementGraceJours)
+    return Number.isInteger(valeur) && valeur >= 0 ? valeur : ABONNEMENT_GRACE_JOURS
+  } catch {
+    return ABONNEMENT_GRACE_JOURS
+  }
+}
+
 interface PlanLu {
   effectif: PlanEffectif
   /** `users.fuseau` (repli si l'utilisateur n'existe pas). */
@@ -111,6 +130,8 @@ interface PlanLu {
 
 /** Une seule requête : le fuseau du compte et son abonnement éventuel (clé unique). */
 async function lirePlan(executor: Executor, userId: string, now: Date): Promise<PlanLu> {
+  // A5 (D-A5-04) : l'instantané des versions actives a au plus 5 s ; `limiteDe` et les lecteurs de `lirePlanConfig` sont synchrones.
+  await assurerInstantane()
   const [ligne] = await executor
     .select({ fuseau: users.fuseau, plan: abonnements.plan, expireLe: abonnements.expireLe })
     .from(users)
@@ -119,7 +140,9 @@ async function lirePlan(executor: Executor, userId: string, now: Date): Promise<
     .limit(1)
   if (!ligne) return { effectif: planGratuit(), fuseau: ABONNEMENT_FUSEAU_REPLI }
   const abonnement = ligne.plan !== null && ligne.expireLe !== null ? { plan: ligne.plan, expireLe: ligne.expireLe } : null
-  return { effectif: resoudrePlanEffectif(abonnement, now, ligne.fuseau), fuseau: ligne.fuseau }
+  // A4 : durée de grâce pilotée par le réglage `abonnement.grace_jours` (repli : valeur du code, jamais d'exception).
+  const graceJours = await lireGraceJours()
+  return { effectif: resoudrePlanEffectif(abonnement, now, ligne.fuseau, graceJours), fuseau: ligne.fuseau }
 }
 
 export async function getPlanEffectif(userId: string, now: Date = new Date(), executor: Executor = db): Promise<PlanEffectif> {
@@ -131,9 +154,9 @@ export async function getPlanForUser(userId: string, now: Date = new Date()): Pr
   return (await getPlanEffectif(userId, now)).plan
 }
 
-/** Limite d'une ressource pour un plan ; `null` = illimité. */
+/** Limite d'une ressource pour un plan ; `null` = illimité. A5 : lue sur la version ACTIVE (cache de 5 s), repli sur le code. */
 export function limiteDe(plan: PlanId, ressource: RessourceQuota): number | null {
-  return PLANS[plan][LIMITE_CHAMP_PAR_RESSOURCE[ressource]]
+  return lirePlanConfig(plan)[LIMITE_CHAMP_PAR_RESSOURCE[ressource]]
 }
 
 function exigerVitrine(contexte: ContexteQuota, ressource: RessourceQuota): string {
@@ -192,6 +215,8 @@ async function compterUtilise(
         .where(
           and(
             eq(generationsIa.userId, contexte.userId),
+            // Décision #24 : le SEO de fond n'est pas une demande de l'utilisateur, il ne consomme pas son quota.
+            inArray(generationsIa.type, [...IA_TYPES_QUOTA]),
             gte(generationsIa.createdAt, debut),
             lt(generationsIa.createdAt, fin),
             or(
@@ -225,7 +250,10 @@ async function mesurer(
   avecVerrou: Transaction | null,
 ): Promise<ResultatQuota> {
   const { effectif, fuseau } = await lirePlan(executor, contexte.userId, now)
-  const limite = limiteDe(effectif.plan, ressource)
+  // A5 (D-A5-04) : sous verrou (écriture), la limite est relue SANS cache, dans la transaction : jamais un quota périmé.
+  const limite = avecVerrou === null
+    ? limiteDe(effectif.plan, ressource)
+    : (await lirePlanConfigSansCache(effectif.plan, avecVerrou))[LIMITE_CHAMP_PAR_RESSOURCE[ressource]]
   // Illimité : rien à compter, AUCUN verrou pris (CA90).
   if (limite === null) return { plan: effectif.plan, etat: effectif.etat, limite: null, utilise: null, atteinte: false }
   if (avecVerrou !== null) await verrouiller(avecVerrou, contexte, ressource)
@@ -313,4 +341,25 @@ export async function getIaQuota(userId: string, now: Date = new Date()): Promis
     restantes: limite === null ? null : Math.max(0, limite - utilisees),
     depasse: limite !== null && utilisees >= limite,
   }
+}
+
+/**
+ * A4 (D-A4-11) : le compte a-t-il une capacité accordée par l'administration (non révoquée) ? Lecture directe, sans
+ * cache : une révocation prend effet au prochain appel. Se combine avec le plan (capacité incluse dans le plan payant).
+ */
+export async function aCapaciteAccordee(userId: string, capacite: CapacitePayante, executor: Executor = db): Promise<boolean> {
+  const [ligne] = await executor
+    .select({ id: capacitesAccordees.id })
+    .from(capacitesAccordees)
+    .where(and(eq(capacitesAccordees.userId, userId), eq(capacitesAccordees.capacite, capacite), isNull(capacitesAccordees.revoqueLe)))
+    .limit(1)
+  return ligne !== undefined
+}
+
+/** Capacité `mcp` : plan payant (actif ou en grâce) OU capacité accordée par l'administration. */
+export async function aCapaciteMcp(userId: string, now: Date = new Date(), executor: Executor = db): Promise<boolean> {
+  const plan = await getPlanEffectif(userId, now, executor)
+  // A5 : la capacité `mcp` d'un plan vient de sa version active (`capacites.mcp`), plus d'une règle codée en dur.
+  if (lirePlanVersionne(plan.plan).capacites.mcp) return true
+  return aCapaciteAccordee(userId, 'mcp', executor)
 }

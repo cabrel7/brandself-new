@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { MARQUE } from '../../shared/brand'
 import {
   chiffresTelephone, dernierJourAvant, detailPeriode, formaterJourLocal, formaterMontant,
   libelleJoursRestants, phraseRappels, premierJourMoisSuivant, telephoneSaisiPlausible,
@@ -45,6 +46,6 @@ describe('abonnement (app/utils)', () => {
     const illimite = { 'services': null, 'realisations': null, 'temoignages': null, 'reservations_mois': null, 'generations_ia_mois': null }
     const payant = lignesPlan({ id: 'payant', limites: illimite, badge: false, statistiquesJours: 90 })
     expect(payant[0]).toBe('Services, réalisations et témoignages illimités')
-    expect(payant).toContain('Sans badge Brandself')
+    expect(payant).toContain(`Sans badge ${MARQUE.nom}`)
   })
 })

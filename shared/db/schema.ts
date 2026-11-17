@@ -1,5 +1,6 @@
 import { desc, sql } from 'drizzle-orm'
 import {
+  bigint,
   boolean,
   check,
   date,
@@ -11,6 +12,7 @@ import {
   text,
   time,
   timestamp,
+  unique,
   uniqueIndex,
   primaryKey,
 } from 'drizzle-orm/pg-core'
@@ -35,9 +37,28 @@ export const users = pgTable('users', {
   email_hebdo: boolean('email_hebdo').notNull().default(true),
   // S9 (migration 0020) : préférence « rendez-vous du jour » (e-mail du matin au professionnel), désabonnable.
   email_rappel_jour: boolean('email_rappel_jour').notNull().default(true),
+  // A1 (migration 0028) : plugin admin() de Better Auth. Les PROPRIÉTÉS (role, banned, banReason,
+  // banExpires) sont les noms de champs du plugin (node_modules/better-auth/dist/plugins/admin/schema.mjs,
+  // exigés par l'adaptateur Drizzle) ; les colonnes SQL sont en français. `role` ∈ {'user','superadmin'}
+  // (CHECK) ; la source des valeurs côté application est shared/admin.ts. `banned` = compte suspendu.
+  role: text('role').notNull().default('user'),
+  banned: boolean('suspendu').notNull().default(false),
+  banReason: text('motif_suspension'),
+  banExpires: timestamp('suspension_fin', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
-})
+}, (table) => [
+  check('users_role_check', sql`${table.role} IN ('user','superadmin')`),
+  // Index partiel : ne contient que les comptes privilégiés (quelques lignes). Requête réelle :
+  // « liste des superadmins » (requireSuperadmin, sendVerificationOTP de l'hôte admin, admin:reinitialiser).
+  index('users_role_privilegie_idx').on(table.role).where(sql`${table.role} <> 'user'`),
+  // A2 (migration 0029, docs/specs/A2-utilisateurs-vitrines.md §3). Requêtes réelles de la liste des comptes :
+  // filtre « suspendus » (index partiel : quelques lignes), tri par défaut « plus récents d'abord », recherche
+  // par numéro de téléphone (égalité sur les chiffres, D-A2-11 ; partiel : la colonne est facultative).
+  index('users_suspendu_idx').on(table.banned).where(sql`${table.banned}`),
+  index('users_cree_le_idx').on(desc(table.createdAt)),
+  index('users_telephone_idx').on(table.phoneNumber).where(sql`${table.phoneNumber} IS NOT NULL`),
+])
 
 export const sessions = pgTable(
   'sessions',
@@ -50,12 +71,18 @@ export const sessions = pgTable(
     token: text('token').notNull(),
     ipAddress: text('ip_address'),
     userAgent: text('user_agent'),
+    // A1 (migration 0028). `impersonatedBy` : champ du plugin admin() ; l'impersonation est INTERDITE
+    // (CHECK sessions_sans_incarnation_check : toujours NULL). `admin` : session ouverte sur l'hôte
+    // d'administration (durée absolue 8 h imposée par la garde, voir docs/specs/A1-socle-admin.md D-A1-05).
+    impersonatedBy: text('incarne_par'),
+    admin: boolean('admin').notNull().default(false),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
     uniqueIndex('sessions_token_unique').on(table.token),
     index('sessions_user_id_idx').on(table.userId),
+    check('sessions_sans_incarnation_check', sql`${table.impersonatedBy} IS NULL`),
   ],
 )
 
@@ -145,6 +172,14 @@ export const vitrines = pgTable(
     palette: text('palette').notNull().default('terracotta'),
     seoTitre: text('seo_titre'),
     seoDescription: text('seo_description'),
+    // Migration 0027 : proposition SEO générée par l'IA, stockée à part des champs saisis (seo_titre/seo_description
+    // restent la saisie manuelle et gagnent toujours). `seo_ia_signature` = empreinte SHA-256 (hex) des données
+    // d'entrée qui ont produit la proposition ; `seo_ia_genere_le` = date de génération. Les quatre colonnes sont
+    // soit toutes NULL, soit signature + date renseignées (titre et description pouvant manquer isolément).
+    seoIaTitre: text('seo_ia_titre'),
+    seoIaDescription: text('seo_ia_description'),
+    seoIaSignature: text('seo_ia_signature'),
+    seoIaGenereLe: timestamp('seo_ia_genere_le', { withTimezone: true }),
     sectionsMasquees: text('sections_masquees').array().notNull().default([]),
     // S9 (migration 0020) : étapes de « prochaine étape » ignorées pour toujours (sous-ensemble de NEXT_STEPS) et
     // date du premier partage de la vitrine (le canal n'est pas stocké : minimisation).
@@ -155,11 +190,26 @@ export const vitrines = pgTable(
     preavisHeures: integer('preavis_heures').notNull().default(2),
     horizonJours: integer('horizon_jours').notNull().default(60),
     publieeLe: timestamp('publiee_le', { withTimezone: true }),
+    // A2 (migration 0029, D-A2-02) : dépublication par l'administration. `publiee_le` est CONSERVÉE : republier
+    // = remettre `blocage_admin` à false. Le motif (5-500) est affiché au professionnel, jamais au visiteur.
+    blocageAdmin: boolean('blocage_admin').notNull().default(false),
+    blocageMotif: text('blocage_motif'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
     index('vitrines_photo_media_id_idx').on(table.photoMediaId),
+    // A2 : liste « vitrines bloquées » de l'administration (index partiel : quelques lignes).
+    index('vitrines_blocage_idx').on(table.blocageAdmin).where(sql`${table.blocageAdmin}`),
+    // A2 : bornes du motif recopiées de shared/admin.ts (motif 5-500) : garder synchronisées. `IS NOT NULL` est
+    // indispensable (ÉCART DE LA SPEC §3, voir rapport) : sans lui, char_length(btrim(NULL)) BETWEEN ... vaut NULL et un
+    // CHECK à NULL est ACCEPTÉ par PostgreSQL : une vitrine bloquée SANS motif passerait.
+    check(
+      'vitrines_blocage_check',
+      sql`(${table.blocageAdmin} = false AND ${table.blocageMotif} IS NULL)
+        OR (${table.blocageAdmin} = true AND ${table.blocageMotif} IS NOT NULL
+          AND char_length(btrim(${table.blocageMotif})) BETWEEN 5 AND 500)`,
+    ),
     // Les listes ci-dessous sont recopiées en dur : la source côté application est
     // shared/palettes.ts (PALETTES) et shared/vitrine.ts (TITRES). Garder les trois synchronisées.
     check('vitrines_titre_check', sql`${table.titre} IS NULL OR ${table.titre} IN ('dr','pr','me','m','mme')`),
@@ -179,6 +229,23 @@ export const vitrines = pgTable(
     check(
       'vitrines_etapes_ignorees_check',
       sql`${table.etapesIgnorees} <@ ARRAY['photo','service','disponibilites','realisation','partager']::text[]`,
+    ),
+    // Migration 0027 : bornes de la proposition SEO IA (titre 10-50, description 50-160, signature SHA-256 hex).
+    check(
+      'vitrines_seo_ia_titre_check',
+      sql`${table.seoIaTitre} IS NULL OR char_length(${table.seoIaTitre}) BETWEEN 10 AND 50`,
+    ),
+    check(
+      'vitrines_seo_ia_description_check',
+      sql`${table.seoIaDescription} IS NULL OR char_length(${table.seoIaDescription}) BETWEEN 50 AND 160`,
+    ),
+    check(
+      'vitrines_seo_ia_signature_check',
+      sql`${table.seoIaSignature} IS NULL OR ${table.seoIaSignature} ~ '^[0-9a-f]{64}$'`,
+    ),
+    check(
+      'vitrines_seo_ia_coherence_check',
+      sql`(${table.seoIaSignature} IS NULL) = (${table.seoIaGenereLe} IS NULL) AND (${table.seoIaSignature} IS NOT NULL OR (${table.seoIaTitre} IS NULL AND ${table.seoIaDescription} IS NULL))`,
     ),
   ],
 )
@@ -214,12 +281,16 @@ export const services = pgTable(
     enVedette: boolean('en_vedette').notNull().default(false),
     ordre: integer('ordre').notNull().default(0),
     actif: boolean('actif').notNull().default(true),
+    // S16 : origine du contenu — 'utilisateur' (studio) ou 'assistant' (MCP). Un contenu créé par
+    // un assistant est brouillon (actif = false) et ne peut pas être publié via le MCP.
+    source: text('source').notNull().default('utilisateur'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
     // Unicité PAR vitrine ; sert aussi les recherches par vitrine_id (préfixe de l'index).
     uniqueIndex('services_vitrine_id_slug_unique').on(table.vitrineId, table.slug),
+    check('services_source_check', sql`${table.source} IN ('utilisateur','assistant')`),
     index('services_image_media_id_idx').on(table.imageMediaId),
     check('services_type_check', sql`${table.type} IN ('rdv','accompagnement','atelier','devis')`),
     check('services_tarif_check', sql`${table.tarif} IN ('gratuit','payant','devis')`),
@@ -289,12 +360,16 @@ export const realisations = pgTable(
     enVedette: boolean('en_vedette').notNull().default(false),
     ordre: integer('ordre').notNull().default(0),
     actif: boolean('actif').notNull().default(true),
+    // S16 : origine du contenu — 'utilisateur' (studio) ou 'assistant' (MCP). Une réalisation créée
+    // par un assistant sans image principale est brouillon et ne peut pas être activée.
+    source: text('source').notNull().default('utilisateur'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
     // Unicité PAR vitrine ; sert aussi les recherches par vitrine_id (préfixe de l'index).
     uniqueIndex('realisations_vitrine_id_slug_unique').on(table.vitrineId, table.slug),
+    check('realisations_source_check', sql`${table.source} IN ('utilisateur','assistant')`),
     index('realisations_image_media_id_idx').on(table.imageMediaId),
     check(
       'realisations_slug_format_check',
@@ -602,7 +677,11 @@ export const emailsTransactionnels = pgTable(
         'utilisateur_resume_hebdo',
         'utilisateur_rappel_journee',
         'abonnement_rappel',
-        'paiement_confirme'
+        'paiement_confirme',
+        'utilisateur_suspendu',
+        'utilisateur_reactive',
+        'utilisateur_jours_offerts',
+        'utilisateur_depubliee'
       )`,
     ),
     check(
@@ -676,6 +755,13 @@ export const promptsIa = pgTable(
     parametres: jsonb('parametres').notNull().default({}),
     schemaSortie: text('schema_sortie').notNull(),
     actif: boolean('actif').notNull().default(false),
+    // A5 (migration 0032, D-A5-09) : pourquoi cette version a été créée et par qui (identifiant d'administrateur,
+    // `systeme` pour une migration). Nullables : `cree_par` reste NULL pour l'historique (0018, 0027) ; `motif` y est
+    // rempli par la migration. SEULS `actif` (et ces deux colonnes à la création) bougent : un déclencheur de la
+    // migration (`prompts_ia_figer`, non généré par drizzle-kit) fige systeme, gabarit, variables, parametres,
+    // schema_sortie, type, version et created_at, et interdit la suppression (42501).
+    motif: text('motif'),
+    creePar: text('cree_par'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
@@ -684,12 +770,17 @@ export const promptsIa = pgTable(
     uniqueIndex('prompts_ia_type_actif_unique')
       .on(table.type)
       .where(sql`${table.actif}`),
-    check('prompts_ia_type_check', sql`${table.type} IN ('onboarding_vitrine','ameliorer_texte')`),
+    check(
+      'prompts_ia_type_check',
+      sql`${table.type} IN ('onboarding_vitrine','ameliorer_texte','seo_vitrine')`,
+    ),
     check('prompts_ia_version_check', sql`${table.version} >= 1`),
     check('prompts_ia_systeme_check', sql`char_length(${table.systeme}) BETWEEN 1 AND 20000`),
     check('prompts_ia_gabarit_check', sql`char_length(${table.gabarit}) BETWEEN 1 AND 5000`),
     check('prompts_ia_parametres_check', sql`jsonb_typeof(${table.parametres}) = 'object'`),
     check('prompts_ia_schema_sortie_check', sql`${table.schemaSortie} ~ '^[a-z0-9_]{1,60}$'`),
+    check('prompts_ia_motif_check', sql`${table.motif} IS NULL OR char_length(btrim(${table.motif})) BETWEEN 5 AND 500`),
+    check('prompts_ia_cree_par_check', sql`${table.creePar} IS NULL OR char_length(${table.creePar}) <= 64`),
   ],
 )
 
@@ -740,7 +831,10 @@ export const generationsIa = pgTable(
     index('generations_ia_a_purger_idx')
       .on(table.createdAt)
       .where(sql`${table.entree} IS NOT NULL OR ${table.sortie} IS NOT NULL`),
-    check('generations_ia_type_check', sql`${table.type} IN ('onboarding_vitrine','ameliorer_texte')`),
+    check(
+      'generations_ia_type_check',
+      sql`${table.type} IN ('onboarding_vitrine','ameliorer_texte','seo_vitrine')`,
+    ),
     check(
       'generations_ia_statut_check',
       sql`${table.statut} IN ('en_attente','en_cours','terminee','repli','expiree')`,
@@ -749,7 +843,7 @@ export const generationsIa = pgTable(
       'generations_ia_motif_check',
       sql`${table.motifRepli} IS NULL OR ${table.motifRepli} IN (
         'echec_fournisseur','delai_depasse','sortie_invalide','injection','sans_fournisseur',
-        'sans_prompt','file_indisponible','limiteur_indisponible','plafond_global','quota_atteint')`,
+        'sans_prompt','file_indisponible','limiteur_indisponible','plafond_global','quota_atteint','ia_coupee')`,
     ),
     check('generations_ia_motif_coherence_check', sql`(${table.statut} = 'repli') = (${table.motifRepli} IS NOT NULL)`),
     check(
@@ -780,6 +874,35 @@ export const generationsIa = pgTable(
 // L'étape de reprise n'est PAS stockée, elle se déduit des données (computeEtapeReprise). Seule la liste
 // des 3 services proposés est en JSON (brouillon, jamais interrogé). Photo = ligne `medias` (règle 4).
 // Les bornes (60, 80, 160, 2000, titres, pays) sont recopiées depuis shared/vitrine.ts : garder synchronisées.
+// S15 : statistiques d'installation PWA pour le super admin de la plateforme.
+// Evenements : proposee / installee / refusee, origine studio ou marketing.
+// Pas de donnee personnelle, pas de lien vers une vitrine (plateforme, pas pro).
+export const pwaInstallEvents = pgTable('pwa_install_events', {
+  id: text('id').primaryKey(),
+  type: text('type').notNull(),
+  origine: text('origine').notNull(),
+  deviceType: text('device_type').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  check(
+    'pwa_install_events_type_check',
+    sql`${table.type} IN ('proposee','installee','refusee')`,
+  ),
+  check(
+    'pwa_install_events_origine_check',
+    sql`${table.origine} IN ('studio','marketing')`,
+  ),
+  check(
+    'pwa_install_events_device_type_check',
+    sql`${table.deviceType} IN ('mobile','tablette','ordinateur','inconnu')`,
+  ),
+  index('pwa_install_events_type_origine_idx').on(table.type, table.origine),
+  index('pwa_install_events_created_at_idx').on(table.createdAt),
+])
+
+export type PwaInstallEvent = typeof pwaInstallEvents.$inferSelect
+export type NewPwaInstallEvent = typeof pwaInstallEvents.$inferInsert
+
 export const progressionsInscription = pgTable(
   'progressions_inscription',
   {
@@ -827,8 +950,322 @@ export const progressionsInscription = pgTable(
       sql`${table.propositionValideeLe} IS NULL
         OR (${table.accroche} IS NOT NULL AND ${table.presentation} IS NOT NULL AND ${table.servicesProposes} IS NOT NULL)`,
     ),
+  ]
+)
+
+// S16 : journal des appels d'assistant MCP. Utilisateur, assistant (ID du client MCP), outil,
+// résumé des arguments, résultat, avant/après (modifications uniquement), date. Le JSON est admis
+// ici uniquement ; aucune autre table n'utilise du JSON pour des données métier.
+export const journalAssistant = pgTable('journal_assistant', {
+  id: text('id').primaryKey(),
+  userId: text('user_id')
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  assistantId: text('assistant_id').notNull(),
+  outil: text('outil').notNull(),
+  argumentsResume: jsonb('arguments_resume').notNull(),
+  resultat: jsonb('resultat'),
+  avant: jsonb('avant'),
+  apres: jsonb('apres'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  index('journal_assistant_user_id_idx').on(table.userId),
+  index('journal_assistant_created_at_idx').on(table.createdAt),
+])
+
+// ─── A1 : administration (migration 0028, docs/specs/A1-socle-admin.md §2) ─────────────────────────────────
+// Journal des actions du superadmin : AJOUT SEUL et CHAÎNÉ.
+// `numero`, `empreinte_precedente`, `empreinte` et `cree_le` sont posés par le déclencheur
+// `journal_admin_chainer` (BEFORE INSERT, sous pg_advisory_xact_lock, READ COMMITTED obligatoire) : les
+// valeurs par défaut ci-dessous ne sont que des marqueurs de typage (jamais conservés ; `numero` à 0 est
+// refusé par le CHECK si le déclencheur manquait). UPDATE, DELETE et TRUNCATE sont refusés (42501) par
+// `journal_admin_sans_modif` / `journal_admin_sans_vidage`. Les déclencheurs et fonctions ne sont pas
+// générés par drizzle-kit : ils sont écrits à la main dans la migration.
+// `avant`/`apres` : objet plat, clés ^[a-z_]+$, valeurs string ≤ 64 | number | boolean | null (validé par le
+// service d'audit ; la base garantit seulement le type objet). Aucune donnée personnelle : D-A1-09.
+export const journalAdmin = pgTable(
+  'journal_admin',
+  {
+    id: text('id').primaryKey(),
+    numero: bigint('numero', { mode: 'number' }).notNull().default(0),
+    adminId: text('admin_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict' }),
+    action: text('action').notNull(),
+    cibleType: text('cible_type').notNull(),
+    cibleId: text('cible_id'),
+    avant: jsonb('avant'),
+    apres: jsonb('apres'),
+    motif: text('motif').notNull(),
+    ip: text('ip').notNull(),
+    cleIdempotence: text('cle_idempotence'),
+    creeLe: timestamp('cree_le', { withTimezone: true }).notNull().defaultNow(),
+    empreintePrecedente: text('empreinte_precedente').notNull().default(sql`repeat('0', 64)`),
+    empreinte: text('empreinte').notNull().default(sql`repeat('0', 64)`),
+  },
+  (table) => [
+    unique('journal_admin_numero_unique').on(table.numero),
+    unique('journal_admin_empreinte_unique').on(table.empreinte),
+    index('journal_admin_cree_le_idx').on(desc(table.creeLe)),
+    index('journal_admin_cible_idx').on(table.cibleType, table.cibleId),
+    // Requête réelle : contrôle RESTRICT de la clé étrangère à chaque suppression d'un compte, et liste du
+    // journal filtrée par administrateur (A5). L'unique partiel ci-dessous ne peut pas servir à cela.
+    index('journal_admin_admin_id_idx').on(table.adminId),
+    // CA21 : une clé d'idempotence ne rejoue pas la même action pour un même administrateur.
+    uniqueIndex('journal_admin_idempotence_unique')
+      .on(table.adminId, table.cleIdempotence)
+      .where(sql`${table.cleIdempotence} IS NOT NULL`),
+    check('journal_admin_numero_check', sql`${table.numero} > 0`),
+    check('journal_admin_action_check', sql`${table.action} ~ '^[a-z_]+\\.[a-z_]+$'`),
+    check('journal_admin_cible_type_check', sql`${table.cibleType} ~ '^[a-z_]+$'`),
+    check('journal_admin_cible_id_check', sql`${table.cibleId} IS NULL OR char_length(${table.cibleId}) <= 64`),
+    check('journal_admin_avant_check', sql`${table.avant} IS NULL OR jsonb_typeof(${table.avant}) = 'object'`),
+    check('journal_admin_apres_check', sql`${table.apres} IS NULL OR jsonb_typeof(${table.apres}) = 'object'`),
+    check('journal_admin_motif_check', sql`char_length(btrim(${table.motif})) BETWEEN 5 AND 500`),
+    check('journal_admin_ip_check', sql`char_length(${table.ip}) <= 64`),
+    check(
+      'journal_admin_cle_idempotence_check',
+      sql`${table.cleIdempotence} IS NULL OR char_length(${table.cleIdempotence}) BETWEEN 8 AND 128`,
+    ),
+    check('journal_admin_empreinte_precedente_check', sql`${table.empreintePrecedente} ~ '^[0-9a-f]{64}$'`),
+    check('journal_admin_empreinte_check', sql`${table.empreinte} ~ '^[0-9a-f]{64}$'`),
   ],
 )
+
+// Réauthentification d'une action destructrice (D-A1-08) : code à 6 chiffres haché (HMAC-SHA256, secret
+// NUXT_BETTER_AUTH_SECRET, jamais le code en clair), 10 min, 3 essais, lié au triplet
+// (action, cible_type, cible_id), usage unique (`consomme_le`). Consommé DANS la transaction de l'action.
+export const adminReauth = pgTable(
+  'admin_reauth',
+  {
+    id: text('id').primaryKey(),
+    adminId: text('admin_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    action: text('action').notNull(),
+    cibleType: text('cible_type').notNull(),
+    cibleId: text('cible_id'),
+    codeEmpreinte: text('code_empreinte').notNull(),
+    essais: smallint('essais').notNull().default(0),
+    expireLe: timestamp('expire_le', { withTimezone: true }).notNull(),
+    consommeLe: timestamp('consomme_le', { withTimezone: true }),
+    creeLe: timestamp('cree_le', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    // Requête réelle : recherche de la demande ouverte (admin, triplet) à consommer ou à faire expirer.
+    index('admin_reauth_ouvert_idx')
+      .on(table.adminId, table.action, table.cibleType, table.cibleId)
+      .where(sql`${table.consommeLe} IS NULL`),
+    check('admin_reauth_action_check', sql`${table.action} ~ '^[a-z_]+\\.[a-z_]+$'`),
+    check('admin_reauth_cible_type_check', sql`${table.cibleType} ~ '^[a-z_]+$'`),
+    check('admin_reauth_cible_id_check', sql`${table.cibleId} IS NULL OR char_length(${table.cibleId}) <= 64`),
+    check('admin_reauth_code_empreinte_check', sql`${table.codeEmpreinte} ~ '^[0-9a-f]{64}$'`),
+    check('admin_reauth_essais_check', sql`${table.essais} BETWEEN 0 AND 3`),
+  ],
+)
+
+// S16 : les tables maison mcp_clients / mcp_tokens ont été supprimées (migration 0026) : l'OAuth du
+// serveur MCP est porté par les tables Better Auth ci-dessous (oauth_clients, oauth_*_tokens, ...).
+
+// ─── Better Auth : plugins jwt() et mcp() (@better-auth/oauth-provider 1.7.18) ───────────────────────────
+// Source des champs : node_modules/better-auth/dist/plugins/jwt/schema.mjs et
+// @better-auth/oauth-provider dist/authorize-*.mjs (const `schema`, région src/schema.ts).
+// Les PROPRIÉTÉS des colonnes sont les noms de champs du plugin (camelCase, exigé par l'adaptateur
+// Drizzle) ; les colonnes SQL sont en snake_case. Avec `usePlural: true`, l'adaptateur cherche la clé
+// d'export `${modèle}s` : oauthClient -> oauthClients, ... et jwks -> `jwkss` (la table SQL reste `jwks`).
+// Ne PAS renommer ces clés d'export sans changer la configuration de l'adaptateur.
+// Isolation : pas de tenant ici, le périmètre est l'utilisateur (`user_id` -> users.id ON DELETE CASCADE).
+
+// Clés de signature des jetons (plugin jwt). `private_key` est chiffrée par Better Auth (clé BETTER_AUTH_SECRET).
+export const jwkss = pgTable('jwks', {
+  id: text('id').primaryKey(),
+  publicKey: text('public_key').notNull(),
+  privateKey: text('private_key').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  expiresAt: timestamp('expires_at', { withTimezone: true }),
+  alg: text('alg'),
+  crv: text('crv'),
+})
+
+// Clients OAuth (assistants). `client_id` est la clé référencée par les jetons, consentements et liaisons.
+export const oauthClients = pgTable(
+  'oauth_clients',
+  {
+    id: text('id').primaryKey(),
+    clientId: text('client_id').notNull().unique(),
+    clientSecret: text('client_secret'),
+    clientDiscoveryId: text('client_discovery_id'),
+    disabled: boolean('disabled').default(false),
+    skipConsent: boolean('skip_consent'),
+    enableEndSession: boolean('enable_end_session'),
+    subjectType: text('subject_type'),
+    scopes: text('scopes').array(),
+    clientCredentialsScopes: text('client_credentials_scopes').array().default([]),
+    userId: text('user_id').references(() => users.id, { onDelete: 'cascade' }),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
+    name: text('name'),
+    uri: text('uri'),
+    icon: text('icon'),
+    contacts: text('contacts').array(),
+    tos: text('tos'),
+    policy: text('policy'),
+    softwareId: text('software_id'),
+    softwareVersion: text('software_version'),
+    softwareStatement: text('software_statement'),
+    redirectUris: text('redirect_uris').array().notNull(),
+    postLogoutRedirectUris: text('post_logout_redirect_uris').array(),
+    backchannelLogoutUri: text('backchannel_logout_uri'),
+    backchannelLogoutSessionRequired: boolean('backchannel_logout_session_required'),
+    tokenEndpointAuthMethod: text('token_endpoint_auth_method'),
+    applicationType: text('application_type'),
+    jwks: text('jwks'),
+    jwksUri: text('jwks_uri'),
+    grantTypes: text('grant_types').array(),
+    responseTypes: text('response_types').array(),
+    requirePKCE: boolean('require_pkce'),
+    dpopBoundAccessTokens: boolean('dpop_bound_access_tokens').default(false),
+    referenceId: text('reference_id'),
+    // Métadonnées libres du plugin : le JSON est admis ici car il est imposé par Better Auth (réglages).
+    metadata: jsonb('metadata'),
+  },
+  (table) => [index('oauth_clients_user_id_idx').on(table.userId)],
+)
+
+// Ressource protégée dont le serveur d'autorisation émet des jetons (ici : le serveur MCP).
+export const oauthResources = pgTable('oauth_resources', {
+  id: text('id').primaryKey(),
+  identifier: text('identifier').notNull().unique(),
+  name: text('name').notNull(),
+  accessTokenTtl: integer('access_token_ttl'),
+  refreshTokenTtl: integer('refresh_token_ttl'),
+  signingAlgorithm: text('signing_algorithm'),
+  signingKeyId: text('signing_key_id'),
+  allowedScopes: text('allowed_scopes').array(),
+  customClaims: jsonb('custom_claims'),
+  dpopBoundAccessTokensRequired: boolean('dpop_bound_access_tokens_required').default(false),
+  disabled: boolean('disabled').default(false),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
+  policyVersion: integer('policy_version').default(1),
+  metadata: jsonb('metadata'),
+})
+
+// Liaison client <-> ressource : unicité (client_id, resource_id) exigée par le plugin (idempotence).
+export const oauthClientResources = pgTable(
+  'oauth_client_resources',
+  {
+    id: text('id').primaryKey(),
+    clientId: text('client_id')
+      .notNull()
+      .references(() => oauthClients.clientId, { onDelete: 'cascade' }),
+    resourceId: text('resource_id')
+      .notNull()
+      .references(() => oauthResources.identifier, { onDelete: 'cascade' }),
+    metadata: jsonb('metadata'),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
+  },
+  (table) => [
+    uniqueIndex('oauth_client_resources_client_id_resource_id_unique').on(table.clientId, table.resourceId),
+    index('oauth_client_resources_resource_id_idx').on(table.resourceId),
+  ],
+)
+
+// Jeton de rafraîchissement opaque (haché par défaut), lié à une session.
+export const oauthRefreshTokens = pgTable(
+  'oauth_refresh_tokens',
+  {
+    id: text('id').primaryKey(),
+    token: text('token').notNull().unique(),
+    clientId: text('client_id')
+      .notNull()
+      .references(() => oauthClients.clientId, { onDelete: 'cascade' }),
+    sessionId: text('session_id').references(() => sessions.id, { onDelete: 'set null' }),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    referenceId: text('reference_id'),
+    authorizationCodeId: text('authorization_code_id'),
+    resources: text('resources').array(),
+    requestedUserInfoClaims: text('requested_user_info_claims').array(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    revoked: timestamp('revoked', { withTimezone: true }),
+    rotatedAt: timestamp('rotated_at', { withTimezone: true }),
+    rotationReplayResponse: text('rotation_replay_response'),
+    rotationReplayExpiresAt: timestamp('rotation_replay_expires_at', { withTimezone: true }),
+    authTime: timestamp('auth_time', { withTimezone: true }),
+    confirmation: jsonb('confirmation'),
+    scopes: text('scopes').array().notNull(),
+  },
+  (table) => [
+    index('oauth_refresh_tokens_client_id_idx').on(table.clientId),
+    index('oauth_refresh_tokens_session_id_idx').on(table.sessionId),
+    index('oauth_refresh_tokens_user_id_idx').on(table.userId),
+    index('oauth_refresh_tokens_authorization_code_id_idx').on(table.authorizationCodeId),
+  ],
+)
+
+// Jeton d'accès opaque (émis quand aucun `resource` n'est demandé ; sinon JWT sans ligne ici).
+export const oauthAccessTokens = pgTable(
+  'oauth_access_tokens',
+  {
+    id: text('id').primaryKey(),
+    token: text('token').unique(),
+    clientId: text('client_id')
+      .notNull()
+      .references(() => oauthClients.clientId, { onDelete: 'cascade' }),
+    sessionId: text('session_id').references(() => sessions.id, { onDelete: 'set null' }),
+    userId: text('user_id').references(() => users.id, { onDelete: 'cascade' }),
+    referenceId: text('reference_id'),
+    authorizationCodeId: text('authorization_code_id'),
+    resources: text('resources').array(),
+    requestedUserInfoClaims: text('requested_user_info_claims').array(),
+    refreshId: text('refresh_id').references(() => oauthRefreshTokens.id, { onDelete: 'cascade' }),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    revoked: timestamp('revoked', { withTimezone: true }),
+    confirmation: jsonb('confirmation'),
+    scopes: text('scopes').array().notNull(),
+  },
+  (table) => [
+    index('oauth_access_tokens_client_id_idx').on(table.clientId),
+    index('oauth_access_tokens_session_id_idx').on(table.sessionId),
+    index('oauth_access_tokens_user_id_idx').on(table.userId),
+    index('oauth_access_tokens_authorization_code_id_idx').on(table.authorizationCodeId),
+    index('oauth_access_tokens_refresh_id_idx').on(table.refreshId),
+  ],
+)
+
+// Consentement donné par un utilisateur à un client pour des portées données.
+export const oauthConsents = pgTable(
+  'oauth_consents',
+  {
+    id: text('id').primaryKey(),
+    clientId: text('client_id')
+      .notNull()
+      .references(() => oauthClients.clientId, { onDelete: 'cascade' }),
+    userId: text('user_id').references(() => users.id, { onDelete: 'cascade' }),
+    referenceId: text('reference_id'),
+    resources: text('resources').array(),
+    requestedUserInfoClaims: text('requested_user_info_claims').array(),
+    scopes: text('scopes').array().notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('oauth_consents_client_id_idx').on(table.clientId),
+    index('oauth_consents_user_id_idx').on(table.userId),
+  ],
+)
+
+// Usage unique des `jti` d'assertions client (private_key_jwt) : la clé primaire fait foi (anti-rejeu).
+// Le plugin ne purge pas les lignes expirées (TODO amont) : `expires_at` servira à un nettoyage ultérieur
+// (pas d'index tant qu'aucune requête de purge n'existe).
+export const oauthClientAssertions = pgTable('oauth_client_assertions', {
+  id: text('id').primaryKey(),
+  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+})
 
 // S10 (docs/specs/S10-abonnements.md §2, migration 0021) : un paiement = une tentative de règlement d'un
 // abonnement. `id` (UUID généré par l'application) est l'`externalId` envoyé au fournisseur. Pièce
@@ -874,10 +1311,17 @@ export const paiements = pgTable(
     abonnementExpireAvant: timestamp('abonnement_expire_avant', { withTimezone: true }),
     abonnementExpireApres: timestamp('abonnement_expire_apres', { withTimezone: true }),
     termineLe: timestamp('termine_le', { withTimezone: true }),
+    // A3 (migration 0030, D-A3-03) : origine de l'encaissement. 'kpay' = passé par le fournisseur (toutes les lignes
+    // existantes) ; 'manuel' = créé par l'administration (marquage manuel). Source côté application : shared/paiements.ts.
+    source: text('source').notNull().default('kpay'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
+    // A3 : listes de l'administration (filtre par statut, plus récents d'abord) et revenus du mois par devise
+    // (somme des paiements `reussi` bornée par `applique_le`, D-A3-01).
+    index('paiements_liste_admin_idx').on(table.statut, desc(table.createdAt)),
+    index('paiements_encaisse_idx').on(table.devise, table.appliqueLe).where(sql`${table.statut} = 'reussi'`),
     // Un identifiant et une référence fournisseur n'existent qu'une fois par fournisseur (rapprochement du webhook).
     uniqueIndex('paiements_fournisseur_id_unique')
       .on(table.fournisseur, table.idFournisseur)
@@ -945,6 +1389,46 @@ export const paiements = pgTable(
       sql`${table.statut} <> 'en_attente' OR ${table.idFournisseur} IS NOT NULL OR ${table.initiationIncertaine}`,
     ),
     check('paiements_verifications_check', sql`${table.verifications} BETWEEN 0 AND 1000`),
+    check('paiements_source_check', sql`${table.source} IN ('kpay','manuel')`),
+    // A3 : un paiement manuel (et lui seul) a le fournisseur 'manuel' ; il n'a ni identifiant fournisseur, ni frais,
+    // ni code d'échec, sa référence est 'manuel-' || id, il ne peut être que `cree` (transitoire) ou `reussi`.
+    // Les index uniques (fournisseur, id_fournisseur) et (fournisseur, reference_fournisseur) sont inchangés : un
+    // manuel ne peut pas entrer en collision avec une référence K-PAY (fournisseur différent).
+    // ÉCART DE LA SPEC §3 (voir rapport) : la spec écrit (source = 'kpay') = (fournisseur = 'kpay'), ce qui interdirait
+    // tout autre fournisseur en base (contraire à la règle S10 « fournisseur n'est pas une énumération » et à une
+    // ligne `stripe` créée par tests/integration/webhook-kpay-route.test.ts). On garantit ici l'équivalence côté
+    // manuel seulement : manuel <=> fournisseur 'manuel'. Second écart : `reference_fournisseur IS NOT NULL` explicite
+    // (une comparaison avec NULL vaut NULL, et un CHECK à NULL est accepté : un manuel sans référence passerait).
+    check(
+      'paiements_source_coherence_check',
+      sql`(${table.source} = 'manuel') = (${table.fournisseur} = 'manuel')
+        AND (${table.source} = 'kpay' OR (
+          ${table.methode} = 'manuel' AND ${table.statut} IN ('cree','reussi')
+          AND ${table.idFournisseur} IS NULL AND ${table.referenceFournisseur} IS NOT NULL
+          AND ${table.referenceFournisseur} = 'manuel-' || ${table.id}
+          AND ${table.fraisTauxPb} = 0 AND ${table.fraisEstimes} = 0 AND ${table.netEstime} = ${table.montant}
+          AND ${table.codeEchec} IS NULL AND ${table.initiationIncertaine} = false
+        ))`,
+    ),
+  ],
+)
+
+// A3 (migration 0030, D-A3-05) : compteur horaire des webhooks refusés (signature invalide, corps trop gros).
+// Une ligne par (heure, fournisseur, motif) : taille bornée sous attaque. Aucun corps, aucune IP, aucun en-tête.
+// Rétention 90 jours (purge applicative). Écriture best-effort. Motifs recopiés de shared/paiements.ts.
+export const webhooksRefuses = pgTable(
+  'webhooks_refuses',
+  {
+    heure: timestamp('heure', { withTimezone: true }).notNull(),
+    fournisseur: text('fournisseur').notNull(),
+    motif: text('motif').notNull(),
+    nombre: integer('nombre').notNull().default(1),
+  },
+  (table) => [
+    primaryKey({ columns: [table.heure, table.fournisseur, table.motif] }),
+    check('webhooks_refuses_fournisseur_check', sql`${table.fournisseur} ~ '^[a-z0-9_-]{1,40}$'`),
+    check('webhooks_refuses_motif_check', sql`${table.motif} IN ('SIGNATURE_INVALIDE','CORPS_TROP_GROS')`),
+    check('webhooks_refuses_nombre_check', sql`${table.nombre} >= 1`),
   ],
 )
 
@@ -963,10 +1447,15 @@ export const abonnements = pgTable(
     expireLe: timestamp('expire_le', { withTimezone: true }).notNull(),
     premiereActivationLe: timestamp('premiere_activation_le', { withTimezone: true }).notNull(),
     dernierPaiementId: text('dernier_paiement_id').references(() => paiements.id, { onDelete: 'set null' }),
+    // A2 (migration 0029, D-A2-04/05, D-A3-06) : comment l'abonnement a été CRÉÉ. 'paiement' = encaissement
+    // (défaut, lignes existantes) ; 'offert' = jours offerts par l'administration ; 'admin' = changement de plan.
+    // N'est jamais modifiée par une prolongation ultérieure. Source côté application : shared/admin.ts.
+    origine: text('origine').notNull().default('paiement'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
+    check('abonnements_origine_check', sql`${table.origine} IN ('paiement','offert','admin')`),
     // Planificateur des rappels J-7 / J-3 / J0 (balayage des échéances proches).
     index('abonnements_expire_le_idx').on(table.expireLe),
     // FK parcourue à la suppression d'un paiement (ON DELETE SET NULL).
@@ -1131,6 +1620,206 @@ export const statistiquesJourSources = pgTable(
   ],
 )
 
+// ─── A4 : supervision et registre des réglages (migration 0031, docs/specs/A4-supervision-reglages.md §3) ──────
+// Registre des réglages d'exploitation : UNE ligne par clé MODIFIÉE (pas de ligne = valeur du code, ou repli
+// restrictif par clé, D-A4-06). `valeur` est un scalaire JSON (nombre, booléen, texte) : un réglage, donc JSON
+// autorisé (CLAUDE.md §4.3) ; les bornes et la validation croisée vivent dans shared/reglages.ts, la base ne
+// garantit que la forme. Aucun secret ni URL (garde de test sur les clés). Journal de chaque écriture : journal_admin.
+export const reglages = pgTable(
+  'reglages',
+  {
+    cle: text('cle').primaryKey(),
+    valeur: jsonb('valeur').notNull(),
+    modifiePar: text('modifie_par')
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict' }),
+    modifieLe: timestamp('modifie_le', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    check('reglages_cle_check', sql`${table.cle} ~ '^[a-z][a-z0-9_.]{2,63}$'`),
+    check('reglages_valeur_check', sql`jsonb_typeof(${table.valeur}) IN ('number','boolean','string')`),
+  ],
+)
+
+// Capacité accordée à un compte hors plan (D-A4-11 : `mcp` seulement). Une ligne par octroi, jamais supprimée :
+// la révocation pose `revoque_le`. Au plus UNE capacité active par (compte, capacité) : index unique partiel.
+// Disparaît avec le compte (CASCADE) ; l'administrateur auteur est protégé (RESTRICT, comme `journal_admin`).
+// Source de la liste des capacités côté application : shared/plans.ts (CAPACITES_PAYANTES).
+export const capacitesAccordees = pgTable(
+  'capacites_accordees',
+  {
+    id: text('id').primaryKey(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    capacite: text('capacite').notNull(),
+    motif: text('motif').notNull(),
+    accordePar: text('accorde_par')
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict' }),
+    accordeLe: timestamp('accorde_le', { withTimezone: true }).notNull().defaultNow(),
+    revoqueLe: timestamp('revoque_le', { withTimezone: true }),
+  },
+  (table) => [
+    // Requête réelle : « ce compte a-t-il la capacité X ? » (consentement MCP et chaque appel d'outil, D-A4-11).
+    uniqueIndex('capacites_accordees_actives_unique')
+      .on(table.userId, table.capacite)
+      .where(sql`${table.revoqueLe} IS NULL`),
+    check('capacites_accordees_capacite_check', sql`${table.capacite} IN ('mcp')`),
+    check('capacites_accordees_motif_check', sql`char_length(btrim(${table.motif})) BETWEEN 5 AND 500`),
+    check('capacites_accordees_revocation_check', sql`${table.revoqueLe} IS NULL OR ${table.revoqueLe} >= ${table.accordeLe}`),
+  ],
+)
+
+// Journal d'envoi des codes de connexion (D-A4-15) : AUCUN identifiant, AUCUN numéro, AUCUN code, AUCUNE adresse.
+// Seulement le canal, le pays (indicatif résolu, NULL pour l'e-mail), le statut, le numéro de tentative et un code
+// d'erreur court. Écrit par le worker (best-effort : ne lève jamais), purgé à 90 jours.
+export const envoisCodes = pgTable(
+  'envois_codes',
+  {
+    id: bigint('id', { mode: 'number' }).primaryKey().generatedAlwaysAsIdentity(),
+    creeLe: timestamp('cree_le', { withTimezone: true }).notNull().defaultNow(),
+    canal: text('canal').notNull(),
+    pays: text('pays'),
+    statut: text('statut').notNull(),
+    tentative: smallint('tentative').notNull(),
+    codeErreur: text('code_erreur'),
+  },
+  (table) => [
+    // Requêtes réelles : agrégat des envois par canal et pays sur une fenêtre de temps, et purge à 90 jours.
+    index('envois_codes_cree_le_idx').on(table.creeLe, table.canal, table.pays),
+    check('envois_codes_canal_check', sql`${table.canal} IN ('sms','email','whatsapp')`),
+    check('envois_codes_pays_check', sql`${table.pays} IS NULL OR ${table.pays} ~ '^[A-Z]{2}$'`),
+    check('envois_codes_statut_check', sql`${table.statut} IN ('envoye','echec')`),
+    check('envois_codes_tentative_check', sql`${table.tentative} BETWEEN 1 AND 3`),
+    check('envois_codes_code_erreur_check', sql`${table.codeErreur} IS NULL OR char_length(${table.codeErreur}) <= 40`),
+  ],
+)
+
+// Battements du système (D-A4-16) : dernier instant connu d'un événement d'exploitation écrit par un script
+// extérieur (`sauvegarde_derniere_reussite`). Une ligne par clé ; absente = « inconnu » (jamais « bon »).
+export const battementsSysteme = pgTable(
+  'battements_systeme',
+  {
+    cle: text('cle').primaryKey(),
+    horodatage: timestamp('horodatage', { withTimezone: true }).notNull(),
+    ecritLe: timestamp('ecrit_le', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [check('battements_systeme_cle_check', sql`${table.cle} ~ '^[a-z_]{3,40}$'`)],
+)
+
+// ─── A5 : catalogues et versions de configuration (migration 0032, docs/specs/A5-catalogues-versions.md §4) ────
+// Devises que le produit sait gérer (codes fixés ; `actif` = ce qu'un compte peut CHOISIR, pas ce qui est PAYABLE,
+// D-A5-11). Pas de création depuis l'interface. Les décimales et l'affichage restent dans shared/devises.ts.
+export const devises = pgTable(
+  'devises',
+  {
+    code: text('code').primaryKey(),
+    actif: boolean('actif').notNull().default(true),
+    modifieLe: timestamp('modifie_le', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [check('devises_code_check', sql`${table.code} IN ('XAF','EUR','USD')`)],
+)
+
+// Pays proposés (clé = code ISO alpha-2). Créés par MIGRATION seulement (D-A5-10) : un pays exige un indicatif, des
+// fuseaux et un format de numéro. `vitrines.pays` n'a PAS de clé étrangère vers cette table (valeurs historiques :
+// la suppression d'un pays est refusée par le service dès qu'une vitrine le référence). L'indicatif n'est pas
+// unique (+1 : Canada et États-Unis). `fuseaux` : liste de fuseaux IANA, le premier est le fuseau de repli.
+// Canaux de connexion par pays (D-A5-13) : sms et whatsapp appliqués côté serveur, email informatif.
+export const pays = pgTable(
+  'pays',
+  {
+    code: text('code').primaryKey(),
+    libelle: text('libelle').notNull(),
+    indicatif: text('indicatif').notNull(),
+    actif: boolean('actif').notNull().default(true),
+    deviseDefaut: text('devise_defaut')
+      .notNull()
+      .references(() => devises.code),
+    fuseaux: text('fuseaux').array().notNull(),
+    canalSms: boolean('canal_sms').notNull().default(true),
+    canalWhatsapp: boolean('canal_whatsapp').notNull().default(false),
+    canalEmail: boolean('canal_email').notNull().default(true),
+    modifieLe: timestamp('modifie_le', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    check('pays_code_check', sql`${table.code} ~ '^[A-Z]{2}$'`),
+    check('pays_libelle_check', sql`char_length(${table.libelle}) BETWEEN 2 AND 80`),
+    check('pays_indicatif_check', sql`${table.indicatif} ~ '^[1-9][0-9]{0,3}$'`),
+    // Au moins un fuseau, sans élément NULL ni vide : `cardinality(...) >= 1` seul laisse passer ARRAY[NULL] et ARRAY[''].
+    check(
+      'pays_fuseaux_check',
+      sql`cardinality(${table.fuseaux}) >= 1 AND array_position(${table.fuseaux}, NULL) IS NULL AND array_position(${table.fuseaux}, '') IS NULL`,
+    ),
+  ],
+)
+
+// Noms d'adresse interdits en plus de la liste du code (shared/reserved.ts, `isReserved`). Ajout par le superadmin,
+// avec motif ; `cree_par` = identifiant d'administrateur (texte court, sans clé étrangère : journal de décision).
+export const usernamesBloques = pgTable(
+  'usernames_bloques',
+  {
+    valeur: text('valeur').primaryKey(),
+    motif: text('motif').notNull(),
+    creePar: text('cree_par').notNull(),
+    creeLe: timestamp('cree_le', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    check('usernames_bloques_valeur_check', sql`${table.valeur} ~ '^[a-z0-9][a-z0-9_-]{1,39}$'`),
+    check('usernames_bloques_motif_check', sql`char_length(btrim(${table.motif})) BETWEEN 5 AND 200`),
+    check('usernames_bloques_cree_par_check', sql`char_length(${table.creePar}) <= 64`),
+  ],
+)
+
+// Versions de configuration commerciale (D-A5-01, D-A5-02) : plan, prix, frais, moyens. UNE seule table, en
+// AJOUT SEUL : seuls `statut` et `validee_le` (une fois, NULL -> date) évoluent, et `effective_a` une fois posée
+// n'est plus modifiable. Le déclencheur `configuration_versions_proteger` (non généré par drizzle-kit, écrit dans la
+// migration) refuse tout autre UPDATE, tout DELETE et tout TRUNCATE (42501). Une seule version `active` et une
+// seule `programmee` par (categorie, cle), garanties par deux index uniques partiels. `valeurs` est un objet JSON
+// validé par Zod côté service (schéma strict par catégorie) : un réglage, donc JSON autorisé.
+// `cree_par` = identifiant d'administrateur ou `systeme` (seed) ; pas de clé étrangère (la version survit au compte).
+export const configurationVersions = pgTable(
+  'configuration_versions',
+  {
+    id: text('id').primaryKey(),
+    categorie: text('categorie').notNull(),
+    cle: text('cle').notNull(),
+    numero: integer('numero').notNull(),
+    valeurs: jsonb('valeurs').notNull(),
+    statut: text('statut').notNull(),
+    effectiveA: timestamp('effective_a', { withTimezone: true }),
+    valideeLe: timestamp('validee_le', { withTimezone: true }),
+    motif: text('motif').notNull(),
+    creePar: text('cree_par').notNull(),
+    creeLe: timestamp('cree_le', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    // Requête réelle : `lireVersionActive(categorie, cle)` (chemin chaud, cache 5 s) et garantie d'unicité.
+    uniqueIndex('configuration_versions_active_unique')
+      .on(table.categorie, table.cle)
+      .where(sql`${table.statut} = 'active'`),
+    // Requête réelle : balayage du job `versions-appliquer` (programmées échues) et garantie d'unicité.
+    uniqueIndex('configuration_versions_programmee_unique')
+      .on(table.categorie, table.cle)
+      .where(sql`${table.statut} = 'programmee'`),
+    // Historique d'une clé (numéro décroissant) : parcours de l'unique (categorie, cle, numero).
+    unique('configuration_versions_numero_unique').on(table.categorie, table.cle, table.numero),
+    check('configuration_versions_id_check', sql`char_length(${table.id}) BETWEEN 8 AND 64`),
+    check('configuration_versions_categorie_check', sql`${table.categorie} IN ('plan','prix','frais','moyens')`),
+    check('configuration_versions_cle_check', sql`${table.cle} ~ '^[a-z0-9_:.-]{1,60}$'`),
+    check('configuration_versions_numero_check', sql`${table.numero} >= 1`),
+    check('configuration_versions_valeurs_check', sql`jsonb_typeof(${table.valeurs}) = 'object'`),
+    check('configuration_versions_statut_check', sql`${table.statut} IN ('brouillon','programmee','active','remplacee')`),
+    check('configuration_versions_motif_check', sql`char_length(btrim(${table.motif})) BETWEEN 5 AND 500`),
+    check('configuration_versions_cree_par_check', sql`char_length(${table.creePar}) <= 64`),
+    check('configuration_versions_plan_cle_check', sql`${table.categorie} <> 'plan' OR ${table.cle} IN ('gratuit','payant')`),
+    // Un brouillon n'a pas de date d'effet, toute autre version en a une.
+    check('configuration_versions_effet_check', sql`(${table.statut} = 'brouillon') = (${table.effectiveA} IS NULL)`),
+    // Seule une grille de prix se valide (D-A5-07).
+    check('configuration_versions_validee_check', sql`${table.valideeLe} IS NULL OR ${table.categorie} = 'prix'`),
+  ],
+)
+
 export type Vue = typeof vues.$inferSelect
 export type NewVue = typeof vues.$inferInsert
 export type StatistiquesJour = typeof statistiquesJour.$inferSelect
@@ -1144,6 +1833,8 @@ export type Paiement = typeof paiements.$inferSelect
 export type NewPaiement = typeof paiements.$inferInsert
 export type Abonnement = typeof abonnements.$inferSelect
 export type NewAbonnement = typeof abonnements.$inferInsert
+export type WebhookRefuse = typeof webhooksRefuses.$inferSelect
+export type NewWebhookRefuse = typeof webhooksRefuses.$inferInsert
 export type EvenementPaiement = typeof evenementsPaiement.$inferSelect
 export type NewEvenementPaiement = typeof evenementsPaiement.$inferInsert
 
@@ -1153,3 +1844,25 @@ export type GenerationIa = typeof generationsIa.$inferSelect
 export type NewGenerationIa = typeof generationsIa.$inferInsert
 export type ProgressionInscription = typeof progressionsInscription.$inferSelect
 export type NewProgressionInscription = typeof progressionsInscription.$inferInsert
+export type JournalAssistant = typeof journalAssistant.$inferSelect
+export type NewJournalAssistant = typeof journalAssistant.$inferInsert
+export type JournalAdmin = typeof journalAdmin.$inferSelect
+export type NewJournalAdmin = typeof journalAdmin.$inferInsert
+export type AdminReauth = typeof adminReauth.$inferSelect
+export type NewAdminReauth = typeof adminReauth.$inferInsert
+export type Reglage = typeof reglages.$inferSelect
+export type NewReglage = typeof reglages.$inferInsert
+export type CapaciteAccordee = typeof capacitesAccordees.$inferSelect
+export type NewCapaciteAccordee = typeof capacitesAccordees.$inferInsert
+export type EnvoiCode = typeof envoisCodes.$inferSelect
+export type NewEnvoiCode = typeof envoisCodes.$inferInsert
+export type BattementSysteme = typeof battementsSysteme.$inferSelect
+export type NewBattementSysteme = typeof battementsSysteme.$inferInsert
+export type DeviseCatalogue = typeof devises.$inferSelect
+export type NewDeviseCatalogue = typeof devises.$inferInsert
+export type PaysCatalogue = typeof pays.$inferSelect
+export type NewPaysCatalogue = typeof pays.$inferInsert
+export type UsernameBloque = typeof usernamesBloques.$inferSelect
+export type NewUsernameBloque = typeof usernamesBloques.$inferInsert
+export type ConfigurationVersion = typeof configurationVersions.$inferSelect
+export type NewConfigurationVersion = typeof configurationVersions.$inferInsert

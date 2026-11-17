@@ -7,6 +7,8 @@ interface StoredIdentifier {
 }
 
 const authClient = useAuthClient()
+// Autorisation d'un assistant en attente (query OAuth) : reprise après la connexion.
+const reprise = useRepriseOauth()
 // Boîte OTP de développement : jamais en production (drapeau + build de dev).
 const devMode = import.meta.dev && useRuntimeConfig().public.boiteOtpDev === true
 
@@ -158,6 +160,10 @@ async function verify(): Promise<void> {
     }
     sessionStorage.removeItem('brandself:identifiant')
     stopBoite()
+    // Une autorisation d'assistant en attente passe avant l'onboarding : elle expire en 10 minutes.
+    if (reprise.reprendre()) {
+      return
+    }
     await navigateTo('/onboarding')
   } catch {
     error.value = ERREUR_VERIF
@@ -185,7 +191,7 @@ async function resend(): Promise<void> {
           })
         : await authClient.phoneNumber.sendOtp({ phoneNumber: storedIdentifier.value.value })
     if (response.error) {
-      error.value = ERREUR_ENVOI
+      error.value = messageErreurEnvoiCode(response.error)
       return
     }
     failedAttempts.value = 0
@@ -201,13 +207,13 @@ async function resend(): Promise<void> {
 onMounted(() => {
   const raw = sessionStorage.getItem('brandself:identifiant')
   if (!raw) {
-    void navigateTo('/connexion')
+    void navigateTo(reprise.versConnexion('/connexion'))
     return
   }
   try {
     storedIdentifier.value = JSON.parse(raw) as StoredIdentifier
   } catch {
-    void navigateTo('/connexion')
+    void navigateTo(reprise.versConnexion('/connexion'))
     return
   }
   startCountdown()
@@ -225,7 +231,7 @@ onUnmounted(() => {
 <template>
   <main class="mx-auto flex w-full max-w-120 flex-col gap-4 px-6 pt-8 pb-12">
     <UButton
-      to="/connexion"
+      :to="reprise.versConnexion('/connexion')"
       color="neutral"
       variant="link"
       size="lg"
@@ -239,7 +245,7 @@ onUnmounted(() => {
       Saisissez votre code
     </h1>
     <p class="text-muted">
-      Nous avons envoyé un code à 6 chiffres à
+      Code envoyé à
       <strong class="font-semibold text-default">{{ identifiantAffiche }}</strong>.
     </p>
 
@@ -268,7 +274,6 @@ onUnmounted(() => {
       icon="i-ph-warning-circle"
       :description="error"
     />
-    <p v-else class="text-sm text-muted">Le code expire dans 10 minutes.</p>
 
     <UButton block :loading="loading" @click="verify">
       {{ loading ? 'Vérification…' : 'Valider' }}
@@ -288,7 +293,9 @@ onUnmounted(() => {
       >
         Renvoyer le code
       </UButton>
-      <p class="flex min-h-(--cible-tactile) items-center text-muted">{{ aideIndesirables }}</p>
+      <p v-if="seconds === 0" class="flex min-h-(--cible-tactile) items-center text-muted">
+        {{ aideIndesirables }}
+      </p>
       <template v-if="devMode && boiteVisible">
         <p v-if="boiteCode" class="font-mono text-xs text-muted">Code de test : {{ boiteCode }}</p>
         <p v-else-if="boiteManquant" class="font-mono text-xs text-muted">

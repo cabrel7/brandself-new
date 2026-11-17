@@ -1,35 +1,54 @@
 <script setup lang="ts">
-const { public: { siteUrl = '' } } = useRuntimeConfig()
+import { MARQUE } from '#shared/brand'
+import { OG_IMAGE_DEFAUT, OG_IMAGE_HAUTEUR, OG_IMAGE_LARGEUR, SITE_DESCRIPTION, ogLocale, urlAbsolue, urlCanonique } from '#shared/seo'
+
+// `site.url` (nuxt-site-config) : même source que la canonique du module. L'Organization et le WebSite
+// viennent de `schemaOrg.identity` (nuxt.config.ts) : rien à déclarer ici.
+const siteUrl = useSiteConfig().url ?? ''
+const imagePartage = urlAbsolue(siteUrl, OG_IMAGE_DEFAUT)
 
 useSeoMeta({
-  title: 'Brandself — votre vitrine en ligne',
-  description: 'Une vitrine en ligne pour les professionnels : être trouvé, être compris, être contacté ou réservé.',
-  ogTitle: 'Brandself — votre vitrine en ligne',
-  ogDescription: 'Une vitrine en ligne pour les professionnels : être trouvé, être compris, être contacté ou réservé.',
+  title: 'Votre vitrine en ligne',
+  description: SITE_DESCRIPTION,
+  ogTitle: `${MARQUE.nom} — votre vitrine en ligne`,
+  ogDescription: SITE_DESCRIPTION,
   ogType: 'website',
-  ogUrl: siteUrl || undefined,
+  ogLocale: ogLocale(null),
+  ogUrl: urlCanonique(siteUrl, '/'),
+  ogImage: [{ url: imagePartage, width: OG_IMAGE_LARGEUR, height: OG_IMAGE_HAUTEUR, alt: MARQUE.nom }],
   twitterCard: 'summary_large_image',
+  twitterImage: imagePartage,
 })
 
-useSchemaOrg([
-  {
-    '@type': 'Organization',
-    name: 'Brandself',
-    url: siteUrl || undefined,
-    logo: '/og/brandself-logo.png',
-  },
-  {
-    '@type': 'WebSite',
-    name: 'Brandself',
-    url: siteUrl || undefined,
-  },
-])
+// Défilement doux et décalage des ancres sous la barre fixe : portés par `<html>` le temps de cette page seulement.
+useHead({ htmlAttrs: { class: 'page-accueil' } })
 </script>
 
 <template>
-  <section>
-    <Promesse />
-    <Fonctions />
-    <TarifsResume />
-  </section>
+  <div class="bg-fond text-encre">
+    <MarketingEntete />
+    <main id="haut">
+      <MarketingHero />
+      <MarketingTrouve />
+      <MarketingCompris />
+      <MarketingContact />
+      <MarketingPourQui />
+      <MarketingTarifs />
+      <MarketingFaq />
+      <MarketingCloture />
+    </main>
+    <MarketingPied />
+  </div>
 </template>
+
+<style>
+html.page-accueil {
+  scroll-padding-top: 5.25rem;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  html.page-accueil {
+    scroll-behavior: smooth;
+  }
+}
+</style>

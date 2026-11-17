@@ -1,5 +1,7 @@
 // S10 (docs/specs/S10-abonnements.md §3.4) : constantes de l'adaptateur K-PAY. Réglables (§11).
 
+import { MARQUE } from '../../../../../shared/brand'
+
 export { KPAY_BASE_URL_DEFAUT } from '../../../../../shared/paiements'
 
 export const KPAY_CHEMIN_INIT = '/api/v1/payments/init'
@@ -19,7 +21,7 @@ export const KPAY_ENTETE_CLE_SECRETE = 'X-Secret-Key'
 export const KPAY_STATUTS_NON_TERMINAUX = ['PENDING', 'PROCESSING', 'SUBMITTED'] as const
 
 /** Libellé du paiement chez K-PAY ; `{n}` est remplacé par le nombre de mois. */
-export const KPAY_DESCRIPTION = 'Brandself — abonnement {n} mois'
+export const KPAY_DESCRIPTION = `${MARQUE.nom} — abonnement {n} mois`
 export const KPAY_DESCRIPTION_MARQUEUR = '{n}'
 
 /** Octets : taille maximale lue dans une réponse de K-PAY (les réponses réelles font moins de 2 Ko). */

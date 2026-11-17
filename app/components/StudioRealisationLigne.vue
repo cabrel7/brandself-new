@@ -57,6 +57,18 @@ function surTouche(event: KeyboardEvent): void {
         <span v-if="meta" class="text-(length:--fs-14) text-texte-secondaire">{{ meta }}</span>
         <StudioMasqueParPlan v-if="realisation.masqueParPlan" />
         <UBadge
+          v-if="realisation.source === 'assistant'"
+          label="Créé par l’assistant"
+          variant="soft"
+          class="bg-accent-doux text-(length:--fs-14) font-semibold text-accent-texte"
+        />
+        <UBadge
+          v-if="!realisation.actif"
+          label="Brouillon"
+          variant="soft"
+          class="bg-accent-doux text-(length:--fs-14) font-semibold text-accent-texte"
+        />
+        <UBadge
           v-if="enVedette"
           label="En vedette"
           color="primary"

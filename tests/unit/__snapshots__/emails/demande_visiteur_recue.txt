@@ -1,0 +1,239 @@
+==========
+type: demande_visiteur_recue | cas: payant XAF sur place avec instructions | fuseau: Africa/Douala
+==========
+to: marie.ndzi@exemple.test
+subject: Votre demande a bien été reçue
+headers:
+  (aucun)
+attachments:
+  (aucun)
+--- text ---
+Bonjour,
+
+Votre demande a bien été transmise au professionnel.
+
+Service : Consultation de cardiologie
+Professionnel : Dr Cabrel Nguesso
+Ville : Douala
+Tarif : 15<NNBSP>000 XAF
+Instructions : Orange Money au 699 00 00 11
+
+Vous recevrez sa réponse directement.
+
+À bientôt,
+jesuis.pro
+
+==========
+type: demande_visiteur_recue | cas: gratuit sans durée ni ville | fuseau: Africa/Douala
+==========
+to: marie.ndzi@exemple.test
+subject: Votre demande a bien été reçue
+headers:
+  (aucun)
+attachments:
+  (aucun)
+--- text ---
+Bonjour,
+
+Votre demande a bien été transmise au professionnel.
+
+Service : Consultation de cardiologie
+Professionnel : Dr Cabrel Nguesso
+Tarif : Gratuit
+
+Vous recevrez sa réponse directement.
+
+À bientôt,
+jesuis.pro
+
+==========
+type: demande_visiteur_recue | cas: sur devis, durée 90 min | fuseau: Africa/Douala
+==========
+to: marie.ndzi@exemple.test
+subject: Votre demande a bien été reçue
+headers:
+  (aucun)
+attachments:
+  (aucun)
+--- text ---
+Bonjour,
+
+Votre demande a bien été transmise au professionnel.
+
+Service : Consultation de cardiologie
+Professionnel : Dr Cabrel Nguesso
+Ville : Paris
+Tarif : Sur devis
+
+Vous recevrez sa réponse directement.
+
+À bientôt,
+jesuis.pro
+
+==========
+type: demande_visiteur_recue | cas: payant USD en centimes | fuseau: Africa/Douala
+==========
+to: marie.ndzi@exemple.test
+subject: Votre demande a bien été reçue
+headers:
+  (aucun)
+attachments:
+  (aucun)
+--- text ---
+Bonjour,
+
+Votre demande a bien été transmise au professionnel.
+
+Service : Consultation de cardiologie
+Professionnel : Dr Cabrel Nguesso
+Ville : Douala
+Tarif : 25,5 USD
+
+Vous recevrez sa réponse directement.
+
+À bientôt,
+jesuis.pro
+
+==========
+type: demande_visiteur_recue | cas: payant sans montant | fuseau: Africa/Douala
+==========
+to: marie.ndzi@exemple.test
+subject: Votre demande a bien été reçue
+headers:
+  (aucun)
+attachments:
+  (aucun)
+--- text ---
+Bonjour,
+
+Votre demande a bien été transmise au professionnel.
+
+Service : Consultation de cardiologie
+Professionnel : Dr Cabrel Nguesso
+Ville : Douala
+Tarif : Payant
+
+Vous recevrez sa réponse directement.
+
+À bientôt,
+jesuis.pro
+
+==========
+type: demande_visiteur_recue | cas: payant XAF sur place avec instructions | fuseau: Europe/Paris
+==========
+to: marie.ndzi@exemple.test
+subject: Votre demande a bien été reçue
+headers:
+  (aucun)
+attachments:
+  (aucun)
+--- text ---
+Bonjour,
+
+Votre demande a bien été transmise au professionnel.
+
+Service : Consultation de cardiologie
+Professionnel : Dr Cabrel Nguesso
+Ville : Douala
+Tarif : 15<NNBSP>000 XAF
+Instructions : Orange Money au 699 00 00 11
+
+Vous recevrez sa réponse directement.
+
+À bientôt,
+jesuis.pro
+
+==========
+type: demande_visiteur_recue | cas: gratuit sans durée ni ville | fuseau: Europe/Paris
+==========
+to: marie.ndzi@exemple.test
+subject: Votre demande a bien été reçue
+headers:
+  (aucun)
+attachments:
+  (aucun)
+--- text ---
+Bonjour,
+
+Votre demande a bien été transmise au professionnel.
+
+Service : Consultation de cardiologie
+Professionnel : Dr Cabrel Nguesso
+Tarif : Gratuit
+
+Vous recevrez sa réponse directement.
+
+À bientôt,
+jesuis.pro
+
+==========
+type: demande_visiteur_recue | cas: sur devis, durée 90 min | fuseau: Europe/Paris
+==========
+to: marie.ndzi@exemple.test
+subject: Votre demande a bien été reçue
+headers:
+  (aucun)
+attachments:
+  (aucun)
+--- text ---
+Bonjour,
+
+Votre demande a bien été transmise au professionnel.
+
+Service : Consultation de cardiologie
+Professionnel : Dr Cabrel Nguesso
+Ville : Paris
+Tarif : Sur devis
+
+Vous recevrez sa réponse directement.
+
+À bientôt,
+jesuis.pro
+
+==========
+type: demande_visiteur_recue | cas: payant USD en centimes | fuseau: Europe/Paris
+==========
+to: marie.ndzi@exemple.test
+subject: Votre demande a bien été reçue
+headers:
+  (aucun)
+attachments:
+  (aucun)
+--- text ---
+Bonjour,
+
+Votre demande a bien été transmise au professionnel.
+
+Service : Consultation de cardiologie
+Professionnel : Dr Cabrel Nguesso
+Ville : Paris
+Tarif : 25,5 USD
+
+Vous recevrez sa réponse directement.
+
+À bientôt,
+jesuis.pro
+
+==========
+type: demande_visiteur_recue | cas: payant sans montant | fuseau: Europe/Paris
+==========
+to: marie.ndzi@exemple.test
+subject: Votre demande a bien été reçue
+headers:
+  (aucun)
+attachments:
+  (aucun)
+--- text ---
+Bonjour,
+
+Votre demande a bien été transmise au professionnel.
+
+Service : Consultation de cardiologie
+Professionnel : Dr Cabrel Nguesso
+Ville : Douala
+Tarif : Payant
+
+Vous recevrez sa réponse directement.
+
+À bientôt,
+jesuis.pro

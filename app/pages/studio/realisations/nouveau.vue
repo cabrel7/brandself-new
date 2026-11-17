@@ -1,6 +1,6 @@
 <script setup lang="ts">
 definePageMeta({ layout: 'studio' })
-useSeoMeta({ title: 'Nouvelle réalisation — Brandself' })
+useSeoMeta({ title: 'Nouvelle réalisation' })
 
 // Les compteurs (plafond de vedettes) viennent de la liste.
 const { compteurs, enChargement, enErreur, absente, refresh } = useStudioRealisations()
@@ -26,7 +26,6 @@ const { compteurs, enChargement, enErreur, absente, refresh } = useStudioRealisa
       v-else-if="absente"
       icon="i-ph-storefront"
       title="Créons d’abord votre vitrine"
-      description="Vous pourrez ajouter des réalisations dès que votre vitrine existera."
       :as="{ title: 'h1' }"
       :actions="[{ label: 'Créer ma vitrine', to: '/onboarding', size: 'xl' }]"
     />
@@ -35,7 +34,7 @@ const { compteurs, enChargement, enErreur, absente, refresh } = useStudioRealisa
       v-else-if="enErreur || !compteurs"
       icon="i-ph-warning-circle"
       title="Le formulaire ne s’affiche pas"
-      description="Nous n’avons pas pu le charger. Vos réalisations sont intactes."
+      description="Nous n’avons pas pu le charger."
       :as="{ title: 'h1' }"
       :actions="[{ label: 'Réessayer', size: 'xl', onClick: () => refresh() }]"
     />

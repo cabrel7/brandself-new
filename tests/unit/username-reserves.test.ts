@@ -4,9 +4,9 @@ import { schemaUsernameQuery, validateUsername } from '../../shared/schemas/user
 import { schemaUsernameChange } from '../../shared/schemas/vitrine'
 
 // U1 — username et mots réservés (S2 ajoute medias, compte, brandself, support, blog,
-// mentions-legales, services). Complète tests/username.test.ts, qui reste inchangé.
+// mentions-legales, services ; S14 ajoute jesuis et jesuispro). Complète tests/username.test.ts, qui reste inchangé.
 
-const MOTS_AJOUTES_PAR_S2 = ['medias', 'compte', 'brandself', 'support', 'blog', 'mentions-legales', 'services']
+const MOTS_AJOUTES_PAR_S2 = ['medias', 'compte', 'brandself', 'jesuis', 'jesuispro', 'support', 'blog', 'mentions-legales', 'services']
 
 describe('mots réservés (U1)', () => {
   it.each(MOTS_AJOUTES_PAR_S2)('should reserve %s', (mot) => {

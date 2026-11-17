@@ -1,4 +1,8 @@
 <script setup lang="ts">
+import { ETAT_PUBLIC_CHEMIN } from '#shared/admin'
+import { MARQUE } from '#shared/brand'
+import type { EtatPublicDto } from '#shared/schemas/admin-a4'
+
 type Channel = 'email' | 'telephone'
 
 interface StoredIdentifier {
@@ -7,7 +11,13 @@ interface StoredIdentifier {
 }
 
 const authClient = useAuthClient()
+// Autorisation d'un assistant en attente (query OAuth) : elle traverse toute la connexion.
+const reprise = useRepriseOauth()
 const googleActif = useRuntimeConfig().public.googleActif
+
+// A4 : inscriptions fermées. Échec de lecture = pas de bandeau (le serveur reste l'autorité).
+const { data: etatPublic } = useFetch<EtatPublicDto>(ETAT_PUBLIC_CHEMIN, { key: 'etat-public-connexion', server: false, lazy: true })
+const inscriptionsFermees = computed(() => etatPublic.value?.inscriptions === false)
 
 const channel = ref<Channel>('email')
 const email = ref('')
@@ -21,28 +31,16 @@ const fieldInvalid = ref(false)
 const ERREUR_ENVOI = "Nous n'avons pas pu envoyer le code. Réessayez dans un instant."
 const ERREUR_PAGE = 'La page a rencontré un problème. Rechargez-la et réessayez.'
 
-const countryCodes = [
-  { code: '+237', country: 'Cameroun' },
-  { code: '+229', country: 'Bénin' },
-  { code: '+225', country: "Côte d'Ivoire" },
-  { code: '+221', country: 'Sénégal' },
-  { code: '+241', country: 'Gabon' },
-  { code: '+243', country: 'RD Congo' },
-  { code: '+226', country: 'Burkina Faso' },
-  { code: '+223', country: 'Mali' },
-  { code: '+228', country: 'Togo' },
-  { code: '+33', country: 'France' },
-  { code: '+32', country: 'Belgique' },
-  { code: '+41', country: 'Suisse' },
-  { code: '+1', country: 'Canada / États-Unis' },
-]
-
+// Indicatifs proposés : pays dont le SMS est ouvert (catalogue de l'administration), sinon la liste du code.
 // Le bouton affiche l'indicatif seul ; la liste ajoute le nom du pays.
-const countryItems = countryCodes.map((c) => ({
-  label: c.code,
-  value: c.code,
-  description: c.country,
-}))
+const { referentiels } = useReferentiels()
+const countryItems = computed(() => optionsIndicatifsSms(referentiels.value))
+const smsIndisponible = computed(() => countryItems.value.length === 0)
+
+// Un indicatif qui n'est plus proposé est remplacé par le premier de la liste.
+watch(countryItems, (items) => {
+  if (!items.some((item) => item.value === countryCode.value) && items[0]) countryCode.value = items[0].value
+}, { immediate: true })
 
 const channelItems = [
   { label: 'Email', value: 'email' },
@@ -59,19 +57,7 @@ const sendModeItems = [
   { label: 'WhatsApp', value: 'whatsapp', disabled: !whatsappActif },
 ]
 
-const pointsPanneau = [
-  'Une adresse simple à partager',
-  'Des rendez-vous réservables en ligne',
-  'Aucun mot de passe à retenir',
-]
-
-const aideEnvoi = computed(() => {
-  if (channel.value === 'email') {
-    return 'Nous vous envoyons un code à 6 chiffres, valable 10 minutes.'
-  }
-  const canal = whatsappActif ? 'par SMS ou WhatsApp' : 'par SMS'
-  return `Nous vous envoyons un code à 6 chiffres ${canal}, valable 10 minutes.`
-})
+const pointsPanneau = ['Une adresse à partager', 'Des rendez-vous en ligne']
 
 watch(channel, () => {
   error.value = ''
@@ -89,13 +75,6 @@ function normalizePhone(): string {
     return ''
   }
   return `${countryCode.value}${digits}`
-}
-
-function translateError(message: string): string {
-  if (/too many|rate limit/i.test(message)) {
-    return 'Trop de tentatives. Patientez une minute avant de recommencer.'
-  }
-  return ERREUR_ENVOI
 }
 
 function rejectField(message: string): void {
@@ -123,7 +102,7 @@ async function sendCode(): Promise<void> {
         type: 'sign-in',
       })
       if (sendError) {
-        error.value = translateError(sendError.message ?? '')
+        error.value = messageErreurEnvoiCode(sendError)
         return
       }
       storeIdentifier('email', value)
@@ -135,12 +114,12 @@ async function sendCode(): Promise<void> {
       }
       const { error: sendError } = await authClient.phoneNumber.sendOtp({ phoneNumber: phone })
       if (sendError) {
-        error.value = translateError(sendError.message ?? '')
+        error.value = messageErreurEnvoiCode(sendError)
         return
       }
       storeIdentifier('telephone', phone)
     }
-    await navigateTo('/connexion/code')
+    await navigateTo(reprise.versConnexion('/connexion/code'))
   } catch {
     error.value = ERREUR_ENVOI
   } finally {
@@ -156,7 +135,7 @@ async function continueWithGoogle(): Promise<void> {
     return
   }
   try {
-    await authClient.signIn.social({ provider: 'google', callbackURL: '/onboarding' })
+    await authClient.signIn.social({ provider: 'google', callbackURL: reprise.urlReprise() ?? '/onboarding' })
   } catch {
     error.value = 'Nous n\'avons pas pu ouvrir Google. Réessayez dans un instant.'
   }
@@ -166,7 +145,7 @@ async function continueWithGoogle(): Promise<void> {
 <template>
   <div class="grid min-h-screen lg:grid-cols-[45fr_55fr]">
     <aside class="hidden flex-col justify-between gap-8 bg-accent-doux p-12 lg:flex">
-      <p class="font-(family-name:--font-titre) text-(length:--fs-24) font-bold">Brandself</p>
+      <BsLogo variante="horizontal" class="h-14 self-start" />
       <p class="font-(family-name:--font-titre) text-(length:--fs-48) leading-[1.15] font-bold">
         Votre vitrine professionnelle, prête en quelques minutes.
       </p>
@@ -176,18 +155,20 @@ async function continueWithGoogle(): Promise<void> {
           <span>{{ point }}</span>
         </li>
       </ul>
-      <p class="text-sm text-muted">Créé avec soin à Douala</p>
     </aside>
 
     <main class="mx-auto flex w-full max-w-120 flex-col gap-4 px-6 pt-8 pb-12 lg:justify-center lg:py-12">
-      <p class="font-(family-name:--font-titre) text-(length:--fs-24) font-bold lg:hidden">Brandself</p>
+      <BsLogo variante="wordmark" class="h-10 self-start lg:hidden" />
 
       <h1 class="font-(family-name:--font-titre) text-(length:--fs-32) leading-[1.15] font-bold">
         Bienvenue
       </h1>
       <p class="text-muted">
-        Connectez-vous ou créez votre vitrine en quelques instants. Aucun mot de passe à retenir.
+        Connectez-vous ou créez votre vitrine en quelques instants.
       </p>
+
+      <!-- Un seul message à la fois : une erreur d'envoi remplace le bandeau. -->
+      <InscriptionsFermeesBandeau v-if="inscriptionsFermees && !error" />
 
       <UButton
         color="neutral"
@@ -200,7 +181,7 @@ async function continueWithGoogle(): Promise<void> {
         <template #leading>
           <!-- Les quatre couleurs du « G » sont celles de la marque Google :
                elles sont imposées par ses règles d'utilisation, ce ne sont pas
-               des couleurs de la palette Brandself. -->
+               des couleurs de la palette jesuis.pro. -->
           <span
             class="inline-flex size-8 items-center justify-center rounded-full border border-default bg-default"
             aria-hidden="true"
@@ -228,7 +209,7 @@ async function continueWithGoogle(): Promise<void> {
         Continuer avec Google
       </UButton>
       <p v-if="!googleActif" class="-mt-2 text-sm text-muted">
-        Connexion Google bientôt disponible. Utilisez votre email ou votre téléphone pour l'instant.
+        Google bientôt disponible.
       </p>
 
       <USeparator label="ou" />
@@ -276,7 +257,6 @@ async function continueWithGoogle(): Promise<void> {
           v-if="channel === 'telephone'"
           label="Recevoir le code par"
           name="envoi"
-          :help="whatsappActif ? undefined : 'WhatsApp arrive bientôt.'"
         >
           <UTabs
             v-model="sendMode"
@@ -296,15 +276,17 @@ async function continueWithGoogle(): Promise<void> {
           :description="error"
         />
 
-        <UButton type="submit" block :loading="loading">
+        <p v-if="channel === 'telephone' && smsIndisponible" class="text-sm text-muted">
+          Le code par SMS n’est pas disponible pour le moment. Utilisez votre adresse email.
+        </p>
+
+        <UButton type="submit" block :loading="loading" :disabled="channel === 'telephone' && smsIndisponible">
           {{ loading ? 'Envoi en cours…' : 'Recevoir un code' }}
         </UButton>
 
-        <p class="text-muted">{{ aideEnvoi }}</p>
-
         <p class="text-sm text-muted">
           En continuant, vous acceptez les conditions d'utilisation et la politique de
-          confidentialité de Brandself.
+          confidentialité de {{ MARQUE.nom }}.
         </p>
       </form>
     </main>

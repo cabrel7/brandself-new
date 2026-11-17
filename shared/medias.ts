@@ -12,6 +12,13 @@ export function mediaUrl(id: string, width: MediaWidth): string {
   return `/medias/${id}/${width}.webp`
 }
 
+/** S12 : variante de partage (Open Graph) 1200×630 JPEG, servie à `/medias/{id}/partage.jpg`. */
+export const PARTAGE_FICHIER = 'partage.jpg'
+
+export function partageUrl(id: string): string {
+  return `/medias/${id}/${PARTAGE_FICHIER}`
+}
+
 export function mediaSrcset(id: string): string {
   return MEDIA_WIDTHS.map((w) => `${mediaUrl(id, w)} ${w}w`).join(', ')
 }

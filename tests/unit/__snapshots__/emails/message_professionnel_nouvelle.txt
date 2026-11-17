@@ -1,0 +1,109 @@
+==========
+type: message_professionnel_nouvelle | cas: avec téléphone | fuseau: Africa/Douala
+==========
+to: cabrel.pro@exemple.test
+subject: Nouveau message de Marie Ndzi — Une question avant de réserver
+headers:
+  (aucun)
+attachments:
+  (aucun)
+--- text ---
+Bonjour,
+
+Vous avez reçu un nouveau message depuis votre vitrine.
+
+De : Marie Ndzi
+Email : marie.ndzi@exemple.test
+Téléphone : +237699000011
+Sujet : Une question avant de réserver
+
+Bonjour,
+Je voudrais savoir si vous consultez le samedi <b>matin</b> ?
+
+Merci & à bientôt.
+
+Vous pouvez répondre directement à votre visiteur depuis votre messagerie.
+
+jesuis.pro
+
+==========
+type: message_professionnel_nouvelle | cas: sans téléphone, autre sujet | fuseau: Africa/Douala
+==========
+to: cabrel.pro@exemple.test
+subject: Nouveau message de Marie Ndzi — Autre
+headers:
+  (aucun)
+attachments:
+  (aucun)
+--- text ---
+Bonjour,
+
+Vous avez reçu un nouveau message depuis votre vitrine.
+
+De : Marie Ndzi
+Email : marie.ndzi@exemple.test
+Sujet : Autre
+
+Bonjour,
+Je voudrais savoir si vous consultez le samedi <b>matin</b> ?
+
+Merci & à bientôt.
+
+Vous pouvez répondre directement à votre visiteur depuis votre messagerie.
+
+jesuis.pro
+
+==========
+type: message_professionnel_nouvelle | cas: avec téléphone | fuseau: Europe/Paris
+==========
+to: cabrel.pro@exemple.test
+subject: Nouveau message de Marie Ndzi — Une question avant de réserver
+headers:
+  (aucun)
+attachments:
+  (aucun)
+--- text ---
+Bonjour,
+
+Vous avez reçu un nouveau message depuis votre vitrine.
+
+De : Marie Ndzi
+Email : marie.ndzi@exemple.test
+Téléphone : +237699000011
+Sujet : Une question avant de réserver
+
+Bonjour,
+Je voudrais savoir si vous consultez le samedi <b>matin</b> ?
+
+Merci & à bientôt.
+
+Vous pouvez répondre directement à votre visiteur depuis votre messagerie.
+
+jesuis.pro
+
+==========
+type: message_professionnel_nouvelle | cas: sans téléphone, autre sujet | fuseau: Europe/Paris
+==========
+to: cabrel.pro@exemple.test
+subject: Nouveau message de Marie Ndzi — Autre
+headers:
+  (aucun)
+attachments:
+  (aucun)
+--- text ---
+Bonjour,
+
+Vous avez reçu un nouveau message depuis votre vitrine.
+
+De : Marie Ndzi
+Email : marie.ndzi@exemple.test
+Sujet : Autre
+
+Bonjour,
+Je voudrais savoir si vous consultez le samedi <b>matin</b> ?
+
+Merci & à bientôt.
+
+Vous pouvez répondre directement à votre visiteur depuis votre messagerie.
+
+jesuis.pro

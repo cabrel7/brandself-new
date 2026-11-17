@@ -22,6 +22,10 @@ const PRODUCTION = {
   RESEND_API_KEY: 're_test_cle_resend',
   EMAIL_EXPEDITEUR: 'Brandself <bonjour@exemple.test>',
   NUXT_PUBLIC_SITE_URL: 'https://exemple.test',
+  // A1 (D-A1-02) : obligatoire en production.
+  ADMIN_HOST: 'admin.exemple.test',
+  // Obligatoire en production (éviction du cache d'images) : valeur factice de 32 caractères ou plus.
+  MEDIAS_CACHE_REFRESH_SECRET: '0000000000000000000000000000000000000000000000000000000000ci0001',
 }
 
 beforeEach(reinitialiserIa)

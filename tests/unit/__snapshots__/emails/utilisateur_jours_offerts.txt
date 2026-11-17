@@ -1,0 +1,87 @@
+==========
+type: utilisateur_jours_offerts | cas: 7 jours offerts | fuseau: Africa/Douala
+==========
+to: cabrel.pro@exemple.test
+subject: 7 jours offerts sur votre abonnement
+headers:
+  (aucun)
+attachments:
+  (aucun)
+--- text ---
+Bonjour Cabrel,
+
+Nous vous offrons 7 jours d'abonnement jesuis.pro.
+
+Votre abonnement est actif jusqu'au 31 juillet 2026 inclus.
+
+Cordialement,
+jesuis.pro
+
+—
+C'est un message de service concernant votre compte : il ne peut pas être désactivé.
+
+==========
+type: utilisateur_jours_offerts | cas: 1 jour offert, sans prénom | fuseau: Africa/Douala
+==========
+to: cabrel.pro@exemple.test
+subject: 1 jour offert sur votre abonnement
+headers:
+  (aucun)
+attachments:
+  (aucun)
+--- text ---
+Bonjour,
+
+Nous vous offrons 1 jour d'abonnement jesuis.pro.
+
+Votre abonnement est actif jusqu'au 31 juillet 2026 inclus.
+
+Cordialement,
+jesuis.pro
+
+—
+C'est un message de service concernant votre compte : il ne peut pas être désactivé.
+
+==========
+type: utilisateur_jours_offerts | cas: 7 jours offerts | fuseau: Europe/Paris
+==========
+to: cabrel.pro@exemple.test
+subject: 7 jours offerts sur votre abonnement
+headers:
+  (aucun)
+attachments:
+  (aucun)
+--- text ---
+Bonjour Cabrel,
+
+Nous vous offrons 7 jours d'abonnement jesuis.pro.
+
+Votre abonnement est actif jusqu'au 1er août 2026 inclus.
+
+Cordialement,
+jesuis.pro
+
+—
+C'est un message de service concernant votre compte : il ne peut pas être désactivé.
+
+==========
+type: utilisateur_jours_offerts | cas: 1 jour offert, sans prénom | fuseau: Europe/Paris
+==========
+to: cabrel.pro@exemple.test
+subject: 1 jour offert sur votre abonnement
+headers:
+  (aucun)
+attachments:
+  (aucun)
+--- text ---
+Bonjour,
+
+Nous vous offrons 1 jour d'abonnement jesuis.pro.
+
+Votre abonnement est actif jusqu'au 1er août 2026 inclus.
+
+Cordialement,
+jesuis.pro
+
+—
+C'est un message de service concernant votre compte : il ne peut pas être désactivé.

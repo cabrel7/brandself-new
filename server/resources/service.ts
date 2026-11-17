@@ -8,6 +8,7 @@ import type {
 } from '../../shared/dto'
 import { PAIEMENT_MODES, RYTHMES, SERVICE_TYPES, TARIFS } from '../../shared/services'
 import type { PaiementMode, Rythme, ServiceType, Tarif } from '../../shared/services'
+import { construireImagePartage } from '../../shared/seo'
 import { displayName } from '../../shared/vitrine'
 import type { MediaRow } from '../services/medias'
 import type { CompteursAvecPlan } from '../services/plan-visibilite'
@@ -79,6 +80,7 @@ export function toServiceStudioResource(row: ServiceStudioRow, image: MediaRow |
     ordre: row.ordre,
     creeLe: row.createdAt.toISOString(),
     modifieLe: row.updatedAt.toISOString(),
+    source: row.source as 'utilisateur' | 'assistant',
   }
 }
 
@@ -130,7 +132,7 @@ export function toServicePublicDetailResource(
         description === ''
           ? `${row.titre} avec ${nomAffiche}, ${vitrine.metier}${vitrine.ville ? ` à ${vitrine.ville}` : ''}.`
           : truncateForSeo(description),
-      image: null,
+      image: construireImagePartage(image?.id, row.titre),
     },
     modifieLe: row.updatedAt.toISOString(),
   }

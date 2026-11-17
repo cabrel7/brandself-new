@@ -3,6 +3,8 @@ import { and, asc, eq, inArray, sql } from 'drizzle-orm'
 import { medias, realisationImages, realisations } from '../../shared/db/schema'
 import { LISTE_SLUG_MAX, LISTE_SLUG_REGEX, VEDETTE_MAX } from '../../shared/listes'
 import { AUTRES_REALISATIONS_MAX } from '../../shared/realisations'
+import { SOURCE_UTILISATEUR } from '../../shared/mcp'
+import type { SourceContenu } from '../../shared/mcp'
 import type { RealisationCreateInput, RealisationUpdateInput } from '../../shared/schemas/realisation'
 import { ConflictError, NotFoundError, UnprocessableError, ValidationError } from '../exceptions/http'
 import { db } from '../utils/db'
@@ -223,6 +225,7 @@ async function insertRealisation(
   userId: string,
   input: RealisationCreateInput,
   now: Date,
+  source: SourceContenu,
 ): Promise<RealisationAvecCompteurs> {
   return db.transaction(async (tx) => {
     const vitrineId = await lockVitrineId(tx, userId)
@@ -230,9 +233,13 @@ async function insertRealisation(
     const { limite } = await assertQuota(tx, { userId, vitrineId }, 'realisations', now)
     const rows = await listRows(tx, vitrineId)
 
-    const etat = normalizeRealisationState(EMPTY_STATE, pickState(input))
+    // S16 : sans image principale, une réalisation est créée masquée — jamais publiée à la création.
+    const demande = pickState(input)
+    if (input.imageMediaId === null) demande.actif = false
+    const etat = normalizeRealisationState(EMPTY_STATE, demande)
     assertCoherent(etat)
-    await requireOwnedMedias(tx, userId, [input.imageMediaId, ...input.galerie])
+    const medias = [input.imageMediaId, ...input.galerie].filter((id): id is string => id !== null && id !== undefined)
+    await requireOwnedMedias(tx, userId, medias)
 
     const vedettes = rows.filter((ligne) => ligne.enVedette)
     const enVedette = resolveEnVedette({
@@ -260,6 +267,7 @@ async function insertRealisation(
         enVedette,
         ordre: rows.reduce((max, ligne) => Math.max(max, ligne.ordre + 1), 0),
         actif: etat.actif,
+        source,
       })
       .returning({ id: realisations.id })
     if (!created) throw new Error('Insertion de la réalisation sans résultat.')
@@ -275,10 +283,12 @@ export async function createRealisation(
   userId: string,
   input: RealisationCreateInput,
   now: Date = new Date(),
+  // Réservé à l'appel interne (serveur MCP) : jamais exposé par le schéma Zod public. Écrit dans le même INSERT.
+  source: SourceContenu = SOURCE_UTILISATEUR,
 ): Promise<RealisationAvecCompteurs> {
   for (let attempt = 1; ; attempt += 1) {
     try {
-      return await insertRealisation(userId, input, now)
+      return await insertRealisation(userId, input, now, source)
     } catch (error) {
       const { code, constraint } = readPgError(error)
       // Collision de slug (insertion hors verrou) : une nouvelle tentative relit les slugs existants.

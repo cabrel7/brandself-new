@@ -1,6 +1,6 @@
 <script setup lang="ts">
 definePageMeta({ layout: 'studio', ssr: false })
-useSeoMeta({ title: 'Modifier le lien — Brandself' })
+useSeoMeta({ title: 'Modifier le lien' })
 
 const route = useRoute()
 const id = String(route.params.id)
@@ -36,7 +36,6 @@ async function supprimer(): Promise<void> {
       v-if="introuvable"
       icon="i-ph-warning-circle"
       title="Ce lien est introuvable"
-      description="Il a peut-être été supprimé ou son identifiant est invalide."
       :as="{ title: 'h1' }"
       :actions="[{ label: 'Retour aux liens', to: '/studio/liens', size: 'xl' }]"
     />
@@ -51,7 +50,7 @@ async function supprimer(): Promise<void> {
       </div>
     </div>
 
-    <UEmpty v-else-if="enErreur" icon="i-ph-warning-circle" title="Le lien ne s’affiche pas" description="Nous n’avons pas pu le charger. Votre lien est intact." :as="{ title: 'h1' }" :actions="[{ label: 'Réessayer', size: 'xl', onClick: () => refresh() }]" />
+    <UEmpty v-else-if="enErreur" icon="i-ph-warning-circle" title="Le lien ne s’affiche pas" description="Nous n’avons pas pu le charger." :as="{ title: 'h1' }" :actions="[{ label: 'Réessayer', size: 'xl', onClick: () => refresh() }]" />
 
     <div v-else-if="lien" class="mt-4 flex flex-col gap-6">
       <h1 class="m-0 text-(length:--fs-32) leading-tight font-bold text-encre">Modifier le lien</h1>

@@ -2,6 +2,7 @@ allowBuilds:
   esbuild: false
   msgpackr-extract: true
   unrs-resolver: true
-  vue-demi: set this to true or false
+  # Script de build de vue-demi non exécuté : inutile avec Vue 3 (même comportement qu'en local) ; un choix non tranché fait échouer `pnpm install` en CI (ERR_PNPM_IGNORED_BUILDS).
+  vue-demi: false
 minimumReleaseAgeExclude:
   - '@nuxt/icon@2.6.0'

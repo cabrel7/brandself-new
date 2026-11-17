@@ -3,8 +3,8 @@ import { readFileSync, readdirSync } from 'node:fs'
 import path from 'node:path'
 import { Client } from 'pg'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
-import { GENERATION_STATUTS, IA_ERREUR_CODES, IA_FOURNISSEURS_APPELES, IA_TYPES, MOTIFS_REPLI } from '../../shared/ia'
-import { schemaPromptParametres, SCHEMA_SORTIE_PROPOSITION, SCHEMA_SORTIE_TEXTE } from '../../shared/schemas/ia'
+import { GENERATION_STATUTS, IA_ERREUR_CODES, IA_FOURNISSEURS_APPELES, MOTIFS_REPLI } from '../../shared/ia'
+import { schemaPromptParametres, SCHEMA_SORTIE_TEXTE } from '../../shared/schemas/ia'
 import { TITRES } from '../../shared/vitrine'
 import { PG_RESTRICT_VIOLATION } from '../../server/utils/pg-error'
 
@@ -16,6 +16,14 @@ import { PG_RESTRICT_VIOLATION } from '../../server/utils/pg-error'
 
 const MIGRATIONS_DIR = path.resolve(import.meta.dirname, '../../server/db/migrations')
 const SCHEMA = 'mig0018_test'
+/**
+ * Types autorisés par la CHECK de 0018 SEULE. `IA_TYPES` (shared/ia.ts) en compte un de plus depuis la migration
+ * 0027 (`seo_vitrine`, décision #24) : la synchronisation liste TypeScript / CHECK courante est prouvée dans
+ * seo-ia-migration.test.ts. Ce fichier décrit l'état APRÈS 0018 seule.
+ */
+const TYPES_APRES_0018 = ['onboarding_vitrine', 'ameliorer_texte'] as const
+/** Schéma de sortie du prompt v1 posé par 0018 seule (la constante courante est passée en v2 avec la migration 0027). */
+const SCHEMA_SORTIE_PROPOSITION_V1 = 'proposition_onboarding_v1'
 const BREAKPOINT = '--> statement-breakpoint'
 const PROMPT_ONBOARDING = '7c1f0d3e-5a8b-4c2d-9e10-0a1b2c3d4e01'
 const PROMPT_AMELIORER = '7c1f0d3e-5a8b-4c2d-9e10-0a1b2c3d4e02'
@@ -257,7 +265,7 @@ describe('migration 0018 : prompts v1 (CA01)', () => {
       ['ameliorer_texte', 1, true],
       ['onboarding_vitrine', 1, true],
     ])
-    expect(lignes.rows.map((l) => l.type).sort()).toEqual([...IA_TYPES].sort())
+    expect(lignes.rows.map((l) => l.type).sort()).toEqual([...TYPES_APRES_0018].sort())
     for (const ligne of lignes.rows) {
       expect(ligne.variables).toEqual(['donnees'])
       expect(schemaPromptParametres.safeParse(ligne.parametres).success, ligne.type).toBe(true)
@@ -266,7 +274,7 @@ describe('migration 0018 : prompts v1 (CA01)', () => {
       expect(ligne.systeme.length).toBeGreaterThan(200)
     }
     const parType = Object.fromEntries(lignes.rows.map((l) => [l.type, l]))
-    expect(parType.onboarding_vitrine).toMatchObject({ id: PROMPT_ONBOARDING, schema_sortie: SCHEMA_SORTIE_PROPOSITION, parametres: { temperature: 0.7, maxTokens: 1500 } })
+    expect(parType.onboarding_vitrine).toMatchObject({ id: PROMPT_ONBOARDING, schema_sortie: SCHEMA_SORTIE_PROPOSITION_V1, parametres: { temperature: 0.7, maxTokens: 1500 } })
     expect(parType.ameliorer_texte).toMatchObject({ id: PROMPT_AMELIORER, schema_sortie: SCHEMA_SORTIE_TEXTE, parametres: { temperature: 0.4, maxTokens: 900 } })
   })
 
@@ -389,14 +397,15 @@ describe('migration 0018 : CHECK des générations (CA02)', () => {
     await expect(generation({ statut, terminee_le: terminal ? new Date() : null })).resolves.toBeUndefined()
   })
 
-  // `quota_atteint` est ajouté par la migration 0021 (S10) : sa CHECK est prouvée dans migration-0021.test.ts (CA08). Ici, la CHECK de 0018 seule.
-  it.each(MOTIFS_REPLI.filter((motif) => motif !== 'quota_atteint'))('should accept the fallback reason %s (TypeScript list and CHECK stay in sync)', async (motif) => {
+  // `quota_atteint` est ajouté par la migration 0021 (S10) : sa CHECK est prouvée dans migration-0021.test.ts (CA08). `ia_coupee` l'est
+  // par la migration 0031 (A4) : migration-0031.test.ts. Ici, la CHECK de 0018 seule.
+  it.each(MOTIFS_REPLI.filter((motif) => motif !== 'quota_atteint' && motif !== 'ia_coupee'))('should accept the fallback reason %s (TypeScript list and CHECK stay in sync)', async (motif) => {
     await apply(migration0018())
 
     await expect(generation({ statut: 'repli', motif_repli: motif, terminee_le: new Date() })).resolves.toBeUndefined()
   })
 
-  it.each(IA_TYPES)('should accept the type %s', async (type) => {
+  it.each(TYPES_APRES_0018)('should accept the type %s', async (type) => {
     await apply(migration0018())
 
     await expect(generation({ type })).resolves.toBeUndefined()

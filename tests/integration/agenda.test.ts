@@ -96,7 +96,7 @@ describe('agenda : créneaux et indisponibilités', () => {
     const { user, vitrine, service } = await creerContexteAgenda({ username: 'agenda-indisponible' })
     await insererDisponibilite(vitrine.id, { jourSemaine: 1, debut: '09:00', fin: '11:00' })
 
-    const { item } = await createIndisponibilite(user.id, { date: LUNDI, raison: 'Congé' })
+    const { item } = await createIndisponibilite(user.id, { date: LUNDI, raison: 'Congé' }, MAINTENANT)
 
     expect(await lireIndisponibilites(vitrine.id)).toEqual([
       { id: item.id, vitrineId: vitrine.id, date: LUNDI, raison: 'Congé' },
@@ -125,7 +125,7 @@ describe('agenda : créneaux et indisponibilités', () => {
     const { createIndisponibilite, deleteIndisponibilite } = await agendaService()
     const a = await creerContexteAgenda({ username: 'indisponible-a' })
     const b = await creerContexteAgenda({ username: 'indisponible-b' })
-    const { item } = await createIndisponibilite(a.user.id, { date: LUNDI, raison: 'Formation' })
+    const { item } = await createIndisponibilite(a.user.id, { date: LUNDI, raison: 'Formation' }, MAINTENANT)
 
     const erreur = await rejet(deleteIndisponibilite(b.user.id, item.id))
 
@@ -140,8 +140,8 @@ describe('agenda : créneaux et indisponibilités', () => {
     const { createIndisponibilite } = await agendaService()
     const { user, vitrine } = await creerContexteAgenda({ username: 'indisponible-double' })
 
-    await createIndisponibilite(user.id, { date: LUNDI, raison: 'Congé' })
-    const erreur = await rejet(createIndisponibilite(user.id, { date: LUNDI, raison: 'Formation' }))
+    await createIndisponibilite(user.id, { date: LUNDI, raison: 'Congé' }, MAINTENANT)
+    const erreur = await rejet(createIndisponibilite(user.id, { date: LUNDI, raison: 'Formation' }, MAINTENANT))
 
     expect(erreur.estDomainError).toBe(true)
     expect(erreur.code).toBe('INDISPONIBILITE_EXISTANTE')

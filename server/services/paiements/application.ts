@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
-import { and, eq, ne, or, sql } from 'drizzle-orm'
-import { abonnements, evenementsPaiement, paiements, users } from '../../../shared/db/schema'
+import { and, eq, ne, or } from 'drizzle-orm'
+import { evenementsPaiement, paiements } from '../../../shared/db/schema'
 import type { Paiement } from '../../../shared/db/schema'
 import { PAIEMENT_STATUTS } from '../../../shared/paiements'
 import type {
@@ -9,12 +9,9 @@ import type {
   PaiementEnvironnement,
   TraitementEvenement,
 } from '../../../shared/paiements'
-import { ABONNEMENT_FUSEAU_REPLI } from '../../../shared/plans'
-import { PLAN_PAYANT_ID } from '../../config/plans'
 import { db } from '../../utils/db'
-import { calculerNouvelleEcheance, choisirBase, fuseauEffectif } from '../abonnements-regles'
-import { insertTransactionalEmailEvents } from '../email-outbox'
 import type { DbTransaction } from '../email-outbox'
+import { confirmerPaiement } from './confirmation'
 import { transitionPaiement } from './transitions'
 import type { DecisionTransition } from './transitions'
 import type { EvenementNormalise } from './types'
@@ -33,7 +30,6 @@ const STATUT_FOURNISSEUR_FORMAT = /^[A-Z_]{1,30}$/
 const ENTIER_MAX = 2_147_483_647
 /** Motifs posés par ce module (en plus de `CodeAnomalie`). */
 const MOTIF_NON_TERMINAL = 'NON_TERMINAL'
-const MOTIF_UTILISATEUR_SUPPRIME = 'UTILISATEUR_SUPPRIME'
 
 export interface OptionsApplication {
   /** Environnement de la clé du fournisseur : un paiement d'un autre environnement est « inconnu ». */
@@ -115,56 +111,9 @@ async function decider(
   return transition.type === 'succes' ? { type: 'anomalie', code } : { type: 'ignorer', motif: code }
 }
 
-// ---------------------------------------------------------------------------------------------
-// Prolongation de l'abonnement
-// ---------------------------------------------------------------------------------------------
-
-export interface ResultatProlongation {
-  abonnementId: string
-  /** Échéance avant le paiement (`null` : première activation). */
-  avant: Date | null
-  apres: Date
-}
-
-/**
- * Prolonge l'abonnement d'un utilisateur de `periodeMois` mois (#120), dans la transaction de l'appelant.
- * Sérialisée par utilisateur (verrou consultatif + `FOR UPDATE`) : deux paiements confirmés en parallèle ne
- * perdent aucune mise à jour. Base = `max(now, expire_le)` : en grâce ou en gratuit on repart de `now`.
- */
-export async function prolonger(
-  tx: DbTransaction,
-  userId: string,
-  periodeMois: number,
-  now: Date,
-  paiementId: string | null = null,
-): Promise<ResultatProlongation> {
-  await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${`abonnement:${userId}`}, 0))`)
-  const [existant] = await tx.select().from(abonnements).where(eq(abonnements.userId, userId)).for('update')
-  const [utilisateur] = await tx.select({ fuseau: users.fuseau }).from(users).where(eq(users.id, userId))
-  const fuseau = fuseauEffectif(utilisateur?.fuseau ?? ABONNEMENT_FUSEAU_REPLI)
-  const avant = existant?.expireLe ?? null
-  const apres = calculerNouvelleEcheance(choisirBase(now, avant), periodeMois, fuseau)
-
-  if (existant === undefined) {
-    const id = randomUUID()
-    await tx.insert(abonnements).values({
-      id,
-      userId,
-      plan: PLAN_PAYANT_ID,
-      expireLe: apres,
-      premiereActivationLe: now,
-      dernierPaiementId: paiementId,
-      createdAt: now,
-      updatedAt: now,
-    })
-    return { abonnementId: id, avant, apres }
-  }
-  await tx
-    .update(abonnements)
-    .set({ expireLe: apres, dernierPaiementId: paiementId, updatedAt: now })
-    .where(eq(abonnements.id, existant.id))
-  return { abonnementId: existant.id, avant, apres }
-}
+// Prolongation de l'abonnement : voir `prolongation.ts` (ré-exportée ici pour les appelants existants).
+export { prolonger } from './prolongation'
+export type { ResultatProlongation } from './prolongation'
 
 // ---------------------------------------------------------------------------------------------
 // Application d'un événement
@@ -178,36 +127,16 @@ function identifiantsAConserver(paiement: Paiement, evt: EvenementNormalise): Pi
   }
 }
 
+/**
+ * A3 : l'écriture d'un succès est déléguée au service UNIQUE `confirmerPaiement` (prolongation, passage à `reussi`,
+ * reçu). La décision et le journal de déduplication restent ici.
+ */
 async function ecrireSucces(tx: DbTransaction, paiement: Paiement, evt: EvenementNormalise, now: Date): Promise<void> {
-  let prolongation: ResultatProlongation | null = null
-  // Compte supprimé entre-temps : l'argent est pris mais il n'y a plus d'abonnement à prolonger. Le paiement reste
-  // une pièce comptable `reussi`, sans effet ni reçu (cas marginal, signalé dans les journaux).
-  if (paiement.userId !== null) {
-    prolongation = await prolonger(tx, paiement.userId, paiement.periodeMois, now, paiement.id)
-  } else {
-    console.error({ paiement: 'sans_utilisateur', id: paiement.id, motif: MOTIF_UTILISATEUR_SUPPRIME })
-  }
-  await tx
-    .update(paiements)
-    .set({
-      ...identifiantsAConserver(paiement, evt),
-      statut: 'reussi',
-      codeEchec: null,
-      appliqueLe: now,
-      termineLe: now,
-      prochaineVerification: null,
-      fraisReels: entierOuNull(evt.fraisReels) ?? paiement.fraisReels,
-      netReel: entierOuNull(evt.netReel) ?? paiement.netReel,
-      abonnementExpireAvant: prolongation?.avant ?? null,
-      abonnementExpireApres: prolongation?.apres ?? null,
-      updatedAt: now,
-    })
-    .where(eq(paiements.id, paiement.id))
-  // Reçu dans la MÊME transaction : jamais d'activation sans reçu planifié, jamais de reçu sans activation. La
-  // clé d'unicité (entité, type, occurrence vide) l'empêche d'être planifié deux fois.
-  if (paiement.userId !== null) {
-    await insertTransactionalEmailEvents(tx, 'paiement', paiement.id, ['paiement_confirme'], now)
-  }
+  await confirmerPaiement(tx, paiement.id, now, {
+    ...identifiantsAConserver(paiement, evt),
+    fraisReels: entierOuNull(evt.fraisReels),
+    netReel: entierOuNull(evt.netReel),
+  })
 }
 
 async function ecrireEchec(

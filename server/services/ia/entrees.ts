@@ -23,6 +23,16 @@ export const schemaEntreeAmelioration = z.strictObject({
   }),
 })
 
+// Décision #24 : SEO d'une vitrine existante. Les quatre valeurs de la signature (shared : seo-regles.ts), rien
+// d'autre : jamais le prénom, le nom, la présentation ni les textes Google saisis. `pays` est le libellé.
+export const schemaEntreeSeo = z.strictObject({
+  metier: z.string(),
+  ville: z.string(),
+  pays: z.string(),
+  accroche: z.string().nullable(),
+})
+
 export type EntreeOnboarding = z.infer<typeof schemaEntreeOnboarding>
 export type EntreeAmelioration = z.infer<typeof schemaEntreeAmelioration>
-export type EntreeIa = EntreeOnboarding | EntreeAmelioration
+export type EntreeSeo = z.infer<typeof schemaEntreeSeo>
+export type EntreeIa = EntreeOnboarding | EntreeAmelioration | EntreeSeo

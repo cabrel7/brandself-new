@@ -5,9 +5,10 @@ import type { OffreDTO, QuotaDTO } from '../../shared/dto/abonnement'
 import { PAIEMENT_STATUTS_OUVERTS } from '../../shared/paiements'
 import { PLAN_IDS } from '../../shared/plans'
 import type { PlanId, RessourceQuota } from '../../shared/plans'
-import { LIMITE_CHAMP_PAR_RESSOURCE, PLANS } from '../config/plans'
+import { LIMITE_CHAMP_PAR_RESSOURCE } from '../config/plans'
 import type { ConfigPlan } from '../config/plans'
 import { db } from '../utils/db'
+import { assurerInstantane, lirePlanConfig } from './configuration/lecture'
 import { construireOffre } from './paiements/offre'
 import { getPlanEffectif, getQuotas } from './plans'
 import type { PlanEffectif } from './plans'
@@ -38,6 +39,7 @@ export function limiteConfig(config: ConfigPlan, ressource: RessourceQuota): num
 
 /** Vue du Compte : plan effectif (calculé, PlanService), paiement en cours, quotas et offre de paiement. */
 export async function getAbonnementView(userId: string, now: Date): Promise<AbonnementView> {
+  await assurerInstantane()
   const [etat, quotas, [utilisateur], [enCours]] = await Promise.all([
     getPlanEffectif(userId, now),
     getQuotas(userId, now),
@@ -60,8 +62,10 @@ export async function getAbonnementView(userId: string, now: Date): Promise<Abon
 
 /** Plans et offre publics (`/tarifs`) : configuration seule, aucune base. */
 export function getTarifs(devise: string | undefined): { plans: { id: PlanId, config: ConfigPlan }[], offre: OffreDTO } {
+  // A5 : plans, prix, frais et moyens viennent des versions ACTIVES (instantané de 5 s au plus, rafraîchi en tâche de
+  // fond : la route publique reste synchrone), repli sur le code.
   return {
-    plans: PLAN_IDS.map((id) => ({ id, config: PLANS[id] })),
+    plans: PLAN_IDS.map((id) => ({ id, config: lirePlanConfig(id) })),
     offre: construireOffre(devise),
   }
 }

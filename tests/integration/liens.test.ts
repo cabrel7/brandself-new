@@ -129,6 +129,8 @@ describe('liens : page publique et pied de vitrine (liens actifs seulement, rés
     const cartes = visibles.map(toLienPublicCarteResource)
     expect(cartes.map((carte) => carte.type)).toEqual(['whatsapp', 'reseau'])
     expect(cartes.find((carte) => carte.type === 'reseau')?.plateforme).toBe('linkedin')
+    // Liste blanche exacte : le type et la plateforme servent la pastille de la page publique.
+    expect(Object.keys(cartes[0]!).sort()).toEqual(['libelle', 'plateforme', 'slug', 'type', 'url'])
     // Liste blanche : jamais les données internes.
     expect(cartes[0]).not.toHaveProperty('vitrineId')
     expect(cartes[0]).not.toHaveProperty('ordre')

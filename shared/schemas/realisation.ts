@@ -61,7 +61,8 @@ export const schemaRealisationCreate = z
   .object({
     titre: champs.titre,
     description: champs.description.default(null),
-    imageMediaId: champs.imageMediaId,
+    /** Image principale de la réalisation. Optionnelle : une réalisation sans image est créée masquée. */
+  imageMediaId: champs.imageMediaId.nullable().default(null),
     galerie: champs.galerie.default([]),
     annee: champs.annee.default(null),
     lieu: champs.lieu.default(null),

@@ -1,3 +1,4 @@
+import type { RateLimit } from './limites'
 import type { PlanId } from './plans'
 import { SERVICE_TYPES } from './services'
 
@@ -5,8 +6,15 @@ import { SERVICE_TYPES } from './services'
 // Les listes du statut, des motifs et des types sont recopiées dans les CHECK de la
 // migration 0018 : les garder synchronisées.
 
-export const IA_TYPES = ['onboarding_vitrine', 'ameliorer_texte'] as const
+// Décision #24 : `seo_vitrine` (proposition SEO régénérée en tâche de fond) s'ajoute aux deux types S8 (CHECK 0027).
+export const IA_TYPES = ['onboarding_vitrine', 'ameliorer_texte', 'seo_vitrine'] as const
 export type IaType = (typeof IA_TYPES)[number]
+
+/**
+ * Types que l'utilisateur déclenche lui-même : seuls à compter dans son quota mensuel (`generations_ia_mois`) et
+ * seuls lisibles par `GET /api/studio/generations/{id}`. Le SEO de fond n'est ni compté ni visible du studio.
+ */
+export const IA_TYPES_QUOTA = ['onboarding_vitrine', 'ameliorer_texte'] as const satisfies readonly IaType[]
 
 export const GENERATION_STATUTS = ['en_attente', 'en_cours', 'terminee', 'repli', 'expiree'] as const
 export type GenerationStatut = (typeof GENERATION_STATUTS)[number]
@@ -26,6 +34,9 @@ export const MOTIFS_REPLI = [
   'plafond_global',
   // S10 : quota mensuel du plan atteint pendant l'onboarding (jamais de blocage, repli déterministe).
   'quota_atteint',
+  // A4 (D-A4-10) : l'administrateur a coupé l'IA (réglage `ia.active`) : repli déterministe, aucun appel au fournisseur.
+  // Accepté par la CHECK de `generations_ia` depuis la migration 0031.
+  'ia_coupee',
 ] as const
 export type MotifRepli = (typeof MOTIFS_REPLI)[number]
 
@@ -42,6 +53,8 @@ export const MOTIFS_REPLI_TRANSITOIRES: readonly MotifRepli[] = [
   'limiteur_indisponible',
   'plafond_global',
   'quota_atteint',
+  // A4 : une coupure se lève ; la même demande, une fois l'IA rétablie, doit appeler le fournisseur (« Réessayer » utile).
+  'ia_coupee',
 ]
 
 /** Fournisseur résolu (`aucun` = repli déterministe, aucun appel). */
@@ -60,7 +73,16 @@ export const IA_BASE_URL_DEFAUT = 'https://api.openai.com/v1'
 export const IA_HOTES_HTTP_AUTORISES: readonly string[] = ['localhost', '127.0.0.1']
 
 /** Codes d'erreur courts conservés sur une génération (jamais un message brut). */
-export const IA_ERREUR_CODES = ['delai', 'fournisseur', 'reponse_vide', 'sortie_invalide', 'faits_inventes'] as const
+export const IA_ERREUR_CODES = [
+  'delai',
+  'fournisseur',
+  'reponse_vide',
+  'sortie_invalide',
+  'faits_inventes',
+  // Décision #24 : texte sans accents, ou formulation interdite (superlatif, promesse, allégation de santé…).
+  'accents_manquants',
+  'formulation_interdite',
+] as const
 export type IaErreurCode = (typeof IA_ERREUR_CODES)[number]
 
 export const IA_MODELE_DEFAUT = 'claude-haiku-5-5'
@@ -105,6 +127,17 @@ export type AmeliorerChamp = (typeof AMELIORER_CHAMPS)[number]
 export const AMELIORER_OBJECTIFS = ['reformuler'] as const
 export type AmeliorerObjectif = (typeof AMELIORER_OBJECTIFS)[number]
 export const AMELIORER_TEXTE_MIN = 20
+
+// Contenu d'un prompt : mêmes bornes que les CHECK de `prompts_ia` (`systeme` 1 à 20 000, `gabarit` 1 à 5 000 caractères).
+export const PROMPT_SYSTEME_LONGUEUR_MAX = 20_000
+export const PROMPT_GABARIT_LONGUEUR_MAX = 5_000
+
+/**
+ * A5 (D-A5-09) : essai à blanc d'un prompt depuis l'administration, par administrateur : 10 par heure, fail-closed.
+ * Compteur Redis `ia-essai:{adminId}` (préfixe `limite:` ajouté par le limiteur). Aucune ligne n'est persistée.
+ */
+export const IA_ESSAI_PROMPT_LIMIT: RateLimit = { limit: 10, windowS: 3600 }
+export const IA_ESSAI_PROMPT_CLE_PREFIXE = 'ia-essai:'
 
 // Réglages d'un prompt (colonne `parametres`).
 export const PROMPT_TEMPERATURE_MIN = 0

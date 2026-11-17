@@ -1,11 +1,12 @@
 // S12 (#150) : génération du sitemap des vitrines publiées, paginé par lots.
 // Une URL par vitrine publiée + ses éléments visibles (services, réalisations) selon le plan effectif.
 // Toutes les requêtes sont groupées (≤ 4 par lot) pour respecter le budget de performance.
-import { and, desc, eq, inArray, isNotNull } from 'drizzle-orm'
-import { abonnements, realisations, services, vitrines } from '../../shared/db/schema'
+import { and, desc, eq, inArray } from 'drizzle-orm'
+import { abonnements, realisations, services, users, vitrines } from '../../shared/db/schema'
 import { db } from '../utils/db'
-import { resoudrePlanEffectif } from './plans'
-import { PLANS } from '../config/plans'
+import { lireGraceJours, resoudrePlanEffectif } from './plans'
+import { sqlVitrinePublique } from './visibilite'
+import { assurerInstantane, lirePlanConfig } from './configuration/lecture'
 import type { ConfigPlan } from '../config/plans'
 import type { PlanId } from '../../shared/plans'
 import type { SitemapUrlDTO } from '../../shared/dto/media'
@@ -19,7 +20,7 @@ export interface VitrineSitemap {
   config: ConfigPlan
 }
 
-/** Vitrines publiées, triées par date de modification décroissante.
+/** Vitrines visibles du public (publiées, non bloquées, titulaire non suspendu), triées par date de modification décroissante.
  * Les abonnements sont récupérés en une seule requête (pas une par vitrine). */
 async function listerVitrinesPubliees(now: Date, limite: number): Promise<VitrineSitemap[]> {
   const lignes = await db
@@ -30,7 +31,7 @@ async function listerVitrinesPubliees(now: Date, limite: number): Promise<Vitrin
       modifieLe: vitrines.updatedAt,
     })
     .from(vitrines)
-    .where(isNotNull(vitrines.publieeLe))
+    .where(sqlVitrinePublique())
     .orderBy(desc(vitrines.updatedAt))
     .limit(limite)
 
@@ -39,18 +40,23 @@ async function listerVitrinesPubliees(now: Date, limite: number): Promise<Vitrin
   // Tous les abonnements en une seule requête, indexés par userId.
   const userIds = [...new Set(lignes.map((l) => l.userId))]
   const abos = await db
-    .select({ userId: abonnements.userId, plan: abonnements.plan, expireLe: abonnements.expireLe })
+    .select({ userId: abonnements.userId, plan: abonnements.plan, expireLe: abonnements.expireLe, fuseau: users.fuseau })
     .from(abonnements)
+    .innerJoin(users, eq(users.id, abonnements.userId))
     .where(inArray(abonnements.userId, userIds))
   const abosParUser = new Map(abos.map((a) => [a.userId, a]))
+  // R2 : durée de grâce lue du réglage `abonnement.grace_jours` (une lecture par lot), fuseau de l'abonné.
+  const graceJours = await lireGraceJours()
 
+  // A5 : limites lues sur la version active du plan (cache de 5 s).
+  await assurerInstantane()
   const resultats: VitrineSitemap[] = []
   for (const ligne of lignes) {
     const abo = abosParUser.get(ligne.userId)
     const effectif = abo
-      ? resoudrePlanEffectif({ plan: abo.plan, expireLe: abo.expireLe }, now)
+      ? resoudrePlanEffectif({ plan: abo.plan, expireLe: abo.expireLe }, now, abo.fuseau, graceJours)
       : resoudrePlanEffectif(null, now)
-    const config = PLANS[effectif.plan]
+    const config = lirePlanConfig(effectif.plan)
     resultats.push({
       id: ligne.id,
       userId: ligne.userId,

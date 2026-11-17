@@ -155,6 +155,83 @@
       "when": 1793700141133,
       "tag": "0021_s10_abonnements",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1793798308931,
+      "tag": "0022_s11_statistiques",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1794116896063,
+      "tag": "0023_s15_stats_install_pwa",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1794117212506,
+      "tag": "0024_s16_mcp",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1794215350337,
+      "tag": "0025_s16_oauth_better_auth",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1794215405811,
+      "tag": "0026_s16_drop_mcp_custom_tables",
+      "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1794425261502,
+      "tag": "0027_seo_auto_ia",
+      "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1794629004598,
+      "tag": "0028_a1_admin_socle",
+      "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1794692311875,
+      "tag": "0029_a2_utilisateurs_vitrines",
+      "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1794692363718,
+      "tag": "0030_a3_paiements_admin",
+      "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1794816300573,
+      "tag": "0031_a4_supervision_reglages",
+      "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1794816854168,
+      "tag": "0032_a5_catalogues_versions",
+      "breakpoints": true
     }
   ]
 }

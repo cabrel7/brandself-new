@@ -1,0 +1,27 @@
+# Modèle de la liste d'IP autorisées pour admin.jesuis.pro (A1, D-A1-14).
+# Format `geo` : ce fichier est inclus DANS le bloc `geo $admin_ip_ok { default 0; ... }` de
+# admin.conf. Chaque ligne est `<adresse ou plage> 1;` (1 = autorisée). Tout le reste vaut 0 : 403.
+#
+# Ce fichier est un EXEMPLE versionné. Le vrai fichier vit UNIQUEMENT sur le serveur :
+#   /etc/nginx/brandself-admin-ip.conf      (propriétaire root, mode 0640, jamais dans git)
+# Les adresses IP sont des données personnelles : ne jamais les committer, ni les coller
+# dans un ticket ou un journal d'application.
+#
+# Les adresses ci-dessous sont des adresses de DOCUMENTATION (RFC 5737 pour IPv4, RFC 3849
+# pour IPv6) : elles ne sont routées nulle part. Les remplacer par les vraies adresses.
+# Après modification : sudo nginx -t && sudo systemctl reload nginx
+
+# Bureau / domicile de l'administrateur (IPv4 fixe).
+192.0.2.10 1;
+
+# Second accès de secours (autre connexion, par exemple un partage de connexion).
+198.51.100.25 1;
+
+# Plage d'un fournisseur (notation CIDR) : à n'utiliser que si l'adresse change dans la plage.
+203.0.113.0/28 1;
+
+# IPv6 (documentation).
+2001:db8::10 1;
+
+# Ne PAS écrire `allow`, `deny` ni `default` ici : `default 0;` est déjà dans admin.conf.
+# Un fichier sans aucune ligne refuse tout le monde : c'est le comportement sûr.

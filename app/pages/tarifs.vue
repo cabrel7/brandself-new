@@ -1,9 +1,26 @@
 <script setup lang="ts">
+import { MARQUE } from '#shared/brand'
 import { PERIODES_MOIS } from '#shared/plans'
+import { OG_IMAGE_DEFAUT, OG_IMAGE_HAUTEUR, OG_IMAGE_LARGEUR, ogLocale, urlAbsolue, urlCanonique } from '#shared/seo'
+
+const TITRE_PAGE = 'Tarifs'
+const DESCRIPTION_PAGE = 'Un plan gratuit pour commencer, un plan payant quand votre vitrine reçoit des rendez-vous. Paiement par Mobile Money, sans renouvellement automatique.'
+
+// Même source que la page d'accueil : `site.url` (nuxt-site-config), image de marque par défaut, locale du site.
+const siteUrl = useSiteConfig().url ?? ''
+const imagePartage = urlAbsolue(siteUrl, OG_IMAGE_DEFAUT)
 
 useSeoMeta({
-  title: 'Tarifs — Brandself',
-  description: 'Un plan gratuit pour commencer, un plan payant quand votre vitrine reçoit des rendez-vous. Paiement par Mobile Money, sans renouvellement automatique.',
+  title: TITRE_PAGE,
+  description: DESCRIPTION_PAGE,
+  ogTitle: `${TITRE_PAGE} — ${MARQUE.nom}`,
+  ogDescription: DESCRIPTION_PAGE,
+  ogType: 'website',
+  ogLocale: ogLocale(null),
+  ogUrl: urlCanonique(siteUrl, '/tarifs'),
+  ogImage: [{ url: imagePartage, width: OG_IMAGE_LARGEUR, height: OG_IMAGE_HAUTEUR, alt: MARQUE.nom }],
+  twitterCard: 'summary_large_image',
+  twitterImage: imagePartage,
 })
 
 const {
@@ -33,13 +50,13 @@ const periodeTexte = computed({
 const prixGratuit = computed(() => (devise.value ? formaterMontant(0, devise.value, exposant.value) : null))
 const prixPayant = computed(() => {
   const choisi = prixChoisi.value
-  return choisi && devise.value ? formaterMontant(choisi.montantParMois, devise.value, exposant.value) : null
+  return choisi && devise.value ? formaterMontant(montantParMoisPaye(choisi), devise.value, exposant.value) : null
 })
 const precisionPayant = computed(() => {
   const choisi = prixChoisi.value
   if (!choisi || !devise.value) return undefined
   if (choisi.periodeMois === 1) return 'par mois'
-  return `par mois, facturé ${formaterMontant(choisi.montant, devise.value, exposant.value)} pour ${libellePeriode(choisi.periodeMois)}`
+  return `par mois, facturé ${formaterMontant(montantPaye(choisi), devise.value, exposant.value)} pour ${libellePeriode(choisi.periodeMois)}`
 })
 
 // Connecté : sa carte Abonnement s'ouvre, la durée choisie ici est présélectionnée. Visiteur : il commence par se connecter
@@ -70,9 +87,6 @@ const moyensTexte = computed(() => moyensLibelles.value.join(' ou '))
           <h1 class="m-0 text-(length:--fs-32) leading-tight font-bold md:text-(length:--fs-48)">
             Un plan gratuit, un plan payant
           </h1>
-          <p class="m-0 text-(length:--fs-20) text-texte-secondaire">
-            Commencez gratuitement. Passez au payant quand votre vitrine reçoit des rendez-vous.
-          </p>
         </div>
 
         <div v-if="prixPeriodes.length > 0" class="mt-8 flex flex-col items-center gap-4">
@@ -85,7 +99,6 @@ const moyensTexte = computed(() => moyensLibelles.value.join(' ou '))
             v-if="gratuit"
             titre="Gratuit"
             :prix="prixGratuit"
-            precision="pour toujours"
             :lignes="lignesPlan(gratuit)"
             :action="{ label: 'Commencer gratuitement', to: LIEN_COMMENCER }"
           />
@@ -106,8 +119,7 @@ const moyensTexte = computed(() => moyensLibelles.value.join(' ou '))
             Paiement par {{ moyensTexte }}.
           </p>
           <p class="m-0">
-            Vous payez une période. Pas de renouvellement automatique : nous vous prévenons avant la fin.
-            À l’échéance, {{ tarifs.graceJours }} jours de grâce : rien n’est supprimé.
+            Sans renouvellement automatique.
           </p>
         </div>
       </template>
@@ -115,8 +127,7 @@ const moyensTexte = computed(() => moyensLibelles.value.join(' ou '))
 
     <footer class="border-t border-bordure">
       <div class="mx-auto flex w-full max-w-6xl items-center justify-between gap-4 px-6 py-6 text-(length:--fs-14) text-texte-secondaire">
-        <p class="m-0">Brandself</p>
-        <p class="m-0">Douala, Cameroun</p>
+        <BsLogo variante="wordmark" class="h-8" />
       </div>
     </footer>
   </div>

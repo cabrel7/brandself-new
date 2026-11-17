@@ -1,3 +1,4 @@
+import { Temporal } from '@js-temporal/polyfill'
 import {
   RAPPEL_JOURNEE_RATTRAPAGE_HEURES,
   RAPPEL_VISITEUR_AVANCE_HEURES,
@@ -6,7 +7,7 @@ import {
   RESUME_RATTRAPAGE_HEURES,
 } from '../../../shared/notifications'
 import type { CodeAnnulation } from '../../../shared/notifications'
-import { ABONNEMENT_RAPPEL_RATTRAPAGE_HEURES, ABONNEMENT_RAPPELS_JOURS } from '../../../shared/plans'
+import { ABONNEMENT_FUSEAU_REPLI, ABONNEMENT_RAPPEL_RATTRAPAGE_HEURES, ABONNEMENT_RAPPELS_JOURS } from '../../../shared/plans'
 import type { AbonnementRappelJours } from '../../../shared/plans'
 import { HEURE_MS } from '../../../shared/temps'
 
@@ -44,6 +45,39 @@ export function analyserOccurrenceRappel(occurrence: string): { jours: Abonnemen
   // Aller-retour exact : refuse toute forme ambiguë (« 2026-12-03 », fuseau explicite, espaces…).
   if (Number.isNaN(expireLe.getTime()) || expireLe.toISOString() !== iso) return null
   return { jours, expireLe }
+}
+
+// --- Rappel d'abonnement MANUEL (A3, D-A3-07) ---
+
+/**
+ * Préfixe d'une occurrence de rappel envoyé À LA DEMANDE de l'administrateur : `MANUEL:<ISO de la demande>` (31
+ * caractères). EN MAJUSCULES : `emails_transactionnels_occurrence_check` n'accepte que `[0-9A-Z:.-]` (la constante
+ * `RAPPEL_MANUEL_OCCURRENCE_PREFIXE = 'manuel:'` de shared/admin-paiements.ts serait refusée par la base).
+ */
+export const OCCURRENCE_RAPPEL_MANUEL_PREFIXE = 'MANUEL:'
+
+/** `MANUEL:2026-12-03T10:15:00.000Z` : la clé identifie la DEMANDE, pas l'échéance (les jours restants se calculent à l'envoi). */
+export function construireOccurrenceRappelManuel(demandeLe: Date): string {
+  return `${OCCURRENCE_RAPPEL_MANUEL_PREFIXE}${demandeLe.toISOString()}`
+}
+
+/** Instant de la demande d'un rappel manuel ; `null` si la clé n'a pas exactement cette forme (aller-retour ISO exact). */
+export function analyserOccurrenceRappelManuel(occurrence: string): Date | null {
+  if (!occurrence.startsWith(OCCURRENCE_RAPPEL_MANUEL_PREFIXE)) return null
+  const iso = occurrence.slice(OCCURRENCE_RAPPEL_MANUEL_PREFIXE.length)
+  const demandeLe = new Date(iso)
+  if (Number.isNaN(demandeLe.getTime()) || demandeLe.toISOString() !== iso) return null
+  return demandeLe
+}
+
+/**
+ * Jours restants au moment de l'ENVOI, en jours calendaires du fuseau du destinataire : écart entre aujourd'hui et le
+ * dernier jour payé inclus, dans le fuseau du destinataire (repli `Africa/Douala`, comme `users.fuseau` par défaut ; même sens que `J7`, `J3`, `J0`). `0` = dernier jour, `1` = demain. PURE, jamais négatif.
+ */
+export function joursRappelManuel(expireLe: Date, now: Date, fuseau: string = ABONNEMENT_FUSEAU_REPLI): number {
+  const dernierJour = Temporal.Instant.fromEpochMilliseconds(expireLe.getTime() - 1).toZonedDateTimeISO(fuseau).toPlainDate()
+  const aujourdhui = Temporal.Instant.fromEpochMilliseconds(now.getTime()).toZonedDateTimeISO(fuseau).toPlainDate()
+  return Math.max(0, aujourdhui.until(dernierJour, { largestUnit: 'days' }).days)
 }
 
 interface EntreeBase {
@@ -185,6 +219,13 @@ function pertinenceRappelJournee(entree: EntreeRappelJournee, now: Date, reglage
 function pertinenceRappelAbonnement(entree: EntreeRappelAbonnement, now: Date, reglages: ReglagesPertinence): CodeAnnulation | null {
   const { abonnement } = entree
   if (abonnement === null) return 'ENTITE_INTROUVABLE'
+  // A3 : rappel manuel. Pas de lien avec UNE échéance (la demande vaut pour l'échéance courante) : périmé si
+  // l'abonnement est échu ou si la demande est trop ancienne (même rattrapage que les rappels planifiés).
+  if (analyserOccurrenceRappelManuel(entree.occurrence) !== null) {
+    if (now.getTime() >= abonnement.expireLe.getTime()) return 'RAPPEL_PERIME'
+    if (apresRattrapage(entree.createdAt, now, reglages.abonnementRattrapageHeures)) return 'RAPPEL_PERIME'
+    return abonnement.destinataire ? null : 'DESTINATAIRE_ABSENT'
+  }
   const rappel = analyserOccurrenceRappel(entree.occurrence)
   if (rappel === null) return 'RAPPEL_PERIME'
   if (rappel.expireLe.getTime() !== abonnement.expireLe.getTime()) return 'ABONNEMENT_RENOUVELE'

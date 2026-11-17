@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { Temporal } from '@js-temporal/polyfill'
 import { and, asc, eq, gte, inArray, lt, lte, or, sql } from 'drizzle-orm'
+import { ADMIN_A2_EMAIL_TYPES } from '../../shared/admin-a2'
 import { TEMP_EMAIL_DOMAIN } from '../../shared/compte'
 import {
   abonnements,
@@ -23,6 +24,7 @@ import {
 import type { TransactionalEmailType } from '../../shared/jobs'
 import { SUJETS_MESSAGE } from '../../shared/message'
 import type { SujetMessage } from '../../shared/message'
+import { asPalette } from '../../shared/palettes'
 import {
   RAPPEL_JOURNEE_STATUTS,
   RESUME_PERIODE_JOURS,
@@ -33,18 +35,20 @@ import { ABONNEMENT_FUSEAU_REPLI, PERIODES_MOIS } from '../../shared/plans'
 import type { PeriodeMois } from '../../shared/plans'
 import { getMoyenPaiement } from '../config/paiements'
 import { db } from '../utils/db'
+import { lireGraceJours } from './plans'
 import { signUnsubscribeToken } from './desabonnement'
-import { buildTransactionalEmail } from './emails/contenus'
+import { preparerEmailAdminCompte } from './admin/a2-emails'
+import { buildTransactionalEmail, publicReplyTo } from './emails/contenus'
 import type { TransactionalEmailContent } from './emails/contenus'
 import type { RendezVousJournee } from './emails/notifications-contenus'
 import {
   EmailTransportError,
   transactionalEmailTransport,
 } from './emails/transport'
-import type { EmailTransport } from './emails/transport'
+import type { EmailMessage, EmailTransport } from './emails/transport'
 import { choisirSuggestion, compterActivite } from './notifications/activite'
 import { debutSemaineIso, journeeLocale, periodeResume } from './notifications/fenetres'
-import { analyserOccurrenceRappel, evaluerPertinence } from './notifications/pertinence'
+import { analyserOccurrenceRappel, analyserOccurrenceRappelManuel, evaluerPertinence, joursRappelManuel } from './notifications/pertinence'
 import { getCompteursResume } from './statistiques'
 
 const PROCESSING_LEASE_MS = 60_000
@@ -239,6 +243,8 @@ async function loadReservationContent(
         paiementInstructions: services.paiementInstructions,
       },
       vitrine: {
+        username: vitrines.username,
+        palette: vitrines.palette,
         titre: vitrines.titre,
         prenom: vitrines.prenom,
         nom: vitrines.nom,
@@ -262,7 +268,8 @@ async function loadReservationContent(
     outboxId: row.id,
     generatedAt: row.createdAt,
     professionnelEmail: professionalRecipient(result.vitrine.emailContact, result.accountEmail),
-    vitrine: result.vitrine,
+    vitrine: { ...result.vitrine, palette: asPalette(result.vitrine.palette) },
+    siteUrl: env.NUXT_PUBLIC_SITE_URL,
     service: result.service,
     visiteur: {
       nom: result.reservation.nom,
@@ -301,6 +308,8 @@ async function loadDemandeContent(
         paiementInstructions: services.paiementInstructions,
       },
       vitrine: {
+        username: vitrines.username,
+        palette: vitrines.palette,
         titre: vitrines.titre,
         prenom: vitrines.prenom,
         nom: vitrines.nom,
@@ -324,7 +333,8 @@ async function loadDemandeContent(
     outboxId: row.id,
     generatedAt: row.createdAt,
     professionnelEmail: professionalRecipient(result.vitrine.emailContact, result.accountEmail),
-    vitrine: result.vitrine,
+    vitrine: { ...result.vitrine, palette: asPalette(result.vitrine.palette) },
+    siteUrl: env.NUXT_PUBLIC_SITE_URL,
     service: result.service,
     visiteur: {
       nom: result.demande.nom,
@@ -351,6 +361,8 @@ async function loadMessageContent(
         texte: messages.message,
       },
       vitrine: {
+        username: vitrines.username,
+        palette: vitrines.palette,
         titre: vitrines.titre,
         prenom: vitrines.prenom,
         nom: vitrines.nom,
@@ -374,7 +386,8 @@ async function loadMessageContent(
     outboxId: row.id,
     generatedAt: row.createdAt,
     professionnelEmail: professionalRecipient(result.vitrine.emailContact, result.accountEmail),
-    vitrine: result.vitrine,
+    vitrine: { ...result.vitrine, palette: asPalette(result.vitrine.palette) },
+    siteUrl: env.NUXT_PUBLIC_SITE_URL,
     visiteur: {
       nom: result.message.nom,
       email: result.message.email,
@@ -429,6 +442,7 @@ async function prepareRappelVisiteur(row: EmailOutboxRow, now: Date): Promise<Pr
       },
       vitrine: {
         username: vitrines.username,
+        palette: vitrines.palette,
         titre: vitrines.titre,
         prenom: vitrines.prenom,
         nom: vitrines.nom,
@@ -467,7 +481,7 @@ async function prepareRappelVisiteur(row: EmailOutboxRow, now: Date): Promise<Pr
       generatedAt: row.createdAt,
       // Le rappel s'adresse au visiteur : l'adresse du professionnel n'est ni lue ni transmise.
       professionnelEmail: '',
-      vitrine: result.vitrine,
+      vitrine: { ...result.vitrine, palette: asPalette(result.vitrine.palette) },
       service: result.service,
       // Minimisation (#100) : ni téléphone ni motif dans le contenu du rappel.
       visiteur: { nom: result.reservation.nom, email: result.reservation.email, telephone: null, motif: null },
@@ -687,7 +701,10 @@ async function prepareRappelAbonnement(row: EmailOutboxRow, now: Date): Promise<
   }, now)
   if (code !== null) return { annule: code }
   const rappel = analyserOccurrenceRappel(row.occurrence)
-  if (!result || destinataire === null || rappel === null) return { annule: 'ENTITE_INTROUVABLE' }
+  // A3 : un rappel manuel (occurrence `MANUEL:<instant>`) n'a pas de palier planifié : le palier est déduit de l'échéance.
+  const manuel = analyserOccurrenceRappelManuel(row.occurrence) !== null
+  const jours = rappel?.jours ?? (manuel && result ? joursRappelManuel(result.expireLe, now, fuseauAffichage(result.fuseau)) : null)
+  if (!result || destinataire === null || jours === null) return { annule: 'ENTITE_INTROUVABLE' }
 
   // Lien de renouvellement : la dernière période payée est présélectionnée (repli : la plus courte).
   const derniere = result.dernierePeriode
@@ -701,9 +718,10 @@ async function prepareRappelAbonnement(row: EmailOutboxRow, now: Date): Promise<
       prenom: result.prenom ?? '',
       fuseau: fuseauAffichage(result.fuseau),
       siteUrl: env.NUXT_PUBLIC_SITE_URL,
-      jours: rappel.jours,
+      jours,
       expireLe: result.expireLe,
       periodeMois,
+      graceJours: await lireGraceJours(),
     },
   }
 }
@@ -772,6 +790,7 @@ async function preparePaiementConfirme(row: EmailOutboxRow, now: Date): Promise<
 async function prepareEmail(row: EmailOutboxRow, now: Date): Promise<Preparation> {
   if (!isTransactionalEmailType(row.type)) throw new EmailOutboxProcessingError('TYPE_EMAIL_INCONNU')
   assertEventMatchesEntity(row.type, row.entiteType as EmailEntityType)
+  if ((ADMIN_A2_EMAIL_TYPES as readonly string[]).includes(row.type)) return preparerEmailAdminCompte(db, row)
   if (row.type === 'abonnement_rappel') return prepareRappelAbonnement(row, now)
   if (row.type === 'paiement_confirme') return preparePaiementConfirme(row, now)
   if (row.type === 'reservation_visiteur_rappel') return prepareRappelVisiteur(row, now)
@@ -860,6 +879,13 @@ export type ProcessTransactionalEmailResult = {
   statut: 'envoye' | 'deja_envoye' | 'echec_terminal' | 'en_cours' | 'annule' | 'pas_encore'
 }
 
+/** Un e-mail de contact public inutilisable en `Reply-To` n'empêche pas l'envoi ; journal sans donnée personnelle. */
+function warnIgnoredReplyTo(content: TransactionalEmailContent, message: EmailMessage): void {
+  if (message.replyTo !== undefined || !content.type.startsWith('reservation_visiteur_')) return
+  if (!('vitrine' in content) || !content.vitrine.emailContact?.trim()) return
+  if (publicReplyTo(content.vitrine.emailContact) === undefined) console.warn('[emails] REPLY_TO_IGNORE : e-mail de contact de la vitrine invalide')
+}
+
 /**
  * Flux d'envoi : claim (verrou de ligne, bail, essais) -> revalidation (`evaluerPertinence`) -> chargement et
  * construction du contenu -> envoi -> `envoye`. Une ligne non pertinente passe à `annule` sans envoi.
@@ -883,6 +909,7 @@ export async function processTransactionalEmail(
       return { statut: 'annule' }
     }
     const message = buildTransactionalEmail(preparation.contenu)
+    warnIgnoredReplyTo(preparation.contenu, message)
     await transport.send(message, `${IDEMPOTENCY_KEY_PREFIX}${claim.row.id}`)
     const [sent] = await db
       .update(emailsTransactionnels)

@@ -94,7 +94,7 @@ export function usePartageVitrine(options: UsePartageVitrineOptions = {}) {
       objectUrl = URL.createObjectURL(fichier)
       ancre = document.createElement('a')
       ancre.href = objectUrl
-      ancre.download = `qr-code-brandself-${vitrine.value.username}.svg`
+      ancre.download = `qr-code-jesuis.pro-${vitrine.value.username}.svg`
       document.body.appendChild(ancre)
       ancre.click()
       await annoncer(ANNONCE_QR_TELECHARGE)

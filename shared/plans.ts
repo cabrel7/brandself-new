@@ -3,6 +3,8 @@
 // server/config/plans.ts (CLAUDE.md §4 règle 11). Les listes `PLAN_IDS` sont recopiées dans les CHECK
 // de la migration 0021 (shared/db/schema.ts) : les garder synchronisées.
 
+import { MARQUE } from './brand'
+
 export const PLAN_IDS = ['gratuit', 'payant'] as const
 export type PlanId = (typeof PLAN_IDS)[number]
 
@@ -56,15 +58,15 @@ export const LIMITE_MARQUEUR_DATE = '{date}'
 export const LIMITE_MESSAGES: Record<RessourceQuota, { titre: string, texte: string }> = {
   services: {
     titre: 'Limite de services atteinte',
-    texte: 'Vous avez atteint {limite} services, la limite du plan gratuit. Avec le plan payant, ajoutez autant de services que vous le souhaitez, et le badge Brandself disparaît de votre vitrine.',
+    texte: `Vous avez atteint {limite} services, la limite du plan gratuit. Avec le plan payant, ajoutez autant de services que vous le souhaitez, et le badge ${MARQUE.nom} disparaît de votre vitrine.`,
   },
   realisations: {
     titre: 'Limite de réalisations atteinte',
-    texte: 'Vous avez atteint {limite} réalisations, la limite du plan gratuit. Avec le plan payant, ajoutez autant de réalisations que vous le souhaitez, et le badge Brandself disparaît de votre vitrine.',
+    texte: `Vous avez atteint {limite} réalisations, la limite du plan gratuit. Avec le plan payant, ajoutez autant de réalisations que vous le souhaitez, et le badge ${MARQUE.nom} disparaît de votre vitrine.`,
   },
   temoignages: {
     titre: 'Limite de témoignages atteinte',
-    texte: 'Vous avez atteint {limite} témoignages, la limite du plan gratuit. Avec le plan payant, ajoutez autant de témoignages que vous le souhaitez, et le badge Brandself disparaît de votre vitrine.',
+    texte: `Vous avez atteint {limite} témoignages, la limite du plan gratuit. Avec le plan payant, ajoutez autant de témoignages que vous le souhaitez, et le badge ${MARQUE.nom} disparaît de votre vitrine.`,
   },
   reservations_mois: {
     titre: 'Limite de réservations atteinte',
@@ -77,6 +79,15 @@ export const LIMITE_MESSAGES: Record<RessourceQuota, { titre: string, texte: str
 }
 
 export const LIMITE_ACTION = { libelle: 'Voir l’abonnement', chemin: ABONNEMENT_CHEMIN } as const
+
+/** Capacités réservées au plan payant (S16 : `mcp` = accès serveur MCP). */
+export const CAPACITES_PAYANTES = ['mcp'] as const
+export type CapacitePayante = (typeof CAPACITES_PAYANTES)[number]
+
+/** Une capacité est-elle réservée au plan payant ? */
+export function estCapacitePayante(capacite: string): capacite is CapacitePayante {
+  return (CAPACITES_PAYANTES as readonly string[]).includes(capacite)
+}
 
 /** Remplace `{limite}` (et `{date}` si fournie) ; sans effet sur un texte qui n'en contient pas. */
 export function interpolerLimite(texte: string, valeurs: { limite: number, date?: string }): string {

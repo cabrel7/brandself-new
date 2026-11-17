@@ -16,13 +16,13 @@ import type { Session } from '../helpers/session'
 
 const CLES_STUDIO = [
   'actif', 'annee', 'creeLe', 'description', 'enVedette', 'galerie', 'id', 'image', 'lieu', 'lien', 'masqueParPlan', 'modifieLe',
-  'ordre', 'role', 'slug', 'titre',
+  'ordre', 'role', 'slug', 'source', 'titre',
 ].sort()
 const CLES_CARTE_PUBLIQUE = ['annee', 'description', 'image', 'lieu', 'slug', 'titre'].sort()
-const CLES_DETAIL_PUBLIC = [...CLES_CARTE_PUBLIQUE, 'galerie', 'lien', 'role', 'seo'].sort()
+const CLES_DETAIL_PUBLIC = [...CLES_CARTE_PUBLIQUE, 'galerie', 'lien', 'modifieLe', 'role', 'seo'].sort()
 const CLES_MEDIA = ['hauteur', 'id', 'largeur', 'srcset', 'url']
 const CLES_VITRINE_PUBLIQUE = [
-  'accroche', 'badgeBrandself', 'bio', 'contact', 'fuseau', 'metier', 'nom', 'nomAffiche', 'palette', 'pays',
+  'accroche', 'badgeBrandself', 'bio', 'contact', 'fuseau', 'metier', 'modifieLe', 'nom', 'nomAffiche', 'palette', 'pays',
   'paysLibelle', 'photo', 'prenom', 'seo', 'titre', 'username', 'ville',
 ].sort()
 
@@ -47,6 +47,7 @@ interface RealisationStudio {
   enVedette: boolean
   actif: boolean
   masqueParPlan: boolean
+  source: 'utilisateur' | 'assistant'
   ordre: number
 }
 
@@ -216,6 +217,7 @@ test.describe.serial('réalisations — API studio et publique (S4-CA44 à CA46)
         enVedette: true,
         actif: true,
         ordre: 0,
+        source: 'utilisateur',
         galerie: [],
       })
       expect(Object.keys(corps.realisation.image ?? {}).sort()).toEqual(CLES_MEDIA)
@@ -268,12 +270,18 @@ test.describe.serial('réalisations — API studio et publique (S4-CA44 à CA46)
   test.describe('erreurs de validation et de règles métier (HTTP)', () => {
     test.beforeEach(viderLesRealisations)
 
-    test('CA07 POST without main image, or with a null one, answers 400 VALIDATION with "Ajoutez une image principale." and inserts nothing', async () => {
+    test('CA07 POST without main image, or with a null one, answers 201 and creates a hidden realisation (S16), never published at creation', async () => {
       for (const donnees of [{ titre: 'Sans image' }, { titre: 'Sans image', imageMediaId: null }]) {
-        const corps = await attendreErreur(await session.api.post('/api/studio/realisations', { data: donnees }), 400, 'VALIDATION')
-        expect(corps.data?.champs?.imageMediaId?.[0]).toBe('Ajoutez une image principale.')
+        const reponse = await session.api.post('/api/studio/realisations', { data: donnees })
+        expect(reponse.status(), await reponse.text()).toBe(201)
+        const { realisation } = (await reponse.json()) as ReponseRealisation
+        expect(realisation.image).toBeNull()
+        expect(realisation.actif).toBe(false)
+        expect(realisation.enVedette).toBe(false)
       }
-      expect((await lister()).realisations).toHaveLength(0)
+      const { realisations } = await lister()
+      expect(realisations).toHaveLength(2)
+      expect(realisations.every((r) => !r.actif)).toBe(true)
     })
 
     test('CA11 POST with invalid fields answers 400 VALIDATION listing the fields', async () => {
@@ -663,11 +671,11 @@ test.describe.serial('réalisations — API studio et publique (S4-CA44 à CA46)
       expect(Object.keys(liste.realisations[0] ?? {}).sort()).toEqual(CLES_CARTE_PUBLIQUE)
       expect(Object.keys(liste.aLaUne[0] ?? {}).sort()).toEqual(CLES_CARTE_PUBLIQUE)
       expect(Object.keys(detail.realisation).sort()).toEqual(CLES_DETAIL_PUBLIC)
-      expect(Object.keys(detail.realisation.seo).sort()).toEqual(['description', 'titre'])
+      expect(Object.keys(detail.realisation.seo).sort()).toEqual(['description', 'image', 'titre'])
       expect(detail.realisation.seo.titre).toBe('Unité de cathétérisme — Dr Cabrel Nguesso')
       expect(detail.realisation.seo.description.length).toBeLessThanOrEqual(160)
       expect(detail.realisation.lien).toBe('https://chu-douala.cm')
-      for (const secret of [realisation.id, '"ordre"', '"enVedette"', '"actif"', '"vitrineId"', '"creeLe"', '"modifieLe"', '"imageMediaId"', session.userId]) {
+      for (const secret of [realisation.id, '"ordre"', '"enVedette"', '"actif"', '"vitrineId"', '"creeLe"', '"imageMediaId"', session.userId]) {
         expect(detailBrut).not.toContain(secret)
       }
     })

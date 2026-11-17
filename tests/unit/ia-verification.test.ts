@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { MARQUE } from '../../shared/brand'
 import { ACCROCHE_MAX, BIO_MAX } from '../../shared/vitrine'
 import {
   ENTREE_ONBOARDING_DEMO,
@@ -213,7 +214,7 @@ describe('validerSortie : aucun fait inventé (CA24)', () => {
     expect(await valider(EMPLACEMENTS.presentation('Je suis coach 360 et formateur en université'))).toEqual({ ok: false, code: 'faits_inventes' })
   })
 
-  it.each(['Brandself', 'WhatsApp'])('should allow the whitelisted proper noun %s mid-sentence', async (nom) => {
+  it.each([MARQUE.nom, 'WhatsApp'])('should allow the whitelisted proper noun %s mid-sentence', async (nom) => {
     expect(await valider(EMPLACEMENTS.presentation(`Vous pouvez me joindre par ${nom} sans souci`))).toMatchObject({ ok: true })
   })
 

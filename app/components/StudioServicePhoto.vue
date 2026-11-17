@@ -93,9 +93,6 @@ async function surChoix(event: Event): Promise<void> {
           :disabled="enCours"
           @click="emit('retiree')"
         />
-        <p class="m-0 text-(length:--fs-14) text-texte-secondaire">
-          Elle s’affiche sur la fiche du service.
-        </p>
       </div>
     </div>
 

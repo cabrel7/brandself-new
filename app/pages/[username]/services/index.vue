@@ -1,7 +1,6 @@
 <script setup lang="ts">
 const route = useRoute()
 const username = String(route.params.username)
-const { public: { siteUrl = '' } } = useRuntimeConfig()
 
 const [vitrine, { reponse, erreur }] = await Promise.all([usePublicVitrine(username), usePublicServices(username)])
 
@@ -9,27 +8,9 @@ if (erreur.value) throw erreurPagePublique(erreur.value)
 // Une page n'existe que si elle a du contenu : sans service visible, 404.
 if (!reponse.value || reponse.value.total === 0) throw erreurPagePublique({ statusCode: 404 })
 
-useSeoVitrine({
-  vitrine: {
-    username: vitrine.value.username,
-    nomAffiche: vitrine.value.nomAffiche,
-    metier: vitrine.value.metier,
-    ville: vitrine.value.ville,
-    pays: vitrine.value.pays,
-    paysLibelle: vitrine.value.paysLibelle,
-    titre: vitrine.value.titre,
-    seoTitre: vitrine.value.seo.titre,
-    seoDescription: vitrine.value.seo.description,
-    accroche: vitrine.value.accroche,
-    bio: vitrine.value.bio,
-    photo: vitrine.value.photo,
-    liens: [],
-  },
-  page: 'services',
-  siteUrl,
-})
-
 const services = computed(() => reponse.value?.services ?? [])
+
+useSeoVitrine({ vitrine: vitrine.value, page: 'services', servicesVisibles: services.value })
 const fil = computed(() => [{ label: 'Accueil', to: `/${vitrine.value.username}` }, { label: 'Services' }])
 </script>
 
@@ -41,9 +22,6 @@ const fil = computed(() => [{ label: 'Accueil', to: `/${vitrine.value.username}`
         <h1 class="font-(family-name:--font-titre) text-(length:--fs-32) leading-[1.1] font-bold md:text-(length:--fs-48)">
           Mes services
         </h1>
-        <p class="max-w-prose text-(length:--fs-16) text-texte-secondaire">
-          Choisissez la prestation qui correspond à votre besoin, puis réservez le créneau qui vous convient.
-        </p>
       </div>
       <ul class="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
         <li v-for="service in services" :key="service.slug">

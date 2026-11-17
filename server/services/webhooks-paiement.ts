@@ -8,6 +8,7 @@ import {
   ServiceUnavailableError,
   UnauthorizedError,
 } from '../exceptions/http'
+import { enregistrerRefusWebhook } from './webhooks-refuses'
 import { appliquerEvenement } from './paiements/application'
 import { estFournisseurConnu, getPaiementProvider } from './paiements/fournisseurs'
 import type { PaiementProvider } from './paiements/types'
@@ -104,10 +105,17 @@ export async function recevoirWebhook(
     console.error({ webhook: 'non_configure', fournisseur, cles: Boolean(provider) })
     throw new ServiceUnavailableError(CODE_NON_DISPONIBLE)
   }
-  if (corpsBrut.length > (deps.maxOctets ?? WEBHOOK_CORPS_MAX_OCTETS)) throw new ContentTooLargeError('CORPS_TROP_GROS')
+  if (corpsBrut.length > (deps.maxOctets ?? WEBHOOK_CORPS_MAX_OCTETS)) {
+    await enregistrerRefusWebhook(fournisseur, 'CORPS_TROP_GROS', now)
+    throw new ContentTooLargeError('CORPS_TROP_GROS')
+  }
 
-  // Signature AVANT tout parsing, sur les octets reçus. Aucun détail sur la cause du refus.
-  if (!provider.verifierSignature(corpsBrut, entetes)) throw new UnauthorizedError('SIGNATURE_INVALIDE')
+  // Signature AVANT tout parsing, sur les octets reçus. Aucun détail sur la cause du refus. A3 : le refus est compté
+  // (best-effort, jamais d'effet sur la réponse 401).
+  if (!provider.verifierSignature(corpsBrut, entetes)) {
+    await enregistrerRefusWebhook(fournisseur, 'SIGNATURE_INVALIDE', now)
+    throw new UnauthorizedError('SIGNATURE_INVALIDE')
+  }
 
   // Corps SIGNÉ (donc authentique) mais illisible : c'est un défaut d'intégration de notre côté ou du fournisseur,
   // jamais une erreur de l'appelant. Un 4xx ne serait pas réessayé et l'événement serait perdu : 503 réessayable,
@@ -143,7 +151,17 @@ export async function traiterWebhook(
   if (!estFournisseurConnu(fournisseur)) throw new NotFoundError('FOURNISSEUR_INCONNU')
   const plafond = deps.maxOctets ?? WEBHOOK_CORPS_MAX_OCTETS
   const annonce = Number.parseInt(entetes['content-length'] ?? '', 10)
-  if (Number.isInteger(annonce) && annonce > plafond) throw new ContentTooLargeError('CORPS_TROP_GROS')
-  const corps = await lireCorpsBorne(flux, plafond)
+  if (Number.isInteger(annonce) && annonce > plafond) {
+    await enregistrerRefusWebhook(fournisseur, 'CORPS_TROP_GROS', now)
+    throw new ContentTooLargeError('CORPS_TROP_GROS')
+  }
+  let corps: Buffer
+  try {
+    corps = await lireCorpsBorne(flux, plafond)
+  } catch (erreur) {
+    // Corps plus gros que le plafond sans `Content-Length` (flux en morceaux) : compté comme l'annonce trop grosse.
+    if (erreur instanceof ContentTooLargeError) await enregistrerRefusWebhook(fournisseur, 'CORPS_TROP_GROS', now)
+    throw erreur
+  }
   return recevoirWebhook(fournisseur, corps, aplatirEntetes(entetes), now, deps)
 }

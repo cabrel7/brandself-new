@@ -359,16 +359,29 @@ describe('realisations — création (CA06 à CA16)', () => {
     expect((await creer(user.id, { titre: 'R5' })).item.realisation.ordre).toBe(0)
   })
 
-  it('CA07 should refuse a creation without main image or with a null one before the service: nothing is inserted', async () => {
-    const { vitrine } = await utilisateurAvecVitrine()
+  it('CA07 should accept a creation without main image (S16 schema) but insert it masked: never active, never vedette, never visible', async () => {
+    const { user, vitrine } = await utilisateurAvecVitrine()
 
     for (const imageMediaId of [undefined, null]) {
       const resultat = schemaRealisationCreate.safeParse({ titre: 'Sans image', imageMediaId })
-      expect(resultat.success).toBe(false)
-      expect(resultat.error?.issues[0]?.path).toEqual(['imageMediaId'])
-      expect(resultat.error?.issues[0]?.message).toBe('Ajoutez une image principale.')
+      expect(resultat.success).toBe(true)
+      expect(resultat.data?.imageMediaId).toBeNull()
     }
-    expect(await lignesDeLaVitrine(vitrine.id)).toHaveLength(0)
+
+    const { createRealisation } = await realisationsService()
+    const { item, compteurs } = await createRealisation(user.id, schemaRealisationCreate.parse({ titre: 'Sans image', imageMediaId: null }))
+
+    expect(item.realisation.imageMediaId).toBeNull()
+    expect(item.realisation.actif).toBe(false)
+    expect(item.realisation.enVedette).toBe(false)
+    expect(compteurs.visibles).toBe(0)
+    expect(await lignesDeLaVitrine(vitrine.id)).toHaveLength(1)
+
+    const erreur = await rejet(createRealisation(user.id, schemaRealisationCreate.parse({ titre: 'Brouillon en vedette', imageMediaId: null, enVedette: true })))
+    expect(erreur.estDomainError).toBe(true)
+    expect(erreur.code).toBe('VALIDATION')
+    expect(erreur.status).toBe(400)
+    expect(erreur.data?.champs).toEqual({ enVedette: ['Une réalisation masquée ne peut pas être en vedette.'] })
   })
 
   it('CA08 should make the first three realisations vedettes automatically and not the fourth (orders 0 to 3)', async () => {
@@ -1507,6 +1520,9 @@ describe('realisations — suppression, ordre et liste (CA29 à CA33)', () => {
     await peupler(petite.user.id, petite.vitrine.id, 1)
     await peupler(grande.user.id, grande.vitrine.id, 6)
 
+    // Échauffement : la configuration des plans est lue avec un cache de 5 s ; sans cela, la première mesure peut inclure sa relecture
+    // (2 requêtes de plus) selon le moment, et le test devient instable.
+    await listOwnRealisations(petite.user.id)
     const requetesPetite = await compterRequetes(() => listOwnRealisations(petite.user.id))
     const requetesGrande = await compterRequetes(() => listOwnRealisations(grande.user.id))
 
@@ -1703,16 +1719,29 @@ describe('realisations — lecture publique (CA34 à CA40)', () => {
     const grande = await utilisateurAvecVitrine('grande-vitrine')
     await peupler(petite.user.id, petite.vitrine.id, 3)
     await peupler(grande.user.id, grande.vitrine.id, 8)
+    const echauffement = await utilisateurAvecVitrine('echauffement-vitrine')
+    await peupler(echauffement.user.id, echauffement.vitrine.id, 1)
 
-    const detailPetite = await compterRequetes(() => getPublicRealisation('petite-vitrine', 'r0'))
-    const detailGrande = await compterRequetes(() => getPublicRealisation('grande-vitrine', 'r0'))
-    const listePetite = await compterRequetes(() => getPublicRealisations('petite-vitrine'))
-    const listeGrande = await compterRequetes(() => getPublicRealisations('grande-vitrine'))
+    // La configuration des plans et les catalogues sont lus avec un cache de 5 s (CONFIGURATION_CACHE_MS) : une relecture
+    // qui tombe PENDANT la mesure ajoute 2 requêtes à une vitrine et pas à l'autre (6 contre 4, test instable en CI). On gèle
+    // donc l'horloge (Date seulement), puis on échauffe les caches sur une troisième vitrine : plus aucune expiration possible.
+    vi.useFakeTimers({ toFake: ['Date'], now: Date.now() })
+    try {
+      await getPublicRealisation('echauffement-vitrine', 'r0')
+      await getPublicRealisations('echauffement-vitrine')
 
-    expect(detailPetite).toBeGreaterThan(0)
-    expect(detailGrande).toBe(detailPetite)
-    expect(listePetite).toBeGreaterThan(0)
-    expect(listeGrande).toBe(listePetite)
+      const detailPetite = await compterRequetes(() => getPublicRealisation('petite-vitrine', 'r0'))
+      const detailGrande = await compterRequetes(() => getPublicRealisation('grande-vitrine', 'r0'))
+      const listePetite = await compterRequetes(() => getPublicRealisations('petite-vitrine'))
+      const listeGrande = await compterRequetes(() => getPublicRealisations('grande-vitrine'))
+
+      expect(detailPetite).toBeGreaterThan(0)
+      expect(detailGrande).toBe(detailPetite)
+      expect(listePetite).toBeGreaterThan(0)
+      expect(listeGrande).toBe(listePetite)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   describe('CA39 liste blanche des DTO publics', () => {

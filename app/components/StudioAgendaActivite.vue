@@ -66,12 +66,7 @@ const ICONES_VIDE: Record<OngletAgenda, string> = {
 const TITRES_VIDE: Record<OngletAgenda, string> = {
   a_venir: 'Aucun rendez-vous à venir',
   demandes: 'Aucune demande',
-  passees: 'Rien de passé — tout est traité',
-}
-const DESCRIPTIONS_VIDE: Record<OngletAgenda, string> = {
-  a_venir: 'Les nouvelles réservations apparaîtront ici.',
-  demandes: 'Les demandes d’inscription ou de devis arriveront ici.',
-  passees: 'Les rendez-vous terminés, annulés ou refusés apparaîtront ici.',
+  passees: 'Aucun rendez-vous passé',
 }
 
 interface GroupeActivites {
@@ -136,7 +131,6 @@ const groupes = computed<GroupeActivites[]>(() => {
         v-if="activites.length === 0"
         :icon="ICONES_VIDE[onglet]"
         :title="TITRES_VIDE[onglet]"
-        :description="DESCRIPTIONS_VIDE[onglet]"
         class="rounded-(--rayon) border border-bordure bg-surface"
       />
 
@@ -145,7 +139,7 @@ const groupes = computed<GroupeActivites[]>(() => {
           <h3 class="m-0 text-(length:--fs-14) font-semibold tracking-widest text-texte-secondaire uppercase">
             {{ groupe.jourGroupe }}
           </h3>
-          <ul class="m-0 mt-2 list-none space-y-4 p-0">
+          <ul class="m-0 mt-2 grid list-none gap-4 p-0 md:grid-cols-2">
             <li
               v-for="activite in groupe.activites"
               :key="activite.cle"

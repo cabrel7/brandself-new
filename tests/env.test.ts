@@ -35,6 +35,10 @@ describe('loadEnv (configuration validation)', () => {
       // S9 (#91) : obligatoires en production.
       EMAIL_EXPEDITEUR: 'Brandself <bonjour@brandself.io>',
       NUXT_PUBLIC_SITE_URL: 'https://brandself.io',
+      // A1 (D-A1-02) : obligatoire en production.
+      ADMIN_HOST: 'admin.brandself.io',
+      // Éviction du cache des images : obligatoire en production.
+      MEDIAS_CACHE_REFRESH_SECRET: 'secret-de-test-cache-images-0123456789',
     })
     expect(env.NODE_ENV).toBe('production')
   })

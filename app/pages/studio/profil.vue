@@ -3,7 +3,7 @@ import type { MediaDTO } from '#shared/dto'
 import { ACCROCHE_MAX, BIO_MAX, METIER_MAX, NOM_MAX, PAYS, PRENOM_MAX, TITRES, TITRE_LABELS, VILLE_MAX } from '#shared/vitrine'
 
 definePageMeta({ layout: 'studio' })
-useSeoMeta({ title: 'Votre profil — Brandself' })
+useSeoMeta({ title: 'Votre profil' })
 
 const TITRE_ITEMS = [
   { label: 'Sans titre', value: AUCUN_TITRE },
@@ -13,7 +13,7 @@ const PAYS_ITEMS = PAYS.map((pays) => ({ label: pays.label, value: pays.code }))
 
 const { vitrine, enChargement, enErreur, absente, refresh } = useStudioVitrine()
 const {
-  form, erreurs, erreurGenerale, enregistrement, enregistre, aDesModifications, nomAffiche, viderErreur, enregistrer,
+  form, erreurs, erreurGenerale, enregistrement, enregistre, aDesModifications, identiteModifiee, nomAffiche, viderErreur, enregistrer,
 } = useProfilForm(vitrine, async () => {
   await refresh()
 })
@@ -23,6 +23,11 @@ const televersee = ref<MediaDTO | null>(null)
 const photoAffichee = computed(() =>
   televersee.value && televersee.value.id === form.photoMediaId ? televersee.value : (vitrine.value?.photo ?? null),
 )
+
+// Le compteur n'apparaît qu'à l'approche de la limite.
+const SEUIL_COMPTEUR = 0.8
+const accrocheProcheLimite = computed(() => form.accroche.length >= ACCROCHE_MAX * SEUIL_COMPTEUR)
+const bioProcheLimite = computed(() => form.bio.length >= BIO_MAX * SEUIL_COMPTEUR)
 
 const initiales = computed(() => `${form.prenom.charAt(0)}${form.nom.charAt(0)}`.toUpperCase())
 
@@ -80,7 +85,6 @@ async function validerAdresse(): Promise<void> {
       v-else-if="absente"
       icon="i-ph-storefront"
       title="Créons d’abord votre vitrine"
-      description="Votre profil apparaît ici dès que votre vitrine existe."
       :as="{ title: 'h1' }"
       :actions="[{ label: 'Créer ma vitrine', to: '/onboarding', size: 'xl' }]"
     />
@@ -89,7 +93,7 @@ async function validerAdresse(): Promise<void> {
       v-else-if="enErreur || !vitrine"
       icon="i-ph-warning-circle"
       title="Votre profil ne s’affiche pas"
-      description="Nous n’avons pas pu le charger. Vos informations sont intactes."
+      description="Nous n’avons pas pu charger votre profil."
       :as="{ title: 'h1' }"
       :actions="[{ label: 'Réessayer', size: 'xl', onClick: () => refresh() }]"
     />
@@ -99,6 +103,8 @@ async function validerAdresse(): Promise<void> {
         Votre profil
       </h1>
 
+      <div class="grid gap-6 lg:grid-cols-2 lg:items-start lg:gap-x-10">
+      <div class="flex flex-col gap-6">
       <UFormField label="Votre photo" name="photo">
         <PhotoUpload
           :photo="photoAffichee"
@@ -144,7 +150,7 @@ async function validerAdresse(): Promise<void> {
 
       <UFormField label="Accroche" name="accroche" :error="erreurs.accroche">
         <UInput v-model="form.accroche" :maxlength="ACCROCHE_MAX" @update:model-value="viderErreur('accroche')" />
-        <p class="m-0 mt-2 text-(length:--fs-14) text-texte-secondaire">
+        <p v-if="accrocheProcheLimite" class="m-0 mt-2 text-(length:--fs-14) text-texte-secondaire">
           {{ form.accroche.length }} sur {{ ACCROCHE_MAX }} caractères
         </p>
       </UFormField>
@@ -152,25 +158,29 @@ async function validerAdresse(): Promise<void> {
       <div ref="blocPresentation" class="flex flex-col gap-3">
         <UFormField label="Présentation" name="bio" :error="erreurs.bio">
           <UTextarea v-model="form.bio" :rows="6" :maxlength="BIO_MAX" class="w-full" @update:model-value="viderErreur('bio')" />
-          <p class="m-0 mt-2 text-(length:--fs-14) text-texte-secondaire">
+          <p v-if="bioProcheLimite" class="m-0 mt-2 text-(length:--fs-14) text-texte-secondaire">
             {{ form.bio.length }} sur {{ BIO_MAX }} caractères
           </p>
         </UFormField>
         <StudioAmeliorationIa :texte="form.bio" :message-masque="erreurGenerale !== ''" @utiliser="utiliserTexteIa" />
       </div>
 
-      <USeparator />
+      <USeparator class="lg:hidden" />
+      </div>
 
+      <div class="flex flex-col gap-6">
       <section aria-labelledby="titre-google" class="flex flex-col gap-3">
         <h2 id="titre-google" class="m-0 text-(length:--fs-20) font-semibold text-encre">
           Sur Google
         </h2>
         <StudioSeoGoogle
-          :vitrine="vitrine"
-          :enregistrer="enregistrer"
-          :a-des-modifications="aDesModifications"
+          v-model:seo-titre="form.seoTitre"
+          v-model:seo-description="form.seoDescription"
+          :seo-auto="vitrine.seoAuto"
+          :identite-modifiee="identiteModifiee"
           :erreurs="erreurs"
-          :vider-erreur="viderErreur"
+          :desactive="enregistrement"
+          @vider-erreur="viderErreur"
         />
       </section>
 
@@ -189,7 +199,7 @@ async function validerAdresse(): Promise<void> {
             @update:model-value="viderErreur('emailContact')"
           />
         </UFormField>
-        <UFormField label="Téléphone" name="telephone" :error="erreurs.telephone" help="Format international, par exemple +237600000000.">
+        <UFormField label="Téléphone" name="telephone" :error="erreurs.telephone">
           <UInput
             v-model="form.telephone"
             type="tel"
@@ -272,11 +282,13 @@ async function validerAdresse(): Promise<void> {
           </div>
         </template>
       </section>
+      </div>
+      </div>
 
       <div
         class="fixed inset-x-0 bottom-0 z-20 border-t border-bordure bg-fond pb-[env(safe-area-inset-bottom)]"
       >
-        <div class="mx-auto flex w-full max-w-2xl flex-col gap-2 px-4 py-3 md:px-6">
+        <div class="studio-conteneur flex flex-col gap-2 py-3">
           <p v-if="erreurGenerale" role="alert" class="message-erreur">
             <UIcon name="i-ph-warning-circle" class="size-5 shrink-0" aria-hidden="true" />
             <span>{{ erreurGenerale }}</span>
@@ -288,6 +300,7 @@ async function validerAdresse(): Promise<void> {
             :loading="enregistrement"
             :disabled="!aDesModifications"
             block
+            class="md:w-auto md:min-w-56 md:self-end"
           />
           <p class="sr-only" aria-live="polite">
             {{ enregistre ? 'Votre profil est enregistré.' : '' }}

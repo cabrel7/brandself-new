@@ -3,6 +3,7 @@ import { readFileSync, readdirSync } from 'node:fs'
 import path from 'node:path'
 import { Client } from 'pg'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { ADMIN_A2_EMAIL_TYPES } from '../../shared/admin-a2'
 import { TRANSACTIONAL_EMAIL_TYPES } from '../../shared/jobs'
 import { EMAIL_CATEGORIES, EMAIL_STATUTS } from '../../shared/notifications'
 import { NEXT_STEPS } from '../../shared/vitrine'
@@ -246,8 +247,9 @@ describe('migration 0020 : fichier, journal et synchronisation avec shared/', ()
   })
 
   it('recopie exactement TRANSACTIONAL_EMAIL_TYPES dans la CHECK des types', () => {
+    // Les 4 types d'administration sont ajoutés par la migration 0029 (A2) : prouvés dans migration-0029.test.ts.
     // Les types `abonnement_rappel` et `paiement_confirme` sont ajoutés par la migration 0021 (S10) : leur CHECK est prouvée dans migration-0021.test.ts.
-    expect(valeursContrainte('emails_transactionnels_type_check')).toEqual(TRANSACTIONAL_EMAIL_TYPES.filter((type) => !TYPES_AJOUTES_PAR_0021.includes(type)))
+    expect(valeursContrainte('emails_transactionnels_type_check')).toEqual(TRANSACTIONAL_EMAIL_TYPES.filter((type) => !TYPES_AJOUTES_PAR_0021.includes(type) && !(ADMIN_A2_EMAIL_TYPES as readonly string[]).includes(type)))
   })
 
   it('recopie exactement EMAIL_STATUTS et EMAIL_CATEGORIES dans leurs CHECK', () => {

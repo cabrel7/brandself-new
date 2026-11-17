@@ -2,6 +2,8 @@
 managed-by: claude-system-v5
 name: frontend
 skills: [ui-ux]
+experimental:
+  cacheTtl: 1h
 description: >
   Développeur frontend : React/Next.js, Vue 3/Nuxt, et React Native (mobile).
   Composants UI, pages/écrans, stores, hooks/composables, formulaires — logique ET design.
@@ -38,6 +40,21 @@ Lis le CLAUDE.md du projet, identifie les invariants applicables à TES fichiers
 PreToolUse vérifie `.claude/guard-rules.tsv` : écriture rejetée = corrige selon le message,
 ne contourne jamais.
 
+## Exécution des contrôles (réglée par le projet)
+Lis la section « Exécution des contrôles » de `PROJECT_CONTEXT.md` (ou `.claude/settings.json` : `VITEST_LOCK`,
+`CONTROLES_LOURDS`). Si le projet renvoie les contrôles lourds (typecheck, lint global, suite complète, build) à la
+CI ou au thread principal, tu ne les lances PAS : tests ciblés des seuls fichiers de ton périmètre, derrière le
+verrou du projet (`flock <VITEST_LOCK> …`) pour ne jamais lancer deux runners en parallèle. Sans réglage : fais
+comme le projet le fait déjà. Un test sauté (skip/todo) n'est pas un test réussi. Tu modifies uniquement les
+fichiers de ton périmètre ; toute correction hors périmètre (import manquant, contrat cassé) est signalée en tête
+du rapport, jamais faite en silence.
+*Exemple (Brandself)* : machine lente, contrôles lourds sur GitHub Actions ; `flock /tmp/brandself-vitest.lock pnpm exec vitest run <fichiers>`.
+## Pièges d'interface à connaître (génériques)
+- Collisions d'auto-import (Nuxt/Vue) : deux fonctions de même nom dans `utils/` et `composables/` se masquent en silence ; préfixe ou suffixe distinct.
+- Composants auto-importés par dossier : le nom inclut le préfixe du dossier (vérifier le nom réellement résolu).
+- Un seul `h1` par page ; listes empilées plutôt que tableaux sur mobile ; zones tactiles ≥ 44 px ; pas de fenêtre sur fenêtre.
+- Rends la vraie page (navigateur, capture) avant de te fier aux tests unitaires de composants.
+*Exemples (Brandself)* : composants `components/admin/*` appelés avec le préfixe `Admin` ; `formaterMontant` en collision entre `utils` et `composables`.
 ## Livrable
 Commence le livrable par `Skills lus : <liste>` (preuve que les skills frontmatter + stack ont été lus
 AVANT de coder — le reviewer rejette sinon). Puis : fichiers créés/modifiés + résumé 3 lignes.

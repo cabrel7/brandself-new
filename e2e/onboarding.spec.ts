@@ -2,6 +2,8 @@ import { randomUUID } from 'node:crypto'
 import { expect, test } from '@playwright/test'
 import type { Locator, Page } from '@playwright/test'
 import { makePng } from '../tests/support/images'
+import { MARQUE } from '../shared/brand'
+import { buildShareMessage, whatsappShareUrl } from '../shared/partage'
 import { ONBOARDING_ETAPES, ONBOARDING_ETAPES_TOTAL, USERNAME_DEBOUNCE_MS } from '../shared/onboarding'
 import type { OnboardingEtape } from '../shared/onboarding'
 import { ouvrirStudio } from './helpers/hydratation'
@@ -29,7 +31,7 @@ const DELAI_SAISIE_REALISTE_MS = 60
 const SANS_DELAI = 0
 const DUREE_MAX_PARCOURS_MS = 10 * 60 * 1000
 const CIBLE_TACTILE_MIN_PX = 44
-const HOTE_VITRINES = 'brandself.io'
+const HOTE_VITRINES: string = MARQUE.domaine
 const NB_ACCROCHES = 3
 const NB_SERVICES = 3
 const MOTS_INTERDITS = /\b(espaces?|blocs?|modules?|widgets?|sections?)\b/i
@@ -42,9 +44,9 @@ const TITRES_ECRAN: Record<OnboardingEtape, string> = {
   3: 'Voici notre proposition',
   4: 'Choisissez votre adresse',
 }
-const SOUS_TITRE_NOMINAL_ETAPE_3 = 'Nous avons rédigé une première version pour vous. Choisissez, corrigez, c’est vous qui décidez.'
-const SOUS_TITRE_REPLI = 'Nous avons préparé une première version à partir de vos réponses. Modifiez-la librement, c’est vous qui décidez.'
-const MESSAGE_ATTENTE = 'Nous rédigeons votre proposition. Cela prend quelques secondes.'
+const SOUS_TITRE_NOMINAL_ETAPE_3 = 'Nous avons rédigé une première version pour vous. Choisissez et corrigez.'
+const SOUS_TITRE_REPLI = 'Nous avons préparé une première version à partir de vos réponses. Modifiez-la librement.'
+const MESSAGE_ATTENTE = 'Nous rédigeons votre proposition…'
 const MESSAGE_ATTENTE_LONGUE = 'Encore un instant, nous relisons chaque phrase.'
 const MESSAGE_PHOTO_REQUISE = 'Ajoutez une photo pour continuer : c’est la première chose que vos visiteurs regardent.'
 const MESSAGE_FORMAT_REFUSE = 'Ce format n’est pas accepté. Choisissez une photo JPEG, PNG ou WebP.'
@@ -70,8 +72,8 @@ async function attendreActif(bouton: Locator): Promise<void> {
 }
 
 function titreDocument(etape: OnboardingEtape): string {
-  // Le gabarit de titre de l'application ajoute « | Brandself ».
-  return `${ONBOARDING_ETAPES[etape]} — Étape ${etape} sur ${ONBOARDING_ETAPES_TOTAL} | Brandself`
+  // Le gabarit de titre de l'application ajoute « | jesuis.pro ».
+  return `${ONBOARDING_ETAPES[etape]} — Étape ${etape} sur ${ONBOARDING_ETAPES_TOTAL} | jesuis.pro`
 }
 
 /** Écran d'inscription guidée (/onboarding) : un seul objet pour les quatre étapes. */
@@ -278,7 +280,9 @@ test.describe('Inscription guidée (fournisseur d’IA faux)', () => {
     expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(`https://${adresse}`)
 
     const partage = page.getByRole('link', { name: 'Partager sur WhatsApp' })
-    await expect(partage).toHaveAttribute('href', `https://wa.me/?text=${encodeURIComponent(`Découvrez ma vitrine : https://${adresse}`)}`)
+    await expect(partage).toHaveAttribute('href', whatsappShareUrl(buildShareMessage({
+      prenom: 'Cabrel', metier: 'Cardiologue interventionnel', url: `https://${adresse}`, reservable: false,
+    })))
     await expect(page.getByRole('link', { name: 'Voir ma vitrine' })).toHaveAttribute('href', `/${username}`)
 
     // « Prochaine étape » : un titre de niveau 2, son texte, puis un lien nommé « Ouvrir ».

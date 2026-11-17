@@ -1,10 +1,10 @@
 import { randomBytes, randomUUID } from 'node:crypto'
 import { expect, test } from '@playwright/test'
-import type { APIRequestContext, BrowserContext, Page } from '@playwright/test'
+import type { APIRequestContext, BrowserContext, Locator, Page } from '@playwright/test'
 import { makePng } from '../tests/support/images'
 import {
   BOUTON_VOIR_ABONNEMENT, CarteAbonnementPage, donnerPlanGrace, donnerPlanPayant, envoyerWebhookKpay, formaterXaf,
-  insererPaiementEnAttente, lireOffre, MESSAGE_BADGE, MONTANT_12_MOIS, retirerPlan, TarifsPage, TELEPHONE_MASQUE_TEST,
+  insererPaiementEnAttente, lireOffre, MONTANT_12_MOIS, NOM_BADGE, retirerPlan, TarifsPage, TELEPHONE_MASQUE_TEST,
 } from './helpers/abonnement'
 import { ouvrirStudio } from './helpers/hydratation'
 import { BASE_URL, db, fermerConnexions, seConnecter } from './helpers/session'
@@ -31,6 +31,17 @@ const NB_LIMITE = 3
 const NB_RESERVATIONS_LIMITE = 10
 const MINUTES_CRENEAU = 30
 const MS_PAR_JOUR = 86_400_000
+
+function badge(page: Page): Locator {
+  return page.getByRole('link', { name: NOM_BADGE })
+}
+
+async function verifierBadgeVisible(page: Page): Promise<void> {
+  const lien = badge(page)
+  await expect(lien).toBeVisible()
+  await expect(lien).toHaveAttribute('href', 'https://jesuis.pro')
+  await expect(lien).toHaveAttribute('rel', /noopener/)
+}
 
 async function sansDebordementHorizontal(page: Page): Promise<void> {
   const debordement = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)
@@ -97,7 +108,7 @@ test.describe.serial('abonnement, limites du plan gratuit, tarifs et badge (S10 
 
   test('CA104 plan gratuit : quotas, prix de l’API, choix de durée en boutons radio au clavier, aucune case à cocher, renouvellement manuel', async () => {
     const offre = await lireOffre(session.api)
-    expect(offre.paiementDisponible, 'le paiement doit être configuré sur le serveur de test (clés K-PAY)').toBe(true)
+    expect(offre.paiementDisponible, 'le serveur de test doit recevoir des clés K-PAY de TEST (KPAY_API_KEY=kpay_test_…, KPAY_SECRET_KEY=64 hexadécimaux, KPAY_WEBHOOK_SECRET ≥ 16 caractères) : en CI, variables du job e2e de .github/workflows/ci.yml').toBe(true)
     const prix = offre.devises[0].prix
     const montant = (mois: number): number => prix.find((p) => p.periodeMois === mois)!.montant
 
@@ -193,7 +204,7 @@ test.describe.serial('abonnement, limites du plan gratuit, tarifs et badge (S10 
 
     await page.goto(`/${username}`)
     await expect(page.getByRole('heading', { level: 1 })).toBeVisible()
-    await expect(page.getByText(MESSAGE_BADGE)).toHaveCount(0)
+    await expect(badge(page)).toHaveCount(0)
   })
 
   test('CA102 échec annoncé par le fournisseur : message du code, « Réessayer » ramène au formulaire', async () => {
@@ -305,7 +316,7 @@ test.describe.serial('abonnement, limites du plan gratuit, tarifs et badge (S10 
     }
   })
 
-  test('badge « Créé avec Brandself » et masquage public : présents en gratuit, absents en payant et en grâce, les éléments reviennent', async () => {
+  test('badge « Propulsé par jesuis.pro » et masquage public : présents en gratuit, absents en payant et en grâce, les éléments reviennent', async () => {
     await donnerPlanPayant(session.userId)
     await creerService('Service 4')
     await retirerPlan(session.userId)
@@ -316,27 +327,27 @@ test.describe.serial('abonnement, limites du plan gratuit, tarifs et badge (S10 
     await expect(page.getByRole('heading', { level: 3 })).toHaveCount(NB_LIMITE)
     await expect(page.getByRole('heading', { level: 3, name: 'Service 4' })).toHaveCount(0)
     await page.goto(`/${username}`)
-    await expect(page.getByText(MESSAGE_BADGE)).toBeVisible()
+    await verifierBadgeVisible(page)
 
     await donnerPlanPayant(session.userId)
     await page.goto(`/${username}/services`)
     await expect(page.getByRole('heading', { level: 3 })).toHaveCount(NB_LIMITE + 1)
     await page.goto(`/${username}`)
     await expect(page.getByRole('heading', { level: 1 })).toBeVisible()
-    await expect(page.getByText(MESSAGE_BADGE)).toHaveCount(0)
+    await expect(badge(page)).toHaveCount(0)
 
     await donnerPlanGrace(session.userId)
     await page.goto(`/${username}/services`)
     await expect(page.getByRole('heading', { level: 3 })).toHaveCount(NB_LIMITE + 1)
     await page.goto(`/${username}`)
     await expect(page.getByRole('heading', { level: 1 })).toBeVisible()
-    await expect(page.getByText(MESSAGE_BADGE)).toHaveCount(0)
+    await expect(badge(page)).toHaveCount(0)
 
     await retirerPlan(session.userId)
     await page.goto(`/${username}/services`)
     await expect(page.getByRole('heading', { level: 3 })).toHaveCount(NB_LIMITE)
     await page.goto(`/${username}`)
-    await expect(page.getByText(MESSAGE_BADGE)).toBeVisible()
+    await verifierBadgeVisible(page)
   })
 
   test('CA107 visiteur : quota de réservations du mois atteint, le bloc agenda explique et propose le contact, sans créneau ni mention de plan', async () => {
@@ -395,8 +406,7 @@ test.describe.serial('abonnement, limites du plan gratuit, tarifs et badge (S10 
         await expect(p.getByRole('heading', { level: 2 })).toHaveCount(2)
         await expect(tarifs.planPayant()).toContainText(`facturé ${formaterXaf(montant12)} pour 12 mois`)
         await expect(p.getByRole('radiogroup', { name: 'Devise' })).toHaveCount(0)
-        await expect(p.getByText(/Pas de renouvellement automatique/)).toBeVisible()
-        await expect(p.getByText(/7 jours de grâce/)).toBeVisible()
+        await expect(p.getByText(/Sans renouvellement automatique/)).toBeVisible()
         await expect(tarifs.planGratuit().getByRole('link', { name: 'Commencer gratuitement' })).toHaveAttribute('href', '/connexion')
         await sansDebordementHorizontal(p)
       }

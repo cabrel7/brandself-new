@@ -7,7 +7,8 @@ import { statistiquesJour, vitrines } from '../../shared/db/schema'
 
 /** Vitrine de démonstration `dr-cabrel` (ID fixé dans server/db/seed.ts). */
 const ID_VITRINE = 'seed-vitrine-dr-cabrel'
-const SEED_DB_URL = 'postgresql://cabrel:brandself_dev@127.0.0.1:5433/brandself_test'
+// Base de test de l'environnement (CI ou `.env.test`), la même que celle lue par `db` : plus d'URL locale écrite en dur.
+const SEED_DB_URL = process.env.DATABASE_URL ?? 'postgresql://cabrel:brandself_dev@127.0.0.1:5433/brandself_test'
 
 function execSeed(): void {
   execFileSync('pnpm', ['db:seed'], {

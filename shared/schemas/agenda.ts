@@ -5,11 +5,13 @@ import {
   DEMANDE_STATUTS,
   DISPONIBILITES_MAX,
   HORIZON_JOURS_MAX,
+  INDISPONIBILITE_PLAGE_MAX_JOURS,
   MOTIF_MAX,
   PAS_CRENEAU_MINUTES,
   PREAVIS_HEURES_MAX,
   RAISON_INDISPONIBILITE_MAX,
 } from '../agenda'
+import { nombreJoursPlage } from '../agenda-plage'
 import { SERVICE_SLUG_MAX, SERVICE_SLUG_REGEX } from '../services'
 import { E164_REGEX } from '../telephone'
 
@@ -79,12 +81,44 @@ export const schemaDisponibilitesUpdate = z
   })
   .strict()
 
+const MESSAGE_PLAGE_MAX = `La plage ne peut pas dépasser ${INDISPONIBILITE_PLAGE_MAX_JOURS} jours.`
+
+export type IndisponibiliteCreateInput =
+  | { date: string, raison: string | null }
+  | { debut: string, fin: string, raison: string | null }
+
+/**
+ * Soit une date `{ date, raison }`, soit une plage `{ debut, fin, raison }` (jamais un mélange). Un seul objet strict
+ * plutôt qu'une union : les erreurs restent attachées à leur champ. La sortie est l'union discriminée par la présence
+ * de `date`. « Pas dans le passé » dépend du fuseau de la vitrine : contrôlé par le service, pas ici.
+ */
 export const schemaIndisponibiliteCreate = z
   .object({
-    date: schemaDateLocale,
+    date: schemaDateLocale.optional(),
+    debut: schemaDateLocale.optional(),
+    fin: schemaDateLocale.optional(),
     raison: z.string().trim().min(1).max(RAISON_INDISPONIBILITE_MAX).nullable().default(null),
   })
   .strict()
+  .superRefine((value, ctx) => {
+    if (value.date !== undefined) {
+      if (value.debut !== undefined || value.fin !== undefined) {
+        ctx.addIssue({ code: 'custom', path: ['date'], message: 'Indiquez une date, ou une plage avec un début et une fin.' })
+      }
+      return
+    }
+    if (value.debut === undefined) ctx.addIssue({ code: 'custom', path: ['debut'], message: 'Indiquez une date ou le début de la plage.' })
+    if (value.fin === undefined) ctx.addIssue({ code: 'custom', path: ['fin'], message: 'Indiquez la fin de la plage.' })
+    if (value.debut === undefined || value.fin === undefined) return
+    const jours = nombreJoursPlage(value.debut, value.fin)
+    if (jours < 1) ctx.addIssue({ code: 'custom', path: ['fin'], message: 'La fin de la plage précède son début.' })
+    else if (jours > INDISPONIBILITE_PLAGE_MAX_JOURS) ctx.addIssue({ code: 'custom', path: ['fin'], message: MESSAGE_PLAGE_MAX })
+  })
+  .transform((value): IndisponibiliteCreateInput => {
+    if (value.date !== undefined) return { date: value.date, raison: value.raison }
+    // Les champs sont garantis par le superRefine ci-dessus.
+    return { debut: value.debut as string, fin: value.fin as string, raison: value.raison }
+  })
 
 export const schemaReservationCancel = z
   .object({ motif: z.string().trim().min(1).max(MOTIF_MAX).optional() })
@@ -103,6 +137,5 @@ export type ReservationCreateInput = z.infer<typeof schemaReservationCreate>
 export type DemandeCreateInput = z.infer<typeof schemaDemandeCreate>
 export type CreneauxQuery = z.infer<typeof schemaCreneauxQuery>
 export type DisponibilitesUpdateInput = z.infer<typeof schemaDisponibilitesUpdate>
-export type IndisponibiliteCreateInput = z.infer<typeof schemaIndisponibiliteCreate>
 export type ReservationCancelInput = z.infer<typeof schemaReservationCancel>
 export type DemandeUpdateInput = z.infer<typeof schemaDemandeUpdate>

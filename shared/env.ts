@@ -1,6 +1,8 @@
 import { z } from 'zod'
+import { ADMIN_HOST_DEV_DEFAUT, APP_VERSION_DEFAUT, APP_VERSION_FORMAT } from './admin'
 import { IA_CLE_API_LONGUEUR_MIN, IA_FOURNISSEURS, IA_HOTES_HTTP_AUTORISES, IA_MODELE_DEFAUT } from './ia'
 import type { IaFournisseur } from './ia'
+import { MEDIAS_CACHE_REFRESH_SECRET_FORMAT, MEDIAS_CACHE_REFRESH_SECRET_LONGUEUR_MIN } from './medias-cache'
 import { EMAIL_EXPEDITEUR_DEV_DEFAUT, SITE_URL_DEV_DEFAUT } from './notifications'
 import {
   KPAY_BASE_URL_DEFAUT,
@@ -38,6 +40,17 @@ const baseUrlKpayValide = (valeur: string): boolean => baseUrlValide(valeur, KPA
 /** Variable texte facultative : vide ou espaces = absente, sinon rognée. */
 const rognerOuAbsent = (valeur: unknown): unknown => videVautAbsent(typeof valeur === 'string' ? valeur.trim() : valeur)
 
+/**
+ * A1 (D-A1-02) : hôte de l'administration, SANS port ni schéma ni chemin (`admin.jesuis.pro`). Minuscules, rogné,
+ * au moins deux libellés DNS valides (`admin.localhost` convient). Le dernier libellé commence par une lettre :
+ * une adresse IP (`127.0.0.1`) est refusée (la séparation repose sur un NOM d'hôte). Vide = absent.
+ */
+const HOTE_DNS_FORMAT = /^(?=.{3,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z](?:[a-z0-9-]{0,61}[a-z0-9])?$/
+const schemaAdminHost = z.preprocess(
+  (valeur) => (typeof valeur === 'string' ? rognerOuAbsent(valeur.toLowerCase()) : valeur),
+  z.string().regex(HOTE_DNS_FORMAT, 'doit être un nom d’hôte sans port ni schéma (ex. admin.jesuis.pro)').optional(),
+)
+
 const schemaSiteUrl = z.preprocess(videVautAbsent, z.url('doit être une URL valide').optional())
 const schemaSiteEnv = z.preprocess(rognerOuAbsent, z.enum(SITE_ENVIRONNEMENTS).optional())
 
@@ -45,6 +58,8 @@ const schemaSiteEnv = z.preprocess(rognerOuAbsent, z.enum(SITE_ENVIRONNEMENTS).o
 const schemaPaiementEnLigne = z.preprocess(videVautAbsent, z.stringbool().default(false))
 // S10 : même règle pour `KPAY_MODE_TEST_AUTORISE` (défaut faux).
 const schemaBooleenFaux = z.preprocess(videVautAbsent, z.stringbool().default(false))
+// Décision #24 : interrupteur d'urgence de la régénération du SEO (défaut vrai). Vide = absent.
+const schemaBooleenVrai = z.preprocess(videVautAbsent, z.stringbool().default(true))
 
 const schemaEnv = z
   .object({
@@ -111,6 +126,34 @@ const schemaEnv = z
     ),
     // Autorise une clé kpay_test_ en production (préproduction uniquement). Défaut faux.
     KPAY_MODE_TEST_AUTORISE: schemaBooleenFaux,
+    // Serveur MCP (S16) : désactivé par défaut. Activé pour une liste de comptes pilotes,
+    // puis pour tous les comptes payants.
+    MCP_ACTIF: schemaBooleenFaux,
+    // Décision #24 : régénération du SEO en tâche de fond (frein d'urgence : coût IA, incident fournisseur).
+    // Coupée (`false`), les modifications n'enfilent plus aucun job ; la génération faite à l'onboarding, elle,
+    // fait partie de l'appel IA existant et n'est pas concernée.
+    SEO_IA_REGENERATION_ACTIVE: schemaBooleenVrai,
+    // A1 (D-A1-02) : hôte de l'administration. Obligatoire en production, différent de l'hôte public ;
+    // absent hors production = `admin.localhost`.
+    ADMIN_HOST: schemaAdminHost,
+    // A4 (D-A4-22) : version de l'application affichée par la santé de l'administration (ex. identifiant de commit
+    // ou de release posé par le déploiement). Facultative ; absente = `inconnue`. Jamais un secret ; le message
+    // d'erreur ne répète pas la valeur.
+    APP_VERSION: z.preprocess(
+      rognerOuAbsent,
+      z.string().regex(APP_VERSION_FORMAT, 'doit contenir 1 à 64 caractères parmi lettres, chiffres, point, tiret, plus et souligné').optional(),
+    ),
+    // Éviction du cache nginx de `/medias/` à la suspension / au blocage d'un compte : secret partagé avec nginx
+    // (en-tête `x-cache-refresh`). Obligatoire en production ; absent hors production = la tâche est sautée.
+    // Jamais journalisé ni renvoyé ; les messages d'erreur ne répètent pas la valeur.
+    MEDIAS_CACHE_REFRESH_SECRET: z.preprocess(
+      rognerOuAbsent,
+      z
+        .string()
+        .min(MEDIAS_CACHE_REFRESH_SECRET_LONGUEUR_MIN, `doit contenir au moins ${MEDIAS_CACHE_REFRESH_SECRET_LONGUEUR_MIN} caractères`)
+        .regex(MEDIAS_CACHE_REFRESH_SECRET_FORMAT, 'doit contenir uniquement des caractères ASCII imprimables, sans espace')
+        .optional(),
+    ),
   })
   .superRefine((env, ctx) => {
     if (env.IA_FOURNISSEUR === 'openai' && !env.IA_MODELE) {
@@ -153,6 +196,37 @@ const schemaEnv = z
           code: 'custom',
           path: ['NUXT_PUBLIC_SITE_URL'],
           message: 'doit commencer par https:// en production',
+        })
+      }
+    }
+    // A1 (D-A1-02) : l'hôte d'administration est obligatoire en production et distinct de l'hôte public
+    // (sinon la séparation par nom d'hôte n'existerait pas). Messages sans valeur.
+    if (env.NODE_ENV === 'production' && !env.ADMIN_HOST) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['ADMIN_HOST'],
+        message: 'requis en production (hôte de l’administration, ex. admin.jesuis.pro)',
+      })
+    }
+    if (env.NODE_ENV === 'production' && !env.MEDIAS_CACHE_REFRESH_SECRET) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['MEDIAS_CACHE_REFRESH_SECRET'],
+        message: 'requis en production (éviction du cache nginx des images d’un compte suspendu ou d’une vitrine bloquée)',
+      })
+    }
+    if (env.ADMIN_HOST && env.NUXT_PUBLIC_SITE_URL) {
+      let hotePublic: string | undefined
+      try {
+        hotePublic = new URL(env.NUXT_PUBLIC_SITE_URL).hostname.toLowerCase()
+      } catch {
+        hotePublic = undefined
+      }
+      if (hotePublic === env.ADMIN_HOST) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['ADMIN_HOST'],
+          message: 'doit être différent de l’hôte de NUXT_PUBLIC_SITE_URL',
         })
       }
     }
@@ -205,6 +279,10 @@ const schemaEnv = z
     NUXT_PUBLIC_SITE_URL: (env.NUXT_PUBLIC_SITE_URL ?? SITE_URL_DEV_DEFAUT).replace(/\/+$/, ''),
     // Garanti défini : adresse par défaut de K-PAY sinon (sans barre finale, les chemins commencent par `/`).
     KPAY_BASE_URL: (env.KPAY_BASE_URL ?? KPAY_BASE_URL_DEFAUT).replace(/\/+$/, ''),
+    // Garanti défini : requis en production par la validation ci-dessus, `admin.localhost` sinon.
+    ADMIN_HOST: env.ADMIN_HOST ?? ADMIN_HOST_DEV_DEFAUT,
+    // Garanti défini : `inconnue` sinon (D-A4-22).
+    APP_VERSION: env.APP_VERSION ?? APP_VERSION_DEFAUT,
   }))
 
 export type Env = z.infer<typeof schemaEnv>
@@ -268,6 +346,8 @@ export interface DrapeauxPublics {
   googleActif: boolean
   boiteOtpDev: boolean
   paiementEnLigne: boolean
+  /** A1 : hôte de l'administration (sans port), lu par le middleware de route côté client. Public : un nom d'hôte. */
+  adminHost: string
 }
 
 /**
@@ -284,6 +364,7 @@ export function loadDrapeauxPublics(
       googleActif: Boolean(source.GOOGLE_CLIENT_ID),
       boiteOtpDev: source.NODE_ENV !== 'production',
       paiementEnLigne: schemaPaiementEnLigne.safeParse(source.PAIEMENT_EN_LIGNE).data ?? false,
+      adminHost: schemaAdminHost.safeParse(source.ADMIN_HOST).data ?? ADMIN_HOST_DEV_DEFAUT,
     }
   }
   const valide = loadEnv(source)
@@ -291,6 +372,7 @@ export function loadDrapeauxPublics(
     googleActif: Boolean(valide.GOOGLE_CLIENT_ID),
     boiteOtpDev: valide.NODE_ENV !== 'production',
     paiementEnLigne: valide.PAIEMENT_EN_LIGNE,
+    adminHost: valide.ADMIN_HOST,
   }
 }
 

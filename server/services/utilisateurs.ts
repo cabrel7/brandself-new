@@ -1,4 +1,5 @@
-import { and, desc, eq, gt } from 'drizzle-orm'
+import { and, desc, eq, gt, sql } from 'drizzle-orm'
+import { SUPERADMIN } from '../../shared/admin'
 import { ACCOUNT_DELETION_PHRASE, FRESH_SESSION_MAX_AGE_S } from '../../shared/compte'
 import { sessions, users, vitrines } from '../../shared/db/schema'
 import type { MoiUpdateInput } from '../../shared/schemas/moi'
@@ -96,19 +97,48 @@ export interface AccountDeletionInput {
   sessionCreatedAt: Date
 }
 
+/** Transaction ouverte par l'appelant (studio : `db.transaction` ; administration : la transaction qui journalise). */
+export type TransactionCompte = Parameters<Parameters<typeof db.transaction>[0]>[0]
+
 /**
- * Supprime le compte et, en cascade, sessions, comptes liés, vitrine et médias (lignes).
- * Les fichiers sont effacés APRÈS le commit ; un échec est journalisé et laisse des orphelins.
+ * Supprime le compte et, en cascade, sessions, comptes liés, vitrine et médias (lignes) DANS la transaction de
+ * l'appelant. A1 : un compte d'administration (ou référencé par le journal, FK RESTRICT) ne se supprime pas :
+ * 422 `COMPTE_ADMIN`. Lecture et suppression dans la MÊME transaction, ligne verrouillée : pas de promotion ni
+ * d'écriture de journal entre la vérification et la suppression.
+ */
+export async function supprimerCompteDansTransaction(tx: TransactionCompte, userId: string): Promise<void> {
+  const [compte] = await tx.select({ role: users.role }).from(users).where(eq(users.id, userId)).for('update').limit(1)
+  if (compte?.role === SUPERADMIN) throw new UnprocessableError('COMPTE_ADMIN')
+  const journal = await tx.execute(sql`SELECT 1 FROM journal_admin WHERE admin_id = ${userId} LIMIT 1`)
+  if (journal.rows.length > 0) throw new UnprocessableError('COMPTE_ADMIN')
+  await tx.delete(users).where(eq(users.id, userId))
+}
+
+/** Efface les fichiers d'images du compte. À appeler APRÈS le commit ; un échec est journalisé et laisse des orphelins. */
+export async function supprimerFichiersDuCompte(userId: string): Promise<void> {
+  await deleteAllUserMediaFiles(userId).catch((error: unknown) => {
+    console.error({ utilisateurs: 'fichiers non supprimés', nom: error instanceof Error ? error.name : typeof error })
+  })
+}
+
+/**
+ * Suppression complète d'un compte : lignes en une transaction (cascade), puis fichiers après le commit.
+ * Partagée par le studio (`deleteAccount`, avec sa phrase et sa fraîcheur de session) ; l'administration (A2,
+ * D-A2-08) utilise les deux étapes séparément pour journaliser dans la même transaction.
+ */
+export async function supprimerCompteEtFichiers(userId: string): Promise<void> {
+  await db.transaction((tx) => supprimerCompteDansTransaction(tx, userId))
+  await supprimerFichiersDuCompte(userId)
+}
+
+/**
+ * Suppression à la demande du titulaire (studio) : phrase de confirmation et session récente exigées, puis
+ * `supprimerCompteEtFichiers`.
  */
 export async function deleteAccount(userId: string, input: AccountDeletionInput): Promise<void> {
   if (input.confirmation.trim() !== ACCOUNT_DELETION_PHRASE) throw new BadRequestError('CONFIRMATION_INVALIDE')
   const ageMs = Date.now() - input.sessionCreatedAt.getTime()
   // Négation volontaire : une date illisible (NaN) doit refuser, jamais autoriser.
   if (!(ageMs <= FRESH_SESSION_MAX_AGE_S * MS_PER_SECOND)) throw new ForbiddenError('SESSION_TROP_ANCIENNE')
-
-  await db.delete(users).where(eq(users.id, userId))
-
-  await deleteAllUserMediaFiles(userId).catch((error: unknown) => {
-    console.error({ utilisateurs: 'fichiers non supprimés', nom: error instanceof Error ? error.name : typeof error })
-  })
+  await supprimerCompteEtFichiers(userId)
 }

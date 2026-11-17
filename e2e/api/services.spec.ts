@@ -16,7 +16,7 @@ import type { Session } from '../helpers/session'
 
 const CLES_SERVICE_STUDIO = [
   'actif', 'creeLe', 'description', 'dureeMin', 'enVedette', 'id', 'image', 'inclus', 'masqueParPlan', 'modifieLe', 'nbSeances',
-  'ordre', 'paiementInstructions', 'paiementMode', 'prixDevise', 'prixMontant', 'reservable', 'rythme', 'slug',
+  'ordre', 'paiementInstructions', 'paiementMode', 'prixDevise', 'prixMontant', 'reservable', 'rythme', 'slug', 'source',
   'tarif', 'titre', 'type',
 ].sort()
 
@@ -25,7 +25,7 @@ const CLES_CARTE_PUBLIQUE = [
   'tarif', 'titre', 'type',
 ].sort()
 
-const CLES_DETAIL_PUBLIC = [...CLES_CARTE_PUBLIQUE, 'inclus', 'paiementInstructions', 'paiementMode', 'seo'].sort()
+const CLES_DETAIL_PUBLIC = [...CLES_CARTE_PUBLIQUE, 'inclus', 'modifieLe', 'paiementInstructions', 'paiementMode', 'seo'].sort()
 
 // Message générique, partagé par toutes les listes (S4, décision #57).
 const MESSAGE_ORDRE_INVALIDE = 'L’ordre envoyé n’est plus à jour. Rechargez la page et réessayez.'
@@ -564,10 +564,10 @@ test.describe.serial('services — API studio et publique (S3-CA39 à CA42)', ()
       expect(Object.keys(liste.services[0]).sort()).toEqual(CLES_CARTE_PUBLIQUE)
       expect(Object.keys(liste.aLaUne[0]).sort()).toEqual(CLES_CARTE_PUBLIQUE)
       expect(Object.keys(detail.service).sort()).toEqual(CLES_DETAIL_PUBLIC)
-      expect(Object.keys(detail.service.seo).sort()).toEqual(['description', 'titre'])
+      expect(Object.keys(detail.service.seo).sort()).toEqual(['description', 'image', 'titre'])
       expect(detail.service.paiementMode).toBe('sur_place')
       expect(detail.service.seo.titre).toBe('Consultation de cardiologie — Dr Cabrel Nguesso')
-      for (const secret of [service.id, '"ordre"', '"enVedette"', '"actif"', '"vitrineId"', '"creeLe"', '"modifieLe"', '"imageMediaId"']) {
+      for (const secret of [service.id, '"ordre"', '"enVedette"', '"actif"', '"vitrineId"', '"creeLe"', '"imageMediaId"']) {
         expect(detailBrut).not.toContain(secret)
       }
     })

@@ -4,6 +4,7 @@ import type {
   RealisationStudioDTO,
   RealisationsCompteursDTO,
 } from '../../shared/dto'
+import { construireImagePartage } from '../../shared/seo'
 import { displayName } from '../../shared/vitrine'
 import type { MediaRow } from '../services/medias'
 import type { CompteursAvecPlan } from '../services/plan-visibilite'
@@ -35,6 +36,7 @@ export function toRealisationStudioResource(
     enVedette: row.enVedette,
     actif: row.actif,
     masqueParPlan: row.masqueParPlan,
+    source: row.source as 'utilisateur' | 'assistant',
     ordre: row.ordre,
     creeLe: row.createdAt.toISOString(),
     modifieLe: row.updatedAt.toISOString(),
@@ -83,7 +85,7 @@ export function toRealisationPublicDetailResource(
         description === ''
           ? `${row.titre}, une réalisation de ${nomAffiche}, ${vitrine.metier}${vitrine.ville ? ` à ${vitrine.ville}` : ''}.`
           : truncateForSeo(description),
-      image: null,
+      image: construireImagePartage(image?.id, row.titre),
     },
     modifieLe: row.updatedAt.toISOString(),
   }

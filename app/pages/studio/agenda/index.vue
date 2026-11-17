@@ -2,7 +2,7 @@
 import { ABONNEMENT_FUSEAU_REPLI } from '#shared/plans'
 
 definePageMeta({ layout: 'studio', ssr: false })
-useSeoMeta({ title: 'Votre agenda — Brandself' })
+useSeoMeta({ title: 'Votre agenda' })
 
 const {
   enChargement,
@@ -32,7 +32,7 @@ function plurielDemandes(nombre: number): string {
 </script>
 
 <template>
-  <div class="xl:relative xl:left-1/2 xl:w-[calc(100vw-3rem)] xl:max-w-7xl xl:-translate-x-1/2">
+  <div>
     <div v-if="enChargement" role="status" aria-label="Chargement de votre agenda">
       <div class="flex flex-col gap-3" aria-hidden="true">
         <USkeleton class="h-10 w-48" />
@@ -48,7 +48,6 @@ function plurielDemandes(nombre: number): string {
       v-else-if="absente"
       icon="i-ph-storefront"
       title="Créons d’abord votre vitrine"
-      description="Votre agenda apparaît ici dès que votre vitrine existe."
       :as="{ title: 'h1' }"
       :actions="[{ label: 'Créer ma vitrine', to: '/onboarding', size: 'xl' }]"
     />
@@ -57,7 +56,7 @@ function plurielDemandes(nombre: number): string {
       v-else-if="enErreur"
       icon="i-ph-warning-circle"
       title="Votre agenda ne s’affiche pas"
-      description="Nous n’avons pas pu le charger. Vos réservations et demandes sont intactes."
+      description="Nous n’avons pas pu le charger."
       :as="{ title: 'h1' }"
       :actions="[{ label: 'Réessayer', size: 'xl', onClick: rafraichir }]"
     />

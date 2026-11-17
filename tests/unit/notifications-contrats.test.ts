@@ -22,6 +22,10 @@ const PRODUCTION = {
   RESEND_API_KEY: 're_test_cle_resend',
   EMAIL_EXPEDITEUR: 'Brandself <bonjour@brandself.io>',
   NUXT_PUBLIC_SITE_URL: 'https://brandself.io',
+  // A1 (D-A1-02) : obligatoire en production.
+  ADMIN_HOST: 'admin.brandself.io',
+  // Éviction du cache des images : obligatoire en production.
+  MEDIAS_CACHE_REFRESH_SECRET: 'secret-de-test-cache-images-0123456789',
 }
 
 describe('shared/notifications.ts : valeurs décidées (#84, #86, #87, #88, #92, #97)', () => {
@@ -128,6 +132,11 @@ describe('shared/jobs.ts : types d’e-mails et jobs (#81, #82)', () => {
       'utilisateur_rappel_journee',
       'abonnement_rappel',
       'paiement_confirme',
+      // A2 : e-mails d'administration (suspension, réactivation, jours offerts, dépublication).
+      'utilisateur_suspendu',
+      'utilisateur_reactive',
+      'utilisateur_jours_offerts',
+      'utilisateur_depubliee',
     ])
     expect(new Set(TRANSACTIONAL_EMAIL_TYPES).size).toBe(TRANSACTIONAL_EMAIL_TYPES.length)
   })
@@ -139,6 +148,11 @@ describe('shared/jobs.ts : types d’e-mails et jobs (#81, #82)', () => {
     expect(TRANSACTIONAL_EMAIL_TYPES.filter((type) => type.startsWith('utilisateur_'))).toEqual([
       'utilisateur_resume_hebdo',
       'utilisateur_rappel_journee',
+      // A2 : e-mails d'administration.
+      'utilisateur_suspendu',
+      'utilisateur_reactive',
+      'utilisateur_jours_offerts',
+      'utilisateur_depubliee',
     ])
   })
 

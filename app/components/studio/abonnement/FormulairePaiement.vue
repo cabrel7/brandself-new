@@ -73,6 +73,7 @@ const aideTelephone = 'Vous recevrez une demande de confirmation sur votre t√©l√
       :prix="prix"
       :devise="devise ?? ''"
       :exposant="exposant"
+      :moyen="moyen"
       :legende="legende"
       :disabled="envoi"
       :erreur="erreurs.periode"

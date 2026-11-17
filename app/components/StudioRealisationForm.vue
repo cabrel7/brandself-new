@@ -24,6 +24,11 @@ const {
   realisation: props.realisation,
   compteurs: props.compteurs,
 })
+
+// Créée via l'assistant MCP : relue dans le studio, activable seulement avec une image principale.
+const creeeParAssistant = computed(() => props.realisation?.source === 'assistant')
+const actifBloque = computed(() => creeeParAssistant.value && image.value === null)
+const aideVisibilite = computed(() => (actifBloque.value ? 'Disponible dès que l’image principale est ajoutée.' : undefined))
 </script>
 
 <template>
@@ -31,17 +36,28 @@ const {
     v-if="introuvable"
     icon="i-ph-squares-four"
     title="Cette réalisation n’existe plus"
-    description="Elle a peut-être été supprimée depuis un autre appareil."
     :actions="[{ label: 'Retour aux réalisations', to: '/studio/realisations', size: 'xl' }]"
   />
 
-  <form v-else class="flex flex-col gap-6" novalidate @submit.prevent="enregistrer">
+  <form v-else class="grid gap-6 lg:grid-cols-2 lg:items-start lg:gap-x-10" novalidate @submit.prevent="enregistrer">
+    <div class="flex flex-col gap-6">
+    <UBadge
+      v-if="creeeParAssistant"
+      label="Créé par l’assistant"
+      variant="soft"
+      class="self-start bg-accent-doux text-base font-semibold text-accent-texte"
+    />
+
     <UFormField label="Image principale" name="imageMediaId" required>
       <StudioRealisationImage
         :image="image"
         :erreur-externe="erreurs.imageMediaId"
         @televersee="choisirImage"
       />
+      <p v-if="actifBloque" class="mt-3 flex items-start gap-1.5 text-base font-semibold text-erreur">
+        <UIcon name="i-ph-warning-circle" class="mt-0.5 size-5 shrink-0" aria-hidden="true" />
+        <span>Ajoutez l’image principale pour pouvoir publier cette réalisation.</span>
+      </p>
     </UFormField>
 
     <UFormField name="galerie">
@@ -54,7 +70,9 @@ const {
         @update:images="majGalerie"
       />
     </UFormField>
+    </div>
 
+    <div class="flex flex-col gap-6">
     <UFormField label="Titre" name="titre" required :error="erreurs.titre">
       <UInput
         v-model="form.titre"
@@ -73,7 +91,6 @@ const {
         @update:model-value="viderErreur('description')"
       />
       <p class="m-0 mt-2 text-(length:--fs-14) text-texte-secondaire">
-        Racontez le contexte, votre rôle et le résultat.
         {{ form.description.length }} sur {{ REALISATION_DESCRIPTION_MAX }} caractères.
       </p>
     </UFormField>
@@ -117,7 +134,8 @@ const {
         <USwitch
           v-model="form.actif"
           label="Visible sur la vitrine"
-          description="Désactivez pour masquer cette réalisation sans la supprimer."
+          :description="aideVisibilite"
+          :disabled="actifBloque"
           :ui="SWITCH_UI"
         />
       </div>
@@ -165,6 +183,7 @@ const {
         block
         @click="suppressionOuverte = true"
       />
+    </div>
     </div>
 
     <UModal

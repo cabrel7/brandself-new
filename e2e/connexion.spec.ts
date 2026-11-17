@@ -16,14 +16,14 @@ function lireEnv(nom: string): string {
 
 const pool = new Pool({ connectionString: lireEnv('DATABASE_URL') })
 
-// Better Auth stocke l'identifiant préfixé pour l'email (`sign-in-otp-<email>`,
-// voir email-otp/utils.mjs) et brut pour le téléphone ; la valeur est
+// Better Auth stocke l'identifiant préfixé : `sign-in-otp-<email>` (email-otp) et
+// `phone-number-otp-<numéro>` (phone-number, version actuelle) ; la valeur est
 // `<code>:<essais>`.
 async function lireDernierCode(
   identifiant: string,
   canal: 'email' | 'telephone' = 'email',
 ): Promise<string> {
-  const cle = canal === 'email' ? `sign-in-otp-${identifiant}` : identifiant
+  const cle = canal === 'email' ? `sign-in-otp-${identifiant}` : `phone-number-otp-${identifiant}`
   const resultat = await pool.query(
     'SELECT value FROM verifications WHERE identifier = $1 ORDER BY created_at DESC LIMIT 1',
     [cle],
@@ -63,15 +63,15 @@ async function seConnecterParEmail(page: import('@playwright/test').Page, email:
     await cases.nth(i).fill(code[i])
   }
   await page.getByRole('button', { name: 'Valider' }).click()
-  await expect(page).toHaveURL(/\/onboarding/)
+  // Premier passage de la partie : le serveur de développement compile /studio puis /onboarding à la demande (lent en CI).
+  await expect(page).toHaveURL(/\/onboarding/, { timeout: 60_000 })
 }
 
 test('parcours complet : email → code → onboarding', async ({ page }) => {
   const email = `e2e-${Date.now()}@exemple.com`
   await seConnecterParEmail(page, email)
-  // S8 : l'inscription guidée s'ouvre sur l'étape 1 ; « Bienvenue… » est son sous-titre, le titre est « Qui êtes-vous ? ».
+  // S8 : l'inscription guidée s'ouvre sur l'étape 1, dont le titre est « Qui êtes-vous ? ».
   await expect(page.getByRole('heading', { level: 1, name: 'Qui êtes-vous ?' })).toBeVisible()
-  await expect(page.getByText('Bienvenue. Construisons votre vitrine ensemble.')).toBeVisible()
 })
 
 test('parcours complet : téléphone → code → onboarding', async ({ page }) => {
@@ -90,7 +90,6 @@ test('parcours complet : téléphone → code → onboarding', async ({ page }) 
   await page.getByRole('button', { name: 'Valider' }).click()
   await expect(page).toHaveURL(/\/onboarding/)
   await expect(page.getByRole('heading', { level: 1, name: 'Qui êtes-vous ?' })).toBeVisible()
-  await expect(page.getByText('Bienvenue. Construisons votre vitrine ensemble.')).toBeVisible()
 })
 
 test('mauvais code : message avec essais restants', async ({ page }) => {

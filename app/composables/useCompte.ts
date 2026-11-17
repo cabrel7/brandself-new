@@ -80,9 +80,6 @@ export const PREFERENCES_EMAIL_AFFICHEES: readonly PreferenceEmailAffichee[] = [
   },
 ]
 
-export const NOTE_EMAILS_TRANSACTIONNELS =
-  'Les e-mails liés à vos réservations et à vos messages sont toujours envoyés : ils font partie du service.'
-
 /** Compte : informations (`/api/studio/moi`) et préférences. */
 export function useMoi() {
   const { data, status, error, refresh } = useFetch<{ moi: MoiDTO }>('/api/studio/moi', {

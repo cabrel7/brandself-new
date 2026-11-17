@@ -45,8 +45,39 @@ async function recharger(): Promise<void> {
   await refresh()
 }
 
+const contenu = computed(() => confirmation.value
+  ? contenuConfirmation(confirmation.value.reservation.statut, { professionnel: vitrine.value.nomAffiche, username: vitrine.value.username })
+  : null)
+
+const titrePage = computed(() => {
+  if (status.value === 'idle' || status.value === 'pending') return 'Chargement de votre demande'
+  if (confirmationExpiree.value) return 'Cette confirmation a expiré'
+  if (confirmationInvalide.value) return 'Confirmation introuvable'
+  if (status.value === 'error' || !confirmation.value) return 'Récapitulatif indisponible'
+  return contenu.value?.titrePage ?? 'Votre demande'
+})
+
+// Le titre reçoit le focus une seule fois, sauf si le visiteur a déjà interagi avec la page.
+const titre = useTemplateRef<HTMLElement>('titre')
+let focusPose = false
+async function focaliserTitre(): Promise<void> {
+  if (focusPose) return
+  await nextTick()
+  if (!titre.value) return
+  focusPose = true
+  const actif = document.activeElement
+  if (actif && actif !== document.body) return
+  titre.value.focus({ preventScroll: true })
+}
+onMounted(() => {
+  if (status.value !== 'idle' && status.value !== 'pending') void focaliserTitre()
+})
+watch(status, (valeur) => {
+  if (valeur !== 'idle' && valeur !== 'pending') void focaliserTitre()
+})
+
 useHead({ htmlAttrs: { 'data-palette': () => vitrine.value.palette, lang: 'fr' } })
-useSeoMeta({ title: 'Votre demande est envoyée', robots: 'noindex, nofollow' })
+useSeoMeta({ title: titrePage, robots: 'noindex, nofollow' })
 </script>
 
 <template>
@@ -63,8 +94,8 @@ useSeoMeta({ title: 'Votre demande est envoyée', robots: 'noindex, nofollow' })
         <span class="flex size-20 items-center justify-center rounded-full bg-accent-doux text-accent">
           <UIcon name="i-ph-clock-countdown" class="size-10" aria-hidden="true" />
         </span>
-        <h1 class="text-(length:--fs-32) leading-tight font-bold md:text-(length:--fs-48)">Cette confirmation a expiré</h1>
-        <p class="text-texte-secondaire">Votre demande a bien été transmise, mais ce récapitulatif temporaire n’est plus accessible.</p>
+        <h1 ref="titre" tabindex="-1" class="text-(length:--fs-32) leading-tight font-bold outline-none">Cette confirmation a expiré</h1>
+        <p class="text-texte-secondaire">Votre demande a bien été transmise.</p>
         <UButton :to="`/${vitrine.username}`">Retour à la vitrine</UButton>
       </div>
 
@@ -72,8 +103,8 @@ useSeoMeta({ title: 'Votre demande est envoyée', robots: 'noindex, nofollow' })
         <span class="flex size-20 items-center justify-center rounded-full bg-accent-doux text-accent">
           <UIcon name="i-ph-calendar-x" class="size-10" aria-hidden="true" />
         </span>
-        <h1 class="text-(length:--fs-32) leading-tight font-bold md:text-(length:--fs-48)">Confirmation introuvable</h1>
-        <p class="text-texte-secondaire">Ce récapitulatif n’est plus accessible. Revenez à la vitrine pour consulter les créneaux disponibles.</p>
+        <h1 ref="titre" tabindex="-1" class="text-(length:--fs-32) leading-tight font-bold outline-none">Confirmation introuvable</h1>
+        <p class="text-texte-secondaire">Ce récapitulatif n’est plus accessible.</p>
         <UButton :to="`/${vitrine.username}`">Retour à la vitrine</UButton>
       </div>
 
@@ -81,20 +112,18 @@ useSeoMeta({ title: 'Votre demande est envoyée', robots: 'noindex, nofollow' })
         <span class="flex size-20 items-center justify-center rounded-full bg-accent-doux text-accent">
           <UIcon name="i-ph-warning-circle" class="size-10" aria-hidden="true" />
         </span>
-        <h1 class="text-(length:--fs-32) leading-tight font-bold md:text-(length:--fs-48)">Le récapitulatif ne peut pas être chargé</h1>
-        <p class="text-texte-secondaire">Réessayez dans un instant. Aucune information personnelle n’est affichée sur cette page.</p>
+        <h1 ref="titre" tabindex="-1" class="text-(length:--fs-32) leading-tight font-bold outline-none">Le récapitulatif ne peut pas être chargé</h1>
+        <p class="text-texte-secondaire">Réessayez dans un instant.</p>
         <UButton variant="outline" icon="i-ph-arrow-counter-clockwise" @click="recharger">Réessayer</UButton>
       </div>
 
-      <div v-else class="flex flex-col gap-8">
-        <div class="flex flex-col items-center gap-5 text-center">
-          <span class="flex size-24 items-center justify-center rounded-full bg-accent-doux text-accent">
-            <UIcon name="i-ph-check" class="size-12" aria-hidden="true" />
+      <div v-else-if="contenu" class="flex flex-col gap-8">
+        <div class="flex flex-col items-center gap-4 text-center md:items-start md:text-left">
+          <span class="flex size-16 items-center justify-center rounded-full bg-accent-doux text-accent">
+            <UIcon :name="contenu.picto" class="size-8" aria-hidden="true" />
           </span>
-          <h1 class="max-w-xl text-(length:--fs-32) leading-[1.1] font-bold md:text-(length:--fs-48)">Votre demande est envoyée</h1>
-          <p class="max-w-xl text-(length:--fs-20) text-texte-secondaire">
-            {{ vitrine.nomAffiche }} vous confirmera ce rendez-vous par email. Votre demande a bien été transmise.
-          </p>
+          <h1 ref="titre" tabindex="-1" class="max-w-xl text-(length:--fs-32) leading-tight font-bold outline-none">{{ contenu.titre }}</h1>
+          <p v-if="contenu.phrase" class="m-0 max-w-xl text-texte-secondaire">{{ contenu.phrase }}</p>
         </div>
 
         <ReservationRecap
@@ -107,13 +136,21 @@ useSeoMeta({ title: 'Votre demande est envoyée', robots: 'noindex, nofollow' })
           :fuseau="vitrine.fuseau"
         />
 
-        <UButton :to="lienIcs" external download="reservation-brandself.ics" variant="outline" icon="i-ph-calendar-plus" block>
+        <UButton v-if="contenu.ics" :to="lienIcs" external download="reservation-jesuis.pro.ics" icon="i-ph-calendar-plus" block>
           Ajouter à mon agenda
         </UButton>
-        <UButton :to="`/${vitrine.username}`" variant="link" block>Retour à la vitrine</UButton>
+        <UButton v-else-if="contenu.action" :to="contenu.action.to" block>{{ contenu.action.libelle }}</UButton>
+        <NuxtLink
+          :to="`/${vitrine.username}`"
+          class="inline-flex min-h-(--cible-tactile) items-center justify-center text-accent-texte underline underline-offset-4 hover:no-underline"
+        >
+          Retour à la vitrine
+        </NuxtLink>
       </div>
     </main>
 
-    <p v-if="vitrine.badgeBrandself" class="px-6 py-8 text-center text-(length:--fs-14) text-texte-secondaire">Créé avec Brandself</p>
+    <footer v-if="vitrine.badgeBrandself" class="flex justify-center px-6 py-6">
+      <VitrineBadge />
+    </footer>
   </div>
 </template>

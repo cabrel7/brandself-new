@@ -8,9 +8,9 @@ import {
   IA_ATTENTE_BASE_MS,
   IA_DELAI_TENTATIVE_MS,
   IA_DELAI_TOTAL_MS,
-  IA_RETENTION_JOURS,
   IA_TENTATIVES_MAX,
   IA_TYPES,
+  IA_TYPES_QUOTA,
   MOTIFS_REPLI_TRANSITOIRES,
 } from '../../../shared/ia'
 import type { GenerationStatut, IaErreurCode, IaFournisseurAppele, IaType, MotifRepli } from '../../../shared/ia'
@@ -20,14 +20,16 @@ import {
   IA_LIMITE_CLE_UTILISATEUR_PREFIXE,
   IA_UTILISATEUR_LIMIT,
 } from '../../../shared/limites'
+import { REGLAGE_CLES } from '../../../shared/reglages'
 import { ServiceUnavailableError, NotFoundError } from '../../exceptions/http'
 import { enqueueGeneration } from '../../jobs/ia'
 import { getIaQueue } from '../../jobs/queues'
 import { db } from '../../utils/db'
 import { enforceLimit, hitLimit, releaseLimit } from '../limiteur'
 import { assertQuota, mesurerQuotaVerrouille } from '../plans'
-import { schemaEntreeAmelioration, schemaEntreeOnboarding } from './entrees'
-import type { EntreeAmelioration, EntreeIa, EntreeOnboarding } from './entrees'
+import { Reglages } from '../reglages'
+import { schemaEntreeAmelioration, schemaEntreeOnboarding, schemaEntreeSeo } from './entrees'
+import type { EntreeAmelioration, EntreeIa, EntreeOnboarding, EntreeSeo } from './entrees'
 import { empreinte } from './nettoyage'
 import { outilPour } from './outils'
 import { getActivePrompt, getPromptById, renderGabarit, serialiserDonnees } from './prompts'
@@ -35,6 +37,7 @@ import { repliAmelioration, repliOnboarding } from './repli'
 import { IaErreur } from './types'
 import type { ExecutionDeps, IaProvider, IaReponse, IaRequete } from './types'
 import { validerSortie } from './verification'
+import type { CodeRejetSortie } from './verification'
 
 // S8 §4.8 : cycle de vie d'une génération. Le web crée la ligne (ou un repli immédiat), le worker l'exécute
 // (`executeGeneration`), la lecture la fait expirer si le job est perdu (`getOwnGeneration`), un job
@@ -57,6 +60,10 @@ export interface OptionsCreation {
 type Cible =
   | { type: 'onboarding_vitrine', entree: EntreeOnboarding }
   | { type: 'ameliorer_texte', entree: EntreeAmelioration }
+  | { type: 'seo_vitrine', entree: EntreeSeo }
+
+/** Types qu'un utilisateur demande lui-même (créés ici, comptés dans son quota). Le SEO de fond vit dans `seo.ts`. */
+type TypeUtilisateur = (typeof IA_TYPES_QUOTA)[number]
 
 const MS_PAR_JOUR = 86_400_000
 const PROMPT_ABSENT = 'sans_prompt'
@@ -80,17 +87,25 @@ function lireCible(ligne: GenerationRow): Cible | null {
     const entree = schemaEntreeOnboarding.safeParse(ligne.entree)
     return entree.success ? { type: ligne.type, entree: entree.data } : null
   }
+  if (ligne.type === 'seo_vitrine') {
+    const entree = schemaEntreeSeo.safeParse(ligne.entree)
+    return entree.success ? { type: ligne.type, entree: entree.data } : null
+  }
   const entree = schemaEntreeAmelioration.safeParse(ligne.entree)
   return entree.success ? { type: ligne.type, entree: entree.data } : null
 }
 
-/** Texte déterministe servi quand l'IA n'a rien produit (jamais de vitrine vide). */
+/**
+ * Texte déterministe servi quand l'IA n'a rien produit (jamais de vitrine vide). Le SEO n'en a pas : le repli
+ * est `null` (la vitrine garde son gabarit déterministe, `resoudreSeoVitrine`).
+ */
 function repliPour(cible: Cible): unknown {
+  if (cible.type === 'seo_vitrine') return null
   return cible.type === 'onboarding_vitrine' ? repliOnboarding(cible.entree) : repliAmelioration(cible.entree)
 }
 
-function ciblePour(type: IaType, entree: EntreeIa): Cible {
-  if (type === 'onboarding_vitrine' && !('champ' in entree)) return { type, entree }
+function ciblePour(type: TypeUtilisateur, entree: EntreeIa): Cible {
+  if (type === 'onboarding_vitrine' && 'titre' in entree) return { type, entree }
   if (type === 'ameliorer_texte' && 'champ' in entree) return { type, entree }
   throw new GenerationIllisibleError()
 }
@@ -158,11 +173,15 @@ interface Reservation {
 
 async function reserverLimites(userId: string): Promise<Reservation> {
   const cles: string[] = []
+  // A4 (D-A4-10) : IA coupée par l'administration : repli déterministe, aucun compteur consommé, aucun appel.
+  if (!(await Reglages.lire(REGLAGE_CLES.iaActive))) return { motif: 'ia_coupee', cles }
+  const limiteUtilisateur = await Reglages.lire(REGLAGE_CLES.iaLimiteUtilisateurHeure)
+  const plafondGlobal = await Reglages.lire(REGLAGE_CLES.iaPlafondGlobalJour)
   const cleUtilisateur = `${IA_LIMITE_CLE_UTILISATEUR_PREFIXE}${userId}`
   try {
-    await enforceLimit(cleUtilisateur, IA_UTILISATEUR_LIMIT.limit, IA_UTILISATEUR_LIMIT.windowS, { failClosed: true })
+    await enforceLimit(cleUtilisateur, limiteUtilisateur, IA_UTILISATEUR_LIMIT.windowS, { failClosed: true })
     cles.push(cleUtilisateur)
-    const global = await hitLimit(IA_LIMITE_CLE_GLOBALE, IA_GLOBAL_LIMIT.limit, IA_GLOBAL_LIMIT.windowS, {
+    const global = await hitLimit(IA_LIMITE_CLE_GLOBALE, plafondGlobal, IA_GLOBAL_LIMIT.windowS, {
       failClosed: true,
     })
     cles.push(IA_LIMITE_CLE_GLOBALE)
@@ -186,7 +205,7 @@ async function reserverLimites(userId: string): Promise<Reservation> {
  */
 export async function createGeneration(
   userId: string,
-  type: IaType,
+  type: TypeUtilisateur,
   entree: EntreeIa,
   options: OptionsCreation,
   now: Date = new Date(),
@@ -292,6 +311,8 @@ interface Bilan {
   modele: string | null
   fournisseur: IaFournisseurAppele | null
   erreurCode: IaErreurCode | null
+  /** Onboarding : code pour lequel le bloc « seo » a été retiré de la proposition gardée (journal : `seo: 'rejete'`). */
+  seoRejete: CodeRejetSortie | null
 }
 
 type Issue = { statut: 'terminee', sortie: unknown } | { statut: 'repli', motif: MotifRepli }
@@ -357,7 +378,10 @@ async function jouer(ligne: GenerationRow, cible: Cible | null, deps: ExecutionD
       bilan.tokensSortie = ajouter(bilan.tokensSortie, appel.reponse.tokensSortie)
       bilan.modele = appel.reponse.modele.slice(0, 100)
       const verdict = validerSortie(cible.type, appel.reponse.donnees, cible.entree)
-      if (verdict.ok) return { statut: 'terminee', sortie: verdict.valeur }
+      if (verdict.ok) {
+        bilan.seoRejete = verdict.seoRejete ?? null
+        return { statut: 'terminee', sortie: verdict.valeur }
+      }
       bilan.erreurCode = verdict.code
       causeFournisseur = false
     } else {
@@ -396,6 +420,7 @@ export async function executeGeneration(id: string, deps: ExecutionDeps): Promis
     modele: null,
     fournisseur: null,
     erreurCode: null,
+    seoRejete: null,
   }
   const issue = await jouer(ligne, cible, deps, bilan)
   const sortie = issue.statut === 'terminee' ? issue.sortie : cible ? repliPour(cible) : null
@@ -425,6 +450,8 @@ export async function executeGeneration(id: string, deps: ExecutionDeps): Promis
     tentatives: bilan.tentatives,
     erreur: bilan.erreurCode,
     ecrite: Boolean(ecrite),
+    // Jamais le texte rejeté : seulement le fait et la règle qui l'a écarté.
+    ...(bilan.seoRejete === null ? {} : { seo: 'rejete', seoMotif: bilan.seoRejete }),
   })
   return ecrite ? issue.statut : null
 }
@@ -447,7 +474,8 @@ export async function getOwnGeneration(userId: string, id: string, now: Date = n
     const [ligne] = await db
       .select()
       .from(generationsIa)
-      .where(and(eq(generationsIa.id, id), eq(generationsIa.userId, userId)))
+      // Les générations de fond (SEO) ne sont pas celles de l'utilisateur : introuvables pour le studio.
+      .where(and(eq(generationsIa.id, id), eq(generationsIa.userId, userId), inArray(generationsIa.type, [...IA_TYPES_QUOTA])))
       .limit(1)
     return ligne
   }
@@ -473,7 +501,8 @@ export async function getOwnGeneration(userId: string, id: string, now: Date = n
  * un hachage aléatoire de même forme. Sans effet sur le dédoublonnage (il exige une sortie, purgée ici).
  */
 export async function purgeGenerations(now: Date = new Date()): Promise<number> {
-  const limite = new Date(now.getTime() - IA_RETENTION_JOURS * MS_PAR_JOUR)
+  const retentionJours = await Reglages.lire(REGLAGE_CLES.retentionIaJours)
+  const limite = new Date(now.getTime() - retentionJours * MS_PAR_JOUR)
   const purgees = await db
     .update(generationsIa)
     .set({

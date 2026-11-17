@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { defineConfig } from 'vitest/config'
+import { nombreDeWorkers, VARIABLE_NB_BASES } from './tests/integration/support/bases-par-worker.ts'
 
 const racine = path.dirname(fileURLToPath(import.meta.url))
 
@@ -27,8 +28,21 @@ function resoudreH3(): string | undefined {
 }
 const h3 = resoudreH3()
 
+// Hôte d'administration des tests : fixé ici (hermétique). Sans cela les tests dépendent du `.env` du poste (local) ou de la valeur de la CI.
+const ADMIN_HOST_TEST = 'admin.localhost'
+
 /** Dossier de stockage des médias pour les tests d'intégration (vidé entre les tests). */
 const MEDIAS_DIR_TEST = path.join(tmpdir(), 'brandself-tests-medias')
+
+// Mode série (secours, comparaison) : `TESTS_SERIE=1` (pnpm test:serie). Tous les fichiers d'intégration passent
+// alors un par un sur la base commune, comme avant l'isolation par worker.
+const modeSerie = process.env.TESTS_SERIE === '1'
+// Nombre de workers d'intégration isolés (une base clonée chacun) : `TESTS_WORKERS`, défaut et borne dans bases-par-worker.ts.
+const nbWorkers = nombreDeWorkers(process.env.TESTS_WORKERS)
+
+// Fichiers qui doivent tourner SEULS, en série, sur la base commune : les migrations (rejeu, schémas temporaires,
+// lecture des catalogues) et le seed (`pnpm db:seed` écrit dans la base commune par une autre connexion).
+const FICHIERS_SERIE = ['tests/integration/migration-*.test.ts', 'tests/integration/seed-statistiques.test.ts']
 
 const SECRET_FACTICE = 'secret-de-test-au-moins-trente-deux-caracteres'
 
@@ -68,28 +82,61 @@ export default defineConfig({
             DATABASE_URL: 'postgresql://test:test@localhost:5432/test',
             REDIS_URL: 'redis://localhost:6379',
             NUXT_BETTER_AUTH_SECRET: SECRET_FACTICE,
+            ADMIN_HOST: ADMIN_HOST_TEST,
           },
         },
       },
       {
-        // Intégration : vrai PostgreSQL (base `*_test`), vrai Redis (/15), vrai disque (dossier
-        // temporaire). DATABASE_URL et REDIS_URL ne sont PAS surchargées : elles viennent de
-        // l'environnement (CI) ou de `.env.test`. Voir tests/integration/global-setup.ts.
+        // Intégration : vrai PostgreSQL, vrai Redis, vrai disque (dossier temporaire). DATABASE_URL (base `*_test`)
+        // et REDIS_URL (/15) ne sont PAS surchargées : elles viennent de l'environnement (CI) ou de `.env.test`.
+        // Parallèle (défaut) : `nbWorkers` workers, chacun avec SA base clonée d'un modèle migré une fois, SON index
+        // Redis (/14, /13…) et SON dossier de médias (tests/integration/support/isolation-worker.ts). Hors
+        // `FICHIERS_SERIE`. Mode série (TESTS_SERIE=1) : tout, un fichier à la fois, base commune.
+        // Voir tests/integration/global-setup.ts et docs/tests.md.
         extends: true,
         test: {
           name: 'integration',
           include: ['tests/integration/**/*.test.ts'],
+          exclude: modeSerie ? [] : FICHIERS_SERIE,
           globalSetup: ['tests/integration/global-setup.ts'],
           setupFiles: ['tests/integration/setup.ts'],
-          fileParallelism: false,
+          fileParallelism: !modeSerie,
+          maxWorkers: modeSerie ? 1 : nbWorkers,
           testTimeout: 60_000,
           hookTimeout: 60_000,
+          sequence: { groupOrder: 1 },
           env: {
             NUXT_BETTER_AUTH_SECRET: SECRET_FACTICE,
+            ADMIN_HOST: ADMIN_HOST_TEST,
             MEDIAS_DIR: MEDIAS_DIR_TEST,
+            [VARIABLE_NB_BASES]: modeSerie ? '0' : String(nbWorkers),
           },
         },
       },
+      // Migrations et seed : en série, base commune, APRÈS le projet parallèle (groupOrder) : jamais en même temps.
+      // Absent en mode série (le projet « integration » les contient alors).
+      ...(modeSerie
+        ? []
+        : [{
+            extends: true as const,
+            test: {
+              name: 'serie',
+              include: FICHIERS_SERIE,
+              globalSetup: ['tests/integration/global-setup.ts'],
+              setupFiles: ['tests/integration/setup.ts'],
+              fileParallelism: false,
+              maxWorkers: 1,
+              testTimeout: 60_000,
+              hookTimeout: 60_000,
+              sequence: { groupOrder: 2 },
+              env: {
+                NUXT_BETTER_AUTH_SECRET: SECRET_FACTICE,
+                ADMIN_HOST: ADMIN_HOST_TEST,
+                MEDIAS_DIR: `${MEDIAS_DIR_TEST}-serie`,
+                [VARIABLE_NB_BASES]: '0',
+              },
+            },
+          }]),
       ...projetsSandbox,
     ],
   },

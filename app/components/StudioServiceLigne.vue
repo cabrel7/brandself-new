@@ -63,6 +63,18 @@ function surTouche(event: KeyboardEvent): void {
           variant="soft"
           class="bg-accent-doux text-(length:--fs-14) font-semibold text-accent-texte"
         />
+        <UBadge
+          v-if="service.source === 'assistant'"
+          label="Créé par l’assistant"
+          variant="soft"
+          class="bg-accent-doux text-(length:--fs-14) font-semibold text-accent-texte"
+        />
+        <UBadge
+          v-if="!service.actif"
+          label="Brouillon"
+          variant="soft"
+          class="bg-accent-doux text-(length:--fs-14) font-semibold text-accent-texte"
+        />
       </span>
     </NuxtLink>
 

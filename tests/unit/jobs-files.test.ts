@@ -11,6 +11,7 @@ import {
   FILE_SYSTEM,
   MESSAGES_AUTH_CONCURRENCE_WORKER,
 } from '../../shared/jobs'
+import * as jobs from '../../shared/jobs'
 import { DESABONNEMENT_ACTION_LIMIT, DESABONNEMENT_APERCU_LIMIT } from '../../shared/limites'
 import { HEURE_MS, JOUR_MS, MS_PAR_SECONDE, SECONDES_PAR_JOUR } from '../../shared/temps'
 
@@ -24,7 +25,8 @@ const lire = (fichier: string): string => readFileSync(path.join(RACINE, fichier
 /** Texte d'un `new Worker(` jusqu'au suivant : contient la file, le processeur et les options. */
 function blocWorker(source: string, fichier: string): string {
   const blocs = source.split('new Worker(').slice(1)
-  const trouve = blocs.find((bloc) => bloc.trimStart().startsWith(fichier))
+  // La virgule évite de confondre `FILE_IA` et `FILE_IA_FOND`.
+  const trouve = blocs.find((bloc) => bloc.trimStart().startsWith(`${fichier},`))
   if (trouve === undefined) throw new Error(`Aucun worker pour ${fichier}`)
   // Le `new Worker(` se ferme par une parenthèse en colonne 0.
   return trouve.split('\n)\n')[0] ?? trouve
@@ -32,7 +34,11 @@ function blocWorker(source: string, fichier: string): string {
 
 describe('noms et constantes des files', () => {
   it('should give every queue its own name', () => {
-    const noms = [FILE_SYSTEM, FILE_MAINTENANCE, FILE_MESSAGES_AUTH, FILE_EMAILS_NOTIFICATIONS, FILE_IA, FILE_EMAILS_LEGACY]
+    // Décision #24 : `ia-fond` (SEO régénéré en tâche de fond) est une file à part, jamais mêlée à `ia` (onboarding, latence).
+    // Le nom de la constante n'est pas figé : on cherche la file par sa valeur.
+    const fileFond = Object.values(jobs).find((valeur) => valeur === 'ia-fond')
+    expect(fileFond).toBe('ia-fond')
+    const noms = [FILE_SYSTEM, FILE_MAINTENANCE, FILE_MESSAGES_AUTH, FILE_EMAILS_NOTIFICATIONS, FILE_IA, fileFond, FILE_EMAILS_LEGACY]
     expect(new Set(noms).size).toBe(noms.length)
   })
 
@@ -96,6 +102,46 @@ describe('producteurs', () => {
     const queues = lire('server/jobs/queues.ts')
     expect(queues).not.toContain('FILE_EMAILS_LEGACY')
     expect(queues).toContain('FILE_EMAILS_NOTIFICATIONS')
+  })
+})
+
+describe('code de réauthentification de l\'administrateur (A1)', () => {
+  const worker = lire('worker/index.ts')
+
+  it('should give the new job its own name, distinct from every other job', () => {
+    const noms = Object.values(jobs.JOBS)
+
+    expect(jobs.JOBS.sendAdminReauthEmail).toBe('send-admin-reauth-email')
+    expect(new Set(noms).size).toBe(noms.length)
+  })
+
+  it('should enqueue the code e-mail on the authentication queue (messages-auth), never on a rate-limited one', () => {
+    const queues = lire('server/jobs/queues.ts')
+    const producteur = lire('server/jobs/admin-reauth.ts')
+
+    expect(queues).toMatch(/getMessagesAuthQueue[\s\S]*FILE_MESSAGES_AUTH/)
+    expect(producteur).toContain('getMessagesAuthQueue')
+    expect(producteur).toContain('JOBS.sendAdminReauthEmail')
+    expect(producteur).not.toContain('FILE_EMAILS')
+    expect(producteur).not.toContain('FILE_IA')
+  })
+
+  it('should process it in the authentication worker, which keeps no limiter, and not in the notification worker', () => {
+    const auth = blocWorker(worker, 'FILE_MESSAGES_AUTH')
+
+    expect(auth).not.toContain('limiter')
+    expect(auth).toContain('processOtpJob')
+    expect(worker).toMatch(/job\.name === JOBS\.sendAdminReauthEmail[\s\S]{0,80}processAdminReauthEmailJob\(job\.data\)/)
+    expect(blocWorker(worker, 'FILE_EMAILS_NOTIFICATIONS')).not.toContain('processAdminReauthEmailJob')
+    expect(blocWorker(worker, 'FILE_EMAILS_NOTIFICATIONS')).not.toContain('sendAdminReauthEmail')
+  })
+
+  it('should dispatch the job before the OTP job data validation (an unknown job name would be refused by processOtpJob)', () => {
+    const dispatch = worker.indexOf('JOBS.sendAdminReauthEmail')
+    const otp = worker.indexOf('processOtpJobData(job.name')
+
+    expect(dispatch).toBeGreaterThan(-1)
+    expect(otp).toBeGreaterThan(dispatch)
   })
 })
 

@@ -133,7 +133,7 @@ const villeFuseau = computed(() => {
 })
 const resumeCreneaux = computed(() => {
   const nombre = creneauxDuJour.value.length
-  return `${nombre} créneau${nombre > 1 ? 'x' : ''} disponible${nombre > 1 ? 's' : ''} · Heure de ${villeFuseau.value}`
+  return `${nombre} créneau${nombre > 1 ? 'x' : ''}`
 })
 
 function jourLongMinuscule(dateCivileChaine: string): string {
@@ -202,7 +202,10 @@ const dureeMinutes = computed(() => props.reponse?.service.dureeMin ?? null)
 
       <template v-else>
         <div class="mt-6 flex items-center justify-between gap-4">
-          <h3 class="m-0 text-(length:--fs-20) font-bold md:text-(length:--fs-24)">{{ titreMois }}</h3>
+          <div>
+            <h3 class="m-0 text-(length:--fs-20) font-bold md:text-(length:--fs-24)">{{ titreMois }}</h3>
+            <p class="m-0 text-(length:--fs-14) text-texte-secondaire">Heures de {{ villeFuseau }}</p>
+          </div>
           <div class="flex gap-2">
             <UButton
               type="button"
@@ -277,7 +280,7 @@ const dureeMinutes = computed(() => props.reponse?.service.dureeMin ?? null)
           role="status"
         >
           <p class="m-0">
-            Aucun créneau en {{ titreMois.toLowerCase() }} — revenez plus tard ou regardez le mois suivant.
+            Aucun créneau en {{ titreMois.toLowerCase() }}.
           </p>
           <UButton
             variant="outline"
@@ -323,7 +326,7 @@ const dureeMinutes = computed(() => props.reponse?.service.dureeMin ?? null)
         </button>
       </div>
       <p v-else class="mt-5 text-texte-secondaire" role="status">
-        Aucun créneau ce jour. Choisissez un jour marqué d’un point.
+        Aucun créneau ce jour.
       </p>
 
       <ul class="m-0 mt-6 flex list-none flex-col gap-3 border-t border-bordure p-0 pt-5 text-base">
@@ -347,9 +350,6 @@ const dureeMinutes = computed(() => props.reponse?.service.dureeMin ?? null)
       >
         {{ libelleConfirmation }}
       </UButton>
-      <p class="mt-3 text-(length:--fs-14) text-texte-secondaire">
-        Vous confirmez vos informations à l’étape suivante.
-      </p>
     </div>
   </div>
 </template>

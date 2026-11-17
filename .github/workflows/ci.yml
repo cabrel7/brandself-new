@@ -2,14 +2,17 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    # Les branches de sprint sont aussi vérifiées à chaque envoi : lint, typecheck, tests et build tournent sur les
+    # machines de la CI (le poste de développement est trop lent pour la suite complète).
+    branches: [main, 'sprint/**']
   pull_request:
   workflow_dispatch:
 
 jobs:
   verification:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    # La suite complète (unitaires, intégration parallèle par worker, migrations en série) dépasse 25 minutes.
+    timeout-minutes: 90
     # Les tests d'intégration (vrai PostgreSQL, vrai Redis, vrai disque) tournent ici : sans ces
     # services, `pnpm test` échoue (le globalSetup exige une base `*_test` et Redis /15).
     services:
@@ -44,6 +47,10 @@ jobs:
       # Requises par le build de production depuis S9 (expéditeur vérifié, liens absolus des e-mails).
       EMAIL_EXPEDITEUR: Brandself <noreply@example.test>
       NUXT_PUBLIC_SITE_URL: https://ci.example.test
+      # A1 : ADMIN_HOST obligatoire en production, hôte seul, différent de celui de NUXT_PUBLIC_SITE_URL.
+      ADMIN_HOST: admin.ci.example
+      # Obligatoire en production (éviction du cache d'images d'un compte suspendu) : valeur factice, 32 caractères ou plus.
+      MEDIAS_CACHE_REFRESH_SECRET: 0000000000000000000000000000000000000000000000000000000000ci0001
     steps:
       - uses: actions/checkout@v4
 
@@ -57,6 +64,15 @@ jobs:
           cache: pnpm
 
       - run: pnpm install --frozen-lockfile
+
+      # `pnpm db:seed` (testé par seed-statistiques) lance `node --env-file=.env` : le fichier doit exister.
+      - name: Créer .env de test
+        run: |
+          {
+            echo "DATABASE_URL=$DATABASE_URL"
+            echo "REDIS_URL=$REDIS_URL"
+            echo "NUXT_BETTER_AUTH_SECRET=$NUXT_BETTER_AUTH_SECRET"
+          } > .env
 
       - run: pnpm lint
 
@@ -85,7 +101,13 @@ jobs:
   e2e:
     runs-on: ubuntu-latest
     needs: verification
-    timeout-minutes: 20
+    # 682 tests avec un seul worker (base et comptes de test partagés) : plus de 20 minutes sur un seul job. Répartis en 4 parties
+    # indépendantes, chacune avec SA base PostgreSQL et SON Redis (services du job), donc aucun partage entre parties.
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: ['1/4', '2/4', '3/4', '4/4']
     services:
       postgres:
         image: postgres:18-alpine
@@ -115,6 +137,11 @@ jobs:
       DATABASE_URL: postgresql://brandself:brandself@localhost:5432/brandself_test
       REDIS_URL: redis://localhost:6379
       NUXT_BETTER_AUTH_SECRET: secret-de-test-au-moins-trente-deux-caracteres
+      # Clés K-PAY FACTICES (aucun appel externe : les specs n'initient aucun paiement) : sans elles, le formulaire de paiement
+      # n'existe pas et les specs d'abonnement ne peuvent pas tourner. Formats validés par shared/env.ts.
+      KPAY_API_KEY: kpay_test_ci
+      KPAY_SECRET_KEY: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+      KPAY_WEBHOOK_SECRET: secret-webhook-de-test-ci
     steps:
       - uses: actions/checkout@v4
 
@@ -143,7 +170,8 @@ jobs:
 
       - run: pnpm exec playwright install --with-deps chromium
 
-      - run: pnpm e2e
+      - name: e2e (partie ${{ matrix.shard }})
+        run: pnpm e2e --shard=${{ matrix.shard }}
         env:
           CI: 'true'
 
@@ -151,7 +179,7 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: test-results
+          name: test-results-${{ strategy.job-index }}
           path: test-results/
           if-no-files-found: ignore
 
@@ -187,8 +215,20 @@ jobs:
       DATABASE_URL: postgresql://brandself:brandself@localhost:5432/brandself_test
       REDIS_URL: redis://localhost:6379/15
       NUXT_BETTER_AUTH_SECRET: secret-de-test-au-moins-trente-deux-caracteres
+      # Production simulée : requis par shared/env.ts dès que NODE_ENV=production (build ET serveur) ;
+      # valeurs factices, aucun courriel n'est envoyé.
+      NODE_ENV: production
+      RESEND_API_KEY: re_ci_test_non_secret
       EMAIL_EXPEDITEUR: Brandself <noreply@example.test>
       NUXT_PUBLIC_SITE_URL: https://ci.example.test
+      # A1 : ADMIN_HOST obligatoire en production, hôte seul, différent de celui de NUXT_PUBLIC_SITE_URL.
+      ADMIN_HOST: admin.ci.example
+      # Obligatoire en production (éviction du cache d'images d'un compte suspendu) : valeur factice, 32 caractères ou plus.
+      MEDIAS_CACHE_REFRESH_SECRET: 0000000000000000000000000000000000000000000000000000000000ci0001
+      # Sans cette valeur, nuxt-site-config ne déduit pas « production » : robots.txt serait en Disallow: /.
+      NUXT_PUBLIC_SITE_ENV: production
+      # Un seul serveur de production, partagé par e2e:seo et Lighthouse (voir playwright.seo.config.ts, lighthouserc.cjs).
+      PORT_SERVEUR: '3000'
     steps:
       - uses: actions/checkout@v4
 
@@ -211,20 +251,25 @@ jobs:
             echo "NUXT_BETTER_AUTH_SECRET=$NUXT_BETTER_AUTH_SECRET"
           } > .env
 
+      # Le job simule la production (NODE_ENV=production) pour le build et le serveur ; le seed de démonstration, lui, est
+      # refusé en production par conception : on le lance avec NODE_ENV=development, contre la même base de test.
       - run: pnpm db:migrate
       - run: pnpm db:seed
+        env:
+          NODE_ENV: development
 
       - run: pnpm build
 
+      - run: pnpm exec playwright install --with-deps chromium
+
+      # Démarré UNE fois, en arrière-plan ; on attend qu'il réponde avant tout test (sinon les premiers
+      # tests partent contre un port fermé). Journal conservé pour le diagnostic.
       - name: Lancer le serveur de production
-        run: node .output/server/index.mjs &
-        env:
-          DATABASE_URL: ${{ env.DATABASE_URL }}
-          REDIS_URL: ${{ env.REDIS_URL }}
-          NUXT_BETTER_AUTH_SECRET: ${{ env.NUXT_BETTER_AUTH_SECRET }}
-          EMAIL_EXPEDITEUR: ${{ env.EMAIL_EXPEDITEUR }}
-          NUXT_PUBLIC_SITE_URL: ${{ env.NUXT_PUBLIC_SITE_URL }}
-        timeout-minutes: 1
+        run: |
+          PORT=$PORT_SERVEUR node .output/server/index.mjs > serveur-prod.log 2>&1 &
+          curl --fail --silent --show-error --output /dev/null \
+            --retry 30 --retry-delay 2 --retry-connrefused --retry-all-errors \
+            "http://localhost:$PORT_SERVEUR/tarifs"
 
       - run: pnpm e2e:seo
         env:
@@ -233,4 +278,17 @@ jobs:
       - run: pnpm perf
         env:
           CI: 'true'
+
+      - name: Rapports SEO et Lighthouse
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: seo-perf
+          path: |
+            .lighthouseci/
+            test-results/
+            serveur-prod.log
+          if-no-files-found: ignore
+          # `.lighthouseci/` est un dossier caché : sans cette option, les rapports Lighthouse ne sont jamais publiés.
+          include-hidden-files: true
 

@@ -134,3 +134,9 @@ OU un process PM2 dédié `-i 1` pour les tâches, OU un verrou (lock en DB/unst
 Logique métier dans un handler · objet ORM brut renvoyé · `new PrismaClient()` hors du singleton ·
 `process.env` dans server/ (→ `useRuntimeConfig`) · secret dans `runtimeConfig.public` ·
 route sans zod · scheduled task non protégée en cluster · `error.message` brut renvoyé sur une 500.
+
+## Règles complémentaires (génériques)
+- `process.env` interdit hors du fichier de configuration (validé au démarrage) ; secrets via `runtimeConfig`.
+- La config d'authentification (chargée aussi par des outils CLI) n'importe que `node_modules` et le code partagé, jamais les services serveur : une garde métier à y brancher lit sa donnée par sa propre requête ou vit dans un middleware.
+- Un 404 levé par erreur peut voir ses en-têtes de cache réécrits : une route qui doit répondre `no-store` renvoie sa propre réponse.
+*Exemples (Brandself)* : `auth.config.ts` lit `reglages` et `pays` par requête directe ; route `/medias/` avec 404 `no-store`.

@@ -69,7 +69,7 @@ function estPeriode(valeur: unknown): valeur is PeriodeMois {
  */
 export function usePaiementAbonnement(
   abonnement: Ref<AbonnementDTO | null>,
-  /** Appelé une fois le paiement réussi : recharge l'abonnement affiché. */
+  /** Recharge l'abonnement affiché (offre et prix compris) : après un paiement réussi, et quand le prix a changé. */
   surReussite: () => Promise<unknown>,
 ) {
   const route = useRoute()
@@ -100,6 +100,14 @@ export function usePaiementAbonnement(
   const moyens = computed<MoyenPaiementDTO[]>(() => offre.value?.moyens.filter((m) => m.devise === devise.value) ?? [])
   const prixChoisi = computed(() => prixPeriodes.value.find((p) => p.periodeMois === periode.value) ?? null)
   const moyenChoisi = computed(() => moyens.value.find((m) => m.id === moyenId.value) ?? null)
+  /**
+   * A5 (R12) : montant TTC que le client paiera (frais du moyen choisi compris s'il les supporte). C'est CE montant qui est affiché et
+   * renvoyé en `prixAffiche` ; `montant` (prix du plan, hors frais) n'en est que le repli si l'offre ne le fournit pas.
+   */
+  const montantAPayer = computed<number | null>(() => {
+    const choisi = prixChoisi.value
+    return choisi === null ? null : montantPaye(choisi, moyenId.value)
+  })
   const devisesProposees = computed(() => offre.value?.devises ?? [])
 
   // Valeurs initiales, une seule fois par chargement : `?periode=` (lien de rappel) puis la durée mise en avant.
@@ -244,6 +252,11 @@ export function usePaiementAbonnement(
       case 'MOYEN_PAIEMENT_INVALIDE':
         erreurs.value = { moyen: MESSAGE_MOYEN }
         return
+      case 'PRIX_CHANGE':
+        // Un seul message : les prix affichés sont rechargés, le client revoit le montant exact avant de confirmer.
+        erreurs.value = { general: MESSAGE_PRIX_CHANGE }
+        await surReussite()
+        return
       case 'DEVISE_NON_PAYABLE':
         erreurs.value = { general: MESSAGE_DEVISE }
         return
@@ -256,11 +269,14 @@ export function usePaiementAbonnement(
       case 'TROP_DE_REQUETES':
         erreurs.value = { general: messageTropDeTentatives(api.retryAfter) }
         return
-      case 'VALIDATION':
-        erreurs.value = api.champs.telephone?.[0]
-          ? { telephone: api.champs.telephone[0] }
-          : { general: MESSAGE_GENERIQUE }
+      case 'VALIDATION': {
+        const messageTelephone = api.champs.telephone?.[0]
+        // Un autre champ refusé (ex. `prixAffiche` absent d'une ancienne page) : la page est périmée, pas la saisie.
+        erreurs.value = messageTelephone
+          ? { telephone: messageTelephone }
+          : { general: Object.keys(api.champs).length > 0 ? MESSAGE_ACTUALISER_PAGE : MESSAGE_GENERIQUE }
         return
+      }
       default:
         erreurs.value = { general: MESSAGE_GENERIQUE }
     }
@@ -279,7 +295,8 @@ export function usePaiementAbonnement(
   async function payer(): Promise<void> {
     if (etape.value !== 'saisie') return
     erreurs.value = {}
-    if (!controler() || !devise.value || !moyenChoisi.value) {
+    const choisi = prixChoisi.value
+    if (!controler() || !choisi || !devise.value || !moyenChoisi.value) {
       signalErreur.value += 1
       return
     }
@@ -288,12 +305,13 @@ export function usePaiementAbonnement(
     try {
       const reponse = await $fetch<PaiementReponse>('/api/studio/abonnement/paiements', {
         method: 'POST',
-        body: {
-          periodeMois: periode.value,
+        // `prixAffiche` : le montant TTC affiché au client ; le serveur répond 409 `PRIX_CHANGE` s'il diffère du prix en vigueur.
+        body: corpsInitiationPaiement({
+          prix: choisi,
           devise: devise.value,
           moyen: moyenChoisi.value.id,
-          telephone: chiffresTelephone(telephone.value),
-        },
+          telephone: telephone.value,
+        }),
       })
       if (paiementEstOuvert(reponse.paiement.statut)) suivre(reponse.paiement)
       else await appliquer(reponse.paiement)
@@ -323,7 +341,7 @@ export function usePaiementAbonnement(
 
   return {
     periode, moyenId, telephone, paiement, etape, erreurs, signalErreur,
-    devise, deviseOffre, devisesProposees, prixPeriodes, prixChoisi, moyens, moyenChoisi,
+    devise, deviseOffre, devisesProposees, prixPeriodes, prixChoisi, montantAPayer, moyens, moyenChoisi,
     payer, reessayer, verifierEncore, viderErreur,
   }
 }

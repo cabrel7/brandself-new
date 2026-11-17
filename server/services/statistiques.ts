@@ -1,6 +1,6 @@
 // S11 : service de statistiques de la vitrine.
 // Règle : aucune logique métier dans une route ; cette couche est appelée par les routes et les jobs.
-import { and, count, countDistinct, eq, gte, lt, sql } from 'drizzle-orm'
+import { and, count, countDistinct, eq, gte, lt, lte } from 'drizzle-orm'
 import {
   reservations,
   statistiquesJour,
@@ -31,7 +31,9 @@ import {
   periodesAutorisees,
 } from './statistiques-regles'
 import { getPlanEffectif } from './plans'
-import { PLANS } from '../config/plans'
+import { sqlVitrinePublique } from './visibilite'
+import { lirePlanConfig } from './configuration/lecture'
+import { lirePaysFuseauRepli } from './configuration/catalogues'
 import { Temporal } from '@js-temporal/polyfill'
 import { randomUUID } from 'node:crypto'
 import { VUE_PUBLIC_LIMIT, VUE_LIMITE_CLE_PREFIXE } from '../../shared/limites'
@@ -130,10 +132,10 @@ export async function enregistrerVue(input: VueInput): Promise<void> {
     .select({
       id: vitrines.id,
       fuseau: vitrines.fuseau,
-      publieeLe: vitrines.publieeLe,
+      pays: vitrines.pays,
     })
     .from(vitrines)
-    .where(and(eq(vitrines.username, input.username), sql`${vitrines.publieeLe} IS NOT NULL`))
+    .where(and(eq(vitrines.username, input.username), sqlVitrinePublique()))
     .limit(1)
   if (!vitrine) throw new NotFoundError('VITRINE_INTROUVABLE')
 
@@ -152,7 +154,7 @@ export async function enregistrerVue(input: VueInput): Promise<void> {
   const source = classifierSource(origine, chemin, env.NUXT_PUBLIC_SITE_URL)
 
   // 6. Jour civil dans le fuseau de la vitrine (empreinte + agrégation).
-  const local = Temporal.Instant.fromEpochMilliseconds(now.getTime()).toZonedDateTimeISO(vitrine.fuseau ?? 'Africa/Douala')
+  const local = Temporal.Instant.fromEpochMilliseconds(now.getTime()).toZonedDateTimeISO(vitrine.fuseau ?? await lirePaysFuseauRepli(vitrine.pays))
   const jourIso = local.toPlainDate().toString()
 
   const empreinte = empreinteVisite(ip, vitrine.id, jourIso)
@@ -185,14 +187,14 @@ export async function getStatistiques(
   now: Date = new Date(),
 ): Promise<StatistiquesComplet> {
   const [vitrine] = await db
-    .select({ id: vitrines.id, fuseau: vitrines.fuseau })
+    .select({ id: vitrines.id, fuseau: vitrines.fuseau, pays: vitrines.pays })
     .from(vitrines)
     .where(eq(vitrines.userId, userId))
     .limit(1)
   if (!vitrine) throw new NotFoundError('VITRINE_INTROUVABLE')
 
   const effectif = await getPlanEffectif(userId, now)
-  const config = PLANS[effectif.plan]
+  const config = lirePlanConfig(effectif.plan)
   const joursMaxPlan = config.statistiquesJours
   const details = config.statistiquesDetails
 
@@ -201,7 +203,7 @@ export async function getStatistiques(
     throw new ForbiddenError('STATISTIQUES_PERIODE_INTERDITE', { periode, joursMax: joursMaxPlan })
   }
 
-  const fuseau = vitrine.fuseau ?? 'Africa/Douala'
+  const fuseau = vitrine.fuseau ?? await lirePaysFuseauRepli(vitrine.pays)
   const today = Temporal.Instant.fromEpochMilliseconds(now.getTime()).toZonedDateTimeISO(fuseau).startOfDay()
   const finDate = today.toPlainDate().toString()
   const debutDate = today.subtract({ days: periode - 1 }).startOfDay().toPlainDate().toString()
@@ -210,14 +212,15 @@ export async function getStatistiques(
   const debutEpoch = Temporal.ZonedDateTime.from(`${debutDate}T00:00:00[${fuseau}]`).epochMilliseconds
   const finEpoch = Temporal.ZonedDateTime.from(`${finDate}T00:00:00[${fuseau}]`).epochMilliseconds + 86_400_000
 
-  // Clics sur toute la fenêtre (toujours dans l'agrégat).
+  // Clics sur toute la fenêtre, aujourd'hui INCLUS (toujours dans l'agrégat, incrémenté en direct :
+  // `lt(finDate)` excluait le jour courant, donc les clics du jour n'apparaissaient que le lendemain).
   const lignesClics = await db
     .select({ jour: statistiquesJour.jour, clics: statistiquesJour.clics })
     .from(statistiquesJour)
     .where(and(
       eq(statistiquesJour.vitrineId, vitrine.id),
       gte(statistiquesJour.jour, debutDate),
-      lt(statistiquesJour.jour, finDate),
+      lte(statistiquesJour.jour, finDate),
     ))
   const clicsParJour = new Map<string, number>()
   for (const ligne of lignesClics) clicsParJour.set(dateIso(ligne.jour), Number(ligne.clics))

@@ -11,12 +11,6 @@ const props = defineProps<{
 
 const emit = defineEmits<{ choisir: [fichier: File] }>()
 
-const CONSEILS = [
-  'Photo de face, visage bien visible',
-  'Lumière naturelle, fond simple',
-  'Une tenue que vous portez avec vos clients',
-] as const
-
 const ACCEPT = MEDIA_ACCEPTED_MIME.join(',')
 const champ = useTemplateRef<HTMLInputElement>('champ')
 const arche = useTemplateRef<HTMLButtonElement>('arche')
@@ -106,12 +100,5 @@ defineExpose({ focusErreur })
         <span>{{ erreur }}</span>
       </p>
     </div>
-
-    <ul class="m-0 flex list-none flex-col gap-3 p-0">
-      <li v-for="conseil in CONSEILS" :key="conseil" class="flex items-center gap-3 text-texte-secondaire">
-        <UIcon name="i-ph-check" class="size-5 shrink-0 text-accent" aria-hidden="true" />
-        {{ conseil }}
-      </li>
-    </ul>
   </div>
 </template>

@@ -3,6 +3,7 @@ import type {
   CreneauxPublicsReponse,
   DemandeStudioDTO,
   DemandeCreatedDTO,
+  IndisponibiliteCreateDTO,
   IndisponibiliteDTO,
   ReservationConfirmationDTO,
   ReservationCreatedDTO,
@@ -11,7 +12,7 @@ import type {
 import type { DemandeStatut, PaiementReservation, ReservationStatut } from '../../shared/agenda'
 import type { Devise } from '../../shared/compte'
 import type { Tarif } from '../../shared/services'
-import type { OwnAgenda, IndisponibiliteRow } from '../services/agenda'
+import type { OwnAgenda, IndisponibiliteCreateResult, IndisponibiliteRow } from '../services/agenda'
 import type { DemandeRow } from '../services/demandes'
 import type { AgendaServiceRow, PublicAgendaService } from '../services/creneaux'
 import type { CreatedReservation, ReservationConfirmation, ReservationRow } from '../services/reservations'
@@ -83,6 +84,18 @@ export function toAgendaStudioResource(value: OwnAgenda): AgendaStudioReponse {
 
 export function toIndisponibiliteResource(item: IndisponibiliteRow): IndisponibiliteDTO {
   return { id: item.id, date: item.date, raison: item.raison }
+}
+
+export function toIndisponibiliteCreateResource(value: IndisponibiliteCreateResult): IndisponibiliteCreateDTO {
+  if (value.type === 'date') {
+    return { item: toIndisponibiliteResource(value.item), reservationsConcernees: value.reservationsConcernees }
+  }
+  return {
+    items: value.items.map(toIndisponibiliteResource),
+    creees: value.creees,
+    ignorees: value.ignorees,
+    reservationsConcernees: value.reservationsConcernees,
+  }
 }
 
 export function toReservationCreatedResource(value: CreatedReservation): ReservationCreatedDTO {

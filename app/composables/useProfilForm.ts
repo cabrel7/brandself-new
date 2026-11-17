@@ -25,6 +25,9 @@ export interface ProfilForm {
   whatsapp: string
   palette: Palette
   photoMediaId: string | null
+  /** Texte Google saisi ; chaîne vide = automatique (envoyé comme null). */
+  seoTitre: string
+  seoDescription: string
 }
 
 export type ChampProfil = keyof ProfilForm
@@ -49,6 +52,8 @@ function depuisVitrine(vitrine: VitrineStudioDTO): ProfilForm {
     whatsapp: vitrine.whatsapp ?? '',
     palette: vitrine.palette,
     photoMediaId: vitrine.photo?.id ?? null,
+    seoTitre: vitrine.seoTitre ?? '',
+    seoDescription: vitrine.seoDescription ?? '',
   }
 }
 
@@ -62,6 +67,11 @@ function valeurEnvoyee(form: ProfilForm, champ: ChampProfil): string | null {
       const normalise = normaliserTelephone(form[champ])
       return normalise === '' ? null : normalise
     }
+    case 'seoTitre':
+    case 'seoDescription': {
+      const saisi = form[champ].trim()
+      return saisi === '' ? null : saisi
+    }
     default: return form[champ]
   }
 }
@@ -70,7 +80,7 @@ function valeurEnvoyee(form: ProfilForm, champ: ChampProfil): string | null {
 function cibleErreur(champ: string): ChampProfil | null {
   const champs: readonly string[] = [
     'titre', 'prenom', 'nom', 'metier', 'ville', 'pays', 'accroche', 'bio',
-    'emailContact', 'telephone', 'whatsapp', 'palette', 'photoMediaId',
+    'emailContact', 'telephone', 'whatsapp', 'palette', 'photoMediaId', 'seoTitre', 'seoDescription',
   ]
   return champs.includes(champ) ? (champ as ChampProfil) : null
 }
@@ -83,7 +93,7 @@ export function useProfilForm(vitrine: Ref<VitrineStudioDTO | null>, rafraichir:
   const form = reactive<ProfilForm>({
     titre: AUCUN_TITRE, prenom: '', nom: '', metier: '', ville: '', pays: undefined,
     accroche: '', bio: '', emailContact: '', telephone: '', whatsapp: '',
-    palette: 'terracotta', photoMediaId: null,
+    palette: 'terracotta', photoMediaId: null, seoTitre: '', seoDescription: '',
   })
   const base = ref<ProfilForm | null>(null)
   const erreurs = ref<Partial<Record<ChampProfil, string>>>({})
@@ -114,6 +124,13 @@ export function useProfilForm(vitrine: Ref<VitrineStudioDTO | null>, rafraichir:
   const aDesModifications = computed(() => modifies.value.length > 0)
   const nomAffiche = computed(() =>
     displayName(form.titre === AUCUN_TITRE ? null : form.titre, form.prenom, form.nom),
+  )
+
+  // Les champs qui alimentent le texte automatique ont changé dans le formulaire (pas encore enregistrés).
+  const identiteModifiee = computed(() =>
+    (['metier', 'ville', 'pays', 'accroche'] as const).some((champ) => (
+      base.value !== null && form[champ] !== base.value[champ]
+    )),
   )
 
   function viderErreur(champ: ChampProfil): void {
@@ -169,6 +186,6 @@ export function useProfilForm(vitrine: Ref<VitrineStudioDTO | null>, rafraichir:
 
   return {
     form, erreurs, erreurGenerale, enregistrement, enregistre,
-    aDesModifications, nomAffiche, viderErreur, enregistrer,
+    aDesModifications, identiteModifiee, nomAffiche, viderErreur, enregistrer,
   }
 }

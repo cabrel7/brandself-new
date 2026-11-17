@@ -51,7 +51,7 @@ function foldLine(line: string): string {
 export function buildReservationIcs(input: ReservationIcsInput): string {
   const lines = [
     'BEGIN:VCALENDAR',
-    'PRODID:-//Brandself//Agenda//FR',
+    'PRODID:-//jesuis.pro//Agenda//FR',
     'VERSION:2.0',
     'CALSCALE:GREGORIAN',
     `METHOD:${input.method}`,

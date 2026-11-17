@@ -2,7 +2,6 @@ import type { Paiement } from '../../shared/db/schema'
 import type { AbonnementDTO, PaiementDTO, PlanTarifDTO, TarifsDTO } from '../../shared/dto/abonnement'
 import { CODE_ECHEC_EXPIRE, PAIEMENT_RELANCE_APRES_S, PAIEMENT_STATUTS, messageEchec } from '../../shared/paiements'
 import type { PaiementStatut } from '../../shared/paiements'
-import { ABONNEMENT_GRACE_JOURS } from '../../shared/plans'
 import type { RessourceQuota } from '../../shared/plans'
 import type { ConfigPlan } from '../config/plans'
 import { getMoyenPaiement } from '../config/paiements'
@@ -67,12 +66,13 @@ function limitesDe(config: ConfigPlan): Record<RessourceQuota, number | null> {
   }
 }
 
-export function toTarifsResource(tarifs: ReturnType<typeof getTarifs>): TarifsDTO {
+/** `graceJours` : durée lue du réglage `abonnement.grace_jours` (`lireGraceJours`), jamais la constante du code. */
+export function toTarifsResource(tarifs: ReturnType<typeof getTarifs>, graceJours: number): TarifsDTO {
   const plans: PlanTarifDTO[] = tarifs.plans.map(({ id, config }) => ({
     id,
     limites: limitesDe(config),
     badge: config.badge,
     statistiquesJours: config.statistiquesJours,
   }))
-  return { plans, offre: tarifs.offre, graceJours: ABONNEMENT_GRACE_JOURS, renouvellementAutomatique: false }
+  return { plans, offre: tarifs.offre, graceJours, renouvellementAutomatique: false }
 }

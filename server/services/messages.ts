@@ -1,10 +1,11 @@
 import { randomUUID } from 'node:crypto'
-import { and, asc, count, desc, eq, isNotNull, isNull } from 'drizzle-orm'
+import { and, asc, count, desc, eq, isNull } from 'drizzle-orm'
 import { messages, vitrines } from '../../shared/db/schema'
 import { NotFoundError } from '../exceptions/http'
 import { db } from '../utils/db'
 import { insertTransactionalEmailEvents } from './email-outbox'
 import { requireVitrineId } from './vitrine-acces'
+import { requireVitrinePublique } from './visibilite'
 import { MESSAGES_LISTE_MAX } from '../../shared/message'
 import type { MessageCreateInput } from '../../shared/message'
 
@@ -21,14 +22,9 @@ export async function createMessage(
   input: MessageCreateInput,
 ): Promise<{ item: MessageRow }> {
   return db.transaction(async (tx) => {
-    // La page Contact n'existe que sur une vitrine publiée : username inconnu ou
-    // vitrine dépubliée = même réponse (404), aucune écriture.
-    const [vitrine] = await tx
-      .select({ id: vitrines.id })
-      .from(vitrines)
-      .where(and(eq(vitrines.username, username.trim().toLowerCase()), isNotNull(vitrines.publieeLe)))
-      .limit(1)
-    if (!vitrine) throw new NotFoundError('VITRINE_INTROUVABLE')
+    // La page Contact n'existe que sur une vitrine visible du public (A2 : publiée, non bloquée, titulaire non
+    // suspendu) : username inconnu, vitrine dépubliée ou suspendue = même réponse (404), aucune écriture.
+    const vitrine = await requireVitrinePublique(tx, username)
 
     const [item] = await tx
       .insert(messages)
@@ -62,6 +58,19 @@ export async function listOwnMessages(userId: string): Promise<{ items: MessageR
     .from(messages)
     .where(and(eq(messages.vitrineId, vitrineId), isNull(messages.luLe)))
   return { items, nonLus: Number(compte?.total ?? 0) }
+}
+
+/**
+ * Nombre de messages non lus de SA vitrine. Lecture pure : un seul COUNT (index partiel `messages_non_lus_idx`), aucun
+ * effet de bord ; sans vitrine, 0.
+ */
+export async function countOwnMessagesNonLus(userId: string): Promise<number> {
+  const [ligne] = await db
+    .select({ total: count() })
+    .from(messages)
+    .innerJoin(vitrines, eq(vitrines.id, messages.vitrineId))
+    .where(and(eq(vitrines.userId, userId), isNull(messages.luLe)))
+  return Number(ligne?.total ?? 0)
 }
 
 export async function markMessageLu(userId: string, id: string): Promise<{ item: MessageRow }> {

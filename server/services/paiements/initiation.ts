@@ -20,12 +20,13 @@ import type { FournisseurPaiement } from '../../../shared/paiements'
 import type { PaiementInitierInput } from '../../../shared/schemas/abonnement'
 import { PAIEMENT_EXPIRATION_MINUTES, PAIEMENTS_VERIFICATION_CALENDRIER_S } from '../../../shared/jobs'
 import { env } from '../../../shared/env'
-import { MOYENS_PAIEMENT, FRAIS_PAIEMENT, paiementVerrouille } from '../../config/paiements'
+import { paiementVerrouille } from '../../config/paiements'
 import type { MoyenPaiementConfig, TableFrais } from '../../config/paiements'
-import { PLAN_PAYANT_ID, PRIX_PLANS } from '../../config/plans'
+import { PLAN_PAYANT_ID } from '../../config/plans'
 import type { GrillePrix } from '../../config/plans'
 import { ConflictError, NotFoundError, ServiceUnavailableError, UnprocessableError } from '../../exceptions/http'
 import { db } from '../../utils/db'
+import { lireConfigPaiements } from '../configuration/lecture'
 import { enforceLimit } from '../limiteur'
 import { reserverAppelFournisseur } from './budget'
 import { decrirePaiement, getPaiementProvider } from './fournisseurs'
@@ -151,12 +152,19 @@ export async function initierPaiement(
   now: Date,
   deps: InitiationDeps = {},
 ): Promise<Paiement> {
-  const moyens = deps.config?.moyens ?? MOYENS_PAIEMENT
-  const fraisTable = deps.config?.frais ?? FRAIS_PAIEMENT
-  const grille = deps.config?.prix ?? PRIX_PLANS[PLAN_PAYANT_ID]
+  // A5 (D-A5-04) : moyens, frais et grille viennent des versions ACTIVES, lues SANS cache au moment de l'encaissement
+  // (jamais un prix périmé de 5 s). La ligne du paiement garde l'instantané (montant_plan, frais) : un changement de
+  // grille ultérieur n'y touche pas (CA05).
+  const injectee = deps.config?.moyens !== undefined && deps.config.frais !== undefined && deps.config.prix !== undefined
+  const lue = injectee ? null : await lireConfigPaiements({ sansCache: true })
+  const moyens = deps.config?.moyens ?? lue?.moyens ?? []
+  const fraisTable = deps.config?.frais ?? lue?.frais ?? {}
+  const grille = deps.config?.prix ?? lue?.prix
+  // La validation de la grille vient de la version (`validee_le`) ; une configuration injectée (tests) est réputée validée.
+  const grilleValidee = lue === null ? true : lue.validee
 
-  // (0) Grille de prix provisoire en production : le paiement est verrouillé. Puis validation métier, avant tout effet.
-  if (paiementVerrouille(env)) throw new ServiceUnavailableError('PAIEMENT_INDISPONIBLE')
+  // (0) Grille de prix non validée en production : le paiement est verrouillé. Puis validation métier, avant tout effet.
+  if (paiementVerrouille(env, grilleValidee) || grille === undefined) throw new ServiceUnavailableError('PAIEMENT_INDISPONIBLE')
   const moyen = moyens.find((candidat) => candidat.id === input.moyen && candidat.actif)
   if (!moyen) throw new UnprocessableError('MOYEN_PAIEMENT_INVALIDE')
   if (input.devise !== moyen.devise) throw new UnprocessableError('DEVISE_NON_PAYABLE')
@@ -164,10 +172,15 @@ export async function initierPaiement(
   if (prixPlan === undefined) throw new UnprocessableError('DEVISE_NON_PAYABLE')
   const fraisConfig = fraisTable[moyen.fournisseur]?.[moyen.methode]
   if (fraisConfig === undefined) throw new ServiceUnavailableError('PAIEMENT_INDISPONIBLE')
+  const montants = calculerMontants({ prixPlan, tauxPb: fraisConfig.tauxPointsBase, supporteur: fraisConfig.supporteur })
+  // A5 (D-A5-07, CA06) : le client paie ce qu'il a vu. Écart = 409 `PRIX_CHANGE` avec le montant actuel, AVANT toute
+  // ligne, tout compteur et tout appel au fournisseur.
+  if (input.prixAffiche !== montants.montant) {
+    throw new ConflictError('PRIX_CHANGE', { prixActuel: montants.montant, devise: moyen.devise })
+  }
   const numero = normaliserNumero(input.telephone, moyen)
   const provider = resoudreProvider(moyen.fournisseur, deps)
   if (!provider) throw new ServiceUnavailableError('PAIEMENT_INDISPONIBLE')
-  const montants = calculerMontants({ prixPlan, tauxPb: fraisConfig.tauxPointsBase, supporteur: fraisConfig.supporteur })
   const empreinteNumero = empreinte(numero)
 
   // (1) Un paiement déjà ouvert se suit, il ne se double pas : refus AVANT de consommer les compteurs (double clic).

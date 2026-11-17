@@ -2,6 +2,8 @@
 managed-by: claude-system-v5
 name: reviewer
 skills: [security]
+experimental:
+  cacheTtl: 1h
 description: >
   Auditeur code + sécurité. PROACTIVEMENT après toute implémentation significative,
   et pour /review et /audit.
@@ -45,6 +47,14 @@ Chaque finding CRITICAL/MAJOR est ajouté en une ligne à `ISSUES.log` à la rac
 `[AAAA-MM-JJ] [SÉVÉRITÉ] <règle/catégorie> — <fichier> — <1 ligne>`. C'est ce journal que la
 finale de /feature lit pour proposer des guard-rules ou des améliorations de skills.
 
+## Checklist « surface d'administration / données sensibles » (si le diff en contient)
+- Action destructrice ou financière : réauthentification OBLIGATOIRE (typage qui la rend impossible à oublier, pas un paramètre optionnel).
+- Journal d'audit en ajout seul (déclencheur en base), chaîné ; aucune donnée personnelle ni secret dans le journal ni dans les réponses (liste blanche stricte).
+- Idempotence des écritures (clé rejouable, corps différent = conflit) ; rejeu lu AVANT la réauthentification.
+- Prédicat de visibilité UNIQUE (publié, non bloqué, titulaire non suspendu) appliqué à toutes les surfaces, y compris fichiers et caches.
+- Réglages de sécurité : repli FERMÉ si la lecture échoue ; aucun oracle d'énumération de comptes (messages identiques).
+- Valeur affichée vs valeur facturée : le client renvoie ce qu'il a vu, le serveur refuse si elle a changé.
+*Exemples (Brandself)* : `deps.reauth?.()` optionnel = action destructrice sans réauth (corrigé en `DepsEcritureReauth`) ; images servies pour une vitrine bloquée ; `prixAffiche` envoyé hors frais.
 ## Livrable
 Liste priorisée CRITICAL→MAJOR→MINOR, corrections appliquées, score /10, 3 actions, résumé 2 lignes.
 

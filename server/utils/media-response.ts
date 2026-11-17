@@ -17,10 +17,16 @@ function matchesEtag(header: string | undefined, etag: string): boolean {
  * Réponse d'une variante d'image : le contenu d'un id donné ne change jamais (URL-capacité
  * immuable), d'où le cache d'un an. 304 si l'ETag du navigateur correspond.
  */
-export function sendMediaVariant(event: H3Event, mediaId: string, width: number, data: Buffer) {
+export function sendMediaVariant(
+  event: H3Event,
+  mediaId: string,
+  width: number | string,
+  data: Buffer,
+  contentType = 'image/webp',
+) {
   const etag = `"${mediaId}-${width}"`
   setResponseHeaders(event, {
-    'Content-Type': 'image/webp',
+    'Content-Type': contentType,
     'Cache-Control': CACHE_CONTROL,
     'X-Content-Type-Options': 'nosniff',
     ETag: etag,

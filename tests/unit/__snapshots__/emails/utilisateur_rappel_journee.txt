@@ -1,0 +1,357 @@
+==========
+type: utilisateur_rappel_journee | cas: un rendez-vous | fuseau: Africa/Douala
+==========
+to: cabrel.pro@exemple.test
+subject: Votre rendez-vous du mardi 14 juillet
+headers:
+  List-Unsubscribe: <https://jesuis.pro/api/public/desabonnement?jeton=v1.eyJ1IjoiYSIsInAiOiJlbWFpbF9oZWJkbyIsImUiOjF9.c2lnbmF0dXJlLWRlLXRlc3QtMDEyMzQ1Njc4OTAxMjM0NQ>
+  List-Unsubscribe-Post: List-Unsubscribe=One-Click
+attachments:
+  (aucun)
+--- text ---
+Bonjour Cabrel,
+
+Voici votre journée : 1 rendez-vous.
+
+• 14:00 — Suivi — Paul Ewane
+
+Le détail est dans votre agenda : https://jesuis.pro/studio/agenda
+
+Belle journée,
+jesuis.pro
+
+—
+Vous recevez cet e-mail parce que vous avez des rendez-vous aujourd'hui.
+Ne plus recevoir cet e-mail, en un clic : https://jesuis.pro/desabonnement?jeton=v1.eyJ1IjoiYSIsInAiOiJlbWFpbF9oZWJkbyIsImUiOjF9.c2lnbmF0dXJlLWRlLXRlc3QtMDEyMzQ1Njc4OTAxMjM0NQ
+Gérer vos e-mails : https://jesuis.pro/studio/compte
+
+==========
+type: utilisateur_rappel_journee | cas: trois rendez-vous dans le désordre, dont un à confirmer | fuseau: Africa/Douala
+==========
+to: cabrel.pro@exemple.test
+subject: Vos rendez-vous du mardi 14 juillet
+headers:
+  List-Unsubscribe: <https://jesuis.pro/api/public/desabonnement?jeton=v1.eyJ1IjoiYSIsInAiOiJlbWFpbF9oZWJkbyIsImUiOjF9.c2lnbmF0dXJlLWRlLXRlc3QtMDEyMzQ1Njc4OTAxMjM0NQ>
+  List-Unsubscribe-Post: List-Unsubscribe=One-Click
+attachments:
+  (aucun)
+--- text ---
+Bonjour Cabrel,
+
+Voici votre journée : 3 rendez-vous, dont 1 à confirmer.
+
+• 09:30 — Première consultation — Marie Ndzi (à confirmer)
+• 11:00 — Bilan — Alice Bella
+• 14:00 — Suivi — Paul Ewane
+
+Le détail est dans votre agenda : https://jesuis.pro/studio/agenda
+
+Belle journée,
+jesuis.pro
+
+—
+Vous recevez cet e-mail parce que vous avez des rendez-vous aujourd'hui.
+Ne plus recevoir cet e-mail, en un clic : https://jesuis.pro/desabonnement?jeton=v1.eyJ1IjoiYSIsInAiOiJlbWFpbF9oZWJkbyIsImUiOjF9.c2lnbmF0dXJlLWRlLXRlc3QtMDEyMzQ1Njc4OTAxMjM0NQ
+Gérer vos e-mails : https://jesuis.pro/studio/compte
+
+==========
+type: utilisateur_rappel_journee | cas: sans prénom | fuseau: Africa/Douala
+==========
+to: cabrel.pro@exemple.test
+subject: Vos rendez-vous du mardi 14 juillet
+headers:
+  List-Unsubscribe: <https://jesuis.pro/api/public/desabonnement?jeton=v1.eyJ1IjoiYSIsInAiOiJlbWFpbF9oZWJkbyIsImUiOjF9.c2lnbmF0dXJlLWRlLXRlc3QtMDEyMzQ1Njc4OTAxMjM0NQ>
+  List-Unsubscribe-Post: List-Unsubscribe=One-Click
+attachments:
+  (aucun)
+--- text ---
+Bonjour,
+
+Voici votre journée : 3 rendez-vous, dont 1 à confirmer.
+
+• 09:30 — Première consultation — Marie Ndzi (à confirmer)
+• 11:00 — Bilan — Alice Bella
+• 14:00 — Suivi — Paul Ewane
+
+Le détail est dans votre agenda : https://jesuis.pro/studio/agenda
+
+Belle journée,
+jesuis.pro
+
+—
+Vous recevez cet e-mail parce que vous avez des rendez-vous aujourd'hui.
+Ne plus recevoir cet e-mail, en un clic : https://jesuis.pro/desabonnement?jeton=v1.eyJ1IjoiYSIsInAiOiJlbWFpbF9oZWJkbyIsImUiOjF9.c2lnbmF0dXJlLWRlLXRlc3QtMDEyMzQ1Njc4OTAxMjM0NQ
+Gérer vos e-mails : https://jesuis.pro/studio/compte
+
+==========
+type: utilisateur_rappel_journee | cas: 22 rendez-vous (surplus) | fuseau: Africa/Douala
+==========
+to: cabrel.pro@exemple.test
+subject: Vos rendez-vous du mardi 14 juillet
+headers:
+  List-Unsubscribe: <https://jesuis.pro/api/public/desabonnement?jeton=v1.eyJ1IjoiYSIsInAiOiJlbWFpbF9oZWJkbyIsImUiOjF9.c2lnbmF0dXJlLWRlLXRlc3QtMDEyMzQ1Njc4OTAxMjM0NQ>
+  List-Unsubscribe-Post: List-Unsubscribe=One-Click
+attachments:
+  (aucun)
+--- text ---
+Bonjour Cabrel,
+
+Voici votre journée : 22 rendez-vous, dont 11 à confirmer.
+
+• 09:00 — Consultation 1 — Visiteur 1
+• 09:10 — Consultation 2 — Visiteur 2 (à confirmer)
+• 09:20 — Consultation 3 — Visiteur 3
+• 09:30 — Consultation 4 — Visiteur 4 (à confirmer)
+• 09:40 — Consultation 5 — Visiteur 5
+• 09:50 — Consultation 6 — Visiteur 6 (à confirmer)
+• 10:00 — Consultation 7 — Visiteur 7
+• 10:10 — Consultation 8 — Visiteur 8 (à confirmer)
+• 10:20 — Consultation 9 — Visiteur 9
+• 10:30 — Consultation 10 — Visiteur 10 (à confirmer)
+• 10:40 — Consultation 11 — Visiteur 11
+• 10:50 — Consultation 12 — Visiteur 12 (à confirmer)
+• 11:00 — Consultation 13 — Visiteur 13
+• 11:10 — Consultation 14 — Visiteur 14 (à confirmer)
+• 11:20 — Consultation 15 — Visiteur 15
+• 11:30 — Consultation 16 — Visiteur 16 (à confirmer)
+• 11:40 — Consultation 17 — Visiteur 17
+• 11:50 — Consultation 18 — Visiteur 18 (à confirmer)
+• 12:00 — Consultation 19 — Visiteur 19
+• 12:10 — Consultation 20 — Visiteur 20 (à confirmer)
+… et 2 autres.
+
+Le détail est dans votre agenda : https://jesuis.pro/studio/agenda
+
+Belle journée,
+jesuis.pro
+
+—
+Vous recevez cet e-mail parce que vous avez des rendez-vous aujourd'hui.
+Ne plus recevoir cet e-mail, en un clic : https://jesuis.pro/desabonnement?jeton=v1.eyJ1IjoiYSIsInAiOiJlbWFpbF9oZWJkbyIsImUiOjF9.c2lnbmF0dXJlLWRlLXRlc3QtMDEyMzQ1Njc4OTAxMjM0NQ
+Gérer vos e-mails : https://jesuis.pro/studio/compte
+
+==========
+type: utilisateur_rappel_journee | cas: 21 rendez-vous (surplus d'un seul) | fuseau: Africa/Douala
+==========
+to: cabrel.pro@exemple.test
+subject: Vos rendez-vous du mardi 14 juillet
+headers:
+  List-Unsubscribe: <https://jesuis.pro/api/public/desabonnement?jeton=v1.eyJ1IjoiYSIsInAiOiJlbWFpbF9oZWJkbyIsImUiOjF9.c2lnbmF0dXJlLWRlLXRlc3QtMDEyMzQ1Njc4OTAxMjM0NQ>
+  List-Unsubscribe-Post: List-Unsubscribe=One-Click
+attachments:
+  (aucun)
+--- text ---
+Bonjour Cabrel,
+
+Voici votre journée : 21 rendez-vous, dont 10 à confirmer.
+
+• 09:00 — Consultation 1 — Visiteur 1
+• 09:10 — Consultation 2 — Visiteur 2 (à confirmer)
+• 09:20 — Consultation 3 — Visiteur 3
+• 09:30 — Consultation 4 — Visiteur 4 (à confirmer)
+• 09:40 — Consultation 5 — Visiteur 5
+• 09:50 — Consultation 6 — Visiteur 6 (à confirmer)
+• 10:00 — Consultation 7 — Visiteur 7
+• 10:10 — Consultation 8 — Visiteur 8 (à confirmer)
+• 10:20 — Consultation 9 — Visiteur 9
+• 10:30 — Consultation 10 — Visiteur 10 (à confirmer)
+• 10:40 — Consultation 11 — Visiteur 11
+• 10:50 — Consultation 12 — Visiteur 12 (à confirmer)
+• 11:00 — Consultation 13 — Visiteur 13
+• 11:10 — Consultation 14 — Visiteur 14 (à confirmer)
+• 11:20 — Consultation 15 — Visiteur 15
+• 11:30 — Consultation 16 — Visiteur 16 (à confirmer)
+• 11:40 — Consultation 17 — Visiteur 17
+• 11:50 — Consultation 18 — Visiteur 18 (à confirmer)
+• 12:00 — Consultation 19 — Visiteur 19
+• 12:10 — Consultation 20 — Visiteur 20 (à confirmer)
+… et 1 autre.
+
+Le détail est dans votre agenda : https://jesuis.pro/studio/agenda
+
+Belle journée,
+jesuis.pro
+
+—
+Vous recevez cet e-mail parce que vous avez des rendez-vous aujourd'hui.
+Ne plus recevoir cet e-mail, en un clic : https://jesuis.pro/desabonnement?jeton=v1.eyJ1IjoiYSIsInAiOiJlbWFpbF9oZWJkbyIsImUiOjF9.c2lnbmF0dXJlLWRlLXRlc3QtMDEyMzQ1Njc4OTAxMjM0NQ
+Gérer vos e-mails : https://jesuis.pro/studio/compte
+
+==========
+type: utilisateur_rappel_journee | cas: un rendez-vous | fuseau: Europe/Paris
+==========
+to: cabrel.pro@exemple.test
+subject: Votre rendez-vous du mercredi 15 juillet
+headers:
+  List-Unsubscribe: <https://jesuis.pro/api/public/desabonnement?jeton=v1.eyJ1IjoiYSIsInAiOiJlbWFpbF9oZWJkbyIsImUiOjF9.c2lnbmF0dXJlLWRlLXRlc3QtMDEyMzQ1Njc4OTAxMjM0NQ>
+  List-Unsubscribe-Post: List-Unsubscribe=One-Click
+attachments:
+  (aucun)
+--- text ---
+Bonjour Cabrel,
+
+Voici votre journée : 1 rendez-vous.
+
+• 15:00 — Suivi — Paul Ewane
+
+Le détail est dans votre agenda : https://jesuis.pro/studio/agenda
+
+Belle journée,
+jesuis.pro
+
+—
+Vous recevez cet e-mail parce que vous avez des rendez-vous aujourd'hui.
+Ne plus recevoir cet e-mail, en un clic : https://jesuis.pro/desabonnement?jeton=v1.eyJ1IjoiYSIsInAiOiJlbWFpbF9oZWJkbyIsImUiOjF9.c2lnbmF0dXJlLWRlLXRlc3QtMDEyMzQ1Njc4OTAxMjM0NQ
+Gérer vos e-mails : https://jesuis.pro/studio/compte
+
+==========
+type: utilisateur_rappel_journee | cas: trois rendez-vous dans le désordre, dont un à confirmer | fuseau: Europe/Paris
+==========
+to: cabrel.pro@exemple.test
+subject: Vos rendez-vous du mercredi 15 juillet
+headers:
+  List-Unsubscribe: <https://jesuis.pro/api/public/desabonnement?jeton=v1.eyJ1IjoiYSIsInAiOiJlbWFpbF9oZWJkbyIsImUiOjF9.c2lnbmF0dXJlLWRlLXRlc3QtMDEyMzQ1Njc4OTAxMjM0NQ>
+  List-Unsubscribe-Post: List-Unsubscribe=One-Click
+attachments:
+  (aucun)
+--- text ---
+Bonjour Cabrel,
+
+Voici votre journée : 3 rendez-vous, dont 1 à confirmer.
+
+• 10:30 — Première consultation — Marie Ndzi (à confirmer)
+• 12:00 — Bilan — Alice Bella
+• 15:00 — Suivi — Paul Ewane
+
+Le détail est dans votre agenda : https://jesuis.pro/studio/agenda
+
+Belle journée,
+jesuis.pro
+
+—
+Vous recevez cet e-mail parce que vous avez des rendez-vous aujourd'hui.
+Ne plus recevoir cet e-mail, en un clic : https://jesuis.pro/desabonnement?jeton=v1.eyJ1IjoiYSIsInAiOiJlbWFpbF9oZWJkbyIsImUiOjF9.c2lnbmF0dXJlLWRlLXRlc3QtMDEyMzQ1Njc4OTAxMjM0NQ
+Gérer vos e-mails : https://jesuis.pro/studio/compte
+
+==========
+type: utilisateur_rappel_journee | cas: sans prénom | fuseau: Europe/Paris
+==========
+to: cabrel.pro@exemple.test
+subject: Vos rendez-vous du mercredi 15 juillet
+headers:
+  List-Unsubscribe: <https://jesuis.pro/api/public/desabonnement?jeton=v1.eyJ1IjoiYSIsInAiOiJlbWFpbF9oZWJkbyIsImUiOjF9.c2lnbmF0dXJlLWRlLXRlc3QtMDEyMzQ1Njc4OTAxMjM0NQ>
+  List-Unsubscribe-Post: List-Unsubscribe=One-Click
+attachments:
+  (aucun)
+--- text ---
+Bonjour,
+
+Voici votre journée : 3 rendez-vous, dont 1 à confirmer.
+
+• 10:30 — Première consultation — Marie Ndzi (à confirmer)
+• 12:00 — Bilan — Alice Bella
+• 15:00 — Suivi — Paul Ewane
+
+Le détail est dans votre agenda : https://jesuis.pro/studio/agenda
+
+Belle journée,
+jesuis.pro
+
+—
+Vous recevez cet e-mail parce que vous avez des rendez-vous aujourd'hui.
+Ne plus recevoir cet e-mail, en un clic : https://jesuis.pro/desabonnement?jeton=v1.eyJ1IjoiYSIsInAiOiJlbWFpbF9oZWJkbyIsImUiOjF9.c2lnbmF0dXJlLWRlLXRlc3QtMDEyMzQ1Njc4OTAxMjM0NQ
+Gérer vos e-mails : https://jesuis.pro/studio/compte
+
+==========
+type: utilisateur_rappel_journee | cas: 22 rendez-vous (surplus) | fuseau: Europe/Paris
+==========
+to: cabrel.pro@exemple.test
+subject: Vos rendez-vous du mercredi 15 juillet
+headers:
+  List-Unsubscribe: <https://jesuis.pro/api/public/desabonnement?jeton=v1.eyJ1IjoiYSIsInAiOiJlbWFpbF9oZWJkbyIsImUiOjF9.c2lnbmF0dXJlLWRlLXRlc3QtMDEyMzQ1Njc4OTAxMjM0NQ>
+  List-Unsubscribe-Post: List-Unsubscribe=One-Click
+attachments:
+  (aucun)
+--- text ---
+Bonjour Cabrel,
+
+Voici votre journée : 22 rendez-vous, dont 11 à confirmer.
+
+• 10:00 — Consultation 1 — Visiteur 1
+• 10:10 — Consultation 2 — Visiteur 2 (à confirmer)
+• 10:20 — Consultation 3 — Visiteur 3
+• 10:30 — Consultation 4 — Visiteur 4 (à confirmer)
+• 10:40 — Consultation 5 — Visiteur 5
+• 10:50 — Consultation 6 — Visiteur 6 (à confirmer)
+• 11:00 — Consultation 7 — Visiteur 7
+• 11:10 — Consultation 8 — Visiteur 8 (à confirmer)
+• 11:20 — Consultation 9 — Visiteur 9
+• 11:30 — Consultation 10 — Visiteur 10 (à confirmer)
+• 11:40 — Consultation 11 — Visiteur 11
+• 11:50 — Consultation 12 — Visiteur 12 (à confirmer)
+• 12:00 — Consultation 13 — Visiteur 13
+• 12:10 — Consultation 14 — Visiteur 14 (à confirmer)
+• 12:20 — Consultation 15 — Visiteur 15
+• 12:30 — Consultation 16 — Visiteur 16 (à confirmer)
+• 12:40 — Consultation 17 — Visiteur 17
+• 12:50 — Consultation 18 — Visiteur 18 (à confirmer)
+• 13:00 — Consultation 19 — Visiteur 19
+• 13:10 — Consultation 20 — Visiteur 20 (à confirmer)
+… et 2 autres.
+
+Le détail est dans votre agenda : https://jesuis.pro/studio/agenda
+
+Belle journée,
+jesuis.pro
+
+—
+Vous recevez cet e-mail parce que vous avez des rendez-vous aujourd'hui.
+Ne plus recevoir cet e-mail, en un clic : https://jesuis.pro/desabonnement?jeton=v1.eyJ1IjoiYSIsInAiOiJlbWFpbF9oZWJkbyIsImUiOjF9.c2lnbmF0dXJlLWRlLXRlc3QtMDEyMzQ1Njc4OTAxMjM0NQ
+Gérer vos e-mails : https://jesuis.pro/studio/compte
+
+==========
+type: utilisateur_rappel_journee | cas: 21 rendez-vous (surplus d'un seul) | fuseau: Europe/Paris
+==========
+to: cabrel.pro@exemple.test
+subject: Vos rendez-vous du mercredi 15 juillet
+headers:
+  List-Unsubscribe: <https://jesuis.pro/api/public/desabonnement?jeton=v1.eyJ1IjoiYSIsInAiOiJlbWFpbF9oZWJkbyIsImUiOjF9.c2lnbmF0dXJlLWRlLXRlc3QtMDEyMzQ1Njc4OTAxMjM0NQ>
+  List-Unsubscribe-Post: List-Unsubscribe=One-Click
+attachments:
+  (aucun)
+--- text ---
+Bonjour Cabrel,
+
+Voici votre journée : 21 rendez-vous, dont 10 à confirmer.
+
+• 10:00 — Consultation 1 — Visiteur 1
+• 10:10 — Consultation 2 — Visiteur 2 (à confirmer)
+• 10:20 — Consultation 3 — Visiteur 3
+• 10:30 — Consultation 4 — Visiteur 4 (à confirmer)
+• 10:40 — Consultation 5 — Visiteur 5
+• 10:50 — Consultation 6 — Visiteur 6 (à confirmer)
+• 11:00 — Consultation 7 — Visiteur 7
+• 11:10 — Consultation 8 — Visiteur 8 (à confirmer)
+• 11:20 — Consultation 9 — Visiteur 9
+• 11:30 — Consultation 10 — Visiteur 10 (à confirmer)
+• 11:40 — Consultation 11 — Visiteur 11
+• 11:50 — Consultation 12 — Visiteur 12 (à confirmer)
+• 12:00 — Consultation 13 — Visiteur 13
+• 12:10 — Consultation 14 — Visiteur 14 (à confirmer)
+• 12:20 — Consultation 15 — Visiteur 15
+• 12:30 — Consultation 16 — Visiteur 16 (à confirmer)
+• 12:40 — Consultation 17 — Visiteur 17
+• 12:50 — Consultation 18 — Visiteur 18 (à confirmer)
+• 13:00 — Consultation 19 — Visiteur 19
+• 13:10 — Consultation 20 — Visiteur 20 (à confirmer)
+… et 1 autre.
+
+Le détail est dans votre agenda : https://jesuis.pro/studio/agenda
+
+Belle journée,
+jesuis.pro
+
+—
+Vous recevez cet e-mail parce que vous avez des rendez-vous aujourd'hui.
+Ne plus recevoir cet e-mail, en un clic : https://jesuis.pro/desabonnement?jeton=v1.eyJ1IjoiYSIsInAiOiJlbWFpbF9oZWJkbyIsImUiOjF9.c2lnbmF0dXJlLWRlLXRlc3QtMDEyMzQ1Njc4OTAxMjM0NQ
+Gérer vos e-mails : https://jesuis.pro/studio/compte

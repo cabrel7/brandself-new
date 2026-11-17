@@ -1,6 +1,6 @@
 <script setup lang="ts">
 definePageMeta({ layout: 'studio', ssr: false })
-useSeoMeta({ title: 'Nouveau témoignage — Brandself' })
+useSeoMeta({ title: 'Nouveau témoignage' })
 
 // Les compteurs (plafond de vedettes) viennent de la liste du studio.
 const { compteurs, enChargement, enErreur, absente, refresh } = useStudioTemoignages()
@@ -31,7 +31,6 @@ async function surEnregistrement(): Promise<void> {
       v-else-if="absente"
       icon="i-ph-storefront"
       title="Créons d’abord votre vitrine"
-      description="Vous pourrez ajouter des témoignages dès que votre vitrine existera."
       :as="{ title: 'h1' }"
       :actions="[{ label: 'Créer ma vitrine', to: '/onboarding', size: 'xl' }]"
     />
@@ -40,7 +39,7 @@ async function surEnregistrement(): Promise<void> {
       v-else-if="enErreur || !compteurs"
       icon="i-ph-warning-circle"
       title="Le formulaire ne s’affiche pas"
-      description="Nous n’avons pas pu le charger. Vos témoignages sont intacts."
+      description="Nous n’avons pas pu le charger."
       :as="{ title: 'h1' }"
       :actions="[{ label: 'Réessayer', size: 'xl', onClick: () => refresh() }]"
     />

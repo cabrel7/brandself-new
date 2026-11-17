@@ -1,6 +1,8 @@
+import { z } from 'zod'
 import type { TransactionalEmailType } from '../../../shared/jobs'
 import { SUJET_LIBELLES } from '../../../shared/message'
 import type { SujetMessage } from '../../../shared/message'
+import type { Palette } from '../../../shared/palettes'
 import { TITRES, displayName } from '../../../shared/vitrine'
 import type { Titre } from '../../../shared/vitrine'
 import { formatDureeLongue } from '../../../shared/services'
@@ -8,6 +10,7 @@ import { buildReservationIcs } from '../agenda-ics'
 import {
   TEXTES_NOTIFICATIONS,
   buildAbonnementEmail,
+  buildAdminCompteEmail,
   buildUtilisateurEmail,
   formatJour,
   formatJourComplet,
@@ -16,10 +19,12 @@ import {
   pied,
   singleLine,
 } from './notifications-contenus'
-import type { AbonnementEmailContent, UtilisateurEmailContent } from './notifications-contenus'
+import type { AbonnementEmailContent, AdminCompteEmailContent, UtilisateurEmailContent } from './notifications-contenus'
+import { rendreEmail, urlEmail } from './gabarit'
+import type { DocumentEmail, ElementEmail, LigneRecapitulatif } from './gabarit'
 import type { EmailAttachment, EmailMessage } from './transport'
 
-export type { AbonnementEmailContent, UtilisateurEmailContent } from './notifications-contenus'
+export type { AbonnementEmailContent, AdminCompteEmailContent, UtilisateurEmailContent } from './notifications-contenus'
 
 // Le rappel visiteur (S9) n'a ni pièce jointe ni statut ICS : il a son propre type de contenu.
 type ReservationEmailType = Exclude<Extract<TransactionalEmailType, `reservation_${string}`>, 'reservation_visiteur_rappel'>
@@ -27,6 +32,12 @@ type DemandeEmailType = Extract<TransactionalEmailType, `demande_${string}`>
 type MessageEmailType = Extract<TransactionalEmailType, `message_${string}`>
 
 interface EmailVitrine {
+  /** Identifiant public : sert aux liens de la vitrine dans les e-mails au visiteur. */
+  username: string
+  /** Palette normalisée (repli terracotta) : colore les e-mails écrits au nom du professionnel. */
+  palette: Palette
+  /** E-mail de contact PUBLIC de la vitrine (jamais celui du compte) : adresse de réponse du visiteur. */
+  emailContact?: string | null
   titre: string | null
   prenom: string
   nom: string
@@ -57,12 +68,13 @@ interface BaseEmailContent {
   professionnelEmail: string
   vitrine: EmailVitrine
   visiteur: EmailVisiteur
+  /** URL publique du site (`NUXT_PUBLIC_SITE_URL`), lue par l'appelant : le contenu est pur. */
+  siteUrl: string
 }
 
 /** S9 : rappel envoyé au visiteur avant son rendez-vous (texte seul, sans ICS, sans désabonnement). */
 export interface RappelVisiteurContent extends BaseEmailContent {
   type: 'reservation_visiteur_rappel'
-  vitrine: EmailVitrine & { username: string }
   service: ServiceEmailInfo
   reservation: {
     id: string
@@ -70,8 +82,6 @@ export interface RappelVisiteurContent extends BaseEmailContent {
     fin: Date
     paiementChoisi: string
   }
-  /** URL publique du site (`NUXT_PUBLIC_SITE_URL`), lue par l'appelant : le contenu est pur. */
-  siteUrl: string
 }
 
 // S7-bis : le contenu d'un email de message n'a pas de service (la page Contact n'en
@@ -81,6 +91,7 @@ export type TransactionalEmailContent =
   | RappelVisiteurContent
   | UtilisateurEmailContent
   | AbonnementEmailContent
+  | AdminCompteEmailContent
   | BaseTransactionalEmailContent
 
 type BaseTransactionalEmailContent = BaseEmailContent & (
@@ -144,22 +155,32 @@ function formatPrice(service: ServiceEmailInfo): string {
   return `${new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 2 }).format(amount)} ${prixDevise}`
 }
 
+function paymentRows(service: ServiceEmailInfo, paiementChoisi?: string): LigneRecapitulatif[] {
+  const rows: LigneRecapitulatif[] = [{ libelle: 'Tarif', valeur: formatPrice(service) }]
+  if (paiementChoisi === 'sur_place') rows.push({ libelle: 'Règlement', valeur: 'sur place' })
+  if (service.paiementInstructions) rows.push({ libelle: 'Instructions', valeur: service.paiementInstructions })
+  return rows
+}
+
+const rowToLine = (row: LigneRecapitulatif): string => `${row.libelle} : ${row.valeur}`
+
 function paymentLines(service: ServiceEmailInfo, paiementChoisi?: string): string[] {
-  const lines = [`Tarif : ${formatPrice(service)}`]
-  if (paiementChoisi === 'sur_place') lines.push('Règlement : sur place')
-  if (service.paiementInstructions) lines.push(`Instructions : ${service.paiementInstructions}`)
-  return lines
+  return paymentRows(service, paiementChoisi).map((row) => rowToLine(row))
+}
+
+function reservationRows(content: Extract<TransactionalEmailContent, { type: ReservationEmailType }>): LigneRecapitulatif[] {
+  return [
+    { libelle: 'Service', valeur: content.service.titre },
+    { libelle: 'Professionnel', valeur: professionalName(content) },
+    { libelle: 'Date', valeur: formatDate(content.reservation.debut, content.vitrine.fuseau) },
+    ...(content.service.dureeMin === null ? [] : [{ libelle: 'Durée', valeur: formatDureeLongue(content.service.dureeMin) }]),
+    ...(content.vitrine.ville ? [{ libelle: 'Lieu', valeur: content.vitrine.ville }] : []),
+    ...paymentRows(content.service, content.reservation.paiementChoisi),
+  ]
 }
 
 function reservationRecap(content: Extract<TransactionalEmailContent, { type: ReservationEmailType }>): string[] {
-  return [
-    `Service : ${content.service.titre}`,
-    `Professionnel : ${professionalName(content)}`,
-    `Date : ${formatDate(content.reservation.debut, content.vitrine.fuseau)}`,
-    ...(content.service.dureeMin === null ? [] : [`Durée : ${formatDureeLongue(content.service.dureeMin)}`]),
-    ...(content.vitrine.ville ? [`Lieu : ${content.vitrine.ville}`] : []),
-    ...paymentLines(content.service, content.reservation.paiementChoisi),
-  ]
+  return reservationRows(content).map((row) => rowToLine(row))
 }
 
 function demandeRecap(content: Extract<TransactionalEmailContent, { type: DemandeEmailType }>): string[] {
@@ -203,24 +224,79 @@ function reservationAttachment(
   }
 }
 
+/** Textes des e-mails de réservation au visiteur (signature du professionnel validée, décision #26). */
+const TEXTES_RESERVATION_VISITEUR = {
+  cloture: 'À bientôt,',
+  pied: (professionnel: string) => `Vous recevez cet e-mail à la suite de votre réservation sur la vitrine de ${professionnel}.`,
+  boutonAnnulee: 'Reprendre rendez-vous',
+  boutonRefusee: 'Choisir un autre créneau',
+} as const
+
+const replyToSchema = z.email()
+
+/**
+ * Adresse de réponse = e-mail de contact PUBLIC de la vitrine, jamais celui du compte. Une valeur absente ou
+ * invalide est ignorée (le visiteur peut quand même recevoir son e-mail).
+ */
+export function publicReplyTo(emailContact: string | null | undefined): string | undefined {
+  const value = emailContact?.trim()
+  if (!value) return undefined
+  const verdict = replyToSchema.safeParse(value)
+  return verdict.success ? verdict.data : undefined
+}
+
+function visitorButton(
+  content: Extract<TransactionalEmailContent, { type: ReservationEmailType }>,
+): ElementEmail[] {
+  if (content.type !== 'reservation_visiteur_annulee' && content.type !== 'reservation_visiteur_refusee') return []
+  const libelle = content.type === 'reservation_visiteur_annulee'
+    ? TEXTES_RESERVATION_VISITEUR.boutonAnnulee
+    : TEXTES_RESERVATION_VISITEUR.boutonRefusee
+  const url = urlEmail(content.siteUrl, `/${content.vitrine.username}/agenda`)
+  return [{ type: 'bouton', libelle, url, lignesTexte: [`${libelle} : ${url}`] }]
+}
+
+function visitorReservationDocument(
+  content: Extract<TransactionalEmailContent, { type: ReservationEmailType }>,
+  subject: string,
+  introduction: string,
+): DocumentEmail {
+  const professionnel = professionalName(content)
+  return {
+    objet: subject,
+    preheader: introduction,
+    siteUrl: content.siteUrl,
+    identite: {
+      type: 'professionnel',
+      nom: professionnel,
+      metier: singleLine(content.vitrine.metier),
+      palette: content.vitrine.palette,
+      vitrineUrl: urlEmail(content.siteUrl, `/${content.vitrine.username}`),
+    },
+    salutation: 'Bonjour,',
+    elements: [
+      { type: 'paragraphe', texte: introduction },
+      { type: 'recapitulatif', lignes: reservationRows(content) },
+      ...visitorButton(content),
+    ],
+    cloture: TEXTES_RESERVATION_VISITEUR.cloture,
+    pied: [{ texte: TEXTES_RESERVATION_VISITEUR.pied(professionnel) }],
+  }
+}
+
 function visitorReservationEmail(
   content: Extract<TransactionalEmailContent, { type: ReservationEmailType }>,
   subject: string,
   introduction: string,
 ): EmailMessage {
+  const { subject: objet, text, html } = rendreEmail(visitorReservationDocument(content, subject, introduction))
+  const replyTo = publicReplyTo(content.vitrine.emailContact)
   return {
     to: content.visiteur.email,
-    subject,
-    text: [
-      'Bonjour,',
-      '',
-      introduction,
-      '',
-      ...reservationRecap(content),
-      '',
-      'À bientôt,',
-      'Brandself',
-    ].join('\n'),
+    subject: objet,
+    text,
+    html,
+    ...(replyTo ? { replyTo } : {}),
     attachments: [reservationAttachment(content)],
   }
 }
@@ -278,6 +354,11 @@ export function buildTransactionalEmail(content: TransactionalEmailContent): Ema
     case 'abonnement_rappel':
     case 'paiement_confirme':
       return buildAbonnementEmail(content)
+    case 'utilisateur_suspendu':
+    case 'utilisateur_reactive':
+    case 'utilisateur_jours_offerts':
+    case 'utilisateur_depubliee':
+      return buildAdminCompteEmail(content)
     case 'reservation_professionnel_nouvelle':
       return {
         to: content.professionnelEmail,
@@ -295,7 +376,7 @@ export function buildTransactionalEmail(content: TransactionalEmailContent): Ema
           '',
           'Connectez-vous à votre studio pour la confirmer.',
           '',
-          'Brandself',
+          TEXTES_NOTIFICATIONS.signatureMarque,
         ].join('\n'),
         attachments: [],
       }
@@ -341,7 +422,7 @@ export function buildTransactionalEmail(content: TransactionalEmailContent): Ema
           '',
           'Répondez directement au visiteur lorsque vous êtes disponible.',
           '',
-          'Brandself',
+          TEXTES_NOTIFICATIONS.signatureMarque,
         ].join('\n'),
         attachments: [],
       }
@@ -359,7 +440,7 @@ export function buildTransactionalEmail(content: TransactionalEmailContent): Ema
           'Vous recevrez sa réponse directement.',
           '',
           'À bientôt,',
-          'Brandself',
+          TEXTES_NOTIFICATIONS.signatureMarque,
         ].join('\n'),
         attachments: [],
       }
@@ -390,7 +471,7 @@ function messageProfessionnelEmail(
       '',
       'Vous pouvez répondre directement à votre visiteur depuis votre messagerie.',
       '',
-      'Brandself',
+      TEXTES_NOTIFICATIONS.signatureMarque,
     ].join('\n'),
     attachments: [],
   }

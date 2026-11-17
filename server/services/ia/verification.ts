@@ -1,19 +1,28 @@
 import { ACCROCHE_MAX, BIO_MAX, TITRE_LABELS } from '../../../shared/vitrine'
+import { MARQUE } from '../../../shared/brand'
 import { PRESENTATION_MOTS_MAX, countWords } from '../../../shared/ia'
 import type { IaType } from '../../../shared/ia'
-import { schemaPropositionOnboarding, schemaTexteAmeliore } from '../../../shared/schemas/ia'
-import type { PropositionOnboarding, TexteAmeliore } from '../../../shared/schemas/ia'
+import { schemaPropositionOnboarding, schemaSeoIa, schemaTexteAmeliore } from '../../../shared/schemas/ia'
+import type { PropositionOnboarding, SeoIa, TexteAmeliore } from '../../../shared/schemas/ia'
 
 // S8 §4.5 : la sortie du fournisseur n'est jamais crue sur parole. Ordre : forme (Zod : longueurs, cohérence),
 // puis faits (déterministe) : rien n'est publiable s'il n'est pas dans les données de l'utilisateur.
+// Décision #24 : accents, ville et formulations interdites s'ajoutent pour le SEO.
 // Fonctions pures : aucune base, aucun réseau.
 
-export type CodeRejetSortie = 'sortie_invalide' | 'faits_inventes'
+export type CodeRejetSortie = 'sortie_invalide' | 'faits_inventes' | 'accents_manquants' | 'formulation_interdite'
 
-export type ResultatValidation<T> = { ok: true, valeur: T } | { ok: false, code: CodeRejetSortie }
+export type ResultatValidation<T> =
+  | {
+    ok: true
+    valeur: T
+    /** Proposition d'onboarding gardée SANS son bloc « seo » parce qu'il était invalide (le code dit pourquoi). */
+    seoRejete?: CodeRejetSortie
+  }
+  | { ok: false, code: CodeRejetSortie }
 
 /** Noms propres tolérés même absents des données (la marque et le canal de contact). */
-const NOMS_PROPRES_AUTORISES = ['Brandself', 'WhatsApp']
+const NOMS_PROPRES_AUTORISES = [MARQUE.nom, 'WhatsApp']
 
 /** Faits sensibles : refusés s'ils ne figurent pas dans les sources (formes normalisées, sans accent). */
 const TERMES_SENSIBLES = [
@@ -158,6 +167,117 @@ export function contientLienOuMarkupInvente(textes: readonly string[], sources: 
   })
 }
 
+// ---------------------------------------------------------------------------------------------
+// Décision #24 : formulations interdites et accents
+// ---------------------------------------------------------------------------------------------
+
+/**
+ * Superlatifs, promesses de résultat et allégations de santé, en forme normalisée (minuscules, sans accent).
+ * Frontières de mot : « Premier rendez-vous » et « soins dentaires » ne sont jamais signalés.
+ */
+const MOTIFS_FORMULATION_INTERDITE: readonly RegExp[] = [
+  /(?<![a-z0-9])meilleur(?:e|s|es)?(?![a-z0-9])/,
+  /(?<![a-z0-9])n\s*°\s*1(?![a-z0-9])/,
+  /(?<![a-z0-9])numero\s+(?:1|un)(?![a-z0-9])/,
+  /(?<![a-z0-9])(?:exceptionnel|incomparable|imbattable)(?:le|s|les)?(?![a-z0-9])/,
+  /(?<![a-z0-9])garant(?:i|ie|is|ies|ir|it|issons|issez|ira)(?![a-z0-9])/,
+  /(?<![a-z0-9])100\s*%/,
+  /(?<![a-z0-9])gueri(?:r|rez|ra|son|sons|t|s|e|es)(?![a-z0-9])/,
+  /(?<![a-z0-9])miracle(?:s)?(?![a-z0-9])/,
+  /(?<![a-z0-9])miraculeu(?:x|se|ses)(?![a-z0-9])/,
+  /(?<![a-z0-9])sans\s+(?:aucun\s+)?effets?\s+secondaires?(?![a-z0-9])/,
+]
+const POINT_EXCLAMATION = /!/
+const EMOJI = /\p{Extended_Pictographic}/u
+
+/** Vrai si le texte contient un superlatif, une promesse, une allégation de santé, un « ! » ou un emoji. */
+export function contientFormulationInterdite(texte: string): boolean {
+  if (POINT_EXCLAMATION.test(texte) || EMOJI.test(texte)) return true
+  const normalise = normaliser(texte)
+  return MOTIFS_FORMULATION_INTERDITE.some((motif) => motif.test(normalise))
+}
+
+/**
+ * Mots français qui s'écrivent TOUJOURS avec un accent (ou une ligature) : écrits sans, c'est un texte qui a perdu
+ * ses accents. Liste volontairement courte et sûre : aucun mot dont la forme sans accent existe en français
+ * (« a », « ou », « la », « cote »…), pour ne jamais signaler un texte correct.
+ */
+const MOTS_TOUJOURS_ACCENTUES: readonly string[] = [
+  'écoute', 'écouter', 'écoutons', 'clarté', 'santé', 'régulier', 'régulière', 'régulièrement', 'adaptée',
+  'adaptées', 'accompagnée', 'échange', 'échanges', 'échanger', 'étape', 'étapes',
+  'expérience', 'expériences', 'première', 'premières', 'séance', 'séances', 'intérêt', 'être', 'très', 'après',
+  'déjà', 'même', 'également', 'nécessaire', 'nécessaires', 'difficulté', 'difficultés', 'qualité', 'sérénité',
+  'sécurité', 'confidentialité', 'disponibilité', 'thérapie', 'thérapies', 'thérapeute', 'médecin', 'médical',
+  'médicale', 'médicaux', 'cœur', 'pédiatre', 'kinésithérapeute', 'ostéopathe', 'spécialiste', 'spécialistes',
+  'spécialisé', 'spécialisée', 'généraliste', 'général', 'générale', 'réel', 'réelle', 'résultat', 'résultats',
+  'réponse', 'réponses', 'prévention', 'préparer', 'préparation', 'présentation', 'présence', 'précis',
+  'précise', 'précieux', 'équilibre', 'équipe', 'éducation', 'élaborer', 'énergie', 'évaluation', 'évaluer',
+  'évolution', 'créer', 'créé', 'créée', 'développer', 'développement', 'dépendance', 'décision', 'décisions',
+  'défis', 'défi', 'délai', 'délais', 'détail', 'détails', 'détendu', 'détente', 'étudiant', 'étudiants', 'théorie',
+]
+const MARQUES_ACCENTS = /\p{M}/gu
+/** Longueur minimale d'un mot de l'utilisateur pour exiger son accent (« à », « où », « là » sont ambigus). */
+const LONGUEUR_MIN_MOT_SOURCE = 4
+
+/** Mot sans accent, ligatures dépliées, en minuscules. */
+function sansAccent(mot: string): string {
+  return mot.normalize('NFD').replace(MARQUES_ACCENTS, '').replace(/œ/g, 'oe').replace(/æ/g, 'ae').toLowerCase()
+}
+
+function motsMinuscules(texte: string): string[] {
+  return (texte.normalize('NFC').match(MOT) ?? []).map((mot) => mot.toLocaleLowerCase('fr'))
+}
+
+const MOTS_ACCENTUES_PAR_FORME_PLATE: ReadonlySet<string> = new Set(MOTS_TOUJOURS_ACCENTUES.map(sansAccent))
+
+/**
+ * Vrai si un des `textes` a perdu des accents : (a) il écrit sans accent un mot accentué des `sources` (« Yaounde » pour
+ * « Yaoundé »), ou (b) il contient un mot de MOTS_TOUJOURS_ACCENTUES sans son accent (« ecoute », « coeur »). Un mot
+ * écrit tel quel dans les sources n'est jamais signalé. Aucun texte, aucune faute.
+ */
+export function accentsManquants(textes: readonly string[], sources: readonly string[]): boolean {
+  const motsSources = sources.flatMap(motsMinuscules)
+  const ecritsDansSources = new Set(motsSources)
+  const formesPlatesSources = new Set(
+    motsSources.filter((mot) => mot.length >= LONGUEUR_MIN_MOT_SOURCE && sansAccent(mot) !== mot).map(sansAccent),
+  )
+  return textes.some((texte) =>
+    motsMinuscules(texte).some((mot) => {
+      if (ecritsDansSources.has(mot) || sansAccent(mot) !== mot) return false
+      return formesPlatesSources.has(mot) || MOTS_ACCENTUES_PAR_FORME_PLATE.has(mot)
+    }),
+  )
+}
+
+/** Ville de l'entrée (vide si l'entrée n'en a pas) : le SEO doit la citer dans le titre ET la description. */
+function villeDe(entree: object): string {
+  return 'ville' in entree && typeof entree.ville === 'string' ? entree.ville : ''
+}
+
+function minusculesNfc(texte: string): string {
+  return texte.normalize('NFC').toLocaleLowerCase('fr').replace(/\s+/g, ' ')
+}
+
+/**
+ * Valide un bloc SEO. Ordre : forme (Zod, bornes après rognage) → accents → ville citée dans le titre ET la
+ * description (casse et espaces ignorés, accents respectés) → lien/balise inventés → faits inventés →
+ * formulations interdites. Rien n'est réécrit : la valeur rendue est celle que Zod a rognée.
+ */
+export function validerSeo(donnees: unknown, entree: object): ResultatValidation<SeoIa> {
+  const forme = schemaSeoIa.safeParse(donnees)
+  if (!forme.success) return { ok: false, code: 'sortie_invalide' }
+  const seo = forme.data
+  const textes = [seo.titre, seo.description]
+  const sources = sourcesDe(entree)
+  if (accentsManquants(textes, sources)) return { ok: false, code: 'accents_manquants' }
+  const ville = minusculesNfc(villeDe(entree).trim())
+  if (ville !== '' && !textes.every((texte) => minusculesNfc(texte).includes(ville))) return { ok: false, code: 'sortie_invalide' }
+  if (contientLienOuMarkupInvente(textes, sources)) return { ok: false, code: 'sortie_invalide' }
+  if (!verifierFaits(textes, sources)) return { ok: false, code: 'faits_inventes' }
+  if (textes.some(contientFormulationInterdite)) return { ok: false, code: 'formulation_interdite' }
+  return { ok: true, valeur: seo }
+}
+
 function champDe(entree: object): 'bio' | 'accroche' {
   return 'champ' in entree && entree.champ === 'accroche' ? 'accroche' : 'bio'
 }
@@ -172,9 +292,23 @@ function validerProposition(donnees: unknown, entree: object): ResultatValidatio
     ...proposition.services.flatMap((service) => [service.titre, service.description]),
   ]
   const sources = sourcesDe(entree)
+  // Accents d'abord : un texte qui a perdu ses accents est refusé (puis réessayé) avant toute autre analyse.
+  if (accentsManquants(textes, sources)) return { ok: false, code: 'accents_manquants' }
   if (contientLienOuMarkupInvente(textes, sources)) return { ok: false, code: 'sortie_invalide' }
   if (!verifierFaits(textes, sources)) return { ok: false, code: 'faits_inventes' }
-  return { ok: true, valeur: proposition }
+  return avecSeoValide(proposition, entree)
+}
+
+/**
+ * Le bloc « seo » (décision #24) est validé À PART : invalide, il est retiré et la proposition est gardée telle
+ * quelle (un seul appel, pas de nouvel essai). Absent (génération v1), il n'y a rien à faire.
+ */
+function avecSeoValide(proposition: PropositionOnboarding, entree: object): ResultatValidation<PropositionOnboarding> {
+  const { seo, ...sansSeo } = proposition
+  if (seo === undefined) return { ok: true, valeur: sansSeo }
+  const verdict = validerSeo(seo, entree)
+  if (verdict.ok) return { ok: true, valeur: { ...sansSeo, seo: verdict.valeur } }
+  return { ok: true, valeur: sansSeo, seoRejete: verdict.code }
 }
 
 function validerTexte(donnees: unknown, entree: object): ResultatValidation<TexteAmeliore> {
@@ -198,15 +332,17 @@ export function validerSortie(
   entree: object,
 ): ResultatValidation<PropositionOnboarding>
 export function validerSortie(type: 'ameliorer_texte', donnees: unknown, entree: object): ResultatValidation<TexteAmeliore>
+export function validerSortie(type: 'seo_vitrine', donnees: unknown, entree: object): ResultatValidation<SeoIa>
 export function validerSortie(
   type: IaType,
   donnees: unknown,
   entree: object,
-): ResultatValidation<PropositionOnboarding | TexteAmeliore>
+): ResultatValidation<PropositionOnboarding | TexteAmeliore | SeoIa>
 export function validerSortie(
   type: IaType,
   donnees: unknown,
   entree: object,
-): ResultatValidation<PropositionOnboarding | TexteAmeliore> {
-  return type === 'onboarding_vitrine' ? validerProposition(donnees, entree) : validerTexte(donnees, entree)
+): ResultatValidation<PropositionOnboarding | TexteAmeliore | SeoIa> {
+  if (type === 'onboarding_vitrine') return validerProposition(donnees, entree)
+  return type === 'seo_vitrine' ? validerSeo(donnees, entree) : validerTexte(donnees, entree)
 }

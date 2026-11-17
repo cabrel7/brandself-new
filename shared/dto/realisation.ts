@@ -17,6 +17,8 @@ export interface RealisationStudioDTO {
   actif: boolean
   /** S10 : actif mais au-delà de la limite du plan, donc absent de la vitrine (« Masqué sur la vitrine »). */
   masqueParPlan: boolean
+  /** S16 : origine du contenu — l'assistant n'écrit pas en base directement, il passe par les services. */
+  source: 'utilisateur' | 'assistant'
   ordre: number
   creeLe: string
   modifieLe: string

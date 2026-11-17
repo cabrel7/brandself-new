@@ -151,7 +151,7 @@ test.describe.serial('studio des services — vitrine fraîche (S3-CA45, CA46, C
     await page.goto(`/${username}`)
     await expect(page.getByRole('heading', { level: 1 })).toBeVisible()
     await expect(page.getByRole('heading', { name: 'Ce que je propose' })).toHaveCount(0)
-    await expect(page.getByRole('navigation', { name: 'Vitrine' }).getByRole('link', { name: 'Services', exact: true })).toHaveCount(0)
+    await expect(page.getByRole('navigation', { name: 'Navigation principale' }).getByRole('link', { name: 'Services', exact: true })).toHaveCount(0)
     const reponse = await page.goto(`/${username}/services`)
     expect(reponse?.status()).toBe(404)
   })
@@ -245,7 +245,7 @@ test.describe.serial('studio des services — vitrine fraîche (S3-CA45, CA46, C
     await expect(interrupteur).not.toBeChecked()
     await expect(liste.ligne('Consultation de cardiologie')).toContainText('Rendez-vous · 45 min · Payant · Masqué')
     await expect(liste.ligne('Consultation de cardiologie').getByText('En vedette', { exact: true })).toHaveCount(0)
-    await expect(page.getByText('3 visibles · 2 en vedette sur 3')).toBeVisible()
+    await expect(page.getByText('3 visibles · 1 brouillon · 2 en vedette sur 3')).toBeVisible()
     // Persisté : la lecture fraîche après rechargement donne le même état.
     await page.reload()
     await attendreHydration(page)
@@ -262,7 +262,7 @@ test.describe.serial('studio des services — vitrine fraîche (S3-CA45, CA46, C
     await formulaire.enregistrer.click()
     await expect(page).toHaveURL(/\/studio\/services$/)
     await expect(liste.ligne('Suivi à distance').getByText('En vedette', { exact: true })).toBeVisible()
-    await expect(page.getByText('3 visibles · 3 en vedette sur 3')).toBeVisible()
+    await expect(page.getByText('3 visibles · 1 brouillon · 3 en vedette sur 3')).toBeVisible()
   })
 
   test('modifier : le titre change, l’adresse publique (slug) reste stable', async () => {
@@ -279,7 +279,7 @@ test.describe.serial('studio des services — vitrine fraîche (S3-CA45, CA46, C
     await page.setViewportSize(PC)
     await page.goto(`/${username}`)
     await expect(page.getByRole('heading', { name: 'Ce que je propose' })).toBeVisible()
-    await expect(page.getByRole('navigation', { name: 'Vitrine' }).getByRole('link', { name: 'Services', exact: true })).toBeVisible()
+    await expect(page.getByRole('navigation', { name: 'Navigation principale' }).getByRole('link', { name: 'Services', exact: true })).toBeVisible()
     await page.setViewportSize(MOBILE)
   })
 

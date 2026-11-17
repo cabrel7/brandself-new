@@ -34,7 +34,7 @@ import { GALERIE_MAX } from '../../shared/realisations'
 // utilisées uniquement pour les tests — à confirmer avant toute mise en ligne.
 const ID_UTILISATEUR = 'seed-dr-cabrel'
 const ID_VITRINE = 'seed-vitrine-dr-cabrel'
-const EMAIL_DEMO = 'cabrel@brandself.test'
+const EMAIL_DEMO = 'cabrel@jesuis.pro.test'
 
 // Les 6 services de la maquette (docs/specs/S3-services.md §3). Ids = UUID fixes : le seed reste
 // idempotent et les routes du studio (`[id]` validé en uuid) peuvent modifier les services de démo.
@@ -308,7 +308,7 @@ interface LienDemo {
 
 const liensDemo: readonly LienDemo[] = [
   {
-    id: 'f4a1b2c3-5678-90ab-cdef-123456789021',
+    id: 'f4a1b2c3-5678-4a90-8def-123456789021',
     slug: 'ecrire-sur-whatsapp',
     libelle: 'Écrire sur WhatsApp',
     url: 'https://wa.me/237699000001',
@@ -317,7 +317,7 @@ const liensDemo: readonly LienDemo[] = [
     actif: true,
   },
   {
-    id: 'f4a1b2c3-5678-90ab-cdef-123456789022',
+    id: 'f4a1b2c3-5678-4a90-8def-123456789022',
     slug: 'mon-parcours-sur-linkedin',
     libelle: 'Mon parcours sur LinkedIn',
     url: 'https://www.linkedin.com/in/dr-cabrel-nguesso',
@@ -326,7 +326,7 @@ const liensDemo: readonly LienDemo[] = [
     actif: true,
   },
   {
-    id: 'f4a1b2c3-5678-90ab-cdef-123456789023',
+    id: 'f4a1b2c3-5678-4a90-8def-123456789023',
     slug: 'me-contacter-par-courriel',
     libelle: 'Me contacter par courriel',
     url: 'mailto:contact@dr-cabrel.test',
@@ -335,7 +335,7 @@ const liensDemo: readonly LienDemo[] = [
     actif: true,
   },
   {
-    id: 'f4a1b2c3-5678-90ab-cdef-123456789024',
+    id: 'f4a1b2c3-5678-4a90-8def-123456789024',
     slug: 'site-de-l-hopital',
     libelle: 'Site de l’hôpital',
     url: 'https://hopital-central-douala.test',
@@ -358,7 +358,7 @@ const reservationsDemo = [
     id: 'b8f2d320-1111-4111-8111-111111111111',
     serviceId: servicesDemo[0]!.id,
     nom: 'Visiteur de démonstration',
-    email: 'visiteur-1@brandself.test',
+    email: 'visiteur-1@jesuis.pro.test',
     telephone: '+237699000001',
     note: 'Première consultation',
     debut: new Date('2026-11-03T08:00:00.000Z'),
@@ -369,7 +369,7 @@ const reservationsDemo = [
     id: 'b8f2d320-2222-4222-8222-222222222222',
     serviceId: servicesDemo[1]!.id,
     nom: 'Visiteur de démonstration',
-    email: 'visiteur-2@brandself.test',
+    email: 'visiteur-2@jesuis.pro.test',
     telephone: '+237699000002',
     note: null,
     debut: new Date('2026-11-05T08:00:00.000Z'),
@@ -398,7 +398,7 @@ const messagesDemo: readonly MessageDemo[] = [
   {
     id: 'c9d3e430-1111-4111-8111-111111111111',
     nom: 'Marie Ndzi',
-    email: 'marie.ndzi@brandself.test',
+    email: 'marie.ndzi@jesuis.pro.test',
     telephone: '+237699000003',
     sujet: 'question_avant_reservation',
     message: 'Bonjour, le rendez-vous peut-il être décalé en fin de journée ? Je termine le travail à 17 h.',
@@ -408,7 +408,7 @@ const messagesDemo: readonly MessageDemo[] = [
   {
     id: 'c9d3e430-2222-4222-8222-222222222222',
     nom: 'Paul Essomba',
-    email: 'paul.essomba@brandself.test',
+    email: 'paul.essomba@jesuis.pro.test',
     telephone: null,
     sujet: 'suivi_reservation',
     message: 'Bonjour, je souhaiterais avancer mon suivi de la semaine prochaine à la semaine présente, si un créneau est libre.',
@@ -418,7 +418,7 @@ const messagesDemo: readonly MessageDemo[] = [
   {
     id: 'c9d3e430-3333-4333-8333-333333333333',
     nom: 'Aïcha Bello',
-    email: 'aicha.bello@brandself.test',
+    email: 'aicha.bello@jesuis.pro.test',
     telephone: '+237699000005',
     sujet: 'demande_information',
     message: 'Bonjour, vos consultations sont-elles accessibles sans ordonnance au préalable ?',
@@ -497,7 +497,7 @@ const variantesDemo: readonly VarianteDemo[] = [
     userId: 'seed-dr-cabrel-payant',
     vitrineId: 'seed-vitrine-dr-cabrel-payant',
     username: 'dr-cabrel-payant',
-    email: 'cabrel-payant@brandself.test',
+    email: 'cabrel-payant@jesuis.pro.test',
     abonnementId: 'seed-abonnement-dr-cabrel-payant',
     expireDansJours: JOURS_PAYANT_RESTANTS,
     activeIlYaJours: JOURS_PAYANT_ECOULES,
@@ -507,7 +507,7 @@ const variantesDemo: readonly VarianteDemo[] = [
     userId: 'seed-dr-cabrel-grace',
     vitrineId: 'seed-vitrine-dr-cabrel-grace',
     username: 'dr-cabrel-grace',
-    email: 'cabrel-grace@brandself.test',
+    email: 'cabrel-grace@jesuis.pro.test',
     abonnementId: 'seed-abonnement-dr-cabrel-grace',
     expireDansJours: -JOURS_GRACE_ECOULES,
     activeIlYaJours: JOURS_GRACE_ACTIVATION,
@@ -834,7 +834,7 @@ async function main(): Promise<void> {
       .values({
         id: ID_UTILISATEUR_BROUILLON,
         name: 'Brouillon X',
-        email: 'brouillon-x@brandself.test',
+        email: 'brouillon-x@jesuis.pro.test',
         emailVerified: false,
         nom: 'Brouillon X',
         locale: 'fr',

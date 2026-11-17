@@ -20,7 +20,7 @@ const { ready: squeletteVisible } = useTimeout(200, { controls: true })
 
 <template>
   <main class="mx-auto flex w-full max-w-120 flex-col gap-4 px-6 pt-8 pb-12">
-    <p class="m-0 font-(family-name:--font-titre) text-(length:--fs-24) font-bold">Brandself</p>
+    <BsLogo variante="wordmark" class="h-10 self-start" />
 
     <div v-if="etat === 'chargement'" role="status" aria-busy="true" aria-label="Vérification de votre lien">
       <div v-if="squeletteVisible" class="flex flex-col gap-4 pt-8" aria-hidden="true">
@@ -34,9 +34,6 @@ const { ready: squeletteVisible } = useTimeout(200, { controls: true })
       <h1 ref="titre" tabindex="-1" class="m-0 pt-8 font-(family-name:--font-titre) text-(length:--fs-32) leading-[1.15] font-bold outline-none">
         Ne plus recevoir {{ libelle }} ?
       </h1>
-      <p class="m-0 text-base text-texte-secondaire">
-        Vous pourrez le réactiver à tout moment dans votre compte.
-      </p>
       <p v-if="message" role="alert" class="message-erreur">
         <UIcon name="i-ph-warning-circle" class="size-5 shrink-0" aria-hidden="true" />
         <span>{{ message }}</span>

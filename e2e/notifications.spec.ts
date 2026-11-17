@@ -79,7 +79,6 @@ test.describe('S9 interface : préférences, désabonnement, prochaine étape, p
     }
     await expect(compte.partie().getByText('Chaque lundi matin, l’activité de votre vitrine en un coup d’œil.')).toBeVisible()
     await expect(compte.partie().getByText('Le matin, la liste de vos rendez-vous de la journée.')).toBeVisible()
-    await expect(compte.partie().getByText('Les e-mails liés à vos réservations et à vos messages sont toujours envoyés : ils font partie du service.')).toBeVisible()
 
     const hebdo = compte.interrupteur('Résumé de la semaine')
     await hebdo.click()
@@ -235,7 +234,6 @@ test.describe('S9 interface : préférences, désabonnement, prochaine étape, p
 
       await expect(desabonnement.titre('Ne plus recevoir le résumé de la semaine ?')).toBeVisible({ timeout: DELAI_ECRAN_MS })
       await expect(desabonnement.titre('Ne plus recevoir le résumé de la semaine ?')).toBeFocused()
-      await expect(p.getByText('Vous pourrez le réactiver à tout moment dans votre compte.')).toBeVisible()
       // L'aperçu n'a aucun effet.
       expect((await lirePreferences(session.userId)).emailHebdo).toBe(true)
 
@@ -526,8 +524,9 @@ test.describe('S9 interface : préférences, désabonnement, prochaine étape, p
       await expect(panneau.qr()).toBeVisible()
       await sansDebordementHorizontal(page, viewport.width)
       for (const bouton of [panneau.copier(), panneau.telecharger()]) {
-        const boite = await bouton.boundingBox()
-        expect(boite?.height ?? 0, `cible à ${viewport.width} px`).toBeGreaterThanOrEqual(44)
+        // Le panneau s'anime à l'ouverture : on attend que la hauteur se stabilise (la cible vaut `--cible-tactile` = 2,75 rem = 44 px)
+        // au lieu de mesurer en cours d'animation (43,3 px relevés en CI).
+        await expect.poll(async () => (await bouton.boundingBox())?.height ?? 0, { message: `cible à ${viewport.width} px` }).toBeGreaterThanOrEqual(44 - 0.5)
       }
       await page.keyboard.press('Escape')
       await expect(panneau.dialogue()).toHaveCount(0)
@@ -548,7 +547,13 @@ test.describe('S9 interface : préférences, désabonnement, prochaine étape, p
     await page.getByRole('button', { name: PROCHAINES_ETAPES.partager.action, exact: true }).click()
     await expect(panneau.dialogue()).toBeVisible()
     await expect(page).toHaveURL(/\/studio$/)
-    await panneau.copier().click()
+    // On attend l'enregistrement du partage (POST) avant de refermer le panneau : sans cela, la carte peut rester affichée si la
+    // requête n'a pas abouti, et l'échec (statut, limiteur…) n'apparaît pas dans le rapport.
+    const [enregistrement] = await Promise.all([
+      page.waitForResponse((r) => r.url().includes('/api/studio/vitrine/partage') && r.request().method() === 'POST'),
+      panneau.copier().click(),
+    ])
+    expect(enregistrement.status(), 'enregistrement du partage').toBe(200)
     await expect(panneau.annonce()).toHaveText(MESSAGE_COPIE)
     await page.keyboard.press('Escape')
     // Le partage est enregistré : la carte « Partagez votre vitrine » disparaît, le focus reste dans la page.

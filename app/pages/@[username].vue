@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import type { LiensPublicsReponse } from '#shared/dto'
+import { plateformeDuLien } from '#shared/plateformes'
 
 const route = useRoute()
 const username = String(route.params.username)
-const { public: { siteUrl = '' } } = useRuntimeConfig()
 
 const vitrine = await usePublicVitrine(username)
 const contenus = usePublicContenus(username)
@@ -56,6 +56,14 @@ function endpointClic(slug: string): string {
   return `/api/public/${encodeURIComponent(username)}/liens/${encodeURIComponent(slug)}/clic`
 }
 
+/**
+ * Clic compté en arrière-plan, sans retarder la navigation. `sendBeacon` plutôt que l’attribut
+ * `ping` : Firefox le désactive par défaut et la plupart des bloqueurs de publicités l’interceptent.
+ */
+function compterClic(slug: string): void {
+  if (typeof navigator.sendBeacon === 'function') navigator.sendBeacon(endpointClic(slug))
+}
+
 function estLienInterne(url: string): boolean {
   return url.startsWith('/')
 }
@@ -64,39 +72,23 @@ function estLienReservation(url: string): boolean {
   return url === urlReserver.value || url === urlReserverHerite.value
 }
 
-useSeoVitrine({
-  vitrine: {
-    username: vitrine.value.username,
-    nomAffiche: vitrine.value.nomAffiche,
-    metier: vitrine.value.metier,
-    ville: vitrine.value.ville,
-    pays: vitrine.value.pays,
-    paysLibelle: vitrine.value.paysLibelle,
-    titre: vitrine.value.titre,
-    seoTitre: vitrine.value.seo.titre,
-    seoDescription: vitrine.value.seo.description,
-    accroche: vitrine.value.accroche,
-    bio: vitrine.value.bio,
-    photo: vitrine.value.photo,
-    liens: [],
-  },
-  page: 'lien-bio',
-  siteUrl,
-})
+useSeoVitrine({ vitrine: vitrine.value, page: 'lien-bio', liens: liens.value })
 </script>
 
 <template>
   <VitrineCadre :vitrine="vitrine" sans-nav pied-minimal>
     <div class="mx-auto flex w-full max-w-md flex-col items-center px-6 pt-10 pb-4">
-      <div class="flex h-34 w-28 shrink-0 items-center justify-center overflow-hidden rounded-t-full rounded-b-2xl bg-accent-doux">
+      <div class="flex h-(--photo-arche-hauteur) w-(--photo-arche-largeur) shrink-0 items-center justify-center overflow-hidden rounded-t-full rounded-b-3xl bg-accent-doux shadow-[0_10px_28px_-10px_color-mix(in_srgb,var(--encre)_35%,transparent)] ring-1 ring-bordure">
         <img
           v-if="vitrine.photo"
           :src="vitrine.photo.url"
           :srcset="vitrine.photo.srcset"
+          sizes="144px"
           :width="vitrine.photo.largeur"
           :height="vitrine.photo.hauteur"
           :alt="`Portrait de ${vitrine.nomAffiche}`"
-          class="size-full object-cover object-center"
+          fetchpriority="high"
+          class="size-full object-cover object-top"
         >
         <span v-else class="font-(family-name:--font-titre) text-(length:--fs-48) leading-none font-medium text-accent">
           {{ initiales }}
@@ -122,49 +114,41 @@ useSeoVitrine({
           <UIcon name="i-ph-caret-right" class="size-5 shrink-0" aria-hidden="true" />
         </UButton>
 
-        <UButton
+        <VitrineLienPlateforme
           v-if="servicesDisponibles && !servicesPersonnalise"
-          :to="urlServices"
-          variant="ghost"
-          color="neutral"
-          block
-          size="lg"
-          class="justify-between border border-bordure bg-surface px-5 font-semibold text-encre hover:bg-accent-doux"
-        >
-          <span>Mes services</span>
-          <UIcon name="i-ph-caret-right" class="size-5 shrink-0" aria-hidden="true" />
-        </UButton>
+          :href="urlServices"
+          libelle="Mes services"
+          :plateforme="null"
+          icone-neutre="i-ph-list-bullets"
+        />
 
-        <UButton
+        <VitrineLienPlateforme
           v-if="urlWhatsapp && !whatsappPersonnalise"
           :href="urlWhatsapp"
-          variant="ghost"
-          color="neutral"
-          block
-          size="lg"
-          class="justify-between border border-bordure bg-surface px-5 font-semibold text-encre hover:bg-accent-doux"
-          target="_blank"
-          rel="noopener nofollow"
-        >
-          <span>Écrire sur WhatsApp</span>
-          <UIcon name="i-ph-caret-right" class="size-5 shrink-0" aria-hidden="true" />
-        </UButton>
+          libelle="Écrire sur WhatsApp"
+          plateforme="whatsapp"
+        />
 
-        <a
-          v-for="lien in liens"
-          :key="lien.slug"
-          :href="lien.url"
-          :ping="endpointClic(lien.slug)"
-          class="inline-flex min-h-(--cible-tactile) w-full items-center justify-between gap-2 rounded-(--rayon) px-5 py-2 text-base font-semibold no-underline transition-colors focus-visible:outline-3 focus-visible:outline-accent"
-          :class="estLienReservation(lien.url)
-            ? 'bg-accent text-sur-accent hover:bg-[color-mix(in_srgb,var(--accent)_88%,var(--encre))]'
-            : 'border border-bordure bg-surface text-encre hover:bg-accent-doux'"
-          :target="estLienInterne(lien.url) ? undefined : '_blank'"
-          :rel="estLienInterne(lien.url) ? undefined : 'noopener nofollow'"
-        >
-          <span class="min-w-0 truncate wrap-break-word">{{ lien.libelle }}</span>
-          <UIcon name="i-ph-caret-right" class="size-5 shrink-0" aria-hidden="true" />
-        </a>
+        <template v-for="lien in liens" :key="lien.slug">
+          <a
+            v-if="estLienReservation(lien.url)"
+            :href="lien.url"
+            class="inline-flex min-h-14 w-full items-center justify-between gap-2 rounded-(--rayon) bg-accent px-5 py-2 text-base font-semibold text-sur-accent no-underline transition-colors hover:bg-[color-mix(in_srgb,var(--accent)_88%,var(--encre))] focus-visible:outline-3 focus-visible:outline-accent"
+            @click="compterClic(lien.slug)"
+            @auxclick="compterClic(lien.slug)"
+          >
+            <span class="min-w-0 truncate wrap-break-word">{{ lien.libelle }}</span>
+            <UIcon name="i-ph-caret-right" class="size-5 shrink-0" aria-hidden="true" />
+          </a>
+          <VitrineLienPlateforme
+            v-else
+            :href="lien.url"
+            :libelle="lien.libelle"
+            :plateforme="plateformeDuLien(lien)"
+            :icone-neutre="estLienInterne(lien.url) ? 'i-ph-storefront' : undefined"
+            @clic="compterClic(lien.slug)"
+          />
+        </template>
       </div>
     </div>
   </VitrineCadre>

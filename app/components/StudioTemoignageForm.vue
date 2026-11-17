@@ -24,7 +24,6 @@ const SWITCH_UI = { root: 'w-full flex-row-reverse items-center justify-between 
 
 const ERREUR_ENREGISTREMENT = 'Nous n’avons pas pu enregistrer. Vos modifications sont gardées, réessayez dans un instant.'
 const ERREUR_SUPPRESSION = 'Nous n’avons pas pu supprimer ce témoignage. Réessayez dans un instant.'
-const AIDE_VEDETTE = 'Le témoignage en vedette est mis en avant sur votre accueil.'
 
 type ChampTemoignage = 'auteur' | 'fonction' | 'texte' | 'enVedette' | 'actif'
 type Erreurs = Partial<Record<ChampTemoignage, string>>
@@ -84,7 +83,7 @@ const vedetteBloquee = computed(() => !form.actif || vedetteComplete.value)
 const aideVedette = computed(() => {
   if (!form.actif) return 'Un témoignage masqué ne peut pas être en vedette.'
   const etat = libelleVedetteTemoignages(props.compteurs.enVedette, props.compteurs.vedetteMax)
-  return vedetteComplete.value ? `${etat} Retirez-en un pour en mettre un autre en avant.` : `${AIDE_VEDETTE} ${etat}`
+  return vedetteComplete.value ? `${etat} Retirez-en un pour en mettre un autre en avant.` : etat
 })
 
 function viderErreur(champ: ChampTemoignage): void {
@@ -244,11 +243,11 @@ async function supprimer(): Promise<void> {
     v-if="introuvable"
     icon="i-ph-chat-centered-text"
     title="Ce témoignage n’existe plus"
-    description="Il a peut-être été supprimé depuis un autre appareil."
     :actions="[{ label: 'Retour aux témoignages', to: '/studio/temoignages', size: 'xl' }]"
   />
 
-  <form v-else class="flex flex-col gap-6" novalidate @submit.prevent="enregistrer">
+  <form v-else class="grid gap-6 lg:grid-cols-2 lg:items-start lg:gap-x-10" novalidate @submit.prevent="enregistrer">
+    <div class="flex flex-col gap-6">
     <UFormField label="Auteur" name="auteur" required :error="erreurs.auteur">
       <UInput
         v-model="form.auteur"
@@ -280,17 +279,17 @@ async function supprimer(): Promise<void> {
         @update:model-value="viderErreur('texte')"
       />
       <p class="m-0 mt-2 text-(length:--fs-14) text-texte-secondaire">
-        Affiché tel quel sur votre vitrine.
         {{ form.texte.length }} sur {{ TEMOINAGE_TEXTE_MAX }} caractères.
       </p>
     </UFormField>
+    </div>
 
+    <div class="flex flex-col gap-6">
     <div class="flex flex-col border-y border-bordure">
       <div class="border-b border-bordure py-4">
         <USwitch
           v-model="form.actif"
           label="Visible sur la vitrine"
-          description="Désactivez pour masquer ce témoignage sans le supprimer."
           :ui="SWITCH_UI"
         />
       </div>
@@ -348,6 +347,7 @@ async function supprimer(): Promise<void> {
         block
         @click="suppressionOuverte = true"
       />
+    </div>
     </div>
 
     <UModal

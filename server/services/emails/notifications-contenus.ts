@@ -1,3 +1,4 @@
+import { MARQUE } from '../../../shared/brand'
 import {
   DESABONNEMENT_API_CHEMIN,
   DESABONNEMENT_PAGE_CHEMIN,
@@ -7,14 +8,17 @@ import {
 } from '../../../shared/notifications'
 import { DEVISES_EXPOSANT } from '../../../shared/paiements'
 import { ABONNEMENT_CHEMIN, ABONNEMENT_GRACE_JOURS } from '../../../shared/plans'
-import type { AbonnementRappelJours } from '../../../shared/plans'
 import { schemaJetonDesabonnement } from '../../../shared/schemas/notifications'
+import { rendreEmail } from './gabarit'
+import type { DocumentEmail } from './gabarit'
 import type { EmailMessage } from './transport'
 
 // S9 (docs/specs/S9-notifications.md §5) : contenus des e-mails planifiés, en TEXTE SEUL (jamais de
 // HTML, donc aucun pixel de suivi). Module feuille : `contenus.ts` l'importe, jamais l'inverse.
 // Règles : toute valeur saisie passe par `singleLine` ; minimisation (#100) : ni e-mail, ni
 // téléphone, ni motif ; chaque message se termine par la phrase « Vous recevez… ».
+// Exception (A2) : les e-mails d'administration au titulaire sont rendus par le gabarit (HTML + texte) et portent
+// le motif saisi par l'administrateur.
 
 const LOCALE = 'fr-FR'
 const PREMIER_DU_MOIS = '1'
@@ -32,7 +36,7 @@ const JOURS_ISO = ['lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi', 
 
 /** Textes réglables (vouvoiement chaleureux). Les gabarits à trous sont des fonctions. */
 export const TEXTES_NOTIFICATIONS = {
-  signatureMarque: 'Brandself',
+  signatureMarque: MARQUE.signature,
   bonjourSansNom: 'Bonjour,',
   pied: {
     journee: "Vous recevez cet e-mail parce que vous avez des rendez-vous aujourd'hui.",
@@ -57,12 +61,15 @@ export const TEXTES_NOTIFICATIONS = {
   },
   // S10 #122 : rappels d'échéance. Aucun prix : ils s'affichent dans le studio, depuis la configuration.
   abonnementRappel: {
-    objet: (jours: AbonnementRappelJours) =>
-      jours === 0 ? "Votre abonnement se termine aujourd'hui" : `Votre abonnement se termine dans ${jours} ${jours > 1 ? 'jours' : 'jour'}`,
-    intro: (jours: AbonnementRappelJours, date: string) =>
+    // A3 : un rappel MANUEL dit le nombre réel de jours (« demain » pour 1) ; les rappels planifiés (7, 3, 0) sont inchangés.
+    objet: (jours: number) =>
       jours === 0
-        ? `Aujourd'hui est le dernier jour de votre abonnement Brandself (jusqu'au ${date} inclus).`
-        : `Votre abonnement Brandself est actif jusqu'au ${date} inclus.`,
+        ? "Votre abonnement se termine aujourd'hui"
+        : jours === 1 ? 'Votre abonnement se termine demain' : `Votre abonnement se termine dans ${jours} jours`,
+    intro: (jours: number, date: string) =>
+      jours === 0
+        ? `Aujourd'hui est le dernier jour de votre abonnement ${MARQUE.nom} (jusqu'au ${date} inclus).`
+        : `Votre abonnement ${MARQUE.nom} est actif jusqu'au ${date} inclus.`,
     sansRenouvellementAuto: "Il ne se renouvelle pas automatiquement : rien n'est prélevé sans votre accord.",
     invitation: 'Pour le prolonger, renouvelez-le depuis votre studio :',
     action: 'Renouveler mon abonnement',
@@ -88,7 +95,39 @@ export const TEXTES_NOTIFICATIONS = {
     echeance: (date: string) => `Nouvelle échéance : jusqu'au ${date} inclus`,
     pasUneFacture: "Ce récapitulatif n'est pas une facture.",
     cloture: 'À bientôt,',
-    pied: "Vous recevez cet e-mail parce qu'un paiement a été effectué pour votre abonnement Brandself. C'est un message de service : il ne peut pas être désactivé.",
+    pied: `Vous recevez cet e-mail parce qu'un paiement a été effectué pour votre abonnement ${MARQUE.nom}. C'est un message de service : il ne peut pas être désactivé.`,
+  },
+  // A2 (D-A2-14) : e-mails de l'administration au titulaire du compte. Vouvoiement, courts. Le motif est celui que
+  // l'administrateur a saisi (D-A2-13) : il ne contient jamais de donnée de visiteur. Messages de service.
+  adminCompte: {
+    pied: "C'est un message de service concernant votre compte : il ne peut pas être désactivé.",
+    contact: "Si vous pensez qu'il s'agit d'une erreur, répondez à cet e-mail.",
+    cloture: 'Cordialement,',
+    suspendu: {
+      objet: `Votre compte ${MARQUE.nom} est suspendu`,
+      preheader: 'Votre vitrine n’est plus visible et la connexion est suspendue.',
+      intro: `Votre compte ${MARQUE.nom} a été suspendu. Votre vitrine n'est plus visible et vous ne pouvez plus vous connecter.`,
+      motif: (valeur: string) => `Motif : ${valeur}`,
+    },
+    reactive: {
+      objet: `Votre compte ${MARQUE.nom} est de nouveau actif`,
+      preheader: 'Vous pouvez vous reconnecter.',
+      intro: `Votre compte ${MARQUE.nom} est de nouveau actif. Vous pouvez vous reconnecter, et votre vitrine est de nouveau visible si elle était publiée.`,
+      action: 'Me connecter',
+    },
+    joursOfferts: {
+      objet: (jours: number) => `${jours} ${jours > 1 ? 'jours offerts' : 'jour offert'} sur votre abonnement`,
+      preheader: 'Un geste de notre équipe.',
+      intro: (jours: number) =>
+        `Nous vous offrons ${jours} ${jours > 1 ? 'jours' : 'jour'} d'abonnement ${MARQUE.nom}.`,
+      echeance: (date: string) => `Votre abonnement est actif jusqu'au ${date} inclus.`,
+    },
+    depubliee: {
+      objet: 'Votre vitrine n’est plus publiée',
+      preheader: 'Votre vitrine a été retirée de la publication.',
+      intro: "Notre équipe a retiré votre vitrine de la publication : elle n'est plus visible du public. Vos informations sont conservées.",
+      motif: (valeur: string) => `Motif : ${valeur}`,
+    },
   },
 } as const
 
@@ -162,16 +201,19 @@ interface AbonnementEmailBase {
 export interface AbonnementRappelContent extends AbonnementEmailBase {
   type: 'abonnement_rappel'
   /** Rappel J-7, J-3 ou J0 (lu dans l'occurrence). */
-  jours: AbonnementRappelJours
+  /** Jours restants (planifié : 7, 3 ou 0 ; manuel : le nombre réel, calculé à l'envoi). */
+  jours: number
   /** Échéance EXCLUSIVE (minuit local suivant le dernier jour payé). */
   expireLe: Date
   /** Période à présélectionner dans le lien de renouvellement (dernière période payée). */
   periodeMois: number
+  /** Durée de la grâce (réglage `abonnement.grace_jours`, lu par l'appelant) ; défaut : la constante du code. */
+  graceJours?: number
 }
 
 export interface PaiementConfirmeContent extends AbonnementEmailBase {
   type: 'paiement_confirme'
-  /** Identifiant du paiement chez Brandself. */
+  /** Identifiant du paiement chez jesuis.pro. */
   reference: string
   /** Référence de l'opérateur, si elle est connue. */
   referenceFournisseur: string | null
@@ -188,6 +230,44 @@ export interface PaiementConfirmeContent extends AbonnementEmailBase {
 }
 
 export type AbonnementEmailContent = AbonnementRappelContent | PaiementConfirmeContent
+
+/** Socle des e-mails d'administration (A2) : `entite_type = 'utilisateur'`, l'occurrence est le numéro de journal. */
+interface AdminCompteEmailBase {
+  outboxId: string
+  generatedAt: Date
+  destinataire: string
+  prenom: string
+  /** Fuseau du destinataire (`users.fuseau`), déjà validé par l'appelant. */
+  fuseau: string
+  siteUrl: string
+}
+
+export interface UtilisateurSuspenduContent extends AdminCompteEmailBase {
+  type: 'utilisateur_suspendu'
+  motif: string
+}
+
+export interface UtilisateurReactiveContent extends AdminCompteEmailBase {
+  type: 'utilisateur_reactive'
+}
+
+export interface UtilisateurJoursOffertsContent extends AdminCompteEmailBase {
+  type: 'utilisateur_jours_offerts'
+  jours: number
+  /** Échéance EXCLUSIVE après les jours offerts. */
+  expireLe: Date
+}
+
+export interface UtilisateurDepublieeContent extends AdminCompteEmailBase {
+  type: 'utilisateur_depubliee'
+  motif: string
+}
+
+export type AdminCompteEmailContent =
+  | UtilisateurSuspenduContent
+  | UtilisateurReactiveContent
+  | UtilisateurJoursOffertsContent
+  | UtilisateurDepublieeContent
 
 // Défense en profondeur : une valeur saisie et placée dans l'objet ou sur une ligne d'un e-mail ne
 // peut contenir ni saut de ligne ni caractère de contrôle (injection d'en-têtes ou de lignes).
@@ -443,7 +523,7 @@ export function buildAbonnementRappelEmail(content: AbonnementRappelContent): Em
       t.invitation,
       `${t.action} : ${lienRenouvellement(content.siteUrl, content.periodeMois)}`,
       '',
-      t.grace(ABONNEMENT_GRACE_JOURS),
+      t.grace(content.graceJours ?? ABONNEMENT_GRACE_JOURS),
       '',
       t.cloture,
       TEXTES_NOTIFICATIONS.signatureMarque,
@@ -485,4 +565,78 @@ export function buildPaiementConfirmeEmail(content: PaiementConfirmeContent): Em
 
 export function buildAbonnementEmail(content: AbonnementEmailContent): EmailMessage {
   return content.type === 'abonnement_rappel' ? buildAbonnementRappelEmail(content) : buildPaiementConfirmeEmail(content)
+}
+
+// --- A2 : e-mails d'administration au titulaire (suspension, réactivation, jours offerts, dépublication) ---
+
+function documentAdminCompte(
+  content: AdminCompteEmailContent,
+  objet: string,
+  preheader: string,
+  elements: DocumentEmail['elements'],
+): DocumentEmail {
+  const t = TEXTES_NOTIFICATIONS.adminCompte
+  return {
+    objet,
+    preheader,
+    siteUrl: content.siteUrl,
+    identite: { type: 'plateforme' },
+    salutation: salutation(content.prenom),
+    elements,
+    cloture: t.cloture,
+    pied: [{ texte: t.pied }],
+  }
+}
+
+function elementsAdminCompte(content: AdminCompteEmailContent): { objet: string, preheader: string, elements: DocumentEmail['elements'] } {
+  const t = TEXTES_NOTIFICATIONS.adminCompte
+  switch (content.type) {
+    case 'utilisateur_suspendu':
+      return {
+        objet: t.suspendu.objet,
+        preheader: t.suspendu.preheader,
+        elements: [
+          { type: 'paragraphe', texte: t.suspendu.intro },
+          { type: 'encadre', texte: t.suspendu.motif(singleLine(content.motif)) },
+          { type: 'paragraphe', texte: t.contact },
+        ],
+      }
+    case 'utilisateur_reactive': {
+      const url = joinUrl(content.siteUrl, '/connexion')
+      return {
+        objet: t.reactive.objet,
+        preheader: t.reactive.preheader,
+        elements: [
+          { type: 'paragraphe', texte: t.reactive.intro },
+          { type: 'bouton', libelle: t.reactive.action, url, lignesTexte: [`${t.reactive.action} : ${url}`] },
+        ],
+      }
+    }
+    case 'utilisateur_jours_offerts':
+      return {
+        objet: t.joursOfferts.objet(content.jours),
+        preheader: t.joursOfferts.preheader,
+        elements: [
+          { type: 'paragraphe', texte: t.joursOfferts.intro(content.jours) },
+          { type: 'paragraphe', texte: t.joursOfferts.echeance(dernierJourInclus(content.expireLe, content.fuseau)) },
+        ],
+      }
+    case 'utilisateur_depubliee':
+      return {
+        objet: t.depubliee.objet,
+        preheader: t.depubliee.preheader,
+        elements: [
+          { type: 'paragraphe', texte: t.depubliee.intro },
+          { type: 'encadre', texte: t.depubliee.motif(singleLine(content.motif)) },
+          { type: 'paragraphe', texte: t.contact },
+        ],
+      }
+  }
+}
+
+/** Contenu pur d'un e-mail d'administration : HTML et texte issus du même document, aucun accès réseau ni base. */
+export function buildAdminCompteEmail(content: AdminCompteEmailContent): EmailMessage {
+  const { objet, preheader, elements } = elementsAdminCompte(content)
+  const { subject, text, html } = rendreEmail(documentAdminCompte(content, objet, preheader, elements))
+  return { to: content.destinataire, subject, text, html, attachments: [] }
 }

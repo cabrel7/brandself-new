@@ -43,7 +43,7 @@ test.describe.serial('compte : profil, appareils et suppression', () => {
     expect(reponse.status()).toBe(200)
     const { moi } = (await reponse.json()) as { moi: Record<string, unknown> }
     expect(moi).toMatchObject({ id: appareilA.userId, email: appareilA.email, locale: 'fr', aUneVitrine: false, vitrine: null })
-    expect(Object.keys(moi).sort()).toEqual(['aUneVitrine', 'devise', 'email', 'fuseau', 'id', 'locale', 'telephone', 'vitrine'])
+    expect(Object.keys(moi).sort()).toEqual(['aUneVitrine', 'devise', 'email', 'emailHebdo', 'emailRappelJour', 'fuseau', 'id', 'locale', 'telephone', 'vitrine'])
   })
 
   test('CA28 PUT /api/studio/moi refuses an unknown timezone, an unknown devise and an empty body (400)', async () => {

@@ -81,6 +81,7 @@ const ROUTES_S5_S6: Route[] = [
 const ROUTES_S7: Route[] = [
   { methode: 'GET', chemin: '/api/studio/agenda/disponibilites' },
   { methode: 'PUT', chemin: '/api/studio/agenda/disponibilites', corps: {} },
+  { methode: 'GET', chemin: '/api/studio/agenda/a-traiter' },
   { methode: 'GET', chemin: '/api/studio/agenda/indisponibilites' },
   { methode: 'POST', chemin: '/api/studio/agenda/indisponibilites', corps: {} },
   { methode: 'DELETE', chemin: `/api/studio/agenda/indisponibilites/${ID}` },

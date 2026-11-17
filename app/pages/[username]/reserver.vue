@@ -7,6 +7,7 @@ const route = useRoute()
 const username = String(route.params.username)
 const pageConfirmation = route.path.endsWith('/reserver/confirmation')
 const vitrine = await usePublicVitrine(username)
+const contenus = usePublicContenus(username)
 
 const CHAMPS_QUERY_AUTORISES = new Set(['service', 'debut'])
 const serviceQuery = typeof route.query.service === 'string' ? route.query.service : null
@@ -87,33 +88,26 @@ useSeoMeta({
       <div class="mx-auto flex min-h-20 w-full max-w-6xl items-center justify-between gap-4 px-6">
         <NuxtLink
           :to="`/${vitrine.username}`"
-          class="min-w-0 truncate font-(family-name:--font-titre) text-(length:--fs-20) font-bold md:text-(length:--fs-24)"
+          class="inline-flex min-h-(--cible-tactile) min-w-0 items-center font-(family-name:--font-titre) text-(length:--fs-20) font-bold md:text-(length:--fs-24)"
         >
-          {{ vitrine.nomAffiche }}
+          <span class="line-clamp-2">{{ vitrine.nomAffiche }}</span>
         </NuxtLink>
         <NuxtLink
           :to="`/${vitrine.username}`"
           class="inline-flex min-h-(--cible-tactile) shrink-0 items-center gap-2 text-texte-secondaire hover:text-accent-texte"
         >
           <UIcon name="i-ph-arrow-left" class="size-4" aria-hidden="true" />
-          <span class="xl:hidden">Retour</span>
-          <span class="hidden xl:inline">Retour à la vitrine</span>
+          <span>Retour à la vitrine</span>
         </NuxtLink>
       </div>
     </header>
 
     <main class="mx-auto w-full max-w-[44rem] flex-1 px-6 py-8 md:py-12 xl:max-w-6xl xl:py-16">
-      <nav class="mb-4 hidden text-texte-secondaire xl:block" aria-label="Fil d’Ariane">
-        <NuxtLink :to="`/${vitrine.username}`" class="hover:text-accent-texte">Accueil</NuxtLink>
-        <span aria-hidden="true"> / </span>
-        <span aria-current="page">Réserver</span>
-      </nav>
-      <h1 class="text-(length:--fs-32) leading-[1.1] font-bold md:text-(length:--fs-48)">Plus qu’une étape pour réserver</h1>
+      <h1 class="text-(length:--fs-32) leading-[1.1] font-bold md:text-(length:--fs-48)">Réserver avec {{ vitrine.nomAffiche }}</h1>
 
-      <div v-if="!parcoursReservation" class="mt-8 max-w-xl rounded-(--rayon-carte) border border-bordure bg-surface p-6 md:p-8" role="status">
-        <UIcon name="i-ph-calendar-dots" class="size-8 text-accent" aria-hidden="true" />
-        <h2 class="mt-4 text-(length:--fs-24) font-bold">Choisissez d’abord un créneau</h2>
-        <p class="mt-2 text-texte-secondaire">Revenez à l’agenda pour choisir le service, le jour et l’heure qui vous conviennent.</p>
+      <div v-if="!parcoursReservation" class="mt-8 max-w-xl">
+        <h2 class="text-(length:--fs-24) font-bold">Choisissez d’abord un créneau</h2>
+        <p class="mt-2 text-texte-secondaire">Revenez à l’agenda pour choisir un créneau.</p>
         <UButton :to="`/${vitrine.username}/agenda`" class="mt-5">Voir l’agenda</UButton>
       </div>
 
@@ -138,10 +132,9 @@ useSeoMeta({
         </UButton>
       </div>
 
-      <div v-else-if="!contexteReservation || !service" class="mt-8 max-w-xl rounded-(--rayon-carte) border border-bordure bg-surface p-6 md:p-8" role="status">
-        <UIcon name="i-ph-calendar-x" class="size-8 text-accent" aria-hidden="true" />
-        <h2 class="mt-4 text-(length:--fs-24) font-bold">Ce créneau n’est plus disponible</h2>
-        <p class="mt-2 text-texte-secondaire">Il a expiré ou vient d’être réservé. Consultez les horaires encore libres.</p>
+      <div v-else-if="!contexteReservation || !service" class="mt-8 max-w-xl">
+        <h2 class="text-(length:--fs-24) font-bold">Ce créneau n’est plus disponible</h2>
+        <p class="mt-2 text-texte-secondaire">Il a expiré ou vient d’être réservé.</p>
         <UButton :to="`/${vitrine.username}/agenda?service=${serviceQuery}`" class="mt-5">Choisir un autre créneau</UButton>
       </div>
 
@@ -169,11 +162,6 @@ useSeoMeta({
       </div>
     </main>
 
-    <footer class="border-t border-bordure">
-      <div class="mx-auto flex w-full max-w-6xl flex-col gap-2 px-6 py-8 text-(length:--fs-14) text-texte-secondaire sm:flex-row sm:items-center sm:justify-between">
-        <p>{{ vitrine.nomAffiche }} · {{ vitrine.ville }}</p>
-        <p v-if="vitrine.badgeBrandself">Créé avec Brandself</p>
-      </div>
-    </footer>
+    <VitrinePied :vitrine="vitrine" :contenus="contenus" compact />
   </div>
 </template>

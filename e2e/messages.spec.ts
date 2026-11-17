@@ -137,8 +137,8 @@ test.describe.serial('Contact et Messages S7-bis', () => {
     await page.goto(`/${username}/contact`)
 
     await expect(page.getByRole('heading', { level: 1, name: 'Me contacter' })).toBeVisible()
-    // Vitrine de test sans WhatsApp : le bouton WhatsApp est absent, sans jamais masquer la carte « Cabinet ».
-    await expect(page.getByRole('link', { name: 'Écrire sur WhatsApp' })).toHaveCount(0)
+    // Vitrine de test sans WhatsApp : la ligne WhatsApp (lien wa.me) est absente, sans jamais masquer la ligne « Lieu ».
+    await expect(page.getByRole('link', { name: /WhatsApp/ })).toHaveCount(0)
     await expect(page.getByText(/Douala, Cameroun|Douala/).first()).toBeVisible()
 
     const carteAgenda = page.getByRole('link', { name: 'Voir l’agenda' })
@@ -283,7 +283,8 @@ test.describe.serial('Contact et Messages S7-bis', () => {
     expect(await compterMessages(contact.email)).toBe(0)
   })
 
-  test('la liste Studio Messages déplie, marque lu et met à jour le badge au retour (CA17, CA15)', async () => {
+  test('la liste Studio Messages ouvre la feuille de lecture, marque lu et met à jour le badge au retour (CA17, CA15)', async () => {
+    await page.setViewportSize(MOBILE)
     const premier = contactUnique('Marie Ndzi')
     const second = contactUnique('Paul Essomba')
 
@@ -308,20 +309,26 @@ test.describe.serial('Contact et Messages S7-bis', () => {
     await expect(page.getByRole('heading', { level: 1, name: 'Messages' })).toBeVisible()
     await expect(page.getByText('2 non lus', { exact: true })).toBeVisible()
 
-    const rangée = page.getByRole('listitem').filter({ hasText: premier.nom }).first()
-    const boutonRangée = rangée.getByRole('button')
-    await expect(boutonRangée).toHaveAttribute('aria-expanded', 'false')
-    await boutonRangée.click()
-    await expect(boutonRangée).toHaveAttribute('aria-expanded', 'true')
-    await expect(rangée).toContainText(premier.email)
+    // < 1280 px : toucher la ligne ouvre la feuille de lecture, nommée par l'expéditeur.
+    const boutonLigne = page.getByRole('button', { name: new RegExp(premier.nom) })
+    await expect(boutonLigne).toHaveAttribute('aria-haspopup', 'dialog')
+    await boutonLigne.click()
+    const feuille = page.getByRole('dialog', { name: premier.nom })
+    await expect(feuille).toBeVisible()
+    await expect(feuille).toContainText('Deux lignes d’aperçu suffisent pour l’aperçu du studio.')
+    // L'adresse reste encodée dans le lien mailto (jamais d'adresse brute).
+    await expect(feuille.getByRole('link', { name: /Répondre par e-mail/ }))
+      .toHaveAttribute('href', `mailto:${encodeURIComponent(premier.email)}`)
 
-    // CA17 : le compte passe de 2 à 1 et le sous-titre suit ; le badge de l'écran
-    // Vitrine est mis à jour au retour.
+    // CA17 : le compte passe de 2 à 1 ; le sous-titre suit, le badge de l'écran Vitrine au retour.
+    await feuille.getByRole('button', { name: 'Fermer' }).click()
+    await expect(feuille).toBeHidden()
+    await expect(boutonLigne).toBeFocused()
     await expect(page.getByText('1 non lu', { exact: true })).toBeVisible()
     await page.getByRole('link', { name: 'Vitrine', exact: true }).click()
     await expect(ligneMessages).toContainText('1 non lu')
 
-    // Idempotence visible : re-déplier le message déjà lu ne re-poste pas « lu ».
+    // Idempotence visible : rouvrir le message déjà lu ne re-poste pas « lu ».
     let publicationsLu = 0
     page.on('request', (requete) => {
       if (requete.method() === 'POST' && /\/api\/studio\/messages\/[\w-]+\/lu$/.test(new URL(requete.url()).pathname)) {
@@ -329,24 +336,74 @@ test.describe.serial('Contact et Messages S7-bis', () => {
       }
     })
     await ouvrirStudio(page, '/studio/messages')
-    const rangéeRelue = page.getByRole('listitem').filter({ hasText: premier.nom }).first()
-    await rangéeRelue.getByRole('button').first().click()
-    await expect(rangéeRelue.getByRole('button').first()).toHaveAttribute('aria-expanded', 'true')
+    await page.getByRole('button', { name: new RegExp(premier.nom) }).click()
+    const feuilleRelue = page.getByRole('dialog', { name: premier.nom })
+    await expect(feuilleRelue).toBeVisible()
     expect(publicationsLu).toBe(0)
+
+    // Échap ferme la feuille (rien à perdre).
+    await page.keyboard.press('Escape')
+    await expect(feuilleRelue).toBeHidden()
   })
 
-  test('le dépliage affiche le libellé du sujet et jamais sa valeur technique (SUJET_LIBELLES)', async () => {
+  test('la feuille de lecture navigue entre les messages (Précédent / Suivant, position annoncée)', async () => {
+    await page.setViewportSize(MOBILE)
+    await ouvrirStudio(page, '/studio/messages')
+    const boutons = page.locator('[data-message-id]')
+    // La liste se charge après l'hydratation : on attend qu'elle soit affichée avant de compter (un count() immédiat renvoie 0).
+    await expect(boutons.nth(1)).toBeVisible()
+    const total = await boutons.count()
+    expect(total).toBeGreaterThanOrEqual(2)
+
+    await boutons.first().click()
+    const feuille = page.getByRole('dialog')
+    await expect(feuille.getByText(`1 sur ${total}`, { exact: true })).toBeVisible()
+    await expect(feuille.getByRole('button', { name: 'Précédent' })).toBeDisabled()
+
+    await feuille.getByRole('button', { name: 'Suivant' }).click()
+    await expect(feuille.getByText(`2 sur ${total}`, { exact: true })).toBeVisible()
+    await expect(feuille.getByRole('button', { name: 'Précédent' })).toBeEnabled()
+    await feuille.getByRole('button', { name: 'Précédent' }).click()
+    await expect(feuille.getByText(`1 sur ${total}`, { exact: true })).toBeVisible()
+  })
+
+  test('la feuille affiche le libellé du sujet et jamais sa valeur technique (SUJET_LIBELLES)', async () => {
+    await page.setViewportSize(MOBILE)
     const contact = contactUnique('Libellé Sujet')
     const reponse = await posterMessageApi(contact, 'question_avant_reservation')
     expect(reponse.status(), await reponse.text()).toBe(201)
 
     await ouvrirStudio(page, '/studio/messages')
-    const rangee = page.getByRole('listitem').filter({ hasText: contact.nom }).first()
-    await rangee.getByRole('button').click()
+    await page.getByRole('button', { name: new RegExp(contact.nom) }).click()
 
-    await expect(rangee.getByRole('button')).toHaveAttribute('aria-expanded', 'true')
-    await expect(rangee).toContainText(SUJET_LIBELLES.question_avant_reservation)
-    await expect(rangee).toContainText('Une question avant de réserver')
+    const feuille = page.getByRole('dialog', { name: contact.nom })
+    await expect(feuille).toBeVisible()
+    await expect(feuille).toContainText(SUJET_LIBELLES.question_avant_reservation)
+    await expect(feuille).toContainText('Une question avant de réserver')
     await expect(page.getByText('question_avant_reservation')).toHaveCount(0)
+  })
+
+  test('PC (1280 px) : volet de lecture à côté de la liste, sans feuille, premier non lu sélectionné', async () => {
+    await page.setViewportSize(DESKTOP)
+    const contact = contactUnique('Volet Lecture')
+    const reponse = await posterMessageApi(contact, 'question_avant_reservation')
+    expect(reponse.status(), await reponse.text()).toBe(201)
+
+    await ouvrirStudio(page, '/studio/messages')
+    const volet = page.getByRole('region', { name: 'Lecture du message' })
+    await expect(volet).toBeVisible()
+    await expect(page.getByRole('dialog')).toHaveCount(0)
+
+    // Un message non lu est ouvert d'office dans le volet, sa ligne est marquée comme courante.
+    await expect(page.locator('[aria-current="true"]')).toHaveCount(1)
+    await expect(volet.getByRole('heading', { level: 2 })).toBeVisible()
+
+    // Sélectionner une ligne remplace le contenu du volet, sans feuille.
+    const ligne = page.getByRole('button', { name: new RegExp(contact.nom) })
+    await ligne.click()
+    await expect(ligne).toHaveAttribute('aria-current', 'true')
+    await expect(volet.getByRole('heading', { level: 2, name: contact.nom })).toBeVisible()
+    await expect(volet).toContainText(SUJET_LIBELLES.question_avant_reservation)
+    await expect(page.getByRole('dialog')).toHaveCount(0)
   })
 })

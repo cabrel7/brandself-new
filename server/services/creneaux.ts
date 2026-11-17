@@ -1,5 +1,5 @@
 import { Temporal } from '@js-temporal/polyfill'
-import { and, asc, eq, inArray, isNotNull } from 'drizzle-orm'
+import { and, asc, eq, inArray } from 'drizzle-orm'
 import type { ReservationStatut } from '../../shared/agenda'
 import { disponibilites, indisponibilites, reservations, services, vitrines } from '../../shared/db/schema'
 import { NotFoundError } from '../exceptions/http'
@@ -7,6 +7,7 @@ import { db } from '../utils/db'
 import { hasValidUsernameFormat, normalizeUsername } from '../utils/username'
 import { getPlanPublic, sqlIdsVisibles } from './plan-visibilite'
 import { evaluerQuota } from './plans'
+import { sqlVitrinePublique } from './visibilite'
 import { getServiceFlow, isServiceType } from './reservations-regles'
 
 export interface DisponibiliteCreneaux {
@@ -172,7 +173,8 @@ export async function requirePublicAgendaService(
     .innerJoin(services, eq(services.vitrineId, vitrines.id))
     .where(and(
       eq(vitrines.username, username),
-      isNotNull(vitrines.publieeLe),
+      // A2 : publiée, non bloquée, titulaire non suspendu. Même 404 qu'une vitrine non publiée (D-A2-10).
+      sqlVitrinePublique(),
       selector,
       eq(services.actif, true),
       eq(services.reservable, true),

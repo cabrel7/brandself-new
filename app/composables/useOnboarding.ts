@@ -12,6 +12,7 @@ import type { OnboardingEtape } from '#shared/onboarding'
 import { DEFAULT_PALETTE } from '#shared/palettes'
 import type { Palette } from '#shared/palettes'
 import type { OnboardingEtapeInput } from '#shared/schemas/onboarding'
+import { validateUsername } from '#shared/schemas/username'
 import type { NextStep } from '#shared/vitrine'
 import type { EtatUsername } from '~/composables/useUsernameDisponible'
 import type { ErreurGeneration } from '~/composables/useGeneration'
@@ -100,6 +101,7 @@ export function useOnboarding() {
   const presentation = ref('')
   const servicesActifs = ref<boolean[]>(Array.from({ length: SERVICES_PROPOSES }, () => true))
   const username = ref('')
+  const adresseSouhaitee = useAdresseSouhaitee()
   const palette = ref<Palette>(DEFAULT_PALETTE)
 
   const { enCours: televersement, erreur: erreurTeleversement, televerser } = useMediaUpload()
@@ -376,10 +378,21 @@ export function useOnboarding() {
   // ---------- Étape 4 : adresse et publication ----------
 
   // L'adresse suggérée remplit le champ tant que la personne n'y a pas touché.
+  // L'adresse choisie sur la page d'accueil (cookie, revalidé) prime sur la suggestion, si le champ est vide.
   let derniereSuggestion = ''
   watch([etape, onboarding], ([courante, charge]) => {
     if (courante !== 4 || !charge) return
-    const suggestion = charge.usernameSuggere
+    let suggestion = charge.usernameSuggere
+    const souhaitee = adresseSouhaitee.value
+    if (souhaitee !== null) {
+      const resultat = validateUsername(souhaitee)
+      if (resultat.success) {
+        // Champ vide ou encore à la valeur proposée (retour à l'étape 3 puis à l'étape 4) : la saisie n'a pas été modifiée.
+        if (username.value === '' || username.value === derniereSuggestion) suggestion = resultat.data
+      } else {
+        adresseSouhaitee.value = null
+      }
+    }
     if (username.value === '' || username.value === derniereSuggestion) username.value = suggestion
     derniereSuggestion = suggestion
   }, { immediate: true })
@@ -399,6 +412,7 @@ export function useOnboarding() {
         method: 'POST',
         body: { username: username.value.trim().toLowerCase(), palette: palette.value },
       })
+      adresseSouhaitee.value = null
       enLigne.value = { username: vitrine.username, prochaineEtape: resume.prochaineEtape }
       return true
     } catch (e) {

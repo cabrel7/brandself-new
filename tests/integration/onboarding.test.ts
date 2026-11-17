@@ -1,7 +1,8 @@
 import { randomUUID } from 'node:crypto'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { eq } from 'drizzle-orm'
+import { eq, sql } from 'drizzle-orm'
 import { db } from '../../server/utils/db'
+import { viderCacheConfiguration } from '../../server/services/configuration/lecture'
 import { redis } from '../../server/utils/redis'
 import { generationsIa, services as tableServices, users, vitrines } from '../../shared/db/schema'
 import {
@@ -1189,7 +1190,7 @@ describe('suppression de compte (cascade)', () => {
     expect(await lireGenerationsDe(a.id)).toHaveLength(0)
     expect(await lireProgression(b.id)).toBeDefined()
     expect(await lireGenerationsDe(b.id)).toHaveLength(1)
-    expect(await db.$count((await import('../../shared/db/schema')).promptsIa)).toBe(2)
+    expect(await db.$count((await import('../../shared/db/schema')).promptsIa)).toBe(4) // onboarding v1 + v2, ameliorer_texte v1, seo_vitrine v1 (migration 0027)
   })
 })
 
@@ -1264,13 +1265,30 @@ describe('purgeProgressionsAbandonnees : rétention des données personnelles (r
   })
 })
 
+// A5 : la limite d'un plan est lue sur la version ACTIVE de `configuration_versions` (le code n'est qu'un repli). Ce test
+// simule une limite plus basse en modifiant la version active le temps du test, puis la restaure : le déclencheur
+// `configuration_versions_proteger` est désactivé pour cela (même méthode que `avecPromptModifie`), et réactivé dans `finally`.
+async function limiteServicesGratuit(): Promise<number> {
+  const resultat = await db.execute<{ services: number }>(sql`SELECT (valeurs->>'services')::int AS services FROM configuration_versions WHERE categorie = 'plan' AND cle = 'gratuit' AND statut = 'active'`)
+  return Number(resultat.rows[0]?.services)
+}
+
+async function fixerLimiteServicesGratuit(valeur: number): Promise<void> {
+  await db.execute(sql`ALTER TABLE configuration_versions DISABLE TRIGGER configuration_versions_proteger`)
+  try {
+    await db.execute(sql`UPDATE configuration_versions SET valeurs = jsonb_set(valeurs, '{services}', to_jsonb(${valeur}::int)) WHERE categorie = 'plan' AND cle = 'gratuit' AND statut = 'active'`)
+  } finally {
+    await db.execute(sql`ALTER TABLE configuration_versions ENABLE TRIGGER configuration_versions_proteger`)
+  }
+  viderCacheConfiguration()
+}
+
 describe('terminer : quota de services du plan (S10 CA89)', () => {
   it('should create at most the services the plan still allows and still publish the vitrine, never failing the sign-up', async () => {
     const { terminer } = await onboardingService()
-    const { PLANS } = await import('../../server/config/plans')
     const { user } = await preparer([true, true, true])
-    const avant = PLANS.gratuit.services
-    PLANS.gratuit.services = 2
+    const avant = await limiteServicesGratuit()
+    await fixerLimiteServicesGratuit(2)
     try {
       const resultat = await terminer(user.id, schemaOnboardingTerminer.parse({ username: 'dr-cabrel-quota', palette: 'sauge' }))
 
@@ -1279,7 +1297,7 @@ describe('terminer : quota de services du plan (S10 CA89)', () => {
       expect(vitrine.publieeLe).toBeInstanceOf(Date)
       expect(await lireServicesDe(vitrine.id)).toHaveLength(2)
     } finally {
-      PLANS.gratuit.services = avant
+      await fixerLimiteServicesGratuit(avant)
     }
   })
 })

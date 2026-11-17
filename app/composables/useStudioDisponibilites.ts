@@ -1,13 +1,19 @@
 import type { AgendaStudioReponse, DisponibiliteDTO, IndisponibiliteDTO } from '#shared/dto'
+import type { IndisponibiliteCreateDTO } from '#shared/dto/agenda'
 import type { PasCreneauMinutes } from '#shared/agenda'
 import {
   DISPONIBILITES_MAX,
   HORIZON_JOURS_MAX,
+  INDISPONIBILITE_PLAGE_MAX_JOURS,
   PAS_CRENEAU_MINUTES,
   PREAVIS_HEURES_MAX,
   RAISON_INDISPONIBILITE_MAX,
 } from '#shared/agenda'
-import { itemsFuseaux } from '~/composables/useCompte'
+import { nombreJoursPlage } from '#shared/agenda-plage'
+import type { ErreurApi } from './useApiErreur'
+import { itemsFuseaux } from './useCompte'
+
+export { nombreJoursPlage }
 
 /** Partagé avec useStudioAgenda (split S7-bis) : mêmes options de fraîcheur pour le studio. */
 export const TOUJOURS_FRAIS = { server: false, lazy: true, getCachedData: () => undefined } as const
@@ -47,9 +53,20 @@ export interface ErreursDisponibilitesAgenda {
   horizonJours?: string
 }
 
+export type ModeIndisponibilite = 'date' | 'plage'
+export type ChampIndisponibilite = 'date' | 'debut' | 'fin' | 'raison'
+
 export interface ErreursIndisponibiliteAgenda {
   date?: string
+  debut?: string
+  fin?: string
   raison?: string
+}
+
+/** Retour de la zone Indisponibilités : `info` = neutre (rien à faire), `avertissement` = action à prévoir. */
+export interface MessageIndisponibilite {
+  type: 'succes' | 'info' | 'avertissement' | 'erreur'
+  texte: string
 }
 
 export interface IndisponibiliteAgendaVue extends IndisponibiliteDTO {
@@ -80,11 +97,185 @@ const JOURS_SEMAINE = [
   { numero: 7, libelle: 'Dimanche' },
 ] as const
 
+/** Numéros ISO des sept jours, dans l'ordre d'affichage. */
+export const JOURS_NUMEROS: readonly number[] = JOURS_SEMAINE.map((jour) => jour.numero)
+/** Lundi à vendredi : jours remplis par la « Semaine type ». */
+export const SEMAINE_TYPE_JOURS: readonly number[] = [1, 2, 3, 4, 5]
+export const PLAGE_PAR_DEFAUT = { debut: DEBUT_PAR_DEFAUT, fin: FIN_PAR_DEFAUT } as const
+
+/** Plage telle qu'éditée dans la feuille d'un jour : copie locale, sans jour ni identifiant serveur. */
+export interface PlageSaisie {
+  cle: string
+  debut: string
+  fin: string
+}
+
+export type ErreursPlages = Record<string, Partial<Record<ChampPlageAgenda, string>>>
+
 export function minutesDepuisMinuit(heure: string): number | null {
   if (!HEURE_REGEX.test(heure)) return null
   const [heures, minutes] = heure.split(':').map(Number)
   if (heures === undefined || minutes === undefined) return null
   return heures * 60 + minutes
+}
+
+/** « 09:00 » → « 9h », « 09:30 » → « 9h30 ». Une valeur illisible est rendue telle quelle. */
+export function formaterHeure(heure: string): string {
+  const minutes = minutesDepuisMinuit(heure)
+  if (minutes === null) return heure
+  const reste = minutes % 60
+  return reste === 0 ? `${Math.floor(minutes / 60)}h` : `${Math.floor(minutes / 60)}h${String(reste).padStart(2, '0')}`
+}
+
+/** Plages d'un jour triées par heure de début : « 9h–12h », « 14h–17h »… */
+export function libellesPlages(plages: ReadonlyArray<Pick<PlageSaisie, 'debut' | 'fin'>>): string[] {
+  const ordre = (heure: string): number => minutesDepuisMinuit(heure) ?? Number.MAX_SAFE_INTEGER
+  return [...plages]
+    .sort((a, b) => ordre(a.debut) - ordre(b.debut) || ordre(a.fin) - ordre(b.fin))
+    .map((plage) => `${formaterHeure(plage.debut)}–${formaterHeure(plage.fin)}`)
+}
+
+/**
+ * Phrase lisible à voix haute : « de 9h à 12h », « de 9h à 12h et de 14h à 17h »,
+ * « de 8h à 10h, de 11h à 12h et de 14h à 17h ». Vide sans plage.
+ */
+export function decrirePlages(plages: ReadonlyArray<Pick<PlageSaisie, 'debut' | 'fin'>>): string {
+  const ordre = (heure: string): number => minutesDepuisMinuit(heure) ?? Number.MAX_SAFE_INTEGER
+  const phrases = [...plages]
+    .sort((a, b) => ordre(a.debut) - ordre(b.debut) || ordre(a.fin) - ordre(b.fin))
+    .map((plage) => `de ${formaterHeure(plage.debut)} à ${formaterHeure(plage.fin)}`)
+  const derniere = phrases.at(-1)
+  if (derniere === undefined) return ''
+  return phrases.length === 1 ? derniere : `${phrases.slice(0, -1).join(', ')} et ${derniere}`
+}
+
+/** Nom accessible de la ligne d'un jour : « Lundi : de 9h à 12h et de 14h à 17h. Modifier ». */
+export function nomLigneJour(libelle: string, plages: ReadonlyArray<Pick<PlageSaisie, 'debut' | 'fin'>>): string {
+  return `${libelle} : ${plages.length === 0 ? 'fermé' : decrirePlages(plages)}. Modifier`
+}
+
+/**
+ * La copie saisie dans la feuille diffère-t-elle du jour d'origine ? Compare les heures dans l'ordre
+ * (les clés techniques sont ignorées : supprimer puis recréer la même plage n'est pas une modification).
+ * Des jours cibles choisis comptent toujours comme une modification.
+ */
+export function jourModifie(
+  origine: ReadonlyArray<Pick<PlageSaisie, 'debut' | 'fin'>>,
+  saisies: ReadonlyArray<Pick<PlageSaisie, 'debut' | 'fin'>>,
+  cibles: readonly number[] = [],
+): boolean {
+  if (cibles.length > 0 || origine.length !== saisies.length) return true
+  return saisies.some((saisie, index) => {
+    const initiale = origine[index]
+    return !initiale || initiale.debut !== saisie.debut || initiale.fin !== saisie.fin
+  })
+}
+
+/** Résumé d'un jour : « 9h–12h · 14h–17h », ou « Fermé » sans plage. */
+export function resumeJour(plages: ReadonlyArray<Pick<PlageSaisie, 'debut' | 'fin'>>): string {
+  return plages.length === 0 ? 'Fermé' : libellesPlages(plages).join(' · ')
+}
+
+/**
+ * Valide les plages d'UN jour : heures lisibles, fin après début, pas de chevauchement.
+ * Pure : renvoie les erreurs par clé de plage (objet vide = jour valide).
+ */
+export function validerPlagesJour(plages: readonly PlageSaisie[]): ErreursPlages {
+  const erreurs: ErreursPlages = {}
+  for (const plage of plages) {
+    const debut = minutesDepuisMinuit(plage.debut)
+    const fin = minutesDepuisMinuit(plage.fin)
+    const erreursPlage: Partial<Record<ChampPlageAgenda, string>> = {}
+    if (debut === null) erreursPlage.debut = 'Indiquez une heure de début valide.'
+    if (fin === null) erreursPlage.fin = 'Indiquez une heure de fin valide.'
+    else if (debut !== null && debut >= fin) erreursPlage.fin = 'La fin doit être après le début, le même jour.'
+    if (Object.keys(erreursPlage).length > 0) erreurs[plage.cle] = erreursPlage
+  }
+  const ordonnees = plages
+    .map((plage) => ({ plage, debut: minutesDepuisMinuit(plage.debut), fin: minutesDepuisMinuit(plage.fin) }))
+    .filter((item): item is { plage: PlageSaisie, debut: number, fin: number } => item.debut !== null && item.fin !== null)
+    .sort((a, b) => a.debut - b.debut || a.fin - b.fin)
+  for (let index = 1; index < ordonnees.length; index += 1) {
+    const precedente = ordonnees[index - 1]
+    const courante = ordonnees[index]
+    if (precedente && courante && courante.debut < precedente.fin) {
+      erreurs[courante.plage.cle] = { ...erreurs[courante.plage.cle], debut: 'Cette plage chevauche la précédente.' }
+    }
+  }
+  return erreurs
+}
+
+/**
+ * Remplace les plages du jour `numero` par la copie saisie dans la feuille. Une plage dont la clé
+ * existe déjà garde sa clé et son `id` ; une nouvelle plage reçoit une clé de `nouvelleCle` (id null).
+ * Pure : l'entrée n'est pas mutée, les autres jours sont copiés à l'identique.
+ */
+export function remplacerPlagesDuJour(
+  plages: readonly PlageAgendaEdition[],
+  numero: number,
+  saisies: readonly PlageSaisie[],
+  nouvelleCle: () => string,
+): PlageAgendaEdition[] {
+  const existantes = new Map(plages.filter((plage) => plage.jourSemaine === numero).map((plage) => [plage.cle, plage]))
+  const autres = plages.filter((plage) => plage.jourSemaine !== numero).map((plage) => ({ ...plage }))
+  const duJour = saisies.map((saisie): PlageAgendaEdition => {
+    const existante = existantes.get(saisie.cle)
+    return {
+      cle: existante ? existante.cle : nouvelleCle(),
+      id: existante ? existante.id : null,
+      jourSemaine: numero,
+      debut: saisie.debut,
+      fin: saisie.fin,
+    }
+  })
+  return [...autres, ...duJour]
+}
+
+/**
+ * Reproduit les plages du jour `depuisNumero` sur `joursCibles` : les plages actuelles des jours
+ * cibles sont REMPLACÉES (un jour fermé est ouvert). Si le jour source n'a aucune plage, les jours
+ * cibles sont fermés : « appliquer à » copie l'état du jour, fermé compris. Pure : les copies sont de
+ * nouveaux objets (`id: null`, clé de `nouvelleCle`) ; l'entrée n'est pas mutée, les jours non ciblés
+ * et le jour source sont inchangés. Le jour source et les numéros inconnus sont ignorés dans les cibles.
+ */
+export function appliquerPlagesAuxJours(
+  plages: readonly PlageAgendaEdition[],
+  depuisNumero: number,
+  joursCibles: readonly number[],
+  nouvelleCle: () => string,
+): PlageAgendaEdition[] {
+  const cibles = [...new Set(joursCibles)]
+    .filter((numero) => numero !== depuisNumero && JOURS_NUMEROS.includes(numero))
+    .sort((a, b) => a - b)
+  const modele = plages.filter((plage) => plage.jourSemaine === depuisNumero)
+  const conservees = plages.filter((plage) => !cibles.includes(plage.jourSemaine)).map((plage) => ({ ...plage }))
+  const copies = cibles.flatMap((numero) => modele.map((plage): PlageAgendaEdition => ({
+    cle: nouvelleCle(),
+    id: null,
+    jourSemaine: numero,
+    debut: plage.debut,
+    fin: plage.fin,
+  })))
+  return [...conservees, ...copies]
+}
+
+/** Semaine type : lundi à vendredi, 9h–17h, week-end fermé. Pure : nouvelles plages sans `id`. */
+export function semaineType(nouvelleCle: () => string): PlageAgendaEdition[] {
+  return SEMAINE_TYPE_JOURS.map((jourSemaine): PlageAgendaEdition => ({
+    cle: nouvelleCle(),
+    id: null,
+    jourSemaine,
+    ...PLAGE_PAR_DEFAUT,
+  }))
+}
+
+/** Nombre de plages encore ajoutables au jour `numero`, la limite étant globale à la semaine. */
+export function plagesRestantesPourJour(
+  jours: ReadonlyArray<{ numero: number, plages: readonly unknown[] }>,
+  numero: number,
+): number {
+  const autres = jours.filter((jour) => jour.numero !== numero).reduce((total, jour) => total + jour.plages.length, 0)
+  return Math.max(0, DISPONIBILITES_MAX - autres)
 }
 
 export function entierValide(valeur: string, minimum: number, maximum: number): number | null {
@@ -105,12 +296,163 @@ function trierIndisponibilites(items: readonly IndisponibiliteDTO[]): Indisponib
   return [...items].sort((a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id))
 }
 
-function formaterDateLocale(date: string): string {
+/**
+ * « 2026-12-15 » → « lundi 15 décembre » (l'année n'est ajoutée que si elle diffère de `anneeCourante`,
+ * ou toujours si elle est omise). Date de calendrier pure : aucun décalage de fuseau.
+ */
+export function formaterDateLocale(date: string, anneeCourante?: number): string {
   const [annee, mois, jour] = date.split('-').map(Number)
   if (!annee || !mois || !jour) return date
   return new Intl.DateTimeFormat('fr-FR', {
-    weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC',
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    ...(annee === anneeCourante ? {} : { year: 'numeric' as const }),
+    timeZone: 'UTC',
   }).format(new Date(Date.UTC(annee, mois - 1, jour)))
+}
+
+const FUSEAU_REPLI = 'Africa/Douala'
+
+/** Date du jour « AAAA-MM-JJ » dans le fuseau de la vitrine (repli sur Africa/Douala si le fuseau est inconnu). */
+export function dateDuJourDansFuseau(maintenant: Date, fuseau: string): string {
+  const formater = (zone: string): string => new Intl.DateTimeFormat('en-CA', {
+    timeZone: zone, year: 'numeric', month: '2-digit', day: '2-digit',
+  }).format(maintenant)
+  try {
+    return formater(fuseau)
+  }
+  catch {
+    return formater(FUSEAU_REPLI)
+  }
+}
+
+/**
+ * Sépare les indisponibilités : « à venir » (aujourd'hui compris) du plus proche au plus lointain,
+ * « passées » de la plus récente à la plus ancienne. Pure : `aujourdhui` au format AAAA-MM-JJ.
+ */
+export function separerIndisponibilites<T extends { date: string, id: string }>(
+  items: readonly T[],
+  aujourdhui: string,
+): { aVenir: T[], passees: T[] } {
+  const ordre = (a: T, b: T): number => a.date.localeCompare(b.date) || a.id.localeCompare(b.id)
+  return {
+    aVenir: items.filter((item) => item.date >= aujourdhui).sort(ordre),
+    passees: items.filter((item) => item.date < aujourdhui).sort((a, b) => ordre(b, a)),
+  }
+}
+
+const MESSAGE_DATE_INVALIDE = 'Choisissez une date valide.'
+const MESSAGE_DATE_A_VENIR = 'Choisissez une date à venir.'
+const MESSAGE_DATE_DEJA_FERMEE = 'Cette date est déjà indisponible.'
+const MESSAGE_DATE_PASSEE_SERVEUR = 'Cette date est déjà passée. Choisissez une date à venir.'
+const MESSAGE_FIN_AVANT_DEBUT = 'La date de fin doit être le même jour que le début, ou après.'
+const MESSAGE_ERREUR_AJOUT = 'Nous n’avons pas pu ajouter cette indisponibilité. Réessayez dans un instant.'
+
+/** « 1 jour », « 5 jours ». */
+export function libelleNombreJours(nombre: number): string {
+  return `${nombre} ${nombre > 1 ? 'jours' : 'jour'}`
+}
+
+/** Limite de la plage, au format du message sous le champ « Au ». */
+export function messagePlageMax(maximum: number = INDISPONIBILITE_PLAGE_MAX_JOURS): string {
+  return `Au maximum ${maximum} jours à la fois.`
+}
+
+/** Nombre de jours (bornes incluses) de la plage saisie ; `null` tant qu'une date est illisible ou que la fin précède le début. */
+export function joursPlageSaisie(debut: string, fin: string): number | null {
+  if (!dateLocaleValide(debut) || !dateLocaleValide(fin)) return null
+  const jours = nombreJoursPlage(debut, fin)
+  return jours >= 1 ? jours : null
+}
+
+/** Confort : le serveur fait autorité. Valide une date unique (lisible, à venir, pas déjà fermée). */
+export function validerDateIndisponibilite(
+  date: string,
+  aujourdhui: string,
+  datesFermees: readonly string[],
+): string | undefined {
+  if (!dateLocaleValide(date)) return MESSAGE_DATE_INVALIDE
+  if (date < aujourdhui) return MESSAGE_DATE_A_VENIR
+  if (datesFermees.includes(date)) return MESSAGE_DATE_DEJA_FERMEE
+  return undefined
+}
+
+/** Confort : le serveur fait autorité. Valide « Du » / « Au » : dates lisibles, début à venir, fin ≥ début, limite de jours. */
+export function validerPlageIndisponibilite(
+  debut: string,
+  fin: string,
+  aujourdhui: string,
+  maximum: number = INDISPONIBILITE_PLAGE_MAX_JOURS,
+): Pick<ErreursIndisponibiliteAgenda, 'debut' | 'fin'> {
+  const erreurs: Pick<ErreursIndisponibiliteAgenda, 'debut' | 'fin'> = {}
+  const debutValide = dateLocaleValide(debut)
+  if (!debutValide) erreurs.debut = MESSAGE_DATE_INVALIDE
+  else if (debut < aujourdhui) erreurs.debut = MESSAGE_DATE_A_VENIR
+  if (!dateLocaleValide(fin)) erreurs.fin = MESSAGE_DATE_INVALIDE
+  else if (debutValide && fin < debut) erreurs.fin = MESSAGE_FIN_AVANT_DEBUT
+  else if (debutValide && nombreJoursPlage(debut, fin) > maximum) erreurs.fin = messagePlageMax(maximum)
+  return erreurs
+}
+
+/** Ajoute les lignes créées à la liste (sans doublon d'identifiant) et trie par date. Pure. */
+export function fusionnerIndisponibilites(
+  existantes: readonly IndisponibiliteDTO[],
+  creees: readonly IndisponibiliteDTO[],
+): IndisponibiliteDTO[] {
+  const nouveaux = new Set(creees.map((item) => item.id))
+  return trierIndisponibilites([...existantes.filter((item) => !nouveaux.has(item.id)), ...creees])
+}
+
+/** Texte de succès d'un ajout : date unique, plage (singulier/pluriel, dates déjà fermées) ou plage déjà entièrement fermée. */
+export function libelleResultatIndisponibilites(reponse: IndisponibiliteCreateDTO): string {
+  if (!('items' in reponse)) return 'Indisponibilité ajoutée.'
+  if (reponse.creees === 0) return 'Ces dates étaient déjà fermées.'
+  const fermes = `${reponse.creees} ${reponse.creees > 1 ? 'jours fermés' : 'jour fermé'}`
+  if (reponse.ignorees === 0) return `${fermes}.`
+  return `${fermes} (${reponse.ignorees} ${reponse.ignorees > 1 ? 'déjà fermés' : 'déjà fermé'}).`
+}
+
+/** Avertissement quand des réservations tombent sur les dates fermées (elles ne sont pas annulées). Vide si aucune. */
+export function libelleAvertissementReservations(nombre: number): string {
+  if (nombre <= 0) return ''
+  if (nombre === 1) return '1 réservation existe déjà sur ces dates. Elle n’est pas annulée : traitez-la depuis l’agenda.'
+  return `${nombre} réservations existent déjà sur ces dates. Elles ne sont pas annulées : traitez-les depuis l’agenda.`
+}
+
+/** Message unique de la zone après un ajout : l'avertissement REMPLACE le succès, le « déjà fermé » est neutre. */
+export function messageResultatIndisponibilites(reponse: IndisponibiliteCreateDTO): MessageIndisponibilite {
+  const avertissement = libelleAvertissementReservations(reponse.reservationsConcernees)
+  if (avertissement) return { type: 'avertissement', texte: avertissement }
+  const dejaFermees = 'items' in reponse && reponse.creees === 0
+  return { type: dejaFermees ? 'info' : 'succes', texte: libelleResultatIndisponibilites(reponse) }
+}
+
+/**
+ * Erreurs de champ d'une réponse 400/409/422 de l'ajout : le message du serveur est affiché sous le champ
+ * concerné (`debut` en mode plage pour une date passée). Vide si l'erreur n'est pas liée à un champ.
+ */
+export function erreursIndisponibiliteDepuisApi(
+  api: Pick<ErreurApi, 'code' | 'champs'>,
+  mode: ModeIndisponibilite,
+  messageServeur: string | null,
+): ErreursIndisponibiliteAgenda {
+  const champDate = mode === 'date' ? 'date' : 'debut'
+  const erreurs: ErreursIndisponibiliteAgenda = {}
+  if (api.code === 'INDISPONIBILITE_DATE_PASSEE') erreurs[champDate] = messageServeur ?? MESSAGE_DATE_PASSEE_SERVEUR
+  else if (api.code === 'INDISPONIBILITE_EXISTANTE') erreurs[champDate] = messageServeur ?? MESSAGE_DATE_DEJA_FERMEE
+  for (const champ of ['date', 'debut', 'fin', 'raison'] as const) {
+    const premier = api.champs[champ]?.[0]
+    if (premier && !erreurs[champ]) erreurs[champ] = premier
+  }
+  return erreurs
+}
+
+function lireMessageServeur(erreur: unknown): string | null {
+  if (typeof erreur !== 'object' || erreur === null || !('data' in erreur)) return null
+  const corps = erreur.data
+  if (typeof corps !== 'object' || corps === null || !('message' in corps)) return null
+  return typeof corps.message === 'string' && corps.message !== '' ? corps.message : null
 }
 
 /**
@@ -137,7 +479,9 @@ export function useStudioDisponibilites() {
     ...TOUJOURS_FRAIS,
   })
 
+  /** Message des HEURES de la semaine uniquement ; les indisponibilités ont le leur (zone distincte). */
   const message = ref<MessageStudioAgenda | null>(null)
+  const messageIndisponibilite = ref<MessageIndisponibilite | null>(null)
   const plages = ref<PlageAgendaEdition[]>([])
   const reglages = ref<ReglagesAgendaEdition>({
     fuseau: 'Africa/Douala',
@@ -184,6 +528,7 @@ export function useStudioDisponibilites() {
   })))
   const fuseauItems = computed(() => itemsFuseaux(reglages.value.fuseau))
   const pasItems = PAS_CRENEAU_MINUTES.map((valeur) => ({ label: `${valeur} minutes`, value: valeur }))
+  const aucunePlage = computed(() => plages.value.length === 0)
   const disponibilitesModifiees = computed(() => Boolean(disponibilitesData.value)
     && empreinteDisponibilites() !== derniereEmpreinte)
 
@@ -195,54 +540,39 @@ export function useStudioDisponibilites() {
     message.value = { type, texte }
   }
 
-  function ajouterPlage(jourSemaine: number): void {
-    effacerMessage()
-    if (plages.value.length >= DISPONIBILITES_MAX) {
-      afficherMessage('erreur', `Vous pouvez enregistrer jusqu’à ${DISPONIBILITES_MAX} plages.`)
-      return
+  /** Retire des erreurs celles des plages qui n'existent plus ou dont le jour vient d'être réécrit. */
+  function purgerErreurs(plagesRestantes: readonly PlageAgendaEdition[], joursTouches: readonly number[]): void {
+    const conservees = new Set(plagesRestantes.filter((plage) => !joursTouches.includes(plage.jourSemaine)).map((plage) => plage.cle))
+    erreursDisponibilites.value = {
+      ...erreursDisponibilites.value,
+      plages: Object.fromEntries(
+        Object.entries(erreursDisponibilites.value.plages).filter(([cle]) => conservees.has(cle)),
+      ),
     }
-    plages.value.push({
-      cle: nouvelleCle('plage'),
-      id: null,
-      jourSemaine,
-      debut: DEBUT_PAR_DEFAUT,
-      fin: FIN_PAR_DEFAUT,
-    })
   }
 
-  function supprimerPlage(cle: string): void {
+  /**
+   * « Appliquer » de la feuille d'un jour : applique la copie saisie au BROUILLON, puis la reproduit
+   * sur `cibles` (leurs plages sont remplacées). Renvoie un message si rien n'a été appliqué
+   * (heures invalides ou limite de plages dépassée), `null` en cas de succès.
+   */
+  function appliquerJour(numero: number, saisies: readonly PlageSaisie[], cibles: readonly number[]): string | null {
+    if (Object.keys(validerPlagesJour(saisies)).length > 0) return 'Corrigez les heures signalées pour continuer.'
+    const cle = (): string => nouvelleCle('plage')
+    const resultat = appliquerPlagesAuxJours(remplacerPlagesDuJour(plages.value, numero, saisies, cle), numero, cibles, cle)
+    if (resultat.length > DISPONIBILITES_MAX) return `Vous pouvez enregistrer jusqu’à ${DISPONIBILITES_MAX} plages.`
     effacerMessage()
-    plages.value = plages.value.filter((plage) => plage.cle !== cle)
-    const erreurs = Object.fromEntries(
-      Object.entries(erreursDisponibilites.value.plages).filter(([cleErreur]) => cleErreur !== cle),
-    )
-    erreursDisponibilites.value = { ...erreursDisponibilites.value, plages: erreurs }
+    plages.value = resultat
+    purgerErreurs(resultat, [numero, ...cibles])
+    return null
   }
 
-  /** Interrupteur d'un jour : ouvrir ajoute la plage par défaut, fermer retire toutes les plages du jour. */
-  function basculerJour(jourSemaine: number, ouvert: boolean): void {
-    const plagesDuJour = plages.value.filter((plage) => plage.jourSemaine === jourSemaine)
-    if (ouvert) {
-      if (plagesDuJour.length === 0) ajouterPlage(jourSemaine)
-      return
-    }
+  /** Premier usage : remplit le brouillon avec la semaine type, uniquement si aucune plage n'existe. */
+  function appliquerSemaineType(): void {
+    if (plages.value.length > 0) return
     effacerMessage()
-    const clesRetirees = new Set(plagesDuJour.map((plage) => plage.cle))
-    plages.value = plages.value.filter((plage) => !clesRetirees.has(plage.cle))
-    const erreurs = Object.fromEntries(
-      Object.entries(erreursDisponibilites.value.plages).filter(([cleErreur]) => !clesRetirees.has(cleErreur)),
-    )
-    erreursDisponibilites.value = { ...erreursDisponibilites.value, plages: erreurs }
-  }
-
-  function modifierPlage(cle: string, champ: ChampPlageAgenda, valeur: string): void {
-    effacerMessage()
-    const plage = plages.value.find((item) => item.cle === cle)
-    if (!plage) return
-    plage[champ] = valeur
-    const autreChamp: ChampPlageAgenda = champ === 'debut' ? 'fin' : 'debut'
-    const autreErreur = erreursDisponibilites.value.plages[cle]?.[autreChamp]
-    erreursDisponibilites.value.plages[cle] = autreErreur ? { [autreChamp]: autreErreur } : {}
+    plages.value = semaineType(() => nouvelleCle('plage'))
+    erreursDisponibilites.value = { ...erreursDisponibilites.value, plages: {} }
   }
 
   function modifierReglage(champ: ChampReglageAgenda, valeur: string | number): void {
@@ -266,32 +596,8 @@ export function useStudioDisponibilites() {
   function validerDisponibilites(): { preavisHeures: number, horizonJours: number } | null {
     const erreurs: ErreursDisponibilitesAgenda = { plages: {} }
 
-    for (const plage of plages.value) {
-      const debut = minutesDepuisMinuit(plage.debut)
-      const fin = minutesDepuisMinuit(plage.fin)
-      const erreursPlage: Partial<Record<ChampPlageAgenda, string>> = {}
-      if (debut === null) erreursPlage.debut = 'Indiquez une heure de début valide.'
-      if (fin === null) erreursPlage.fin = 'Indiquez une heure de fin valide.'
-      else if (debut !== null && debut >= fin) erreursPlage.fin = 'La fin doit être après le début, le même jour.'
-      if (Object.keys(erreursPlage).length > 0) erreurs.plages[plage.cle] = erreursPlage
-    }
-
     for (const jour of JOURS_SEMAINE) {
-      const ordonnees = plages.value
-        .filter((plage) => plage.jourSemaine === jour.numero)
-        .map((plage) => ({ plage, debut: minutesDepuisMinuit(plage.debut), fin: minutesDepuisMinuit(plage.fin) }))
-        .filter((item): item is { plage: PlageAgendaEdition, debut: number, fin: number } => item.debut !== null && item.fin !== null)
-        .sort((a, b) => a.debut - b.debut || a.fin - b.fin)
-      for (let index = 1; index < ordonnees.length; index += 1) {
-        const precedente = ordonnees[index - 1]
-        const courante = ordonnees[index]
-        if (precedente && courante && courante.debut < precedente.fin) {
-          erreurs.plages[courante.plage.cle] = {
-            ...erreurs.plages[courante.plage.cle],
-            debut: 'Cette plage chevauche la précédente.',
-          }
-        }
-      }
+      Object.assign(erreurs.plages, validerPlagesJour(plages.value.filter((plage) => plage.jourSemaine === jour.numero)))
     }
 
     const preavisHeures = entierValide(reglages.value.preavisHeures, 0, PREAVIS_HEURES_MAX)
@@ -351,7 +657,10 @@ export function useStudioDisponibilites() {
   }
 
   const indisponibilites = ref<IndisponibiliteDTO[]>([])
+  const modeIndisponibilite = ref<ModeIndisponibilite>('date')
   const dateIndisponibilite = ref('')
+  const debutIndisponibilite = ref('')
+  const finIndisponibilite = ref('')
   const raisonIndisponibilite = ref('')
   const erreursIndisponibilite = ref<ErreursIndisponibiliteAgenda>({})
   const ajoutIndisponibiliteEnCours = ref(false)
@@ -362,61 +671,109 @@ export function useStudioDisponibilites() {
     if (reponse) indisponibilites.value = trierIndisponibilites(reponse.items)
   }, { immediate: true })
 
-  const indisponibilitesAffichees = computed<IndisponibiliteAgendaVue[]>(() => indisponibilites.value.map((item) => ({
-    ...item,
-    dateLibelle: formaterDateLocale(item.date),
-  })))
+  const aujourdhui = computed(() => dateDuJourDansFuseau(new Date(), reglages.value.fuseau))
+  const anneeCourante = computed(() => Number(aujourdhui.value.slice(0, 4)))
+  const indisponibilitesSeparees = computed(() => {
+    const { aVenir, passees } = separerIndisponibilites(indisponibilites.value, aujourdhui.value)
+    const vue = (item: IndisponibiliteDTO): IndisponibiliteAgendaVue => ({
+      ...item,
+      dateLibelle: formaterDateLocale(item.date, anneeCourante.value),
+    })
+    return { aVenir: aVenir.map(vue), passees: passees.map(vue) }
+  })
+  const indisponibilitesAVenir = computed(() => indisponibilitesSeparees.value.aVenir)
+  const indisponibilitesPassees = computed(() => indisponibilitesSeparees.value.passees)
 
-  function modifierIndisponibilite(champ: 'date' | 'raison', valeur: string): void {
-    effacerMessage()
+  /** Nombre de jours de la plage en cours de saisie (« 5 jours » en direct), `null` si elle est illisible. */
+  const joursPlage = computed(() => joursPlageSaisie(debutIndisponibilite.value, finIndisponibilite.value))
+  const libelleJoursPlage = computed(() => (joursPlage.value === null ? '' : libelleNombreJours(joursPlage.value)))
+  const plageTropLongue = computed(() => (joursPlage.value ?? 0) > INDISPONIBILITE_PLAGE_MAX_JOURS)
+  const erreurLongueurPlage = computed(() => (plageTropLongue.value ? messagePlageMax() : undefined))
+  const ajoutIndisponibilitePossible = computed(() => (modeIndisponibilite.value === 'date'
+    ? dateIndisponibilite.value !== ''
+    : debutIndisponibilite.value !== '' && finIndisponibilite.value !== '' && !plageTropLongue.value))
+
+  function changerModeIndisponibilite(mode: ModeIndisponibilite): void {
+    if (mode === modeIndisponibilite.value) return
+    modeIndisponibilite.value = mode
+    erreursIndisponibilite.value = {}
+    messageIndisponibilite.value = null
+  }
+
+  function modifierIndisponibilite(champ: ChampIndisponibilite, valeur: string): void {
+    messageIndisponibilite.value = null
     if (champ === 'date') dateIndisponibilite.value = valeur
+    else if (champ === 'debut') debutIndisponibilite.value = valeur
+    else if (champ === 'fin') finIndisponibilite.value = valeur
     else raisonIndisponibilite.value = valeur
-    erreursIndisponibilite.value = champ === 'date'
-      ? { raison: erreursIndisponibilite.value.raison }
-      : { date: erreursIndisponibilite.value.date }
+    // Changer le début peut rendre la fin valide (ou invalide) : son ancienne erreur ne vaut plus.
+    const effacees: readonly ChampIndisponibilite[] = champ === 'debut' ? ['debut', 'fin'] : [champ]
+    erreursIndisponibilite.value = Object.fromEntries(
+      Object.entries(erreursIndisponibilite.value).filter(([nom]) => !effacees.some((effacee) => effacee === nom)),
+    )
   }
 
   async function ajouterIndisponibilite(): Promise<void> {
-    effacerMessage()
-    const erreurs: ErreursIndisponibiliteAgenda = {}
+    if (ajoutIndisponibiliteEnCours.value) return
+    messageIndisponibilite.value = null
+    const mode = modeIndisponibilite.value
     const date = dateIndisponibilite.value
+    const debut = debutIndisponibilite.value
+    const fin = finIndisponibilite.value
     const raison = raisonIndisponibilite.value.trim()
-    if (!dateLocaleValide(date)) erreurs.date = 'Choisissez une date valide.'
-    else if (indisponibilites.value.some((item) => item.date === date)) erreurs.date = 'Cette date est déjà indisponible.'
+
+    const erreurs: ErreursIndisponibiliteAgenda = mode === 'date'
+      ? { date: validerDateIndisponibilite(date, aujourdhui.value, indisponibilites.value.map((item) => item.date)) }
+      : validerPlageIndisponibilite(debut, fin, aujourdhui.value)
     if (raison.length > RAISON_INDISPONIBILITE_MAX) {
       erreurs.raison = `La raison est limitée à ${RAISON_INDISPONIBILITE_MAX} caractères.`
     }
-    erreursIndisponibilite.value = erreurs
-    if (erreurs.date || erreurs.raison) {
-      afficherMessage('erreur', 'Vérifiez l’indisponibilité signalée.')
-      return
-    }
+    const invalide = Object.values(erreurs).some(Boolean)
+    erreursIndisponibilite.value = invalide ? erreurs : {}
+    if (invalide) return
 
-    const temporaire: IndisponibiliteDTO = { id: nouvelleCle('indisponibilite'), date, raison: raison || null }
-    indisponibilites.value = trierIndisponibilites([...indisponibilites.value, temporaire])
-    dateIndisponibilite.value = ''
-    raisonIndisponibilite.value = ''
+    // Date unique : insertion immédiate (annulée en cas d'échec). Plage : on attend le serveur, qui ignore les dates déjà fermées.
+    const temporaire: IndisponibiliteDTO | null = mode === 'date'
+      ? { id: nouvelleCle('indisponibilite'), date, raison: raison || null }
+      : null
+    if (temporaire) {
+      indisponibilites.value = trierIndisponibilites([...indisponibilites.value, temporaire])
+      dateIndisponibilite.value = ''
+      raisonIndisponibilite.value = ''
+    }
     ajoutIndisponibiliteEnCours.value = true
     try {
-      const reponse = await $fetch<{ item: IndisponibiliteDTO }>('/api/studio/agenda/indisponibilites', {
+      const reponse = await $fetch<IndisponibiliteCreateDTO>('/api/studio/agenda/indisponibilites', {
         method: 'POST',
-        body: { date, raison: raison || null },
+        body: mode === 'date' ? { date, raison: raison || null } : { debut, fin, raison: raison || null },
       })
-      indisponibilites.value = trierIndisponibilites(indisponibilites.value.map((item) =>
-        item.id === temporaire.id ? reponse.item : item,
-      ))
-      afficherMessage('succes', 'L’indisponibilité est ajoutée.')
+      const creees = 'items' in reponse ? reponse.items : [reponse.item]
+      indisponibilites.value = fusionnerIndisponibilites(
+        indisponibilites.value.filter((item) => item.id !== temporaire?.id),
+        creees,
+      )
+      if (mode === 'plage') {
+        debutIndisponibilite.value = ''
+        finIndisponibilite.value = ''
+        raisonIndisponibilite.value = ''
+      }
+      messageIndisponibilite.value = messageResultatIndisponibilites(reponse)
     }
     catch (erreur) {
-      indisponibilites.value = indisponibilites.value.filter((item) => item.id !== temporaire.id)
-      dateIndisponibilite.value = date
-      raisonIndisponibilite.value = raison
-      const api = lireErreurApi(erreur)
-      erreursIndisponibilite.value = {
-        date: api.champs.date?.[0],
-        raison: api.champs.raison?.[0],
+      if (temporaire) {
+        indisponibilites.value = indisponibilites.value.filter((item) => item.id !== temporaire.id)
+        dateIndisponibilite.value = date
+        raisonIndisponibilite.value = raison
       }
-      afficherMessage('erreur', 'Nous n’avons pas pu ajouter cette indisponibilité. Réessayez dans un instant.')
+      const api = lireErreurApi(erreur)
+      const parChamp = erreursIndisponibiliteDepuisApi(api, mode, lireMessageServeur(erreur))
+      erreursIndisponibilite.value = parChamp
+      // Erreur liée à un champ : elle s'affiche sous le champ, pas en doublon dans le retour de la zone.
+      messageIndisponibilite.value = Object.keys(parChamp).length > 0
+        ? null
+        : { type: 'erreur', texte: MESSAGE_ERREUR_AJOUT }
+      // Date déjà fermée ailleurs (autre appareil) : la liste affichée doit la montrer.
+      if (api.code === 'INDISPONIBILITE_EXISTANTE') await refreshIndisponibilites()
     }
     finally {
       ajoutIndisponibiliteEnCours.value = false
@@ -424,7 +781,7 @@ export function useStudioDisponibilites() {
   }
 
   function demanderSuppressionIndisponibilite(id: string): void {
-    effacerMessage()
+    messageIndisponibilite.value = null
     suppressionIndisponibiliteAConfirmer.value = id
   }
 
@@ -435,17 +792,17 @@ export function useStudioDisponibilites() {
   async function supprimerIndisponibilite(id: string): Promise<void> {
     const item = indisponibilites.value.find((courant) => courant.id === id)
     if (!item || suppressionIndisponibiliteEnCours.value) return
-    effacerMessage()
+    messageIndisponibilite.value = null
     suppressionIndisponibiliteAConfirmer.value = null
     suppressionIndisponibiliteEnCours.value = id
     indisponibilites.value = indisponibilites.value.filter((courant) => courant.id !== id)
     try {
       await $fetch(`/api/studio/agenda/indisponibilites/${id}`, { method: 'DELETE' })
-      afficherMessage('succes', 'L’indisponibilité est supprimée.')
+      messageIndisponibilite.value = { type: 'succes', texte: 'Indisponibilité supprimée.' }
     }
     catch {
       indisponibilites.value = trierIndisponibilites([...indisponibilites.value, item])
-      afficherMessage('erreur', 'Nous n’avons pas pu supprimer cette indisponibilité. Elle a été rétablie.')
+      messageIndisponibilite.value = { type: 'erreur', texte: 'Nous n’avons pas pu supprimer cette indisponibilité. Elle a été rétablie.' }
     }
     finally {
       suppressionIndisponibiliteEnCours.value = null
@@ -466,6 +823,7 @@ export function useStudioDisponibilites() {
 
   async function rafraichir(): Promise<void> {
     effacerMessage()
+    messageIndisponibilite.value = null
     await Promise.all([refreshDisponibilites(), refreshIndisponibilites()])
   }
 
@@ -473,9 +831,20 @@ export function useStudioDisponibilites() {
     enChargement, enErreur, absente, rafraichir, message, effacerMessage,
     jours, reglages, fuseauItems, pasItems, erreursDisponibilites,
     disponibilitesModifiees, enregistrementDisponibilites,
-    ajouterPlage, supprimerPlage, basculerJour, modifierPlage, modifierReglage, enregistrerDisponibilites,
-    indisponibilites: indisponibilitesAffichees,
+    aucunePlage, appliquerJour, appliquerSemaineType, modifierReglage, enregistrerDisponibilites,
+    indisponibilitesAVenir,
+    indisponibilitesPassees,
+    messageIndisponibilite,
+    dateMinIndisponibilite: aujourdhui,
+    modeIndisponibilite,
+    changerModeIndisponibilite,
     dateIndisponibilite,
+    debutIndisponibilite,
+    finIndisponibilite,
+    joursPlage,
+    libelleJoursPlage,
+    erreurLongueurPlage,
+    ajoutIndisponibilitePossible,
     raisonIndisponibilite,
     raisonIndisponibiliteMax: RAISON_INDISPONIBILITE_MAX,
     erreursIndisponibilite,

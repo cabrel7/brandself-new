@@ -69,7 +69,6 @@ async function envoyer(): Promise<void> {
           name="email"
           required
           :error="erreurs.email"
-          help="Votre confirmation sera envoyée ici."
         >
           <UInput
             v-model="form.email"
@@ -85,7 +84,7 @@ async function envoyer(): Promise<void> {
         </UFormField>
       </div>
 
-      <UFormField name="motif" :error="erreurs.motif" help="Quelques mots pour préparer votre venue.">
+      <UFormField name="motif" :error="erreurs.motif">
         <template #label>Motif de la consultation <span class="font-normal text-texte-secondaire">(facultatif)</span></template>
         <UTextarea
           v-model="form.motif"
@@ -111,13 +110,10 @@ async function envoyer(): Promise<void> {
     </section>
 
     <section class="flex flex-col gap-4" aria-labelledby="reglement-titre">
-      <h2 id="reglement-titre" class="text-(length:--fs-24) font-bold md:text-(length:--fs-32)">Comment souhaitez-vous régler ?</h2>
+      <h2 id="reglement-titre" class="text-(length:--fs-24) font-bold md:text-(length:--fs-32)">Règlement</h2>
       <div class="flex items-start gap-4 rounded-(--rayon) border border-bordure bg-accent-doux p-5">
         <UIcon name="i-ph-wallet" class="mt-0.5 size-6 shrink-0 text-accent" aria-hidden="true" />
-        <div>
-          <h3 class="font-(family-name:--font-texte) text-(length:--fs-20) font-semibold">Payer sur place</h3>
-          <p class="text-texte-secondaire">Vous réglerez directement auprès de {{ professionnel }} lors du rendez-vous.</p>
-        </div>
+        <h3 class="font-(family-name:--font-texte) text-(length:--fs-20) font-semibold">Payer sur place</h3>
       </div>
     </section>
 
@@ -158,7 +154,7 @@ async function envoyer(): Promise<void> {
         block
       />
       <p class="text-(length:--fs-14) text-texte-secondaire">
-        En envoyant, vous acceptez que vos informations soient transmises à {{ professionnel }} pour ce rendez-vous.
+        Vos informations sont transmises à {{ professionnel }} pour ce rendez-vous.
       </p>
     </div>
   </form>

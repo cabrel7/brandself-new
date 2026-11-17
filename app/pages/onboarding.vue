@@ -15,7 +15,7 @@ onMounted(charger)
 
 useSeoMeta({
   title: computed(() =>
-    // Le gabarit de titre de l'application ajoute déjà « | Brandself ».
+    // Le gabarit de titre de l'application ajoute déjà « | jesuis.pro ».
     `${ONBOARDING_ETAPES[etape.value]} — Étape ${etape.value} sur ${ONBOARDING_ETAPES_TOTAL}`,
   ),
   robots: 'noindex',
@@ -51,13 +51,11 @@ const actionDesactivee = computed(() => attendProposition.value || (etape.value 
 
 const AIDES_ADRESSE: Partial<Record<EtatUsername, string>> = {
   vide: 'Choisissez une adresse pour continuer.',
-  verification: 'Votre adresse est en cours de vérification.',
   pris: 'Cette adresse est déjà prise : choisissez-en une autre.',
   reserve: 'Cette adresse est réservée : choisissez-en une autre.',
   format: 'Corrigez votre adresse pour continuer.',
 }
 const aideAction = computed(() => {
-  if (attendProposition.value) return 'Votre proposition est en cours de rédaction.'
   if (etape.value === 4) return AIDES_ADRESSE[etatUsername.value]
   return undefined
 })
@@ -89,7 +87,7 @@ const { ready: squeletteVisible } = useTimeout(200, { controls: true })
       <UEmpty
         icon="i-ph-warning-circle"
         title="Votre inscription ne s’affiche pas"
-        description="Nous n’avons pas pu la charger. Vos informations sont gardées."
+        description="Nous n’avons pas pu la charger."
         :as="{ title: 'h1' }"
         :actions="[{ label: 'Réessayer', size: 'xl', onClick: () => charger() }]"
       />
@@ -110,11 +108,12 @@ const { ready: squeletteVisible } = useTimeout(200, { controls: true })
       <h1
         ref="titre"
         tabindex="-1"
-        class="mt-8 mb-0 font-(family-name:--font-titre) text-(length:--fs-32) leading-[1.15] font-bold text-encre outline-none"
+        class="mt-8 font-(family-name:--font-titre) text-(length:--fs-32) leading-[1.15] font-bold text-encre outline-none"
+        :class="sousTitre ? 'mb-0' : 'mb-8'"
       >
         {{ TITRES_ECRAN[etape] }}
       </h1>
-      <p class="mt-3 mb-8 text-texte-secondaire">{{ sousTitre }}</p>
+      <p v-if="sousTitre" class="mt-3 mb-8 text-texte-secondaire">{{ sousTitre }}</p>
 
       <Transition name="etape" mode="out-in">
         <OnboardingEtapeIdentite

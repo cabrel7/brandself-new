@@ -1,0 +1,297 @@
+==========
+type: utilisateur_resume_hebdo | cas: activité complète | fuseau: Africa/Douala
+==========
+to: cabrel.pro@exemple.test
+subject: Votre semaine : 3 réservations, 1 demande, 2 messages
+headers:
+  List-Unsubscribe: <https://jesuis.pro/api/public/desabonnement?jeton=v1.eyJ1IjoiYSIsInAiOiJlbWFpbF9oZWJkbyIsImUiOjF9.c2lnbmF0dXJlLWRlLXRlc3QtMDEyMzQ1Njc4OTAxMjM0NQ>
+  List-Unsubscribe-Post: List-Unsubscribe=One-Click
+attachments:
+  (aucun)
+--- text ---
+Bonjour Cabrel,
+
+Voici l'activité de votre vitrine du dimanche 5 juillet au dimanche 12 juillet :
+
+• Réservations reçues : 3
+• Demandes reçues : 1
+• Messages reçus : 2
+• Visites : 120
+• Clics sur vos liens : 18
+
+Cette semaine, 4 rendez-vous sont prévus.
+
+Retrouvez tout dans votre studio : https://jesuis.pro/studio
+
+Bonne semaine,
+jesuis.pro
+
+—
+Vous recevez ce résumé chaque lundi parce qu'il est activé dans votre compte.
+Ne plus recevoir cet e-mail, en un clic : https://jesuis.pro/desabonnement?jeton=v1.eyJ1IjoiYSIsInAiOiJlbWFpbF9oZWJkbyIsImUiOjF9.c2lnbmF0dXJlLWRlLXRlc3QtMDEyMzQ1Njc4OTAxMjM0NQ
+Gérer vos e-mails : https://jesuis.pro/studio/compte
+
+==========
+type: utilisateur_resume_hebdo | cas: une réservation, un rendez-vous, sans suivi (visites et clics absents) | fuseau: Africa/Douala
+==========
+to: cabrel.pro@exemple.test
+subject: Votre semaine : 1 réservation
+headers:
+  List-Unsubscribe: <https://jesuis.pro/api/public/desabonnement?jeton=v1.eyJ1IjoiYSIsInAiOiJlbWFpbF9oZWJkbyIsImUiOjF9.c2lnbmF0dXJlLWRlLXRlc3QtMDEyMzQ1Njc4OTAxMjM0NQ>
+  List-Unsubscribe-Post: List-Unsubscribe=One-Click
+attachments:
+  (aucun)
+--- text ---
+Bonjour Cabrel,
+
+Voici l'activité de votre vitrine du dimanche 5 juillet au dimanche 12 juillet :
+
+• Réservations reçues : 1
+• Demandes reçues : 0
+• Messages reçus : 0
+
+Cette semaine, 1 rendez-vous est prévu.
+
+Retrouvez tout dans votre studio : https://jesuis.pro/studio
+
+Bonne semaine,
+jesuis.pro
+
+—
+Vous recevez ce résumé chaque lundi parce qu'il est activé dans votre compte.
+Ne plus recevoir cet e-mail, en un clic : https://jesuis.pro/desabonnement?jeton=v1.eyJ1IjoiYSIsInAiOiJlbWFpbF9oZWJkbyIsImUiOjF9.c2lnbmF0dXJlLWRlLXRlc3QtMDEyMzQ1Njc4OTAxMjM0NQ
+Gérer vos e-mails : https://jesuis.pro/studio/compte
+
+==========
+type: utilisateur_resume_hebdo | cas: activité sans rendez-vous | fuseau: Africa/Douala
+==========
+to: cabrel.pro@exemple.test
+subject: Votre semaine : 2 réservations
+headers:
+  List-Unsubscribe: <https://jesuis.pro/api/public/desabonnement?jeton=v1.eyJ1IjoiYSIsInAiOiJlbWFpbF9oZWJkbyIsImUiOjF9.c2lnbmF0dXJlLWRlLXRlc3QtMDEyMzQ1Njc4OTAxMjM0NQ>
+  List-Unsubscribe-Post: List-Unsubscribe=One-Click
+attachments:
+  (aucun)
+--- text ---
+Bonjour Cabrel,
+
+Voici l'activité de votre vitrine du dimanche 5 juillet au dimanche 12 juillet :
+
+• Réservations reçues : 2
+• Demandes reçues : 0
+• Messages reçus : 0
+• Visites : 120
+• Clics sur vos liens : 18
+
+Retrouvez tout dans votre studio : https://jesuis.pro/studio
+
+Bonne semaine,
+jesuis.pro
+
+—
+Vous recevez ce résumé chaque lundi parce qu'il est activé dans votre compte.
+Ne plus recevoir cet e-mail, en un clic : https://jesuis.pro/desabonnement?jeton=v1.eyJ1IjoiYSIsInAiOiJlbWFpbF9oZWJkbyIsImUiOjF9.c2lnbmF0dXJlLWRlLXRlc3QtMDEyMzQ1Njc4OTAxMjM0NQ
+Gérer vos e-mails : https://jesuis.pro/studio/compte
+
+==========
+type: utilisateur_resume_hebdo | cas: aucune activité, suggestion avec chemin | fuseau: Africa/Douala
+==========
+to: cabrel.pro@exemple.test
+subject: Une idée pour votre vitrine cette semaine
+headers:
+  List-Unsubscribe: <https://jesuis.pro/api/public/desabonnement?jeton=v1.eyJ1IjoiYSIsInAiOiJlbWFpbF9oZWJkbyIsImUiOjF9.c2lnbmF0dXJlLWRlLXRlc3QtMDEyMzQ1Njc4OTAxMjM0NQ>
+  List-Unsubscribe-Post: List-Unsubscribe=One-Click
+attachments:
+  (aucun)
+--- text ---
+Bonjour Cabrel,
+
+Votre vitrine n'a pas reçu de réservation ni de message cette semaine. Une seule idée pour la faire connaître :
+
+Ajoutez une réalisation
+Montrez un travail récent à vos visiteurs.
+https://jesuis.pro/studio/realisations
+
+Bonne semaine,
+jesuis.pro
+
+—
+Vous recevez ce résumé chaque lundi parce qu'il est activé dans votre compte.
+Ne plus recevoir cet e-mail, en un clic : https://jesuis.pro/desabonnement?jeton=v1.eyJ1IjoiYSIsInAiOiJlbWFpbF9oZWJkbyIsImUiOjF9.c2lnbmF0dXJlLWRlLXRlc3QtMDEyMzQ1Njc4OTAxMjM0NQ
+Gérer vos e-mails : https://jesuis.pro/studio/compte
+
+==========
+type: utilisateur_resume_hebdo | cas: aucune activité, suggestion sans chemin, sans prénom | fuseau: Africa/Douala
+==========
+to: cabrel.pro@exemple.test
+subject: Une idée pour votre vitrine cette semaine
+headers:
+  List-Unsubscribe: <https://jesuis.pro/api/public/desabonnement?jeton=v1.eyJ1IjoiYSIsInAiOiJlbWFpbF9oZWJkbyIsImUiOjF9.c2lnbmF0dXJlLWRlLXRlc3QtMDEyMzQ1Njc4OTAxMjM0NQ>
+  List-Unsubscribe-Post: List-Unsubscribe=One-Click
+attachments:
+  (aucun)
+--- text ---
+Bonjour,
+
+Votre vitrine n'a pas reçu de réservation ni de message cette semaine. Une seule idée pour la faire connaître :
+
+Ajoutez une réalisation
+Montrez un travail récent à vos visiteurs.
+https://jesuis.pro/studio
+
+Bonne semaine,
+jesuis.pro
+
+—
+Vous recevez ce résumé chaque lundi parce qu'il est activé dans votre compte.
+Ne plus recevoir cet e-mail, en un clic : https://jesuis.pro/desabonnement?jeton=v1.eyJ1IjoiYSIsInAiOiJlbWFpbF9oZWJkbyIsImUiOjF9.c2lnbmF0dXJlLWRlLXRlc3QtMDEyMzQ1Njc4OTAxMjM0NQ
+Gérer vos e-mails : https://jesuis.pro/studio/compte
+
+==========
+type: utilisateur_resume_hebdo | cas: activité complète | fuseau: Europe/Paris
+==========
+to: cabrel.pro@exemple.test
+subject: Votre semaine : 3 réservations, 1 demande, 2 messages
+headers:
+  List-Unsubscribe: <https://jesuis.pro/api/public/desabonnement?jeton=v1.eyJ1IjoiYSIsInAiOiJlbWFpbF9oZWJkbyIsImUiOjF9.c2lnbmF0dXJlLWRlLXRlc3QtMDEyMzQ1Njc4OTAxMjM0NQ>
+  List-Unsubscribe-Post: List-Unsubscribe=One-Click
+attachments:
+  (aucun)
+--- text ---
+Bonjour Cabrel,
+
+Voici l'activité de votre vitrine du lundi 6 juillet au dimanche 12 juillet :
+
+• Réservations reçues : 3
+• Demandes reçues : 1
+• Messages reçus : 2
+• Visites : 120
+• Clics sur vos liens : 18
+
+Cette semaine, 4 rendez-vous sont prévus.
+
+Retrouvez tout dans votre studio : https://jesuis.pro/studio
+
+Bonne semaine,
+jesuis.pro
+
+—
+Vous recevez ce résumé chaque lundi parce qu'il est activé dans votre compte.
+Ne plus recevoir cet e-mail, en un clic : https://jesuis.pro/desabonnement?jeton=v1.eyJ1IjoiYSIsInAiOiJlbWFpbF9oZWJkbyIsImUiOjF9.c2lnbmF0dXJlLWRlLXRlc3QtMDEyMzQ1Njc4OTAxMjM0NQ
+Gérer vos e-mails : https://jesuis.pro/studio/compte
+
+==========
+type: utilisateur_resume_hebdo | cas: une réservation, un rendez-vous, sans suivi (visites et clics absents) | fuseau: Europe/Paris
+==========
+to: cabrel.pro@exemple.test
+subject: Votre semaine : 1 réservation
+headers:
+  List-Unsubscribe: <https://jesuis.pro/api/public/desabonnement?jeton=v1.eyJ1IjoiYSIsInAiOiJlbWFpbF9oZWJkbyIsImUiOjF9.c2lnbmF0dXJlLWRlLXRlc3QtMDEyMzQ1Njc4OTAxMjM0NQ>
+  List-Unsubscribe-Post: List-Unsubscribe=One-Click
+attachments:
+  (aucun)
+--- text ---
+Bonjour Cabrel,
+
+Voici l'activité de votre vitrine du lundi 6 juillet au dimanche 12 juillet :
+
+• Réservations reçues : 1
+• Demandes reçues : 0
+• Messages reçus : 0
+
+Cette semaine, 1 rendez-vous est prévu.
+
+Retrouvez tout dans votre studio : https://jesuis.pro/studio
+
+Bonne semaine,
+jesuis.pro
+
+—
+Vous recevez ce résumé chaque lundi parce qu'il est activé dans votre compte.
+Ne plus recevoir cet e-mail, en un clic : https://jesuis.pro/desabonnement?jeton=v1.eyJ1IjoiYSIsInAiOiJlbWFpbF9oZWJkbyIsImUiOjF9.c2lnbmF0dXJlLWRlLXRlc3QtMDEyMzQ1Njc4OTAxMjM0NQ
+Gérer vos e-mails : https://jesuis.pro/studio/compte
+
+==========
+type: utilisateur_resume_hebdo | cas: activité sans rendez-vous | fuseau: Europe/Paris
+==========
+to: cabrel.pro@exemple.test
+subject: Votre semaine : 2 réservations
+headers:
+  List-Unsubscribe: <https://jesuis.pro/api/public/desabonnement?jeton=v1.eyJ1IjoiYSIsInAiOiJlbWFpbF9oZWJkbyIsImUiOjF9.c2lnbmF0dXJlLWRlLXRlc3QtMDEyMzQ1Njc4OTAxMjM0NQ>
+  List-Unsubscribe-Post: List-Unsubscribe=One-Click
+attachments:
+  (aucun)
+--- text ---
+Bonjour Cabrel,
+
+Voici l'activité de votre vitrine du lundi 6 juillet au dimanche 12 juillet :
+
+• Réservations reçues : 2
+• Demandes reçues : 0
+• Messages reçus : 0
+• Visites : 120
+• Clics sur vos liens : 18
+
+Retrouvez tout dans votre studio : https://jesuis.pro/studio
+
+Bonne semaine,
+jesuis.pro
+
+—
+Vous recevez ce résumé chaque lundi parce qu'il est activé dans votre compte.
+Ne plus recevoir cet e-mail, en un clic : https://jesuis.pro/desabonnement?jeton=v1.eyJ1IjoiYSIsInAiOiJlbWFpbF9oZWJkbyIsImUiOjF9.c2lnbmF0dXJlLWRlLXRlc3QtMDEyMzQ1Njc4OTAxMjM0NQ
+Gérer vos e-mails : https://jesuis.pro/studio/compte
+
+==========
+type: utilisateur_resume_hebdo | cas: aucune activité, suggestion avec chemin | fuseau: Europe/Paris
+==========
+to: cabrel.pro@exemple.test
+subject: Une idée pour votre vitrine cette semaine
+headers:
+  List-Unsubscribe: <https://jesuis.pro/api/public/desabonnement?jeton=v1.eyJ1IjoiYSIsInAiOiJlbWFpbF9oZWJkbyIsImUiOjF9.c2lnbmF0dXJlLWRlLXRlc3QtMDEyMzQ1Njc4OTAxMjM0NQ>
+  List-Unsubscribe-Post: List-Unsubscribe=One-Click
+attachments:
+  (aucun)
+--- text ---
+Bonjour Cabrel,
+
+Votre vitrine n'a pas reçu de réservation ni de message cette semaine. Une seule idée pour la faire connaître :
+
+Ajoutez une réalisation
+Montrez un travail récent à vos visiteurs.
+https://jesuis.pro/studio/realisations
+
+Bonne semaine,
+jesuis.pro
+
+—
+Vous recevez ce résumé chaque lundi parce qu'il est activé dans votre compte.
+Ne plus recevoir cet e-mail, en un clic : https://jesuis.pro/desabonnement?jeton=v1.eyJ1IjoiYSIsInAiOiJlbWFpbF9oZWJkbyIsImUiOjF9.c2lnbmF0dXJlLWRlLXRlc3QtMDEyMzQ1Njc4OTAxMjM0NQ
+Gérer vos e-mails : https://jesuis.pro/studio/compte
+
+==========
+type: utilisateur_resume_hebdo | cas: aucune activité, suggestion sans chemin, sans prénom | fuseau: Europe/Paris
+==========
+to: cabrel.pro@exemple.test
+subject: Une idée pour votre vitrine cette semaine
+headers:
+  List-Unsubscribe: <https://jesuis.pro/api/public/desabonnement?jeton=v1.eyJ1IjoiYSIsInAiOiJlbWFpbF9oZWJkbyIsImUiOjF9.c2lnbmF0dXJlLWRlLXRlc3QtMDEyMzQ1Njc4OTAxMjM0NQ>
+  List-Unsubscribe-Post: List-Unsubscribe=One-Click
+attachments:
+  (aucun)
+--- text ---
+Bonjour,
+
+Votre vitrine n'a pas reçu de réservation ni de message cette semaine. Une seule idée pour la faire connaître :
+
+Ajoutez une réalisation
+Montrez un travail récent à vos visiteurs.
+https://jesuis.pro/studio
+
+Bonne semaine,
+jesuis.pro
+
+—
+Vous recevez ce résumé chaque lundi parce qu'il est activé dans votre compte.
+Ne plus recevoir cet e-mail, en un clic : https://jesuis.pro/desabonnement?jeton=v1.eyJ1IjoiYSIsInAiOiJlbWFpbF9oZWJkbyIsImUiOjF9.c2lnbmF0dXJlLWRlLXRlc3QtMDEyMzQ1Njc4OTAxMjM0NQ
+Gérer vos e-mails : https://jesuis.pro/studio/compte

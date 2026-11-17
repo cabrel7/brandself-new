@@ -1,5 +1,5 @@
 import { Temporal } from '@js-temporal/polyfill'
-import { and, asc, eq, exists, gt, gte, inArray, isNotNull, lt, notExists, or, sql } from 'drizzle-orm'
+import { and, asc, eq, exists, gt, gte, inArray, lt, notExists, or, sql } from 'drizzle-orm'
 import { TEMP_EMAIL_DOMAIN } from '../../../shared/compte'
 import { emailsTransactionnels, reservations, users, vitrines } from '../../../shared/db/schema'
 import { isValidTimeZone } from '../../../shared/fuseau'
@@ -24,6 +24,7 @@ import {
   insertScheduledEmailEvents,
 } from '../email-outbox'
 import type { DbTransaction } from '../email-outbox'
+import { sqlVitrinePublique } from '../visibilite'
 import { planifierRappelsAbonnement } from './abonnements'
 import { dansFenetre, debutSemaineIso, journeeLocale, periodeResume } from './fenetres'
 import { plafondRelationnelAtteint } from './plafond'
@@ -192,7 +193,8 @@ async function planifierResumes(
       .where(and(
         eq(users.fuseau, fuseau),
         eq(users.email_hebdo, true),
-        isNotNull(vitrines.publieeLe),
+        // A2 : ni vitrine masquée, ni bloquée, ni titulaire suspendu (visibilite.ts).
+        sqlVitrinePublique(),
         destinataireResolvable(),
         pasEncorePlanifie(database, TYPE_RESUME, periode.label),
         gt(users.id, curseur),
@@ -228,6 +230,8 @@ async function planifierRappelsJour(
       .where(and(
         eq(users.fuseau, fuseau),
         eq(users.email_rappel_jour, true),
+        // A2 (D-A2-09) : aucune NOUVELLE planification pour un compte suspendu (les rappels déjà posés partent).
+        eq(users.banned, false),
         destinataireResolvable(),
         exists(
           database

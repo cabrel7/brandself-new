@@ -1,0 +1,44 @@
+{
+  "name": "jesuis.pro",
+  "short_name": "jesuis.pro",
+  "start_url": "/studio/",
+  "scope": "/studio/",
+  "display": "standalone",
+  "background_color": "#FBF7F0",
+  "theme_color": "#B4532F",
+  "lang": "fr",
+  "icons": [
+    {
+      "src": "/brand/icone.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/brand/icone.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/brand/apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Agenda",
+      "short_name": "Agenda",
+      "url": "/studio/agenda",
+      "icons": [{ "src": "/brand/icone.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Services",
+      "short_name": "Services",
+      "url": "/studio/services",
+      "icons": [{ "src": "/brand/icone.png", "sizes": "192x192" }]
+    }
+  ]
+}

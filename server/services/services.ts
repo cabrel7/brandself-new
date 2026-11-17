@@ -2,6 +2,8 @@ import { randomUUID } from 'node:crypto'
 import { and, asc, eq, sql } from 'drizzle-orm'
 import { env } from '../../shared/env'
 import { medias, services } from '../../shared/db/schema'
+import { SOURCE_UTILISATEUR } from '../../shared/mcp'
+import type { SourceContenu } from '../../shared/mcp'
 import type { ServiceCreateInput, ServiceUpdateInput } from '../../shared/schemas/service'
 import { AUTRES_SERVICES_MAX, SERVICE_SLUG_MAX, SERVICE_SLUG_REGEX, VEDETTE_MAX } from '../../shared/services'
 import { ConflictError, NotFoundError, UnprocessableError, ValidationError } from '../exceptions/http'
@@ -218,6 +220,7 @@ async function insertService(
   input: ServiceCreateInput,
   options: OptionsService,
   now: Date,
+  source: SourceContenu,
 ): Promise<ServiceAvecCompteurs> {
   return db.transaction(async (tx) => {
     const vitrineId = await lockVitrineId(tx, userId)
@@ -263,6 +266,7 @@ async function insertService(
         enVedette,
         ordre: rows.reduce((max, ligne) => Math.max(max, ligne.ordre + 1), 0),
         actif: etat.actif,
+        source,
       })
       .returning({ id: services.id })
     if (!created) throw new Error('Insertion du service sans résultat.')
@@ -278,10 +282,12 @@ export async function createService(
   input: ServiceCreateInput,
   options: OptionsService = resolveServiceOptions(),
   now: Date = new Date(),
+  // Réservé à l'appel interne (serveur MCP) : jamais exposé par le schéma Zod public. Écrit dans le même INSERT.
+  source: SourceContenu = SOURCE_UTILISATEUR,
 ): Promise<ServiceAvecCompteurs> {
   for (let attempt = 1; ; attempt += 1) {
     try {
-      return await insertService(userId, input, options, now)
+      return await insertService(userId, input, options, now, source)
     } catch (error) {
       const { code, constraint } = readPgError(error)
       // Collision de slug (insertion hors verrou) : une nouvelle tentative relit les slugs existants.

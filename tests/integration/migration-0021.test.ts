@@ -4,6 +4,7 @@ import path from 'node:path'
 import { Client } from 'pg'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { MOTIFS_REPLI } from '../../shared/ia'
+import { ADMIN_A2_EMAIL_TYPES } from '../../shared/admin-a2'
 import { TRANSACTIONAL_EMAIL_TYPES } from '../../shared/jobs'
 import { FOURNISSEUR_FORMAT, FRAIS_SUPPORTEURS, PAIEMENT_STATUTS } from '../../shared/paiements'
 
@@ -367,7 +368,8 @@ describe('migration 0021 : fichier, journal et synchronisation avec shared/', ()
   })
 
   it('recopie exactement TRANSACTIONAL_EMAIL_TYPES dans la CHECK des types', () => {
-    expect(valeursContrainte('emails_transactionnels_type_check')).toEqual([...TRANSACTIONAL_EMAIL_TYPES])
+    // Les 4 types d'administration sont ajoutés par la migration 0029 (A2) : prouvés dans migration-0029.test.ts.
+    expect(valeursContrainte('emails_transactionnels_type_check')).toEqual(TRANSACTIONAL_EMAIL_TYPES.filter((type) => !(ADMIN_A2_EMAIL_TYPES as readonly string[]).includes(type)))
   })
 
   it('recopie exactement PAIEMENT_STATUTS, FRAIS_SUPPORTEURS et le format de fournisseur de shared/paiements', () => {
@@ -379,7 +381,8 @@ describe('migration 0021 : fichier, journal et synchronisation avec shared/', ()
   })
 
   it('recopie exactement MOTIFS_REPLI dans la CHECK des motifs de repli', () => {
-    expect(valeursContrainte('generations_ia_motif_check')).toEqual([...MOTIFS_REPLI])
+    // `ia_coupee` est ajouté par la migration 0031 (A4) : prouvé dans migration-0031.test.ts.
+    expect(valeursContrainte('generations_ia_motif_check')).toEqual(MOTIFS_REPLI.filter((motif) => motif !== 'ia_coupee'))
     expect(valeursContrainte('generations_ia_motif_check')).toEqual([...MOTIFS_REPLI_AVANT, 'quota_atteint'])
   })
 

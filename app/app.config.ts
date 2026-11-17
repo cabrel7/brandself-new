@@ -1,4 +1,4 @@
-// Thème @nuxt/ui de Brandself.
+// Thème @nuxt/ui de jesuis.pro.
 //
 // Les couleurs ne passent PAS par `ui.colors` : cette clé n'accepte que des noms
 // de palettes Tailwind, alors que nos couleurs sont les variables CSS des
@@ -192,6 +192,16 @@ export default defineAppConfig({
           class: { root: 'items-start bg-transparent p-0' },
         },
       ],
+    },
+
+    // Feuille bas de page (nouveau style) : décollée des bords (8 px), coins arrondis
+    // aux quatre angles au rayon interne — plus doux que la feuille collée d'avant.
+    // Au-delà du mobile, la modale reste centrée (comportement par défaut de @nuxt/ui).
+    modal: {
+      slots: {
+        content:
+          'max-sm:inset-x-2 max-sm:top-auto max-sm:bottom-2 max-sm:translate-x-0 max-sm:translate-y-0 max-sm:w-auto max-sm:max-w-none max-sm:max-h-[calc(100dvh-1.5rem)] max-sm:rounded-(--rayon-interne)',
+      },
     },
   },
 })

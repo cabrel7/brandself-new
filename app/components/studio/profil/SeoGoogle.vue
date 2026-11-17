@@ -1,83 +1,121 @@
-// S12 (#145) : section « Sur Google » du Profil studio. Champs SEO avec compteurs et aperçu.
 <script setup lang="ts">
+// Décision #24 : texte « Sur Google » de la vitrine. Champs vides = texte automatique.
+// Le titre de la rubrique (h2) reste dans la page ; rien n'est enregistré ici.
+import { SEO_DESCRIPTION_MAX, SEO_DESCRIPTION_MIN, SEO_TITRE_MAX, SEO_TITRE_MIN } from '#shared/seo'
+
+type ChampSeo = 'seoTitre' | 'seoDescription'
+
 const props = defineProps<{
-  vitrine: {
-    seoTitre: string | null
-    seoDescription: string | null
-    nomAffiche: string
-    metier: string
-    ville: string | null
-    pays: string | null
-    accroche: string | null
-    bio: string | null
-  }
-  enregistrer: () => Promise<void>
-  aDesModifications: boolean
-  erreurs: Record<string, string[] | undefined>
-  viderErreur: (champ: string) => void
+  seoAuto: { titre: string, description: string, origine: 'ia' | 'gabarit' }
+  /** Métier, ville, pays ou accroche modifiés dans le formulaire (pas encore enregistrés). */
+  identiteModifiee: boolean
+  erreurs: Partial<Record<ChampSeo, string>>
+  desactive?: boolean
 }>()
 
-const SEO_TITRE_MIN = 30
-const SEO_TITRE_MAX = 70
-const SEO_DESCRIPTION_MIN = 50
-const SEO_DESCRIPTION_MAX = 160
+const emit = defineEmits<{ viderErreur: [champ: ChampSeo] }>()
 
-const seoTitre = defineModel<string>('seoTitre', {
-  default: props.vitrine.seoTitre ?? '',
-})
-const seoDescription = defineModel<string>('seoDescription', {
-  default: props.vitrine.seoDescription ?? '',
-})
+/** Chaîne vide = texte automatique. */
+const seoTitre = defineModel<string>('seoTitre', { default: '' })
+const seoDescription = defineModel<string>('seoDescription', { default: '' })
 
-const apercuTitre = computed(() => seoTitre.value ?? `${props.vitrine.nomAffiche} — ${props.vitrine.metier} à ${props.vitrine.ville}`)
-const apercuDescription = computed(() => seoDescription.value ?? `${props.vitrine.metier} à ${props.vitrine.ville}. ${props.vitrine.accroche ?? ''}`)
+const racine = useTemplateRef<HTMLElement>('racine')
+const annonce = ref('')
 
-const titreValide = computed(() => {
-  if (!seoTitre.value) return true
-  const t = seoTitre.value.trim()
-  return t.length >= SEO_TITRE_MIN && t.length <= SEO_TITRE_MAX
-})
-const descriptionValide = computed(() => {
-  if (!seoDescription.value) return true
-  const t = seoDescription.value.trim()
-  return t.length >= SEO_DESCRIPTION_MIN && t.length <= SEO_DESCRIPTION_MAX
-})
+const personnalise = computed(() => seoTitre.value.trim() !== '' || seoDescription.value.trim() !== '')
+const apercuTitre = computed(() => seoTitre.value.trim() || props.seoAuto.titre)
+const apercuDescription = computed(() => seoDescription.value.trim() || props.seoAuto.description)
+const noteMiseAJour = computed(() => props.identiteModifiee && !personnalise.value)
+
+function aide(valeur: string, min: number, max: number): string {
+  const longueur = valeur.trim().length
+  if (longueur === 0) return `Texte automatique, ou ${min} à ${max} caractères.`
+  if (longueur < min) return `${longueur} sur ${max} caractères : encore ${min - longueur} pour atteindre le minimum.`
+  return `${longueur} sur ${max} caractères`
+}
+
+const aideTitre = computed(() => aide(seoTitre.value, SEO_TITRE_MIN, SEO_TITRE_MAX))
+const aideDescription = computed(() => aide(seoDescription.value, SEO_DESCRIPTION_MIN, SEO_DESCRIPTION_MAX))
+
+async function revenirAuto(): Promise<void> {
+  seoTitre.value = ''
+  seoDescription.value = ''
+  emit('viderErreur', 'seoTitre')
+  emit('viderErreur', 'seoDescription')
+  annonce.value = 'Texte automatique rétabli. Pensez à enregistrer.'
+  await nextTick()
+  racine.value?.querySelector<HTMLInputElement>('input')?.focus()
+}
 </script>
 
 <template>
-  <section class="mt-8 flex flex-col gap-4 px-4 md:px-8 lg:px-0">
-    <h2 class="m-0 text-(length:--fs-20) font-semibold text-encre">
-      Sur Google
-    </h2>
+  <div ref="racine" class="flex flex-col gap-4">
+    <div class="flex flex-wrap items-center justify-between gap-3">
+      <UBadge
+        :label="personnalise ? 'Personnalisé' : 'Automatique'"
+        :color="personnalise ? 'primary' : 'neutral'"
+        variant="subtle"
+        size="lg"
+      />
+      <UButton
+        v-if="personnalise"
+        label="Revenir au texte automatique"
+        icon="i-ph-arrow-counter-clockwise"
+        variant="ghost"
+        color="neutral"
+        size="lg"
+        class="min-h-11"
+        :disabled="desactive"
+        @click="revenirAuto"
+      />
+    </div>
+    <p class="sr-only" aria-live="polite">
+      {{ annonce }}
+    </p>
+
     <p class="m-0 text-base text-texte-secondaire">
-      Titre et description affichés dans les résultats de recherche. Laissez vide : nous les écrivons pour vous à partir de votre métier, de votre ville et de votre accroche.
+      Laissez vide pour un texte automatique.
     </p>
 
-    <div class="grid grid-cols-[minmax(0,1fr)_minmax(0,2fr)] gap-4">
-      <UFormField label="Titre sur Google" name="seoTitre" hint="30 à 70 caractères">
-        <UInput v-model="seoTitre" :maxlength="SEO_TITRE_MAX" @update:model-value="viderErreur('seoTitre')" />
-        <template #help>
-          <span v-if="seoTitre">{{ seoTitre.length }} sur {{ SEO_TITRE_MAX }} caractères</span>
-          <span v-else>Aperçu automatique</span>
-        </template>
+    <div class="grid gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
+      <UFormField label="Titre sur Google" name="seoTitre" :error="erreurs.seoTitre" :help="aideTitre">
+        <UInput
+          v-model="seoTitre"
+          class="w-full"
+          :placeholder="seoAuto.titre"
+          :maxlength="SEO_TITRE_MAX"
+          :disabled="desactive"
+          @update:model-value="emit('viderErreur', 'seoTitre')"
+        />
       </UFormField>
-      <UFormField label="Description sur Google" name="seoDescription" hint="50 à 160 caractères">
-        <UTextarea v-model="seoDescription" :rows="3" :maxlength="SEO_DESCRIPTION_MAX" class="w-full" @update:model-value="viderErreur('seoDescription')" />
-        <template #help>
-          <span v-if="seoDescription">{{ seoDescription.length }} sur {{ SEO_DESCRIPTION_MAX }} caractères</span>
-          <span v-else>Aperçu automatique</span>
-        </template>
+      <UFormField label="Description sur Google" name="seoDescription" :error="erreurs.seoDescription" :help="aideDescription">
+        <UTextarea
+          v-model="seoDescription"
+          class="w-full"
+          :rows="3"
+          :placeholder="seoAuto.description"
+          :maxlength="SEO_DESCRIPTION_MAX"
+          :disabled="desactive"
+          @update:model-value="emit('viderErreur', 'seoDescription')"
+        />
       </UFormField>
     </div>
 
-    <div class="mt-4 p-4 rounded-(--rayon) border border-bordure bg-surface">
-      <p class="m-0 text-sm text-texte-secondaire">Aperçu :</p>
-      <h3 class="m-0 mt-1 text-base font-semibold text-encre">{{ apercuTitre }}</h3>
-      <p class="m-0 mt-1 text-sm text-texte-secondaire">{{ apercuDescription }}</p>
-    </div>
-
-    <p v-if="!titreValide || !descriptionValide" class="m-0 mt-2 text-(length:--fs-14) text-texte-secondaire">
-      Respectez les longueurs indiquées pour que Google affiche votre titre et votre description en entier.
+    <p v-if="noteMiseAJour" class="m-0 flex items-start gap-2 text-(length:--fs-14) text-texte-secondaire">
+      <UIcon name="i-ph-info" class="mt-0.5 size-5 shrink-0" aria-hidden="true" />
+      <span>Le texte automatique sera mis à jour quelques minutes après l’enregistrement.</span>
     </p>
-  </section>
+
+    <div class="rounded-(--rayon) border border-bordure bg-surface p-4">
+      <p class="m-0 text-sm text-texte-secondaire">
+        Aperçu dans Google
+      </p>
+      <p class="m-0 mt-1 text-base font-semibold text-encre">
+        {{ apercuTitre }}
+      </p>
+      <p class="m-0 mt-1 text-sm text-texte-secondaire">
+        {{ apercuDescription }}
+      </p>
+    </div>
+  </div>
 </template>

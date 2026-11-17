@@ -1,6 +1,6 @@
 import { createHash, randomBytes, randomUUID } from 'node:crypto'
 import { Temporal } from '@js-temporal/polyfill'
-import { and, asc, eq, lte } from 'drizzle-orm'
+import { and, asc, eq, lte, sql } from 'drizzle-orm'
 import { CONFIRMATION_DUREE_MINUTES } from '../../shared/agenda'
 import type { PaiementReservation, ReservationStatut } from '../../shared/agenda'
 import { reservations, services, vitrines } from '../../shared/db/schema'
@@ -17,6 +17,7 @@ import { annulerRappelVisiteur, programmerRappelVisiteur } from './notifications
 import { mesurerQuotaVerrouille } from './plans'
 import { canTransitionReservation, getServiceFlow, isServiceType } from './reservations-regles'
 import { requireVitrineId } from './vitrine-acces'
+import { sqlVitrinePublique } from './visibilite'
 
 export type ReservationRow = typeof reservations.$inferSelect
 
@@ -287,6 +288,8 @@ export async function getReservationConfirmation(
         ville: vitrines.ville,
         pays: vitrines.pays,
       },
+      // A2 (D-A2-10) : vitrine masquée (non publiée, bloquée, titulaire suspendu) = jamais de confirmation.
+      visible: sql<boolean>`${sqlVitrinePublique()}`,
     })
     .from(reservations)
     .innerJoin(services, eq(services.id, reservations.serviceId))
@@ -297,10 +300,11 @@ export async function getReservationConfirmation(
     ))
     .limit(1)
   if (!result) throw new NotFoundError('CONFIRMATION_RESERVATION_INVALIDE')
+  if (!result.visible) throw new NotFoundError('VITRINE_INTROUVABLE')
   if (result.reservation.confirmationExpireLe.getTime() <= maintenant.getTime()) {
     throw new GoneError('CONFIRMATION_EXPIREE')
   }
-  return result
+  return { reservation: result.reservation, service: result.service, vitrine: result.vitrine }
 }
 
 function normalizeUsernameForConfirmation(username: string): string {

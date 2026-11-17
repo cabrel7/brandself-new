@@ -1,9 +1,9 @@
 import { randomUUID } from 'node:crypto'
-import { and, eq, isNotNull, notExists, sql } from 'drizzle-orm'
+import { and, eq, notExists, sql } from 'drizzle-orm'
 import sharp from 'sharp'
-import { medias, progressionsInscription, realisationImages, realisations, services, vitrines } from '../../shared/db/schema'
+import { medias, progressionsInscription, realisationImages, realisations, services, users, vitrines } from '../../shared/db/schema'
 import { MEDIA_UPLOAD_LIMIT } from '../../shared/limites'
-import { MEDIA_MAX_BYTES, MEDIA_MAX_PIXELS, MEDIA_WIDTHS } from '../../shared/medias'
+import { MEDIA_MAX_BYTES, MEDIA_MAX_PIXELS, MEDIA_WIDTHS, mediaUrl, partageUrl } from '../../shared/medias'
 import type { MediaWidth } from '../../shared/medias'
 import {
   NotFoundError,
@@ -12,14 +12,17 @@ import {
   UnsupportedMediaTypeError,
 } from '../exceptions/http'
 import { db } from '../utils/db'
+import { OG_IMAGE_HAUTEUR, OG_IMAGE_LARGEUR, OG_IMAGE_QUALITE } from '../../shared/seo'
 import {
   deleteMediaFiles,
   deleteUserMediaFiles,
   getStorage,
+  partageKey,
   readMediaVariantFile,
   writeMediaVariant,
 } from '../utils/stockage'
 import { enforceLimit } from './limiteur'
+import { sqlVitrinePublique } from './visibilite'
 
 export type MediaRow = typeof medias.$inferSelect
 
@@ -186,15 +189,56 @@ function isMediaWidth(width: number): width is MediaWidth {
   return (MEDIA_WIDTHS as readonly number[]).includes(width)
 }
 
+/**
+ * Média dont les octets peuvent être servis. Décision du 2026-11-16 : rien ne reste accessible pour un compte suspendu
+ * (`users.banned`) ni pour une vitrine bloquée par l'administration (`blocage_admin`), SANS exception pour le
+ * propriétaire. Média absent, titulaire suspendu ou vitrine bloquée : même 404 `MEDIA_INTROUVABLE` (le visiteur ne
+ * voit jamais la raison, D-A2-10). Le cache nginx de `/medias/` est vidé par le job `rafraichirCacheMedias`.
+ */
+async function trouverMediaServable(mediaId: string): Promise<{ userId: string }> {
+  const [row] = await db
+    .select({
+      userId: medias.userId,
+      suspendu: users.banned,
+      bloquee: sql<boolean>`EXISTS (SELECT 1 FROM ${vitrines} WHERE ${vitrines.userId} = ${medias.userId} AND ${vitrines.blocageAdmin} = true)`,
+    })
+    .from(medias)
+    .innerJoin(users, eq(users.id, medias.userId))
+    .where(eq(medias.id, mediaId))
+    .limit(1)
+  if (!row || row.suspendu || row.bloquee) throw new NotFoundError('MEDIA_INTROUVABLE')
+  return { userId: row.userId }
+}
+
+export interface UrlsMediasDuCompte {
+  /** Chemins (`/medias/<id>/<fichier>`) de chaque variante servie : 3 largeurs et la variante de partage par image. */
+  chemins: string[]
+  /** `true` si le compte a plus d'images que la borne : la liste est alors tronquée. */
+  tronque: boolean
+}
+
+/** Variantes d'image servies pour un compte (éviction du cache nginx). Au plus `maxUrls` chemins. */
+export async function listerCheminsMediasDuCompte(userId: string, maxUrls: number): Promise<UrlsMediasDuCompte> {
+  const parImage = MEDIA_WIDTHS.length + 1
+  const maxImages = Math.floor(maxUrls / parImage)
+  // Une ligne de plus que la borne : sa présence suffit à savoir que la liste est tronquée.
+  const lignes = await db
+    .select({ id: medias.id })
+    .from(medias)
+    .where(eq(medias.userId, userId))
+    .orderBy(medias.id)
+    .limit(maxImages + 1)
+  const ids = lignes.slice(0, maxImages).map((ligne) => ligne.id)
+  const chemins = ids.flatMap((id) => [...MEDIA_WIDTHS.map((largeur) => mediaUrl(id, largeur)), partageUrl(id)])
+  return { chemins, tronque: lignes.length > maxImages }
+}
+
 /** Octets d'une variante publique. Id mal formé, largeur non publiée, média absent : 404. */
 export async function readMediaVariant(mediaId: string, width: number): Promise<Buffer> {
   if (!MEDIA_ID_RE.test(mediaId) || !isMediaWidth(width)) {
     throw new NotFoundError('MEDIA_INTROUVABLE')
   }
-  const [row] = await db.select({ userId: medias.userId }).from(medias).where(eq(medias.id, mediaId)).limit(1)
-  if (!row) {
-    throw new NotFoundError('MEDIA_INTROUVABLE')
-  }
+  const row = await trouverMediaServable(mediaId)
   const data = await readMediaVariantFile(row.userId, mediaId, width)
   if (!data) {
     throw new NotFoundError('MEDIA_INTROUVABLE')
@@ -235,11 +279,11 @@ export async function getPartageVariant(mediaId: string, _vitrineId: string): Pr
     .limit(1)
   if (!row) throw new NotFoundError('MEDIA_INTROUVABLE')
 
-  // Vérifier que le média appartient à une vitrine publiée.
+  // Vérifier que le média appartient à une vitrine visible du public (A2 : publiée, non bloquée, titulaire actif).
   const [vitrine] = await db
     .select({ id: vitrines.id })
     .from(vitrines)
-    .where(and(eq(vitrines.photoMediaId, mediaId), isNotNull(vitrines.publieeLe)))
+    .where(and(eq(vitrines.photoMediaId, mediaId), sqlVitrinePublique()))
     .limit(1)
   if (!vitrine) throw new NotFoundError('MEDIA_INTROUVABLE')
 
@@ -263,6 +307,35 @@ export async function getPartageVariant(mediaId: string, _vitrineId: string): Pr
   await stockage.setItemRaw(partageKey, output)
 
   return { url: `/medias/${row.userId}/${mediaId}/partage.webp`, largeur: 1200, hauteur: 630, mime: 'image/jpeg' }
+}
+
+/**
+ * S12 : octets JPEG 1200×630 de la variante de partage d'un média (URL `/medias/{id}/partage.jpg`, celle de `seo.image`).
+ * Produite à la première demande depuis la plus grande variante, mise en cache sur le disque. Même exposition que les
+ * autres variantes (id non devinable) : id mal formé ou média absent = 404.
+ */
+export async function readPartageJpeg(mediaId: string): Promise<Buffer> {
+  if (!MEDIA_ID_RE.test(mediaId)) throw new NotFoundError('MEDIA_INTROUVABLE')
+  const row = await trouverMediaServable(mediaId)
+
+  const stockage = getStorage()
+  const cle = partageKey(row.userId, mediaId)
+  const existant = await stockage.getItemRaw<Buffer | null>(cle)
+  if (existant) return existant
+
+  const largeurSource = MEDIA_WIDTHS[MEDIA_WIDTHS.length - 1]
+  if (!largeurSource) throw new UnprocessableError('IMAGE_ILLISIBLE')
+  const source = await readMediaVariant(mediaId, largeurSource)
+  try {
+    const sortie = await sharp(source, { limitInputPixels: MEDIA_MAX_PIXELS, failOn: 'error' })
+      .resize(OG_IMAGE_LARGEUR, OG_IMAGE_HAUTEUR, { fit: 'cover', position: 'attention' })
+      .jpeg({ quality: OG_IMAGE_QUALITE })
+      .toBuffer()
+    await stockage.setItemRaw(cle, sortie)
+    return sortie
+  } catch {
+    throw new UnprocessableError('IMAGE_ILLISIBLE')
+  }
 }
 
 /** S12 : sert la variante de partage déjà générée. 404 si absente. */

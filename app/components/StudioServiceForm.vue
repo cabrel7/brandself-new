@@ -2,8 +2,6 @@
 import type { Devise } from '#shared/compte'
 import type { ServiceStudioDTO, ServicesCompteursDTO } from '#shared/dto'
 import {
-  INCLUS_LIGNE_MAX,
-  INCLUS_MAX,
   PAIEMENT_INSTRUCTIONS_MAX,
   SEANCES_MAX,
   SEANCES_MIN,
@@ -39,12 +37,13 @@ const {
 })
 
 const aidePrix = computed(() =>
-  prixDecimal.value ? 'Exemple : 12,50 (deux décimales au plus).' : 'Montant entier, sans décimale. Exemple : 15 000.',
+  prixDecimal.value ? 'Exemple : 12,50.' : 'Exemple : 15 000.',
 )
 </script>
 
 <template>
-  <form class="flex flex-col gap-6" novalidate @submit.prevent="enregistrer">
+  <form class="grid gap-6 lg:grid-cols-2 lg:items-start lg:gap-x-10" novalidate @submit.prevent="enregistrer">
+    <div class="flex flex-col gap-6">
     <UFormField name="imageMediaId">
       <template #label>
         Photo <StudioMentionFacultative feminin />
@@ -74,12 +73,7 @@ const aidePrix = computed(() =>
       </p>
     </UFormField>
 
-    <UFormField
-      label="Type de service"
-      name="type"
-      :error="erreurs.type"
-      help="Le type adapte le bouton et le parcours de réservation du visiteur."
-    >
+    <UFormField label="Type de service" name="type" :error="erreurs.type">
       <USelect v-model="form.type" :items="ITEMS_TYPES" @update:model-value="viderErreur('type')" />
     </UFormField>
 
@@ -115,7 +109,9 @@ const aidePrix = computed(() =>
       </template>
       <UInput v-model="form.dureeMin" inputmode="numeric" @update:model-value="viderErreur('dureeMin')" />
     </UFormField>
+    </div>
 
+    <div class="flex flex-col gap-6">
     <div class="flex flex-col gap-2">
       <URadioGroup
         v-model="form.tarif"
@@ -129,7 +125,7 @@ const aidePrix = computed(() =>
         @update:model-value="viderErreur('tarif')"
       />
       <p v-if="tarifVerrouille" class="m-0 text-(length:--fs-14) text-texte-secondaire">
-        Une prestation sur devis n’a pas de tarif fixe : le prix sera défini avec chaque client.
+        Une prestation sur devis n’a pas de tarif fixe.
       </p>
       <p v-if="erreurs.tarif" role="alert" class="message-erreur">
         <UIcon name="i-ph-warning-circle" class="size-5 shrink-0" aria-hidden="true" />
@@ -189,7 +185,7 @@ const aidePrix = computed(() =>
     <UFormField
       name="inclus"
       :error="erreurs.inclus"
-      :help="`Une ligne par élément, ${INCLUS_MAX} au maximum (${INCLUS_LIGNE_MAX} caractères par ligne). Pour un accompagnement, une ligne par étape du programme.`"
+      help="Une ligne par élément."
     >
       <template #label>
         Ce que comprend le service <StudioMentionFacultative />
@@ -202,7 +198,6 @@ const aidePrix = computed(() =>
         <USwitch
           v-model="form.actif"
           label="Visible sur la vitrine"
-          description="Désactivez pour masquer ce service sans le supprimer."
           :ui="SWITCH_UI"
         />
       </div>
@@ -210,7 +205,6 @@ const aidePrix = computed(() =>
         <USwitch
           v-model="form.reservable"
           label="Réservable en ligne"
-          description="Le visiteur peut réserver ou faire sa demande depuis la vitrine."
           :ui="SWITCH_UI"
         />
       </div>
@@ -258,6 +252,7 @@ const aidePrix = computed(() =>
         block
         @click="suppressionOuverte = true"
       />
+    </div>
     </div>
 
     <UModal

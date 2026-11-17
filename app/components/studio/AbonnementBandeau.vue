@@ -21,7 +21,7 @@ const jourFin = computed(() => (moi.value ? dernierJourAvant(props.graceJusquau,
       <template v-if="jourFin">
         Vous gardez tout jusqu’au {{ jourFin }}.
       </template>
-      Ensuite, votre vitrine repasse au plan gratuit. Rien n’est supprimé.
+      {{ MESSAGE_APRES_GRACE }}
     </p>
     <UButton
       label="Renouveler mon abonnement"

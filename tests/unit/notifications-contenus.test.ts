@@ -15,7 +15,10 @@ const common = {
   outboxId: OUTBOX_ID,
   generatedAt: new Date('2026-10-30T12:34:56.000Z'),
   professionnelEmail: 'cabrel.pro@exemple.test',
+  siteUrl: 'https://jesuis.pro',
   vitrine: {
+    username: 'dr-cabrel',
+    palette: 'terracotta',
     titre: 'dr',
     prenom: 'Cabrel',
     nom: 'Nguesso',

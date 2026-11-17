@@ -2,7 +2,7 @@
 defineProps<{
   icon: string
   title: string
-  description: string
+  description?: string
   /** Action unique de l'état vide (facultative). */
   actionLabel?: string
   actionTo?: string
@@ -15,6 +15,6 @@ defineProps<{
     :title="title"
     :description="description"
     :as="{ title: 'h1' }"
-    :actions="actionLabel && actionTo ? [{ label: actionLabel, to: actionTo, size: 'xl' }] : undefined"
+    :actions="actionLabel && actionTo ? [{ label: actionLabel, to: actionTo, icon: 'i-ph-plus', size: 'xl' }] : undefined"
   />
 </template>

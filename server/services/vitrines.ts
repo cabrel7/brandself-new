@@ -1,20 +1,26 @@
 import { randomUUID } from 'node:crypto'
-import { and, eq, isNotNull, sql } from 'drizzle-orm'
+import { and, eq, sql } from 'drizzle-orm'
 import { disponibilites, liens, medias, realisations, services, temoignages, users, vitrines } from '../../shared/db/schema'
 import { USERNAME_CHECK_LIMIT } from '../../shared/limites'
+import { REGLAGE_CLES } from '../../shared/reglages'
 import { isReserved } from '../../shared/reserved'
+import { verifierNomUtilisateur } from './configuration/catalogues'
 import type { UsernameChangeInput, VitrineCreateInput, VitrineUpdateInput } from '../../shared/schemas/vitrine'
 import { NEXT_STEPS } from '../../shared/vitrine'
 import type { NextStep, PublicationField } from '../../shared/vitrine'
 import { ConflictError, NotFoundError, UnprocessableError } from '../exceptions/http'
+import { planifierRegenerationSeo } from '../jobs/seo'
 import { db } from '../utils/db'
 import { PG_FOREIGN_KEY_VIOLATION, PG_UNIQUE_VIOLATION, readPgError } from '../utils/pg-error'
 import { hasValidUsernameFormat, normalizeUsername } from '../utils/username'
 import { enforceLimit } from './limiteur'
+import { seoIaARegenerer, signatureEntreesSeo } from './ia/seo-regles'
 import { deleteMediaIfUnreferenced } from './medias'
 import type { MediaRow } from './medias'
 import { getPlanPublic, sqlIdsVisibles } from './plan-visibilite'
+import { Reglages } from './reglages'
 import { getTotaux7J } from './statistiques'
+import { sqlVitrinePublique } from './visibilite'
 import { computeMissingForPublication, computeNextStep } from './vitrines-regles'
 
 export { computeMissingForPublication, computeNextStep } from './vitrines-regles'
@@ -80,12 +86,19 @@ function rethrowUniqueViolation(error: unknown): never {
 }
 
 export async function createVitrine(userId: string, input: VitrineCreateInput): Promise<VitrineAvecPhoto> {
+  // A5 (CA16) : nom réservé par le code ou bloqué par l'administration : 422 `NOM_BLOQUE`.
+  await verifierNomUtilisateur(input.username)
+  // A4 (D-A4-14) : défauts d'agenda pilotés, appliqués aux NOUVELLES vitrines seulement.
+  const preavisHeures = await Reglages.lire(REGLAGE_CLES.agendaPreavisDefautHeures)
+  const horizonJours = await Reglages.lire(REGLAGE_CLES.agendaHorizonDefautJours)
   try {
     const [vitrine] = await db
       .insert(vitrines)
       .values({
         id: randomUUID(),
         userId,
+        preavisHeures,
+        horizonJours,
         username: input.username,
         titre: input.titre,
         prenom: input.prenom,
@@ -106,11 +119,33 @@ export async function getOwnVitrine(userId: string): Promise<VitrineAvecPhoto> {
   return requireOwn(userId)
 }
 
+/**
+ * Décision #24 : faut-il (re)planifier le SEO IA après cette modification ? Vitrine publiée ET du texte Google à
+ * générer ET : soit les entrées du modèle (métier, ville, pays, accroche : signature) ont réellement changé, soit un
+ * texte saisi est remis en automatique alors qu'aucune proposition fraîche n'existe. Une simple retouche de casse
+ * ou d'espaces ne change pas la signature : aucun appel payant.
+ */
+function seoAReplanifier(current: VitrineRow, changes: Partial<VitrineUpdateInput>): boolean {
+  if (current.publieeLe === null) return false
+  const apres: VitrineRow = {
+    ...current,
+    metier: changes.metier ?? current.metier,
+    ville: changes.ville === undefined ? current.ville : changes.ville,
+    pays: changes.pays === undefined ? current.pays : changes.pays,
+    accroche: changes.accroche === undefined ? current.accroche : changes.accroche,
+    seoTitre: changes.seoTitre === undefined ? current.seoTitre : changes.seoTitre,
+    seoDescription: changes.seoDescription === undefined ? current.seoDescription : changes.seoDescription,
+  }
+  const signatureChangee = signatureEntreesSeo(current) !== signatureEntreesSeo(apres)
+  const remiseEnAutomatique = changes.seoTitre === null || changes.seoDescription === null
+  return (signatureChangee || remiseEnAutomatique) && seoIaARegenerer(apres)
+}
+
 export async function updateVitrine(userId: string, patch: VitrineUpdateInput): Promise<VitrineAvecPhoto> {
   const changes = stripUndefined(patch)
-  let previousPhotoId: string | null
+  let resultat: { previousPhotoId: string | null, seoAPlanifier: string | null }
   try {
-    previousPhotoId = await db.transaction(async (tx) => {
+    resultat = await db.transaction(async (tx) => {
       const [current] = await tx.select().from(vitrines).where(eq(vitrines.userId, userId)).for('update')
       if (!current) throw new NotFoundError('VITRINE_INTROUVABLE')
 
@@ -130,13 +165,17 @@ export async function updateVitrine(userId: string, patch: VitrineUpdateInput): 
       }
 
       await tx.update(vitrines).set({ ...changes, updatedAt: new Date() }).where(eq(vitrines.id, current.id))
-      return current.photoMediaId
+      return { previousPhotoId: current.photoMediaId, seoAPlanifier: seoAReplanifier(current, changes) ? current.id : null }
     })
   } catch (error) {
     const { code, constraint } = readPgError(error)
     if (code === PG_FOREIGN_KEY_VIOLATION && constraint === PHOTO_FK) throw new UnprocessableError('MEDIA_INVALIDE')
     throw error
   }
+  const { previousPhotoId, seoAPlanifier } = resultat
+
+  // Après le commit, jamais bloquant (`planifierRegenerationSeo` ne lève pas) : le SEO IA se régénère dans 5 minutes.
+  if (seoAPlanifier !== null) await planifierRegenerationSeo(seoAPlanifier)
 
   // Après le commit : l'ancienne photo disparaît si plus rien ne la référence. Un échec ici
   // laisse un orphelin (nettoyé plus tard), il ne doit pas faire échouer la modification.
@@ -149,6 +188,8 @@ export async function updateVitrine(userId: string, patch: VitrineUpdateInput): 
 }
 
 export async function changeUsername(userId: string, username: UsernameChangeInput['username']): Promise<VitrineAvecPhoto> {
+  // A5 (CA16) : les vitrines existantes ne sont jamais modifiées ; seul un NOUVEAU choix est contrôlé.
+  await verifierNomUtilisateur(username)
   try {
     await db.transaction(async (tx) => {
       const [current] = await tx
@@ -176,16 +217,23 @@ export async function changeUsername(userId: string, username: UsernameChangeInp
 
 /** Publie (idempotent : `publiee_le` ne bouge pas si la vitrine l'est déjà). */
 export async function publishVitrine(userId: string): Promise<VitrineAvecPhoto> {
-  await db.transaction(async (tx) => {
+  const seoAPlanifier = await db.transaction(async (tx) => {
     const [current] = await tx.select().from(vitrines).where(eq(vitrines.userId, userId)).for('update')
     if (!current) throw new NotFoundError('VITRINE_INTROUVABLE')
+    // A2 (D-A2-02) : une vitrine dépubliée par l'administration ne se republie pas depuis le studio. Le motif est
+    // montré au professionnel (D-A2-13), jamais au visiteur.
+    if (current.blocageAdmin) throw new ConflictError('VITRINE_BLOQUEE_ADMIN', { motif: current.blocageMotif })
     const manquants = computeMissingForPublication(current)
     if (manquants.length > 0) throw new UnprocessableError('PUBLICATION_INCOMPLETE', { manquants })
     await tx
       .update(vitrines)
       .set({ publieeLe: sql`COALESCE(${vitrines.publieeLe}, now())`, updatedAt: new Date() })
       .where(eq(vitrines.id, current.id))
+    // Décision #24 : une vitrine qui devient visible sans proposition SEO fraîche (jamais générée, ou périmée pendant
+    // qu'elle était masquée) en reçoit une. La vitrine est publiée à l'issue de la transaction : `publieeLe` non nul.
+    return seoIaARegenerer({ ...current, publieeLe: current.publieeLe ?? new Date() }) ? current.id : null
   })
+  if (seoAPlanifier !== null) await planifierRegenerationSeo(seoAPlanifier)
   return requireOwn(userId)
 }
 
@@ -297,12 +345,12 @@ export async function getStudioView(userId: string): Promise<StudioView> {
   return { vitrine, resume: await summarize(vitrine) }
 }
 
-/** Vitrine publiée d'un username. Format invalide : introuvable, sans requête. */
+/** Vitrine visible du public (publiée, non bloquée, titulaire actif : visibilite.ts). Format invalide : introuvable, sans requête. */
 export async function getPublicVitrine(rawUsername: string): Promise<VitrineAvecPhoto> {
   const username = normalizeUsername(rawUsername)
   if (!hasValidUsernameFormat(username)) throw new NotFoundError('VITRINE_INTROUVABLE')
   const [row] = await selectWithPhoto()
-    .where(and(eq(vitrines.username, username), isNotNull(vitrines.publieeLe)))
+    .where(and(eq(vitrines.username, username), sqlVitrinePublique()))
     .limit(1)
   if (!row) throw new NotFoundError('VITRINE_INTROUVABLE')
   return row
@@ -314,7 +362,7 @@ export type ContenusPublics = { services: number, realisations: number, agenda: 
 export interface VitrinePage {
   vitrine: VitrineAvecPhoto
   contenus: ContenusPublics
-  /** S10 : badge « Créé avec Brandself » (plan gratuit). Jamais le statut d'abonnement lui-même. */
+  /** S10 : badge « Créé avec jesuis.pro » (plan gratuit). Jamais le statut d'abonnement lui-même. */
   badgeBrandself: boolean
 }
 
@@ -355,6 +403,11 @@ export async function checkUsernameAvailability(userId: string, rawUsername: str
   const username = normalizeUsername(rawUsername)
   if (!hasValidUsernameFormat(username)) return { username, disponible: false, raison: 'format' }
   if (isReserved(username)) return { username, disponible: false, raison: 'reserve' }
+  try {
+    await verifierNomUtilisateur(username)
+  } catch {
+    return { username, disponible: false, raison: 'reserve' }
+  }
   const [owner] = await db
     .select({ userId: vitrines.userId })
     .from(vitrines)

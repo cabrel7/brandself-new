@@ -21,8 +21,16 @@ export interface VitrineStudioDTO {
   fuseau: string
   publiee: boolean
   publieeLe: string | null
+  /** A2 : vitrine bloquée par l'administration (le motif est visible du professionnel seulement). */
+  blocageAdmin: boolean
+  blocageMotif: string | null
   creeLe: string
   modifieLe: string
+  /** Texte Google saisi par l'utilisateur (null = automatique). */
+  seoTitre: string | null
+  seoDescription: string | null
+  /** Texte automatique résolu SANS les textes saisis (IA fraîche, sinon gabarit). */
+  seoAuto: { titre: string, description: string, origine: 'ia' | 'gabarit' }
 }
 
 export interface StudioResumeDTO {
@@ -61,7 +69,7 @@ export interface VitrinePubliqueDTO {
   seo: SeoPublicDTO
   /** ISO 8601 : `lastmod` et `og:updated_time`. */
   modifieLe: string
-  /** S10 : badge « Créé avec Brandself » (plan gratuit). Le statut d'abonnement n'est jamais exposé publiquement. */
+  /** S10 : badge « Créé avec jesuis.pro » (plan gratuit). Le statut d'abonnement n'est jamais exposé publiquement. */
   badgeBrandself: boolean
 }
 

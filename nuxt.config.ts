@@ -1,10 +1,12 @@
 // https://nuxt.com/docs/api/configuration/nuxt-config
 import tailwindcss from '@tailwindcss/vite'
 import { loadDrapeauxPublics, loadSiteConfig } from './shared/env'
+import { MARQUE } from './shared/brand'
 import {
   LLMS_NOTES,
   LLMS_SECTIONS,
   NOINDEX_ROUTES,
+  OG_LOGO,
   ROBOTS_IA_POLITIQUE_DEFAUT,
   SITE_DESCRIPTION,
   SITEMAP_CACHE_S,
@@ -14,7 +16,7 @@ import {
 
 // Validation de l'environnement dès le chargement de la configuration :
 // `pnpm dev` / `pnpm build` échouent immédiatement si une variable manque.
-const { googleActif, boiteOtpDev, paiementEnLigne } = loadDrapeauxPublics(process.env, process.argv)
+const { googleActif, boiteOtpDev, paiementEnLigne, adminHost } = loadDrapeauxPublics(process.env, process.argv)
 const siteConfig = loadSiteConfig(process.env, process.argv)
 
 // S12 (#149) : une directive par route, appliquée en meta et en `X-Robots-Tag` (routeRules.robots).
@@ -61,13 +63,16 @@ export default defineNuxtConfig({
       boiteOtpDev,
       // Faux en v1 : seul le règlement « sur place » est proposé pour un service payant.
       paiementEnLigne,
+      // A1 : hôte de l'administration (nom d'hôte, sans port). Sert au middleware de route et à l'exclusion
+      // de l'invite d'installation, du suivi de visites et du service worker sur ce domaine.
+      adminHost,
     },
   },
   // `indexable` volontairement absent : une valeur explicite l'emporterait sur `env` et sur
   // NUXT_PUBLIC_SITE_ENV au runtime. Sans lui, indexable <=> env === 'production' (staging = noindex).
   site: {
     url: siteConfig.url,
-    name: 'Brandself',
+    name: MARQUE.nom,
     description: SITE_DESCRIPTION,
     defaultLocale: 'fr',
     trailingSlash: false,
@@ -104,11 +109,22 @@ export default defineNuxtConfig({
     llmsTxtCacheSeconds: 3600,
     contentSignal: { aiTrain: false, search: true, aiInput: true, contentUsage: false },
   },
-  schemaOrg: { identity: 'Organization' },
+  // Organization du site (nœud `#identity` de chaque page). `url` volontairement absent : le module la lit dans
+  // `site.url` au runtime, donc elle suit NUXT_PUBLIC_SITE_URL même si l'image est construite pour un autre hôte.
+  schemaOrg: { identity: { type: 'Organization', name: MARQUE.nom, logo: OG_LOGO } },
   app: {
     head: {
       htmlAttrs: { lang: 'fr' },
-      title: 'Brandself',
+      // S14 : aucun titre par défaut. Le gabarit `%s | siteName` (nuxt-seo-utils) porte la marque ;
+      // un `title` ici la ferait apparaître deux fois sur les pages sans titre propre.
+      // S14 (#18) : icônes dans public/brand/. nuxt-seo-utils n'auto-injecte que les
+      // fichiers posés à la racine de public/ ; déclarés ici, ces liens remplacent son injection.
+      link: [
+        { rel: 'manifest', href: '/manifest.json' },
+        { rel: 'icon', type: 'image/svg+xml', href: '/brand/favicon.svg', sizes: 'any' },
+        { rel: 'icon', href: '/favicon.ico' },
+        { rel: 'apple-touch-icon', type: 'image/png', href: '/brand/apple-touch-icon.png', sizes: '180x180' },
+      ],
     },
   },
   fonts: {
@@ -141,7 +157,21 @@ export default defineNuxtConfig({
       robots: NOINDEX_ROUTES['/desabonnement'],
       headers: { 'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer' },
     },
+    // A1 : administration (servie seulement sur ADMIN_HOST, voir server/middleware/00-hote.ts). Rendu client
+    // uniquement, jamais indexée ni mise en cache. Aucune règle `auth` du module : l'accès est contrôlé par
+    // `requireSuperadmin` (réponse 404 uniforme) et le middleware de route `admin`.
+    '/admin/**': {
+      ssr: false,
+      robots: 'noindex, nofollow',
+      headers: { 'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer' },
+    },
+    '/api/admin/**': { headers: { 'Cache-Control': 'no-store' } },
   },
+  // Serveur de dev lié à 127.0.0.1 (boucle locale IPv4) : par défaut Node résout `localhost` en ::1 et
+  // n'écoute qu'en IPv6, ce qui fait refuser le WebSocket HMR par Firefox (NS_ERROR_WEBSOCKET_CONNECTION_REFUSED)
+  // alors que le HTTP passe. Jamais `0.0.0.0` ni `::` : la boîte OTP de dev (/api/dev/boite-otp) serait
+  // lisible depuis tout le réseau local. `localhost` reste utilisable dans le navigateur.
+  devServer: { host: '127.0.0.1' },
   // Développement uniquement : les sous-modules lourds de @nuxtjs/seo sont coupés.
   // nuxt-og-image télécharge des polices depuis fonts.gstatic.com pendant le build
   // Nitro de dev ; un échec réseau fait échouer ce build (« dev server unavailable »).
@@ -157,6 +187,11 @@ export default defineNuxtConfig({
     nitro: { externals: { trace: false } },
   },
   compatibilityDate: '2025-07-15',
+  // Production : les fichiers de `.output/public` (CSS, JS, SVG) sont précompressés au build (gzip et brotli) et servis avec
+  // `Content-Encoding` selon l'en-tête `Accept-Encoding`. Sans cela, le serveur Node les envoie bruts (mesuré par Lighthouse
+  // le 2026-11-17 : transfert = taille réelle, 779 Kio d'économie possible sur /tarifs) et seuls les hôtes nginx qui compressent
+  // eux-mêmes (deploy/nginx/admin.conf) en profitent.
+  nitro: { compressPublicAssets: { gzip: true, brotli: true } },
   // Désactivé : les Nuxt DevTools alourdissent fortement le dev sur 7 Go de RAM.
   // Réactiver ponctuellement avec `devtools: { enabled: true }`.
   devtools: { enabled: false },

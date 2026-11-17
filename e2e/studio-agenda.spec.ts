@@ -229,7 +229,7 @@ test.describe.serial('Studio Agenda S7 - vitrine fraîche', () => {
     await page.getByRole('tab', { name: 'Demandes', exact: true }).click()
     await expect(page.getByText('Aucune demande', { exact: true })).toBeVisible()
     await page.getByRole('tab', { name: 'Passées', exact: true }).click()
-    await expect(page.getByText('Rien de passé — tout est traité', { exact: true })).toBeVisible()
+    await expect(page.getByText('Aucun rendez-vous passé', { exact: true })).toBeVisible()
     await page.getByRole('tab', { name: 'À venir', exact: true }).click()
 
     await page.getByRole('link', { name: 'Disponibilités', exact: true }).click()
@@ -243,22 +243,30 @@ test.describe.serial('Studio Agenda S7 - vitrine fraîche', () => {
     const boutonEnregistrer = page.getByRole('button', { name: /^Enregistrer/ })
     await expect(boutonEnregistrer).toBeDisabled()
 
-    // Un interrupteur par jour : fermé au départ, l'ouvrir propose la plage par défaut.
-    const interrupteurLundi = disponibilites().getByRole('switch', { name: 'Lundi : jour ouvert' })
-    const ajouterLundi = disponibilites().getByRole('button', { name: 'Ajouter une plage le lundi' })
+    // Une ligne par jour : fermé au départ ; la feuille du jour édite une copie, « Appliquer » l'applique.
+    const ligneLundiFermee = disponibilites().getByRole('button', { name: 'Lundi : fermé. Modifier', exact: true })
+    await expect(ligneLundiFermee).toBeVisible()
+    await ligneLundiFermee.click()
+    const feuille = page.getByRole('dialog', { name: 'Lundi', exact: true })
+    await expect(feuille).toBeVisible()
+    const interrupteurLundi = feuille.getByRole('switch', { name: 'Jour ouvert' })
     await expect(interrupteurLundi).not.toBeChecked()
-    await expect(ajouterLundi).toHaveCount(0)
     await interrupteurLundi.click()
     await expect(interrupteurLundi).toBeChecked()
-    await expect(disponibilites().getByLabel('Début')).toHaveCount(1)
-    await ajouterLundi.click()
-    await expect(disponibilites().getByLabel('Début')).toHaveCount(2)
-    await expect(disponibilites().getByLabel('Fin')).toHaveCount(2)
+    await expect(feuille.getByLabel('Début')).toHaveCount(1)
+    await feuille.getByRole('button', { name: 'Ajouter une plage' }).click()
+    await expect(feuille.getByLabel('Début')).toHaveCount(2)
+    await expect(feuille.getByLabel('Fin')).toHaveCount(2)
 
-    await disponibilites().getByLabel('Début').nth(0).fill('09:00')
-    await disponibilites().getByLabel('Fin').nth(0).fill('12:00')
-    await disponibilites().getByLabel('Début').nth(1).fill('14:00')
-    await disponibilites().getByLabel('Fin').nth(1).fill('17:00')
+    await feuille.getByLabel('Début').nth(0).fill('09:00')
+    await feuille.getByLabel('Fin').nth(0).fill('12:00')
+    await feuille.getByLabel('Début').nth(1).fill('14:00')
+    await feuille.getByLabel('Fin').nth(1).fill('17:00')
+    await feuille.getByRole('button', { name: 'Appliquer', exact: true }).click()
+    await expect(feuille).toBeHidden()
+    await expect(
+      disponibilites().getByRole('button', { name: 'Lundi : de 9h à 12h et de 14h à 17h. Modifier', exact: true }),
+    ).toBeVisible()
 
     await disponibilites().getByText('Réglages avancés', { exact: true }).click()
     const fuseau = disponibilites().getByRole('combobox', { name: 'Fuseau horaire' })
@@ -268,8 +276,8 @@ test.describe.serial('Studio Agenda S7 - vitrine fraîche', () => {
     const pas = disponibilites().getByRole('combobox', { name: 'Pas des créneaux' })
     await pas.click()
     await page.getByRole('option', { name: '60 minutes', exact: true }).click()
-    await disponibilites().getByLabel('Préavis (heures)').fill('1')
-    await disponibilites().getByLabel('Horizon (jours)').fill('45')
+    await disponibilites().getByLabel('Délai minimal avant réservation (heures)').fill('1')
+    await disponibilites().getByLabel('Réservation possible jusqu’à (jours)').fill('45')
     await expect(boutonEnregistrer).toBeEnabled()
 
     const reponseFuseauPromise = page.waitForResponse((reponse) =>
@@ -308,17 +316,16 @@ test.describe.serial('Studio Agenda S7 - vitrine fraîche', () => {
     await attendreHydration(page)
     await expect(page.getByRole('heading', { level: 1, name: 'Vos disponibilités' })).toBeVisible()
     await expect(page.getByRole('navigation', { name: 'Navigation du studio' })).toBeHidden()
-    await expect(disponibilites().getByLabel('Début').nth(0)).toHaveValue('09:00')
-    await expect(disponibilites().getByLabel('Fin').nth(0)).toHaveValue('12:00')
-    await expect(disponibilites().getByLabel('Début').nth(1)).toHaveValue('14:00')
-    await expect(disponibilites().getByLabel('Fin').nth(1)).toHaveValue('17:00')
+    await expect(
+      disponibilites().getByRole('button', { name: 'Lundi : de 9h à 12h et de 14h à 17h. Modifier', exact: true }),
+    ).toBeVisible()
     await expect(disponibilites().getByText('Fermé', { exact: true })).toHaveCount(6)
 
     await disponibilites().getByText('Réglages avancés', { exact: true }).click()
     await expect(disponibilites().getByRole('combobox', { name: 'Fuseau horaire' })).toContainText('Europe/Paris')
     await expect(disponibilites().getByRole('combobox', { name: 'Pas des créneaux' })).toContainText('60 minutes')
-    await expect(disponibilites().getByLabel('Préavis (heures)')).toHaveValue('1')
-    await expect(disponibilites().getByLabel('Horizon (jours)')).toHaveValue('45')
+    await expect(disponibilites().getByLabel('Délai minimal avant réservation (heures)')).toHaveValue('1')
+    await expect(disponibilites().getByLabel('Réservation possible jusqu’à (jours)')).toHaveValue('45')
     expect(await lireDisponibilites()).toEqual(enregistrees)
 
     await retourAgenda.click()
@@ -382,7 +389,7 @@ test.describe.serial('Studio Agenda S7 - vitrine fraîche', () => {
     await expect(page.locator('#contact')).toHaveCount(1)
 
     // S7-bis §7.6 : la nav pointe vers les pages dédiées, plus vers les ancres.
-    const navigation = page.getByRole('navigation', { name: 'Vitrine' })
+    const navigation = page.getByRole('navigation', { name: 'Navigation principale' })
     const lienAgenda = navigation.getByRole('link', { name: 'Agenda', exact: true })
     await expect(lienAgenda).toHaveAttribute('href', `/${username}/agenda`)
     await lienAgenda.click()
@@ -415,7 +422,7 @@ test.describe.serial('Studio Agenda S7 - vitrine fraîche', () => {
       // Les liens de nav sont masqués sous md (hidden md:inline-flex) : sur mobile,
       // seule la marque et « Réserver » sont visibles (inchangé).
       const lienContactParTaille = page
-        .getByRole('navigation', { name: 'Vitrine' })
+        .getByRole('navigation', { name: 'Navigation principale' })
         .getByRole('link', { name: 'Contact', exact: true })
       if (taille === MOBILE) {
         await expect(lienContactParTaille).toBeHidden()
@@ -429,7 +436,9 @@ test.describe.serial('Studio Agenda S7 - vitrine fraîche', () => {
   test('une plage invalide affiche les erreurs sans requête d’écriture ni modification persistée', async () => {
     await ouvrirDisponibilites()
     const avant = await lireDisponibilites()
-    await disponibilites().getByLabel('Fin').nth(0).fill('08:00')
+    await disponibilites().getByRole('button', { name: 'Lundi : de 9h à 12h et de 14h à 17h. Modifier', exact: true }).click()
+    const feuille = page.getByRole('dialog', { name: 'Lundi', exact: true })
+    await feuille.getByLabel('Fin').nth(0).fill('08:00')
 
     let ecritures = 0
     const compterEcriture = (requete: Request): void => {
@@ -440,15 +449,19 @@ test.describe.serial('Studio Agenda S7 - vitrine fraîche', () => {
     }
     page.on('request', compterEcriture)
     try {
-      await page.getByRole('button', { name: /^Enregistrer/ }).click()
-      await expect(disponibilites().getByText(
+      // « Appliquer » est bloqué : l'erreur reste visible dans la feuille, le brouillon n'est pas modifié.
+      await feuille.getByRole('button', { name: 'Appliquer', exact: true }).click()
+      await expect(feuille.getByText(
         'La fin doit être après le début, le même jour.',
         { exact: true },
       )).toBeVisible()
-      await expect(page.getByText(
-        'Vérifiez les disponibilités et les réglages signalés.',
-        { exact: true },
-      )).toBeVisible()
+      // La saisie diffère du jour d'origine : « Annuler » retient la fermeture et propose Abandonner.
+      await feuille.getByRole('button', { name: 'Annuler', exact: true }).click()
+      await expect(feuille.getByText('Vous avez des modifications non appliquées.', { exact: true })).toBeVisible()
+      await expect(feuille).toBeVisible()
+      await feuille.getByRole('button', { name: 'Abandonner', exact: true }).click()
+      await expect(feuille).toBeHidden()
+      await expect(page.getByRole('button', { name: /^Enregistrer/ })).toBeDisabled()
       expect(ecritures).toBe(0)
     }
     finally {
@@ -458,7 +471,9 @@ test.describe.serial('Studio Agenda S7 - vitrine fraîche', () => {
     expect(await lireDisponibilites()).toEqual(avant)
     await page.reload()
     await attendreHydration(page)
-    await expect(disponibilites().getByLabel('Fin').nth(0)).toHaveValue('12:00')
+    await expect(
+      disponibilites().getByRole('button', { name: 'Lundi : de 9h à 12h et de 14h à 17h. Modifier', exact: true }),
+    ).toBeVisible()
   })
 
   test('une indisponibilité est ajoutée puis supprimée par une confirmation accessible, sans confirm natif', async () => {
@@ -494,10 +509,6 @@ test.describe.serial('Studio Agenda S7 - vitrine fraîche', () => {
 
       const confirmation = indisponibilites().getByRole('group', { name: 'Supprimer cette indisponibilité ?' })
       await expect(confirmation).toBeVisible()
-      await expect(confirmation.getByText(
-        'Les créneaux habituels seront de nouveau proposés ce jour-là.',
-        { exact: true },
-      )).toBeVisible()
       const confirmer = confirmation.getByRole('button', { name: 'Supprimer', exact: true })
       await expect(confirmer).toBeFocused()
 
@@ -514,7 +525,53 @@ test.describe.serial('Studio Agenda S7 - vitrine fraîche', () => {
 
     await expect(ligne).toHaveCount(0)
     await expect(indisponibilites().getByText('Aucune date fermée', { exact: true })).toBeVisible()
-    await expect(page.getByRole('status').filter({ hasText: 'L’indisponibilité est supprimée.' })).toBeVisible()
+    await expect(indisponibilites().getByRole('status').filter({ hasText: 'Indisponibilité supprimée.' })).toBeVisible()
+    await expect(page.getByRole('status').filter({ hasText: 'Indisponibilité supprimée.' })).toHaveCount(1)
+  })
+
+  test('une plage de trois jours est fermée en une fois, puis la même plage est signalée comme déjà fermée', async () => {
+    await ouvrirDisponibilites()
+    const raison = 'Congé plage agenda E2E'
+    const debut = dateIsoDans(40)
+    const fin = dateIsoDans(42)
+    await indisponibilites().getByRole('button', { name: 'Plusieurs jours', exact: true }).click()
+    await indisponibilites().getByLabel('Du', { exact: true }).fill(debut)
+    await indisponibilites().getByLabel('Au', { exact: true }).fill(fin)
+    await expect(indisponibilites().getByText('3 jours', { exact: true })).toBeVisible()
+    await indisponibilites().getByLabel('Raison (facultative)').fill(raison)
+
+    const ajoutPromise = page.waitForResponse((reponse) =>
+      reponse.request().method() === 'POST'
+      && new URL(reponse.url()).pathname === '/api/studio/agenda/indisponibilites',
+    )
+    await indisponibilites().getByRole('button', { name: 'Ajouter une indisponibilité' }).click()
+    const ajout = await lireJsonReponse<{ items: unknown[], creees: number, ignorees: number, reservationsConcernees: number }>(
+      await ajoutPromise,
+      201,
+      'ajout de la plage d’indisponibilités',
+    )
+    expect(ajout).toMatchObject({ creees: 3, ignorees: 0, reservationsConcernees: 0 })
+
+    await expect(indisponibilites().getByRole('status').filter({ hasText: '3 jours fermés.' })).toBeVisible()
+    await expect(indisponibilites().getByRole('listitem').filter({ hasText: raison })).toHaveCount(3)
+    await expect(indisponibilites().getByLabel('Du', { exact: true })).toHaveValue('')
+
+    // Même plage : le serveur répond 200 sans rien créer, le retour est neutre.
+    await indisponibilites().getByLabel('Du', { exact: true }).fill(debut)
+    await indisponibilites().getByLabel('Au', { exact: true }).fill(fin)
+    const repetitionPromise = page.waitForResponse((reponse) =>
+      reponse.request().method() === 'POST'
+      && new URL(reponse.url()).pathname === '/api/studio/agenda/indisponibilites',
+    )
+    await indisponibilites().getByRole('button', { name: 'Ajouter une indisponibilité' }).click()
+    const repetition = await lireJsonReponse<{ creees: number, ignorees: number }>(
+      await repetitionPromise,
+      200,
+      'ajout d’une plage déjà fermée',
+    )
+    expect(repetition).toMatchObject({ creees: 0, ignorees: 3 })
+    await expect(indisponibilites().getByRole('status').filter({ hasText: 'Ces dates étaient déjà fermées.' })).toBeVisible()
+    await expect(indisponibilites().getByRole('listitem').filter({ hasText: raison })).toHaveCount(3)
   })
 
   test('une réservation en attente se refuse (étiquette Refusée, re-refus 422) puis une confirmée s’annule', async () => {
@@ -698,14 +755,14 @@ test.describe.serial('Studio Agenda S7 - vitrine fraîche', () => {
     await expect(carte.getByRole('button', { name: 'Traiter', exact: true })).toBeVisible()
   })
 
-  test('390, 768 et 1280 px : aucun overflow, compte accessible et Agenda actif à la racine', async () => {
+  test('390, 768 et 1280 px : aucun overflow, menu du compte accessible et Agenda actif à la racine', async () => {
     await page.setViewportSize(MOBILE)
     await ouvrirAgenda()
 
     for (const taille of [MOBILE, TABLETTE, DESKTOP]) {
       await page.setViewportSize(taille)
       await expect(page.getByRole('heading', { level: 1, name: 'Agenda' })).toBeVisible()
-      await expect(page.getByRole('link', { name: 'Votre compte' })).toBeVisible()
+      await expect(page.getByRole('button', { name: 'Votre menu' })).toBeVisible()
 
       const navigation = page.getByRole('navigation', { name: 'Navigation du studio' })
       await expect(navigation).toBeVisible()
@@ -716,7 +773,9 @@ test.describe.serial('Studio Agenda S7 - vitrine fraîche', () => {
       if (taille.width === MOBILE.width) {
         const boite = await navigation.boundingBox()
         expect(boite, 'la barre de navigation du bas doit être mesurable').not.toBeNull()
-        expect(Math.abs((boite?.y ?? 0) + (boite?.height ?? 0) - taille.height)).toBeLessThanOrEqual(1)
+        // Barre flottante (BsBottomNav : `bottom-[calc(0.75rem+env(safe-area-inset-bottom))]`) : 12 px au-dessus du bas de l'écran.
+        const ESPACE_BAS_PX = 12
+        expect(Math.abs(taille.height - ((boite?.y ?? 0) + (boite?.height ?? 0)) - ESPACE_BAS_PX)).toBeLessThanOrEqual(1)
       }
     }
   })

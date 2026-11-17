@@ -579,7 +579,7 @@ describe('vitrines — publication (CA10 à CA13)', () => {
     it('CA13 should compose the seo description from métier, ville, pays and accroche, and honour the stored overrides (S12 #144)', async () => {
       const { updateVitrine, getPublicVitrine } = await vitrinesService()
       const { toVitrinePublicResource } = await ressourceVitrine()
-      const { user, vitrine } = await publierAvecPhoto()
+      const { user, vitrine, photo } = await publierAvecPhoto()
       await updateVitrine(user.id, schemaVitrineUpdate.parse({ accroche: 'Votre cœur entre de bonnes mains' }))
 
       const avecAccroche = toVitrinePublicResource(await getPublicVitrine('dr-test'))
@@ -587,7 +587,12 @@ describe('vitrines — publication (CA10 à CA13)', () => {
       const avecSurcharge = toVitrinePublicResource(await getPublicVitrine('dr-test'))
 
       expect(avecAccroche.seo.description).toBe('Cardiologue à Douala (Cameroun). Votre cœur entre de bonnes mains')
-      expect(avecSurcharge.seo).toEqual({ titre: 'Titre SEO sur mesure', description: 'Description SEO sur mesure', image: null })
+      // La saisie gagne sur le texte, pas sur l'image : la variante de partage de la photo reste servie (S12).
+      expect(avecSurcharge.seo).toEqual({
+        titre: 'Titre SEO sur mesure',
+        description: 'Description SEO sur mesure',
+        image: { url: `/medias/${photo}/partage.jpg`, largeur: 1200, hauteur: 630, alt: 'Dr Cabrel Nguesso' },
+      })
     })
 
     it('CA13 should return a null photo when the vitrine has none', async () => {
@@ -919,10 +924,20 @@ describe('vitrines — compteurs de navigation publique (S4-CA41)', () => {
       }
     }
 
-    const base = await compter(() => getPublicVitrine('dr-test'))
-    const page = await compter(() => getPublicVitrinePage('dr-test'))
+    // Horloge gelée (Date seulement) puis caches échauffés : la configuration des plans est lue avec un cache de 5 s, et une
+    // relecture tombant pendant une des deux mesures fausserait la différence (même cause que CA38 des réalisations).
+    vi.useFakeTimers({ toFake: ['Date'], now: Date.now() })
+    try {
+      await getPublicVitrine('dr-test')
+      await getPublicVitrinePage('dr-test')
 
-    // S10 : une requête pour le plan de la vitrine (badge, limites), une pour les compteurs et le drapeau agenda.
-    expect(page - base).toBe(2)
+      const base = await compter(() => getPublicVitrine('dr-test'))
+      const page = await compter(() => getPublicVitrinePage('dr-test'))
+
+      // S10 : une requête pour le plan de la vitrine (badge, limites), une pour les compteurs et le drapeau agenda.
+      expect(page - base).toBe(2)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })

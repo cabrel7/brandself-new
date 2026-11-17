@@ -1,4 +1,4 @@
-import { and, eq } from 'drizzle-orm'
+import { and, eq, sql } from 'drizzle-orm'
 import { db } from '../../../server/utils/db'
 import { redis } from '../../../server/utils/redis'
 import { generationsIa, progressionsInscription, promptsIa } from '../../../shared/db/schema'
@@ -50,7 +50,7 @@ export const jobsIa = () => import('../../../server/jobs/ia')
 export const CLE_MODE_FAUX = 'ia:faux:mode'
 const DUREE_MODE_FAUX_S = 600
 
-export type ModeFaux = 'normal' | 'panne' | 'lent' | 'invalide' | 'invente'
+export type ModeFaux = 'normal' | 'panne' | 'lent' | 'invalide' | 'invente' | 'seo_invalide' | 'sans_accents'
 
 export async function definirModeFaux(mode: ModeFaux): Promise<void> {
   await redis.set(CLE_MODE_FAUX, mode, 'EX', DUREE_MODE_FAUX_S)
@@ -175,8 +175,12 @@ export async function promptActif(type: IaType) {
 /** Modifie le prompt actif d'un type le temps de `fn`, puis le restaure à l'identique (la table n'est pas vidée entre les tests). */
 export async function avecPromptModifie<T>(type: IaType, patch: Partial<typeof promptsIa.$inferInsert>, fn: () => Promise<T>): Promise<T> {
   const original = await promptActif(type)
-  await db.update(promptsIa).set(patch).where(eq(promptsIa.id, original.id))
+  // A5 : le déclencheur `prompts_ia_figer` interdit de modifier le contenu d'une version (système, gabarit, variables,
+  // paramètres). Ce test simule une variante : on le désactive le temps de la modification, puis on le réactive
+  // (même méthode que tests/integration/setup.ts pour `journal_admin`). Le `finally` le réactive toujours.
+  await db.execute(sql`ALTER TABLE prompts_ia DISABLE TRIGGER prompts_ia_figer`)
   try {
+    await db.update(promptsIa).set(patch).where(eq(promptsIa.id, original.id))
     return await fn()
   } finally {
     await db.update(promptsIa).set({
@@ -186,6 +190,7 @@ export async function avecPromptModifie<T>(type: IaType, patch: Partial<typeof p
       systeme: original.systeme,
       gabarit: original.gabarit,
     }).where(eq(promptsIa.id, original.id))
+    await db.execute(sql`ALTER TABLE prompts_ia ENABLE TRIGGER prompts_ia_figer`)
   }
 }
 

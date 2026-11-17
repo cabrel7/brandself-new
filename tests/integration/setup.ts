@@ -1,10 +1,14 @@
 import { mkdir, rm } from 'node:fs/promises'
 import { sql } from 'drizzle-orm'
 import { afterAll, beforeAll, beforeEach } from 'vitest'
+// TOUT PREMIER import : redirige ce worker vers sa base clonée, son index Redis et son dossier de médias (mode
+// parallèle) AVANT que `db` et `redis` ne lisent l'environnement. Voir support/isolation-worker.ts.
+import './support/isolation-worker'
 // PREMIER import applicatif : les variables K-PAY doivent exister avant que `shared/env.ts` ne lise `process.env`.
 import { fauxKpay } from './support/env-kpay'
 import { db } from '../../server/utils/db'
 import { redis } from '../../server/utils/redis'
+import { indexRedisAutorises, nombreDeWorkers, VARIABLE_NB_BASES } from './support/bases-par-worker'
 import { assertBaseDeTest, assertRedisDeTest } from './support/garde-base'
 
 const PREFIXE_LIMITES = 'limite:'
@@ -29,12 +33,21 @@ async function supprimerCles(motif: string): Promise<void> {
 beforeAll(() => {
   // Ceinture et bretelles : le globalSetup a déjà refusé, mais on ne vide jamais une autre base.
   assertBaseDeTest(process.env.DATABASE_URL)
-  assertRedisDeTest(process.env.REDIS_URL)
+  const nbBases = Number.parseInt(process.env[VARIABLE_NB_BASES] ?? '0', 10)
+  assertRedisDeTest(process.env.REDIS_URL, indexRedisAutorises(nbBases > 0 ? nombreDeWorkers(String(nbBases)) : 0))
 })
 
 // Chaque test part d'un état vide : tables (CASCADE depuis users), compteurs de limitation, disque.
 beforeEach(async () => {
-  await db.execute(sql`TRUNCATE TABLE users, verifications, emails_transactionnels, vitrines, services, realisations RESTART IDENTITY CASCADE`)
+  // A1 : `journal_admin` référence `users` : le CASCADE l'atteint, et son déclencheur BEFORE TRUNCATE (ajout seul,
+  // SQLSTATE 42501) refuserait ce nettoyage. Seul ce nettoyage de test lève le déclencheur, dans la MÊME transaction
+  // que le TRUNCATE (le DDL est transactionnel : il est rétabli au COMMIT, ou jamais levé en cas d'échec). Les tests
+  // du journal vérifient eux-mêmes que le déclencheur est actif (tests/integration/admin/journal.test.ts).
+  await db.transaction(async (tx) => {
+    await tx.execute(sql`ALTER TABLE journal_admin DISABLE TRIGGER journal_admin_sans_vidage`)
+    await tx.execute(sql`TRUNCATE TABLE users, verifications, emails_transactionnels, vitrines, services, realisations, webhooks_refuses RESTART IDENTITY CASCADE`)
+    await tx.execute(sql`ALTER TABLE journal_admin ENABLE TRIGGER journal_admin_sans_vidage`)
+  })
   await supprimerCles(`${PREFIXE_LIMITES}*`)
   await supprimerCles(`${PREFIXE_BUDGET_KPAY}*`)
   fauxKpay.reinitialiser()

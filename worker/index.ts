@@ -1,19 +1,23 @@
 import { Queue, Worker } from 'bullmq'
 import type { Job } from 'bullmq'
 import Redis from 'ioredis'
+import type { FileSupervisee } from '../shared/jobs'
 import { env, resolveIaFournisseur } from '../shared/env'
-import { assertConfigPaiements } from '../server/config/paiements'
+import { verifierConfigPaiementsAuDemarrage } from '../server/services/configuration/demarrage'
+import { planifierVersionsAppliquer, traiterVersionsAppliquer } from '../server/jobs/versions-appliquer'
 import { IA_BASE_URL_DEFAUT, IA_CONCURRENCE_WORKER } from '../shared/ia'
-import type { OtpJobData } from '../shared/jobs'
+import { schemaSeoJobData } from '../shared/schemas/ia'
 import {
   EMAILS_NOTIFICATIONS_CONCURRENCE_WORKER,
   FILE_EMAILS_LEGACY,
   FILE_EMAILS_NOTIFICATIONS,
   FILE_IA,
+  FILE_IA_FOND,
   FILE_MAINTENANCE,
   FILE_MESSAGES_AUTH,
   FILE_PAIEMENTS,
   FILE_SYSTEM,
+  IA_FOND_CONCURRENCE_WORKER,
   IA_JOB_LOCK_MS,
   IA_JOB_MAX_STALLED,
   IA_PURGE_SCHEDULER_ID,
@@ -30,22 +34,40 @@ import { planifierPurge } from '../server/jobs/ia'
 import { dispatchPendingTransactionalEmails } from '../server/jobs/email-outbox'
 import { planifierVerificationsPaiements } from '../server/jobs/paiements'
 import { planifierNotificationsRepetees, planifierPurgeNotifications } from '../server/jobs/notifications'
+import { planifierPurgeIndisponibilites } from '../server/jobs/indisponibilites'
+import { planifierPurgeOauth } from '../server/jobs/oauth'
+import { planifierPurgeEnvois } from '../server/jobs/envois-codes'
+import { planifierControleEchecs, traiterControleEchecs } from '../server/jobs/supervision'
+import { JOB_ALERTE_ECHECS, traiterAlerteEchecs } from '../server/services/admin/supervision-alertes'
+import { traiterRafraichirCacheMedias } from '../server/jobs/rafraichir-cache-medias'
+import { planifierPurgeWebhooksRefuses } from '../server/jobs/webhooks-refuses'
 import { planifierAgregationStatistiques, planifierPurgeStatistiques } from '../server/jobs/statistiques'
 import { processTransactionalEmail } from '../server/services/email-outbox'
 import { planifierNotifications } from '../server/services/notifications/planification'
 import { purgeOutbox } from '../server/services/notifications/purge'
 import { executeGeneration, purgeGenerations } from '../server/services/ia/generations'
 import { createIaProvider } from '../server/services/ia/fournisseurs'
+import { regenererSeoVitrine } from '../server/services/ia/seo'
 import type { ExecutionDeps } from '../server/services/ia/types'
+import { purgerIndisponibilites } from '../server/services/indisponibilites-purge'
+import { purgerOauth } from '../server/services/oauth-purge'
+import { purgerEnvois } from '../server/services/envois-codes'
+import { enregistrerEchecFile } from '../server/services/supervision-echecs'
+import { purgerWebhooksRefuses } from '../server/services/webhooks-refuses'
 import { agregerStatistiques, purgerStatistiques } from '../server/services/statistiques'
 import { verifierPaiementsDus } from '../server/services/abonnements'
 import { purgeProgressionsAbandonnees } from '../server/services/onboarding'
-import { senderOtpEmail, senderOtpSms } from '../server/services/otp/envoi'
+import { cleIdempotenceOtp, processOtpJob as processOtpJobData } from '../server/jobs/otp'
+import { processAdminReauthEmailJob } from '../server/jobs/admin-reauth'
 
 const OUTBOX_POLL_INTERVAL_MS = 5_000
 
 // S10 : même validation qu'au démarrage du serveur (en production, des prix `a_valider` empêchent de démarrer).
-assertConfigPaiements(env)
+// A5 : la validation lit aussi la grille de prix validée en base (version active) ; une base illisible verrouille les paiements.
+verifierConfigPaiementsAuDemarrage(env).catch((erreur: unknown) => {
+  console.error('[worker] configuration des paiements invalide', erreur instanceof Error ? erreur.message : erreur)
+  process.exit(1)
+})
 
 function createConnection(): Redis {
   return new Redis(env.REDIS_URL, { maxRetriesPerRequest: null })
@@ -100,22 +122,71 @@ const workerMaintenance = new Worker(
       console.info('[worker] statistiques purgées (STATISTIQUES_PURGEES)')
       return
     }
+    // S16 : clients OAuth orphelins, assertions et jetons expirés (nombres seulement dans le journal).
+    if (job.name === JOBS.purgerOauth) {
+      const bilan = await purgerOauth(new Date())
+      console.info(
+        `[worker] purge OAuth : ${bilan.clients} client(s), ${bilan.assertions} assertion(s), ${bilan.jetonsAcces} jeton(s) d'accès, ${bilan.jetonsRenouvellement} jeton(s) de renouvellement supprimé(s)`,
+      )
+      return
+    }
+    // Indisponibilités de plus de 90 jours (nombre seulement dans le journal : la raison saisie peut être personnelle).
+    if (job.name === JOBS.purgerIndisponibilites) {
+      const purgees = await purgerIndisponibilites(new Date())
+      console.info(`[worker] purge indisponibilités : ${purgees} ligne(s) supprimée(s)`)
+      return
+    }
+    // A3 : compteur des webhooks refusés de plus de 90 jours (nombre seulement dans le journal).
+    if (job.name === JOBS.purgerWebhooksRefuses) {
+      const purgees = await purgerWebhooksRefuses(new Date())
+      console.info(`[worker] purge webhooks refusés : ${purgees} ligne(s) supprimée(s)`)
+      return
+    }
+    // A5 : applique les versions de configuration programmées dont l'échéance est passée.
+    if (job.name === JOBS.appliquerVersions) {
+      const appliquees = await traiterVersionsAppliquer(new Date())
+      if (appliquees > 0) console.info(`[worker] versions de configuration appliquées : ${appliquees}`)
+      return
+    }
+    // Éviction du cache nginx des images d'un compte suspendu / bloqué / rétabli (nombres seulement dans le journal).
+    if (job.name === JOBS.rafraichirCacheMedias) {
+      const bilan = await traiterRafraichirCacheMedias(job.data)
+      if (!bilan.saute) {
+        console.info(`[worker] cache des images : ${bilan.demandees} variante(s) redemandée(s), ${bilan.erreurs} en échec`)
+      }
+      return
+    }
+    // A4 : contrôle des échecs définitifs par file (alerte au plus une fois par heure) et purge du journal d'envoi des codes.
+    if (job.name === JOBS.controlerEchecsFiles) {
+      const alerte = await traiterControleEchecs(new Date())
+      if (alerte) console.info('[worker] supervision : alerte d\'échecs enfilée (SUPERVISION_ALERTE)')
+      return
+    }
+    if (job.name === JOB_ALERTE_ECHECS) {
+      const data = job.data as { le: string, files: { file: FileSupervisee, echecs: number }[] }
+      await traiterAlerteEchecs(new Date(data.le), data.files)
+      return
+    }
+    if (job.name === JOBS.purgerEnvois) {
+      const purgees = await purgerEnvois(new Date())
+      console.info(`[worker] purge envois de codes : ${purgees} ligne(s) supprimée(s)`)
+      return
+    }
     throw new Error(`Unknown job: ${job.name}`)
   },
   { connection: createConnection(), concurrency: MAINTENANCE_CONCURRENCE_WORKER },
 )
 
+// Le traitement vit dans server/jobs/otp.ts (testable) ; la clé d'idempotence (file du job + id + instant de mise en
+// file) est celle du job : un essai répété du même job réutilise sa clé, deux jobs distincts n'en partagent jamais.
 async function processOtpJob(job: Job): Promise<void> {
-  const data = job.data as OtpJobData
-  if (job.name === JOBS.sendOtpEmail) {
-    await senderOtpEmail.send(data.identifier, data.code)
+  // A1 : le code de réauthentification de l'administrateur partage la file des codes de connexion (jamais de limiteur).
+  if (job.name === JOBS.sendAdminReauthEmail) {
+    await processAdminReauthEmailJob(job.data)
     return
   }
-  if (job.name === JOBS.sendOtpSms) {
-    await senderOtpSms.send(data.identifier, data.code)
-    return
-  }
-  throw new Error(`Unknown job: ${job.name}`)
+  // A4 : `attemptsMade` compte les essais déjà terminés ; l'essai en cours est le suivant (1 à 3, journal d'envoi).
+  await processOtpJobData(job.name, job.data, cleIdempotenceOtp(job.queueName, job.id, job.timestamp), undefined, job.attemptsMade + 1)
 }
 
 async function processNotificationEmailJob(job: Job): Promise<void> {
@@ -215,17 +286,47 @@ const workerIa = new Worker(
   },
 )
 
-for (const worker of [workerSystem, workerMaintenance, workerMessagesAuth, workerEmailsNotifications, workerEmailsLegacy, workerIa]) {
+// Décision #24 : file `ia-fond`, à part de `ia`. Régénération du SEO d'une vitrine (job différé de 5 minutes),
+// une à la fois ; mêmes dépendances (fournisseur, horloge) que `ia`. Le job ne porte qu'un identifiant de vitrine.
+const workerIaFond = new Worker(
+  FILE_IA_FOND,
+  async (job) => {
+    if (job.name === JOBS.regenererSeoIa) {
+      const data = schemaSeoJobData.parse(job.data)
+      await regenererSeoVitrine(data.vitrineId, iaDeps)
+      return
+    }
+    throw new Error(`Unknown job: ${job.name}`)
+  },
+  {
+    connection: createConnection(),
+    concurrency: IA_FOND_CONCURRENCE_WORKER,
+    lockDuration: IA_JOB_LOCK_MS,
+    maxStalledCount: IA_JOB_MAX_STALLED,
+  },
+)
+
+// A4 (D-A4-03) : l'événement `failed` est émis à CHAQUE essai raté ; seul l'échec DÉFINITIF (plus d'essai restant, ou
+// erreur non récupérable) alimente le compteur de supervision. Fail-open : `enregistrerEchecFile` ne lève jamais.
+function signalerEchecDefinitif(job: Job | undefined): void {
+  if (!job) return
+  const essaisMax = job.opts.attempts ?? 1
+  if (job.attemptsMade >= essaisMax || job.finishedOn !== undefined) void enregistrerEchecFile(job.queueName)
+}
+
+for (const worker of [workerSystem, workerMaintenance, workerMessagesAuth, workerEmailsNotifications, workerEmailsLegacy, workerIa, workerIaFond]) {
   worker.on('completed', (job) => {
     console.info(`[worker] job « ${job.name} » #${job.id} completed`)
   })
   worker.on('failed', (job) => {
     console.error(`[worker] job « ${job?.name} » #${job?.id} failed (JOB_FAILED)`)
+    signalerEchecDefinitif(job)
   })
 }
 
 workerPaiements.on('failed', (job) => {
   console.error(`[worker] job « ${job?.name} » #${job?.id} failed (JOB_FAILED)`)
+  signalerEchecDefinitif(job)
 })
 
 const systemQueue = new Queue(FILE_SYSTEM, { connection: createConnection() })
@@ -258,6 +359,30 @@ planifierPurgeStatistiques(maintenanceQueue).catch(() => {
   console.error('[worker] statistics purge scheduling failed (STATISTIQUES_PURGE_SCHEDULE_FAILED)')
 })
 
+planifierPurgeOauth(maintenanceQueue).catch(() => {
+  console.error('[worker] OAuth purge scheduling failed (OAUTH_PURGE_SCHEDULE_FAILED)')
+})
+
+planifierPurgeIndisponibilites(maintenanceQueue).catch(() => {
+  console.error('[worker] unavailability purge scheduling failed (INDISPONIBILITES_PURGE_SCHEDULE_FAILED)')
+})
+
+planifierPurgeEnvois(maintenanceQueue).catch(() => {
+  console.error('[worker] code sends purge scheduling failed (ENVOIS_CODES_PURGE_SCHEDULE_FAILED)')
+})
+
+planifierControleEchecs(maintenanceQueue).catch(() => {
+  console.error('[worker] failures check scheduling failed (SUPERVISION_SCHEDULE_FAILED)')
+})
+
+planifierPurgeWebhooksRefuses(maintenanceQueue).catch(() => {
+  console.error('[worker] refused webhooks purge scheduling failed (WEBHOOKS_REFUSES_PURGE_SCHEDULE_FAILED)')
+})
+
+planifierVersionsAppliquer(maintenanceQueue).catch(() => {
+  console.error('[worker] versions apply scheduling failed (VERSIONS_APPLIQUER_SCHEDULE_FAILED)')
+})
+
 // S9 : tick de planification sur la file `system`, idempotent au redémarrage.
 planifierNotificationsRepetees(systemQueue).catch(() => {
   console.error('[worker] notifications scheduling failed (NOTIFICATIONS_SCHEDULE_FAILED)')
@@ -287,7 +412,7 @@ dispatchTimer.unref()
 void dispatchOutbox()
 
 console.info(
-  `[worker] started — queues « ${FILE_SYSTEM} », « ${FILE_MAINTENANCE} », « ${FILE_MESSAGES_AUTH} », « ${FILE_EMAILS_NOTIFICATIONS} », « ${FILE_IA} », « ${FILE_PAIEMENTS} » and legacy « ${FILE_EMAILS_LEGACY} » (IA provider: ${fournisseurIa})`,
+  `[worker] started — queues « ${FILE_SYSTEM} », « ${FILE_MAINTENANCE} », « ${FILE_MESSAGES_AUTH} », « ${FILE_EMAILS_NOTIFICATIONS} », « ${FILE_IA} », « ${FILE_IA_FOND} », « ${FILE_PAIEMENTS} » and legacy « ${FILE_EMAILS_LEGACY} » (IA provider: ${fournisseurIa})`,
 )
 
 async function stop(signal: string): Promise<void> {
@@ -301,6 +426,7 @@ async function stop(signal: string): Promise<void> {
       workerEmailsNotifications.close(),
       workerEmailsLegacy.close(),
       workerIa.close(),
+      workerIaFond.close(),
       workerPaiements.close(),
       paiementsQueue.close(),
       emailDispatchQueue.close(),

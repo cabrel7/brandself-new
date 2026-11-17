@@ -3,7 +3,7 @@ import type { ProgressionInscription } from '../../../shared/db/schema'
 import type { AmeliorerInput } from '../../../shared/schemas/ia'
 import { ACCROCHE_MAX, BIO_MAX, METIER_MAX, PAYS, TITRE_LABELS, VILLE_MAX } from '../../../shared/vitrine'
 import type { Titre } from '../../../shared/vitrine'
-import type { EntreeAmelioration, EntreeOnboarding } from './entrees'
+import type { EntreeAmelioration, EntreeOnboarding, EntreeSeo } from './entrees'
 
 // S8 §4.3 : nettoyage de l'entrée, détection d'injection, minimisation et empreinte. Fonctions pures :
 // aucune base, aucun réseau. Le nettoyage ne réécrit jamais un texte suspect (la détection est une étape
@@ -51,7 +51,8 @@ export function nettoyerTexte(valeur: string | null | undefined, { max, multilig
 const MOTIFS_INJECTION: readonly RegExp[] = [
   /\bignore[rz]? (?:tes|vos|les|toutes? les|ces) (?:instructions|consignes|regles)/,
   /\bignore (?:all |the )?(?:previous|above|prior) (?:instructions|prompts?)/,
-  /\boublie[rz]? (?:tes|vos|toutes?) (?:instructions|consignes|regles)/,
+  // « oublie tes instructions », « oublie toutes les/tes/vos instructions », « oubliez toutes consignes ».
+  /\boublie[rz]? (?:toutes? (?:(?:tes|vos|les|ces) )?|(?:tes|vos) )(?:instructions|consignes|regles)/,
   /\b(?:tu es|vous etes) (?:maintenant|desormais)/,
   /\byou are now\b/,
   /\bact as\b/,
@@ -120,6 +121,27 @@ export function entreeOnboarding(
     metier: nettoyerTexte(progression.metier, { max: METIER_MAX, multiligne: false }),
     ville: nettoyerTexte(progression.ville, { max: VILLE_MAX, multiligne: false }),
     pays: libellePays(progression.pays) ?? '',
+  }
+}
+
+export interface VitrineSeoSource {
+  metier: string
+  ville: string | null
+  pays: string | null
+  accroche: string | null
+}
+
+/**
+ * Données envoyées pour le SEO d'une vitrine existante : métier, ville, pays (libellé), accroche. Jamais le prénom,
+ * le nom, la présentation, ni les textes Google saisis. Accroche vide = `null`.
+ */
+export function entreeSeo(vitrine: VitrineSeoSource): EntreeSeo {
+  const accroche = nettoyerTexte(vitrine.accroche, { max: ACCROCHE_MAX, multiligne: false })
+  return {
+    metier: nettoyerTexte(vitrine.metier, { max: METIER_MAX, multiligne: false }),
+    ville: nettoyerTexte(vitrine.ville, { max: VILLE_MAX, multiligne: false }),
+    pays: libellePays(vitrine.pays) ?? '',
+    accroche: accroche === '' ? null : accroche,
   }
 }
 

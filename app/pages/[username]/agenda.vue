@@ -3,7 +3,6 @@ import { SERVICE_SLUG_REGEX } from '#shared/services'
 
 const route = useRoute()
 const username = String(route.params.username)
-const { public: { siteUrl = '' } } = useRuntimeConfig()
 const vitrine = await usePublicVitrine(username)
 const { reponse: servicesReponse } = await usePublicServices(username)
 
@@ -40,25 +39,7 @@ const {
   mode: 'page',
 })
 
-useSeoVitrine({
-  vitrine: {
-    username: vitrine.value.username,
-    nomAffiche: vitrine.value.nomAffiche,
-    metier: vitrine.value.metier,
-    ville: vitrine.value.ville,
-    pays: vitrine.value.pays,
-    paysLibelle: vitrine.value.paysLibelle,
-    titre: vitrine.value.titre,
-    seoTitre: vitrine.value.seo.titre,
-    seoDescription: vitrine.value.seo.description,
-    accroche: vitrine.value.accroche,
-    bio: vitrine.value.bio,
-    photo: vitrine.value.photo,
-    liens: [],
-  },
-  page: 'agenda',
-  siteUrl,
-})
+useSeoVitrine({ vitrine: vitrine.value, page: 'agenda' })
 </script>
 
 <template>
@@ -72,9 +53,6 @@ useSeoVitrine({
 
       <header>
         <h1 class="m-0 text-(length:--fs-32) leading-[1.1] font-bold md:text-(length:--fs-48)">Agenda</h1>
-        <p class="m-0 mt-3 max-w-xl text-base text-texte-secondaire">
-          Choisissez un service, puis un jour et une heure disponibles.
-        </p>
       </header>
 
       <div
@@ -85,7 +63,7 @@ useSeoVitrine({
         <UIcon name="i-ph-calendar-x" class="size-8 text-accent" aria-hidden="true" />
         <h2 class="mt-4 text-(length:--fs-24) font-bold">Aucune réservation en ligne pour le moment</h2>
         <p class="mt-2 text-texte-secondaire">
-          {{ vitrine.nomAffiche }} n’ouvre pas de créneaux actuellement. Écrivez-le depuis la page Contact pour convenir d’un rendez-vous.
+          {{ vitrine.nomAffiche }} n’ouvre pas de créneaux actuellement.
         </p>
         <UButton :to="`/${vitrine.username}/contact`" class="mt-5" variant="outline">
           Aller à la page Contact

@@ -28,6 +28,22 @@ export interface IndisponibiliteDTO {
   raison: string | null
 }
 
+/** `POST /api/studio/agenda/indisponibilites` avec `{ date }` : forme historique + comptage des réservations. */
+export interface IndisponibiliteDateCreateDTO {
+  item: IndisponibiliteDTO
+  reservationsConcernees: number
+}
+
+/** Avec `{ debut, fin }` : une ligne par jour créée ; les dates déjà fermées sont ignorées (comptées). */
+export interface IndisponibilitePlageCreateDTO {
+  items: IndisponibiliteDTO[]
+  creees: number
+  ignorees: number
+  reservationsConcernees: number
+}
+
+export type IndisponibiliteCreateDTO = IndisponibiliteDateCreateDTO | IndisponibilitePlageCreateDTO
+
 export interface AgendaStudioReponse {
   disponibilites: DisponibiliteDTO[]
   indisponibilites: IndisponibiliteDTO[]

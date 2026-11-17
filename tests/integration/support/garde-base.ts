@@ -1,4 +1,6 @@
 const SUFFIXE_BASE_TEST = '_test'
+/** Bases dérivées par le mode parallèle (voir bases-par-worker.ts) : `<base>_test_tpl`, `<base>_test_w<k>`. */
+const SUFFIXE_BASE_DERIVEE = /_test(_tpl|_w\d+)$/
 const INDEX_REDIS_TEST = '15'
 
 /** Lève une erreur claire si l'URL ne vise pas une base dont le nom finit par `_test`. */
@@ -15,7 +17,7 @@ export function assertBaseDeTest(databaseUrl: string | undefined): string {
   } catch {
     throw new Error('DATABASE_URL n’est pas une URL valide.')
   }
-  if (!nomBase.endsWith(SUFFIXE_BASE_TEST)) {
+  if (!nomBase.endsWith(SUFFIXE_BASE_TEST) && !SUFFIXE_BASE_DERIVEE.test(nomBase)) {
     throw new Error(
       `Refus d’exécuter les tests d’intégration : la base "${nomBase}" ne finit pas par "${SUFFIXE_BASE_TEST}". `
         + 'Ces tests vident les tables : ils ne tournent que sur une base de test.',
@@ -25,7 +27,7 @@ export function assertBaseDeTest(databaseUrl: string | undefined): string {
 }
 
 /** Redis : on exige la base /15 pour ne jamais toucher aux clés de développement. */
-export function assertRedisDeTest(redisUrl: string | undefined): void {
+export function assertRedisDeTest(redisUrl: string | undefined, indexAutorises: readonly number[] = [Number(INDEX_REDIS_TEST)]): void {
   if (!redisUrl) {
     throw new Error('REDIS_URL est absente : les tests d’intégration exigent un Redis de test (base /15).')
   }
@@ -35,10 +37,10 @@ export function assertRedisDeTest(redisUrl: string | undefined): void {
   } catch {
     throw new Error('REDIS_URL n’est pas une URL valide.')
   }
-  if (indexBase !== INDEX_REDIS_TEST) {
+  if (!indexAutorises.map(String).includes(indexBase)) {
     throw new Error(
       `Refus d’exécuter les tests d’intégration : REDIS_URL vise la base "${indexBase || '0'}", `
-        + `attendue "/${INDEX_REDIS_TEST}".`,
+        + `attendue ${indexAutorises.map((i) => `"/${i}"`).join(' ou ')}.`,
     )
   }
 }

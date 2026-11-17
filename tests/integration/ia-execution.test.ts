@@ -3,7 +3,7 @@ import { sql } from 'drizzle-orm'
 import { z } from 'zod'
 import { db } from '../../server/utils/db'
 import { IA_ATTENTE_BASE_MS, IA_DELAI_TENTATIVE_MS, IA_DELAI_TOTAL_MS, IA_TENTATIVES_MAX } from '../../shared/ia'
-import { schemaPropositionOnboarding, schemaPropositionRepli } from '../../shared/schemas/ia'
+import { schemaPropositionOnboarding, schemaPropositionOnboardingOutil, schemaPropositionRepli } from '../../shared/schemas/ia'
 import { ENTREE_ONBOARDING_DEMO, propositionValide } from '../unit/support/ia-fixtures'
 import { activePromptRow, createUser, insertGeneration } from './support/fabriques'
 import {
@@ -88,7 +88,7 @@ describe('executeGeneration : exécution nominale (CA20)', () => {
     expect(requete.outil.nom).toBe('proposer_vitrine')
     expect(requete.outil.schema).toMatchObject({ type: 'object' })
     expect((requete.outil.schema as { properties: unknown }).properties).toEqual(
-      (z.toJSONSchema(schemaPropositionOnboarding) as { properties: unknown }).properties,
+      (z.toJSONSchema(schemaPropositionOnboardingOutil) as { properties: unknown }).properties,
     )
     expect(requete.delaiMs).toBeLessThanOrEqual(IA_DELAI_TENTATIVE_MS)
     expect(requete.signal).toBeInstanceOf(AbortSignal)

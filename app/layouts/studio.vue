@@ -5,9 +5,10 @@ const { estEcranEnfant } = useStudioNav()
 <template>
   <div class="min-h-dvh bg-fond">
     <BsTopNav />
+    <!-- Mobile : la barre flottante (≈ 5 rem + marge basse + zone sûre) ne recouvre jamais le contenu. -->
     <main
-      class="mx-auto w-full max-w-2xl px-4 pt-6 md:px-6 md:pt-10"
-      :class="estEcranEnfant ? 'pb-8' : 'pb-24 md:pb-12'"
+      class="studio-conteneur pt-6 md:pt-10"
+      :class="estEcranEnfant ? 'pb-8' : 'pb-[calc(7rem+env(safe-area-inset-bottom))] md:pb-12'"
     >
       <slot />
     </main>

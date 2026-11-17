@@ -22,7 +22,7 @@ const ID_MEDIA = '5e6f7a8b-aaaa-4bbb-8ccc-ddddeeeeffff'
 
 const CLES_STUDIO = [
   'actif', 'creeLe', 'description', 'dureeMin', 'enVedette', 'id', 'image', 'inclus', 'masqueParPlan', 'modifieLe', 'nbSeances',
-  'ordre', 'paiementInstructions', 'paiementMode', 'prixDevise', 'prixMontant', 'rythme', 'reservable', 'slug',
+  'ordre', 'paiementInstructions', 'paiementMode', 'prixDevise', 'prixMontant', 'rythme', 'reservable', 'slug', 'source',
   'tarif', 'titre', 'type',
 ].sort()
 
@@ -56,6 +56,7 @@ function ligne(surcharges: Partial<ServiceRow & { masqueParPlan: boolean }> = {}
     enVedette: true,
     ordre: 2,
     actif: true,
+    source: 'utilisateur',
     createdAt: new Date('2026-03-01T10:00:00.000Z'),
     updatedAt: new Date('2026-03-02T11:30:00.000Z'),
     ...surcharges,

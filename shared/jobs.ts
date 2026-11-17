@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { schemaIaJobData } from './schemas/ia'
-import type { IaJobData } from './schemas/ia'
+import type { IaJobData, SeoJobData } from './schemas/ia'
+import { ADMIN_A2_EMAIL_TYPES } from './admin-a2'
 
 // Une file = une nature de travail et un profil de latence. Une opération sensible à la latence n'attend
 // jamais derrière une opération lente ou limitée en débit.
@@ -14,6 +15,11 @@ export const FILE_MESSAGES_AUTH = 'messages-auth'
 export const FILE_EMAILS_NOTIFICATIONS = 'emails-notifications'
 /** Générations IA (jusqu'à 25 s) : jamais partagée. */
 export const FILE_IA = 'ia'
+/**
+ * Décision #24 : régénération du SEO en tâche de fond. File À PART de `ia` : un job de fond (différé, sans
+ * utilisateur qui attend) ne passe jamais devant ni derrière une génération d'onboarding sensible à la latence.
+ */
+export const FILE_IA_FOND = 'ia-fond'
 /** S10 : rapprochement des paiements avec le fournisseur (appels réseau bornés par un budget global). */
 export const FILE_PAIEMENTS = 'paiements'
 /**
@@ -31,6 +37,8 @@ export const MESSAGES_AUTH_CONCURRENCE_WORKER = 5
 export const EMAILS_NOTIFICATIONS_CONCURRENCE_WORKER = 1
 /** Un seul tick de vérification à la fois : le budget d'appels K-PAY est partagé avec l'initiation. */
 export const PAIEMENTS_CONCURRENCE_WORKER = 1
+/** Le SEO de fond n'est pas pressé : une régénération à la fois, le débit du fournisseur reste prévisible. */
+export const IA_FOND_CONCURRENCE_WORKER = 1
 
 /** Options des jobs OTP (e-mail et SMS). */
 export const OTP_JOB_MAX_ATTEMPTS = 3
@@ -54,6 +62,8 @@ export const TRANSACTIONAL_EMAIL_TYPES = [
   // S10 : rappels d'échéance de l'abonnement (planifiés) et reçu de paiement (immédiat).
   'abonnement_rappel',
   'paiement_confirme',
+  // A2 : e-mails d'administration au titulaire du compte (suspension, réactivation, jours offerts, dépublication).
+  ...ADMIN_A2_EMAIL_TYPES,
 ] as const
 
 export type TransactionalEmailType = (typeof TRANSACTIONAL_EMAIL_TYPES)[number]
@@ -68,12 +78,30 @@ export const JOBS = {
   sendTransactionalEmail: 'send-transactional-email',
   genererIa: 'ia-generer',
   purgerIa: 'ia-purger',
+  // Décision #24 : régénération différée du SEO d'une vitrine (file `ia-fond`).
+  regenererSeoIa: 'seo-ia-regenerer',
   planifierNotifications: 'notifications-planifier',
   purgerNotifications: 'notifications-purger',
   verifierPaiements: 'paiements-verifier',
   // S11 : agrégation et purge des statistiques (file `maintenance`).
   agregerStatistiques: 'statistiques-agreger',
   purgerStatistiques: 'statistiques-purger',
+  // S16 : purge des clients OAuth orphelins et des jetons expirés (file `maintenance`).
+  purgerOauth: 'oauth-purger',
+  // Purge des indisponibilités de plus de 90 jours (file `maintenance`).
+  purgerIndisponibilites: 'indisponibilites-purger',
+  // A1 : e-mail du code de réauthentification de l'administrateur (file `messages-auth`, jamais de limiteur).
+  sendAdminReauthEmail: 'send-admin-reauth-email',
+  // A3 : purge du compteur des webhooks refusés (file `maintenance`).
+  purgerWebhooksRefuses: 'webhooks-refuses-purger',
+  // Suspension / blocage d'un compte (et leur levée) : redemande les images du compte à nginx pour vider son cache
+  // (file `maintenance`, charge `{ userId }` seulement).
+  rafraichirCacheMedias: 'medias-cache-rafraichir',
+  // A4 : contrôle des échecs définitifs par file (alerte) et purge du journal d'envoi des codes (file `maintenance`).
+  controlerEchecsFiles: 'supervision-echecs-controler',
+  purgerEnvois: 'envois-codes-purger',
+  // A5 : fait passer à `active` les versions de configuration programmées dont la date est échue (file `maintenance`).
+  appliquerVersions: 'versions-appliquer',
 } as const
 
 export type JobName = (typeof JOBS)[keyof typeof JOBS]
@@ -82,6 +110,18 @@ export interface OtpJobData {
   identifier: string
   code: string
 }
+
+/**
+ * A1 : e-mail d'un code de réauthentification. Le job ne porte ni adresse ni libellé personnel : l'identifiant de
+ * la ligne `admin_reauth` suffit (l'adresse de l'administrateur est relue en base) et le code à 6 chiffres, comme
+ * pour les jobs OTP existants. Le producteur le crée avec `removeOnComplete: true` (le code ne reste pas dans Redis).
+ */
+export const adminReauthEmailJobDataSchema = z.strictObject({
+  reauthId: z.string().min(1).max(64),
+  code: z.string().regex(/^\d{6}$/),
+})
+
+export type AdminReauthEmailJobData = z.infer<typeof adminReauthEmailJobDataSchema>
 
 export const transactionalEmailJobDataSchema = z.strictObject({
   outboxId: z.uuid(),
@@ -97,6 +137,11 @@ export const IA_PURGE_SCHEDULER_ID = 'ia-purger'
 export const IA_PURGE_CRON = '0 3 * * *'
 export const IA_PURGE_TZ = 'UTC'
 
+// Décision #24 : file `ia-fond`. Un job = un identifiant de vitrine (rien de personnel dans Redis), différé de
+// 5 minutes et unique par vitrine (le délai repart à chaque nouvelle modification : debounce).
+export const SEO_IA_JOB_ID_PREFIXE = 'seo-ia-'
+export const SEO_IA_DEBOUNCE_MS = 300_000
+
 // S10 : file `paiements`. Un ordonnanceur répété (tick) réclame les paiements dus ; aucune donnée personnelle
 // ne transite par Redis (le job ne porte aucune charge utile).
 export const PAIEMENTS_SCHEDULER_ID = 'paiements-verifier'
@@ -109,5 +154,75 @@ export const PAIEMENTS_VERIFICATION_CALENDRIER_S = [15, 30, 60, 120, 300] as con
 /** Minutes : au-delà, un paiement `cree` ou `en_attente` passe localement à `expire` (un `completed` tardif reste appliqué). */
 export const PAIEMENT_EXPIRATION_MINUTES = 15
 
+// A3 : purge quotidienne des lignes de `webhooks_refuses` plus vieilles que `WEBHOOKS_REFUSES_RETENTION_JOURS`. Aucune charge utile.
+export const WEBHOOKS_REFUSES_PURGE_SCHEDULER_ID = 'webhooks-refuses-purger'
+export const WEBHOOKS_REFUSES_PURGE_CRON = '30 4 * * *'
+export const WEBHOOKS_REFUSES_PURGE_LOT = 500
+
+// A4 (docs/specs/A4-supervision-reglages.md §1, §4) : supervision des files, journal d'envoi des codes, battements.
+/** Files que l'administration supervise (la file `emails` d'avant la séparation n'a plus de producteur : exclue). */
+export const FILES_SUPERVISEES = [
+  FILE_SYSTEM,
+  FILE_MAINTENANCE,
+  FILE_MESSAGES_AUTH,
+  FILE_EMAILS_NOTIFICATIONS,
+  FILE_IA,
+  FILE_IA_FOND,
+  FILE_PAIEMENTS,
+] as const
+export type FileSupervisee = (typeof FILES_SUPERVISEES)[number]
+/** D-A4-02 : les jobs de `messages-auth` portent un code de connexion : jamais relancés depuis l'administration. */
+export const FILES_NON_RELANCABLES: readonly FileSupervisee[] = [FILE_MESSAGES_AUTH]
+/** Échecs listés au plus par file (leur contenu n'est jamais lu : ni `job.data`, ni message d'erreur brut). */
+export const SUPERVISION_ECHECS_LISTES_MAX = 20
+/** D-A4-02 : jobs `failed` supprimés au plus par purge. */
+export const SUPERVISION_PURGE_LIMITE_MAX = 1_000
+
+/**
+ * D-A4-03 : le worker incrémente `supervision:echecs:{file}:{tranche}` à chaque échec DÉFINITIF (tranche = horodatage
+ * en secondes divisé par `SUPERVISION_TRANCHE_S`), avec expiration `SUPERVISION_ECHECS_TTL_S`, fail-open.
+ * Le contrôle somme les `SUPERVISION_FENETRE_TRANCHES` dernières tranches (3 x 5 min = 15 min).
+ */
+export const SUPERVISION_ECHECS_CLE_PREFIXE = 'supervision:echecs:'
+export const SUPERVISION_TRANCHE_S = 300
+export const SUPERVISION_FENETRE_TRANCHES = 3
+export const SUPERVISION_ECHECS_TTL_S = 3_600
+/** Une alerte au plus par heure (clé `supervision:alerte`, posée à l'envoi). */
+export const SUPERVISION_ALERTE_CLE = 'supervision:alerte'
+export const SUPERVISION_ALERTE_INTERVALLE_S = 3_600
+/** Ordonnanceur répété du contrôle (file `maintenance`) : toutes les 5 minutes. */
+export const SUPERVISION_CONTROLE_SCHEDULER_ID = 'supervision-echecs-controler'
+export const SUPERVISION_CONTROLE_INTERVALLE_MS = 300_000
+
+/** D-A4-15 : journal d'envoi des codes (`envois_codes`) : canal, pays, statut, tentative, code d'erreur court. */
+export const ENVOIS_CODES_CANAUX = ['sms', 'email', 'whatsapp'] as const
+export type EnvoiCodeCanal = (typeof ENVOIS_CODES_CANAUX)[number]
+export const ENVOIS_CODES_STATUTS = ['envoye', 'echec'] as const
+export type EnvoiCodeStatut = (typeof ENVOIS_CODES_STATUTS)[number]
+/** CHECK `envois_codes_pays_check` : code ISO alpha-2 en majuscules (NULL pour l'e-mail). */
+export const ENVOIS_CODES_PAYS_FORMAT = /^[A-Z]{2}$/
+/** CHECK `envois_codes_tentative_check` : de 1 au nombre de tentatives d'un job OTP. */
+export const ENVOIS_CODES_TENTATIVE_MAX = OTP_JOB_MAX_ATTEMPTS
+/** CHECK `envois_codes_code_erreur_check`. */
+export const ENVOIS_CODES_CODE_ERREUR_MAX = 40
+/** Jours de conservation (purge quotidienne, par lots). */
+export const ENVOIS_CODES_RETENTION_JOURS = 90
+export const ENVOIS_CODES_PURGE_SCHEDULER_ID = 'envois-codes-purger'
+export const ENVOIS_CODES_PURGE_CRON = '45 4 * * *'
+export const ENVOIS_CODES_PURGE_LOT = 1_000
+
+/** D-A4-16 : battements écrits par un script extérieur (`battements_systeme.cle`, format `^[a-z_]{3,40}$`). */
+export const BATTEMENT_CLE_FORMAT = /^[a-z_]{3,40}$/
+export const BATTEMENT_SAUVEGARDE = 'sauvegarde_derniere_reussite'
+/** Heures : au-delà, la dernière sauvegarde réussie est jugée trop ancienne (alerte). */
+export const SAUVEGARDE_ALERTE_HEURES = 26
+
+// A5 (D-A5-03) : application des versions programmées, toutes les 60 secondes (idempotent).
+export const VERSIONS_APPLIQUER_SCHEDULER_ID = 'versions-appliquer'
+export const VERSIONS_APPLIQUER_INTERVALLE_MS = 60_000
+
+export { mediasCacheRefreshJobDataSchema } from './medias-cache'
+export type { MediasCacheRefreshJobData } from './medias-cache'
+
 export const iaJobDataSchema = schemaIaJobData
-export type { IaJobData }
+export type { IaJobData, SeoJobData }

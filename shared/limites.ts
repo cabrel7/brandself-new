@@ -24,6 +24,13 @@ export const IA_GLOBAL_LIMIT: RateLimit = { limit: 2000, windowS: 86400 }
 /** S8 — clés du limiteur (préfixe `limite:` ajouté par le limiteur). */
 export const IA_LIMITE_CLE_UTILISATEUR_PREFIXE = 'ia:'
 export const IA_LIMITE_CLE_GLOBALE = 'ia-global'
+/**
+ * Décision #24 — régénération du SEO d'UNE vitrine : 5 par 24 h (compteur `seo-ia:{vitrineId}`). Jamais le compteur
+ * par utilisateur (`ia:{userId}`) ni le quota mensuel : le SEO de fond n'est pas une demande de l'utilisateur. Le
+ * plafond global de coût (`IA_LIMITE_CLE_GLOBALE`) s'applique en revanche.
+ */
+export const SEO_IA_VITRINE_LIMIT: RateLimit = { limit: 5, windowS: 86400 }
+export const SEO_IA_LIMITE_CLE_PREFIXE = 'seo-ia:'
 /** S11 — enregistrement d'une vue publique, par IP, fail-open (la navigation n'est jamais interrompue). */
 export const VUE_PUBLIC_LIMIT: RateLimit = { limit: 60, windowS: 60 }
 export const VUE_LIMITE_CLE_PREFIXE = 'vue:'
@@ -59,3 +66,28 @@ export const KPAY_APPELS_FENETRE_S = 60
 export const KPAY_APPELS_CLE = 'kpay:appels'
 /** Octets : taille maximale du corps d'un webhook (K-PAY envoie moins de 1 Ko). */
 export const WEBHOOK_CORPS_MAX_OCTETS = 16_384
+
+// A3 (docs/specs/A3-abonnements-paiements.md §2, §5) : administration des paiements. Valeurs réglables, jamais écrites en dur ailleurs.
+/** D-A3-04 : revérifications admin auprès de K-PAY, par administrateur (elles consomment le budget K-PAY partagé). */
+export const ADMIN_REVERIFICATION_LIMIT: RateLimit = { limit: 10, windowS: 60 }
+export const ADMIN_REVERIFICATION_CLE_PREFIXE = 'admin-reverif:'
+/** D-A3-03 : minutes pendant lesquelles une revérification « non réussi » autorise le marquage manuel. */
+export const ADMIN_REVERIFICATION_VALIDITE_MIN = 30
+/** D-A3-05 : jours de conservation du compteur des webhooks refusés. */
+export const WEBHOOKS_REFUSES_RETENTION_JOURS = 90
+/** D-A3-13 : seuils d'alerte. Un paiement ouvert depuis PLUS de N minutes ; PLUS de N webhooks refusés sur 1 heure. */
+export const ADMIN_ALERTE_PAIEMENT_OUVERT_MIN = 60
+export const ADMIN_ALERTE_WEBHOOKS_REFUSES_SEUIL = 10
+/** Jours : fenêtre de recherche des encaissements tardifs ignorés (`STATUT_FINAL`). */
+export const ADMIN_ALERTE_TARDIFS_JOURS = 7
+/** Identifiants d'incohérence listés au plus, par requête de détection. */
+export const ADMIN_ALERTE_INCOHERENCES_MAX = 20
+/** D-A3-14 : onglets d'abonnements. Renouvellement : (now, now + 7 j]. Grâce : `ABONNEMENT_GRACE_JOURS` (plans.ts). Expirés : 30 j de plus. */
+export const ADMIN_ABONNEMENT_RENOUVELLEMENT_JOURS = 7
+export const ADMIN_ABONNEMENT_EXPIRES_FENETRE_JOURS = 30
+/** D-A3-07 : un rappel manuel par abonnement et par fenêtre de N heures. */
+export const ADMIN_RAPPEL_INTERVALLE_HEURES = 24
+/** D-A3-09 : lignes d'export au plus (422 `EXPORT_TROP_GRAND` au-delà). */
+export const ADMIN_EXPORT_LIGNES_MAX = 5_000
+/** Revenus : mois glissants de la répartition par durée d'abonnement. */
+export const ADMIN_REVENUS_REPARTITION_MOIS = 12
