@@ -27,20 +27,27 @@ const reglesNoindex = Object.fromEntries(
 export default defineNuxtConfig({
   // `nuxt-phosphor-icons` (doublon de @nuxt/icon, aucun usage, auto-import
   // `getIconList` jamais résolu) est retiré : il ralentissait le démarrage de `pnpm dev`.
-  modules: ['@nuxt/eslint', '@nuxt/fonts', '@nuxtjs/better-auth', '@nuxtjs/seo', '@nuxt/image', '@nuxt/icon/module', 'dayjs-nuxt', '@vueuse/nuxt/module', '@nuxt/ui', 'nuxt-qrcode'],
+  // 2026-11-17 (S13-A L7) : `dayjs-nuxt` est retiré (aucun `useDayjs`/`$dayjs` dans le code) : son plugin global
+  // embarquait dayjs et 3 extensions dans l'entrée client.
+  modules: ['@nuxt/eslint', '@nuxt/fonts', '@nuxtjs/better-auth', '@nuxtjs/seo', '@nuxt/image', '@nuxt/icon/module', '@vueuse/nuxt/module', '@nuxt/ui', 'nuxt-qrcode'],
   css: ['~/assets/css/main.css'],
   // Pas de mode sombre en v1 : évite la classe `dark` selon la préférence système.
-  ui: { colorMode: false },
+  // 2026-11-17 (S13-A L5) : `componentDetection` ne génère que les thèmes des composants `U*` réellement utilisés
+  // (au lieu de ~120) et `theme.colors` ne garde que les couleurs employées : `primary`, `error` (boutons, champs)
+  // et `success` (toasts du studio et de l'administration). `neutral` est toujours ajouté par @nuxt/ui.
+  ui: {
+    colorMode: false,
+    experimental: { componentDetection: true },
+    theme: { colors: ['primary', 'error', 'success'] },
+  },
   vite: {
     plugins: [tailwindcss()],
-    // dayjs publie un bundle UMD sans export ESM : sans pré-bundling, le
-    // graphe client casse au chargement (« does not provide an export named
-    // 'default' ») et l'hydratation n'attache jamais.
+    // 2026-11-17 (S13-A L7) : `dayjs` retiré de cette liste avec `dayjs-nuxt` (plus aucun module ne l'importe).
     //
     // `useSortable` / `sortablejs` ne sont importés que par le studio (ssr: false) :
     // sans pré-bundling, Vite les découvre à la première visite du studio, relance
     // l'optimisation et recharge la page (« new dependencies optimized »).
-    optimizeDeps: { include: ['dayjs', 'sortablejs', '@vueuse/integrations/useSortable'] },
+    optimizeDeps: { include: ['sortablejs', '@vueuse/integrations/useSortable'] },
     server: {
       // Dossiers sans rapport avec le graphe de l'application : inutile de les surveiller.
       watch: {
@@ -130,8 +137,11 @@ export default defineNuxtConfig({
   fonts: {
     families: [
       // S12 (#159) : graisses réellement utilisées (600/700 titres, 500 initiales décoratives ; 400 jamais).
-      // `styles` non précisé = normal + italique (témoignage à la une). Préchargement : titres seulement.
-      { name: 'Fraunces', provider: 'google', weights: [500, 600, 700], subsets: ['latin'], preload: true },
+      // 2026-11-17 (S13-A L1) : Fraunces en plage variable `500 700` (un fichier par style au lieu de trois),
+      // normal + italique (témoignage à la une). Seul le fichier latin normal (titres) est préchargé, jamais
+      // l'italique. `font-display: swap` et la police de repli calibrée sont ceux par défaut de @nuxt/fonts.
+      { name: 'Fraunces', provider: 'google', weights: ['500 700'], subsets: ['latin'], preload: { styles: ['normal'], subsets: ['latin'] } },
+      // Figtree : jamais préchargé (texte courant en repli calibré, puis bascule en `swap`).
       { name: 'Figtree', provider: 'google', weights: [400, 500, 600], subsets: ['latin'], preload: false },
     ],
   },

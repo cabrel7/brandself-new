@@ -7,6 +7,7 @@ import {
   avecRefus,
   avecVisite,
   cheminAutorise,
+  cheminPwa,
   libelleAppareilInstallation,
   lireEtat,
   peutAfficher,
@@ -68,6 +69,13 @@ describe('fenêtre d’installation : quand l’afficher', () => {
 
   it.each(['/connexion', '/connexion/code', '/studio/assistants/autorisation'])('route %s : rien', (chemin) => {
     expect(peutAfficher(etat(), contexte({ chemin }))).toBe(false)
+  })
+
+  it('cheminPwa : accueil, tarifs, studio et page d’arrivée /studio (visite comptée, service worker) ; jamais une vitrine, l’administration ni /connexion', () => {
+    for (const chemin of ['/', '/tarifs', '/studio', '/studio/profil']) expect(cheminPwa(chemin), chemin).toBe(true)
+    for (const chemin of ['/dr-cabrel', '/dr-cabrel/services', '/connexion', '/connexion/code', '/admin', '/onboarding']) expect(cheminPwa(chemin), chemin).toBe(false)
+    // L'invite elle-même n'est pas proposée sur /studio seul (cheminAutorise inchangé).
+    expect(cheminAutorise('/studio')).toBe(false)
   })
 
   it('pages publiques d’une vitrine : rien ; accueil, tarifs et studio : autorisés', () => {

@@ -35,7 +35,6 @@ const LIEN_STUDIO_ABONNEMENT = '/studio/compte'
 
 export function useTarifsAffichage(source: Awaited<ReturnType<typeof useTarifs>>, options: OptionsTarifsAffichage = {}) {
   const { tarifs, erreur, gratuit, payant, paiementDisponible, devises, devise, deviseChoisie, deviseOffre, prixPeriodes, periode, prixChoisi, moyensLibelles } = source
-  const { loggedIn } = useUserSession()
 
   const exposant = computed(() => deviseOffre.value?.exposant ?? 0)
 
@@ -51,10 +50,10 @@ export function useTarifsAffichage(source: Awaited<ReturnType<typeof useTarifs>>
     return `par mois, facturé ${formaterMontant(montantPaye(choisi), devise.value, exposant.value)} pour ${libellePeriode(choisi.periodeMois)}`
   })
 
-  // Connecté : sa carte Abonnement s'ouvre, la durée choisie est présélectionnée. Visiteur : il commence par se connecter
+  // Toujours vers la carte Abonnement du studio, durée choisie présélectionnée : cette page publique ne charge pas
+  // le client d'authentification (S13-A). Un visiteur sans session y est renvoyé vers /connexion par la garde du studio
   // (aucun retour vers l'abonnement après la connexion n'existe : il le retrouve depuis son compte).
   const lienPayant = computed(() => {
-    if (!loggedIn.value) return ROUTE_CONNEXION
     return periode.value ? `${LIEN_STUDIO_ABONNEMENT}?periode=${periode.value}#abonnement` : `${LIEN_STUDIO_ABONNEMENT}#abonnement`
   })
 
