@@ -10,6 +10,7 @@
   --encre: #231F1C;
   --texte-secondaire: #6B5F55;
   --accent: #B4532F;
+  --accent-texte: #894329;
   --accent-doux: #F2DDD2;
   --bordure: #E6DCCB;
   --erreur: #B3261E;
@@ -76,6 +77,7 @@
   --encre: #1F2420;
   --texte-secondaire: #5C6358;
   --accent: #3F6B4F;
+  --accent-texte: #355641;
   --accent-doux: #DDE8DC;
   --bordure: #DCE0D0;
 }
@@ -86,6 +88,7 @@
   --encre: #1E1B2E;
   --texte-secondaire: #5A5670;
   --accent: #3B3F8C;
+  --accent-texte: #323470;
   --accent-doux: #DDDFF2;
   --bordure: #DEDBE6;
 }
@@ -96,6 +99,7 @@
   --encre: #26200F;
   --texte-secondaire: #6A5E3F;
   --accent: #946409;
+  --accent-texte: #73500B;
   --accent-doux: #F6E3B0;
   --bordure: #EADFBE;
 }
@@ -106,6 +110,7 @@
   --encre: #2A1C1E;
   --texte-secondaire: #6B5558;
   --accent: #8A2F45;
+  --accent-texte: #6D2939;
   --accent-doux: #F0D8DD;
   --bordure: #E8D5D3;
 }
@@ -138,9 +143,11 @@
   /* Accent pour petit texte (badge, surtitre, pastille) : l'accent assombri
      de 30 % vers l'encre. Ratios >= 5,5:1 sur fond, surface et accent-doux
      des 5 palettes (l'accent seul tombe à 3,8:1 sur accent-doux en Terracotta).
-     Redéclaré ici avec le pont : `var(--accent)` doit se résoudre sur chaque
-     racine de palette. Fonds et boutons gardent `--accent`. */
-  --accent-texte: color-mix(in srgb, var(--accent) 70%, var(--encre));
+     Valeur déclarée par palette (mélange 70 % accent / 30 % encre, vérifié par
+     tests/unit/palettes-accent-texte.test.ts) et non calculée par `color-mix` :
+     le navigateur la résout en `color(srgb …)`, que le moteur d'accessibilité de
+     Lighthouse ne sait pas lire (catégorie « accessibilité » sans valeur).
+     Fonds et boutons gardent `--accent`. */
   --ui-primary: var(--accent);
   --ui-error: var(--erreur);
   --ui-text-inverted: var(--sur-accent);
