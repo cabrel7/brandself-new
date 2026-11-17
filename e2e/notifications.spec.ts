@@ -547,7 +547,13 @@ test.describe('S9 interface : préférences, désabonnement, prochaine étape, p
     await page.getByRole('button', { name: PROCHAINES_ETAPES.partager.action, exact: true }).click()
     await expect(panneau.dialogue()).toBeVisible()
     await expect(page).toHaveURL(/\/studio$/)
-    await panneau.copier().click()
+    // On attend l'enregistrement du partage (POST) avant de refermer le panneau : sans cela, la carte peut rester affichée si la
+    // requête n'a pas abouti, et l'échec (statut, limiteur…) n'apparaît pas dans le rapport.
+    const [enregistrement] = await Promise.all([
+      page.waitForResponse((r) => r.url().includes('/api/studio/vitrine/partage') && r.request().method() === 'POST'),
+      panneau.copier().click(),
+    ])
+    expect(enregistrement.status(), 'enregistrement du partage').toBe(200)
     await expect(panneau.annonce()).toHaveText(MESSAGE_COPIE)
     await page.keyboard.press('Escape')
     // Le partage est enregistré : la carte « Partagez votre vitrine » disparaît, le focus reste dans la page.
