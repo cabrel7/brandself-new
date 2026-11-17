@@ -23,6 +23,8 @@ const idChamp = useId()
 const idMessage = useId()
 
 const adresse = useState<string>('landing-adresse', () => '')
+// Mémorisée à la soumission pour être reprise à l'onboarding (un paramètre d'URL ne survivrait pas au code reçu).
+const adresseSouhaitee = useAdresseSouhaitee()
 const tentative = ref(false)
 const champ = useTemplateRef<HTMLInputElement>('champ')
 const exemple = ref(0)
@@ -64,7 +66,8 @@ async function soumettre(): Promise<void> {
     if (valeur.value === '') champ.value?.focus()
     return
   }
-  await navigateTo(`${ROUTE_CONNEXION}?adresse=${encodeURIComponent(valeur.value)}`)
+  adresseSouhaitee.value = valeur.value
+  await navigateTo(ROUTE_CONNEXION)
 }
 
 // Exemples qui défilent dans le champ vide (jamais en mouvement réduit, jamais pendant la saisie).
