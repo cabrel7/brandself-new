@@ -540,6 +540,18 @@ export function urlAbsolue(siteUrl: string, chemin: string): string {
   return chemin.startsWith('/') ? `${site}${chemin}` : `${site}/${chemin}`
 }
 
+const LIEN_MARKDOWN_RELATIF = /\]\((\/(?!\/)[^)\s]*)\)/g
+
+/**
+ * llms.txt : les liens `[titre](/chemin)` des sections (`LLMS_SECTIONS`) sont relatifs, le module `nuxt-ai-ready`
+ * ne résolvant que ses propres liens ; un robot attend des URL absolues. Appliquée à la réponse, au runtime, avec
+ * l'URL publique configurée (`NUXT_PUBLIC_SITE_URL`) : l'image de production n'embarque aucun hôte.
+ * Les liens déjà absolus et les chemins en texte libre (hors syntaxe de lien) ne sont pas touchés.
+ */
+export function absolutiserLiensLlms(texte: string, siteUrl: string): string {
+  return texte.replace(LIEN_MARKDOWN_RELATIF, (_lien, chemin: string) => `](${urlAbsolue(siteUrl, chemin)})`)
+}
+
 /** URL canonique d'une page : chemin réel normalisé (minuscules, sans barre finale ni query), absolue. */
 export function urlCanonique(siteUrl: string, chemin: string): string {
   return urlAbsolue(siteUrl, normaliserChemin(chemin))

@@ -26,6 +26,8 @@ import {
   directiveRobotsPage,
   normaliserChemin,
   urlAbsolue,
+  absolutiserLiensLlms,
+  LLMS_SECTIONS,
   urlCanonique,
   NOINDEX_ROUTES,
   ROBOTS_DISALLOW,
@@ -365,5 +367,30 @@ describe('indexation des pages et des routes techniques', () => {
     expect(cheminCanonique('/MCP')).toBeNull()
     expect(estRouteCacheable('/.well-known/oauth-protected-resource/mcp')).toBe(false)
     expect(estRouteCacheable('/api/auth/token')).toBe(false)
+  })
+})
+
+describe('llms.txt : liens absolus', () => {
+  const SITE = 'https://ci.example.test'
+
+  it('absolutise les liens relatifs, avec ou sans barre finale du site', () => {
+    const texte = '- [Tarifs](/tarifs): offres\n- [Plan du site](/sitemap_index.xml): vitrines'
+    const attendu = '- [Tarifs](https://ci.example.test/tarifs): offres\n- [Plan du site](https://ci.example.test/sitemap_index.xml): vitrines'
+    expect(absolutiserLiensLlms(texte, SITE)).toBe(attendu)
+    expect(absolutiserLiensLlms(texte, `${SITE}/`)).toBe(attendu)
+  })
+
+  it('laisse intacts les liens déjà absolus, les liens sans hôte explicite (//) et les chemins en texte libre', () => {
+    const texte = '- [robots](https://ci.example.test/robots.txt)\n- [x](//cdn.test/a)\nForme : /{adresse}/services'
+    expect(absolutiserLiensLlms(texte, SITE)).toBe(texte)
+  })
+
+  it('tous les liens déclarés dans LLMS_SECTIONS deviennent absolus et publics', () => {
+    const liens = LLMS_SECTIONS.flatMap((section) => section.links ?? [])
+    expect(liens.length).toBeGreaterThan(0)
+    for (const lien of liens) {
+      const sortie = absolutiserLiensLlms(`- [${lien.title}](${lien.href})`, SITE)
+      expect(sortie).toContain(`](${SITE}/`)
+    }
   })
 })

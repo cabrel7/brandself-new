@@ -277,7 +277,7 @@ describe('sitemap (CA02 : absente du sitemap)', () => {
   it('should drop the vitrine from the sitemap ROUTE answer too, including its services and realisations', async () => {
     const m = await creerMondeA2()
     await suspendreEnBase(m.user.id)
-    const { default: route } = await import('../../../server/api/__sitemap__/vitrines/get')
+    const { default: route } = await import('../../../server/api/__sitemap__/vitrines.get')
 
     const corps = (await route(fakeEvent({ url: '/api/__sitemap__/vitrines' }))) as { urls: Array<{ loc: string }> }
 
