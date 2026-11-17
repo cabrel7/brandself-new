@@ -1719,16 +1719,29 @@ describe('realisations — lecture publique (CA34 à CA40)', () => {
     const grande = await utilisateurAvecVitrine('grande-vitrine')
     await peupler(petite.user.id, petite.vitrine.id, 3)
     await peupler(grande.user.id, grande.vitrine.id, 8)
+    const echauffement = await utilisateurAvecVitrine('echauffement-vitrine')
+    await peupler(echauffement.user.id, echauffement.vitrine.id, 1)
 
-    const detailPetite = await compterRequetes(() => getPublicRealisation('petite-vitrine', 'r0'))
-    const detailGrande = await compterRequetes(() => getPublicRealisation('grande-vitrine', 'r0'))
-    const listePetite = await compterRequetes(() => getPublicRealisations('petite-vitrine'))
-    const listeGrande = await compterRequetes(() => getPublicRealisations('grande-vitrine'))
+    // La configuration des plans et les catalogues sont lus avec un cache de 5 s (CONFIGURATION_CACHE_MS) : une relecture
+    // qui tombe PENDANT la mesure ajoute 2 requêtes à une vitrine et pas à l'autre (6 contre 4, test instable en CI). On gèle
+    // donc l'horloge (Date seulement), puis on échauffe les caches sur une troisième vitrine : plus aucune expiration possible.
+    vi.useFakeTimers({ toFake: ['Date'], now: Date.now() })
+    try {
+      await getPublicRealisation('echauffement-vitrine', 'r0')
+      await getPublicRealisations('echauffement-vitrine')
 
-    expect(detailPetite).toBeGreaterThan(0)
-    expect(detailGrande).toBe(detailPetite)
-    expect(listePetite).toBeGreaterThan(0)
-    expect(listeGrande).toBe(listePetite)
+      const detailPetite = await compterRequetes(() => getPublicRealisation('petite-vitrine', 'r0'))
+      const detailGrande = await compterRequetes(() => getPublicRealisation('grande-vitrine', 'r0'))
+      const listePetite = await compterRequetes(() => getPublicRealisations('petite-vitrine'))
+      const listeGrande = await compterRequetes(() => getPublicRealisations('grande-vitrine'))
+
+      expect(detailPetite).toBeGreaterThan(0)
+      expect(detailGrande).toBe(detailPetite)
+      expect(listePetite).toBeGreaterThan(0)
+      expect(listeGrande).toBe(listePetite)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   describe('CA39 liste blanche des DTO publics', () => {

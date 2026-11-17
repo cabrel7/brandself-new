@@ -924,10 +924,20 @@ describe('vitrines — compteurs de navigation publique (S4-CA41)', () => {
       }
     }
 
-    const base = await compter(() => getPublicVitrine('dr-test'))
-    const page = await compter(() => getPublicVitrinePage('dr-test'))
+    // Horloge gelée (Date seulement) puis caches échauffés : la configuration des plans est lue avec un cache de 5 s, et une
+    // relecture tombant pendant une des deux mesures fausserait la différence (même cause que CA38 des réalisations).
+    vi.useFakeTimers({ toFake: ['Date'], now: Date.now() })
+    try {
+      await getPublicVitrine('dr-test')
+      await getPublicVitrinePage('dr-test')
 
-    // S10 : une requête pour le plan de la vitrine (badge, limites), une pour les compteurs et le drapeau agenda.
-    expect(page - base).toBe(2)
+      const base = await compter(() => getPublicVitrine('dr-test'))
+      const page = await compter(() => getPublicVitrinePage('dr-test'))
+
+      // S10 : une requête pour le plan de la vitrine (badge, limites), une pour les compteurs et le drapeau agenda.
+      expect(page - base).toBe(2)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })
