@@ -7,6 +7,8 @@ const ECOSYSTEM_PATH = path.join(PROJECT_ROOT, 'ecosystem.config.cjs')
 const NGINX_CACHE_PATH = path.join(PROJECT_ROOT, 'deploy/nginx/brandself-cache.conf')
 const NGINX_LOCATION_PATH = path.join(PROJECT_ROOT, 'deploy/nginx/brandself-location.conf')
 const NGINX_DIR = path.join(PROJECT_ROOT, 'deploy/nginx')
+const NGINX_CI_PATH = path.join(NGINX_DIR, 'ci-lighthouse.conf')
+const NGINX_PUBLIC_EXAMPLE_PATH = path.join(NGINX_DIR, 'brandself-public.conf.exemple')
 const SECRET_EXAMPLE_PATH = path.join(NGINX_DIR, 'brandself-medias-secret.conf.exemple')
 const VERIFY_SCRIPT_PATH = path.join(PROJECT_ROOT, 'deploy/verifier-cache-medias.sh')
 const EXPLOITATION_DOC_PATH = path.join(PROJECT_ROOT, 'docs/exploitation-admin.md')
@@ -21,6 +23,14 @@ function activeLines(source: string): string {
 function mediasBlock(): string {
   const block = /^location\s+\/medias\/\s*\{([\s\S]*?)^\}/m.exec(readFileSync(NGINX_LOCATION_PATH, 'utf-8'))
   expect(block, 'location /medias/ must exist').not.toBeNull()
+  return activeLines(block?.[1] ?? '')
+}
+
+/** Corps (directives actives) d'une `location` du fichier brandself-location.conf, désignée par son préfixe exact. */
+function locationBlock(prefix: string): string {
+  const escaped = prefix.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&')
+  const block = new RegExp(`^location\\s+${escaped}\\s*\\{([\\s\\S]*?)^\\}`, 'm').exec(readFileSync(NGINX_LOCATION_PATH, 'utf-8'))
+  expect(block, `location ${prefix} must exist`).not.toBeNull()
   return activeLines(block?.[1] ?? '')
 }
 
@@ -156,5 +166,75 @@ describe('deployment reverse proxy', () => {
       expect(script).toMatch(/X-Cache-Refresh/)
       expect(script).toMatch(/immutable/)
     })
+  })
+})
+
+describe('S13-A : cache HTTP, compression et nginx de CI', () => {
+  const cacheControls = (body: string): string[] => [...body.matchAll(/^\s*add_header\s+Cache-Control\s+"([^"]*)"\s+always\s*;\s*$/gm)].map(match => match[1] ?? '')
+
+  it('should send a single immutable Cache-Control on /_nuxt/, hiding the one from Nitro', () => {
+    const body = locationBlock('/_nuxt/')
+    expect(cacheControls(body)).toEqual(['public, max-age=31536000, immutable'])
+    expect(body.match(/add_header\s+Cache-Control/gi)).toHaveLength(1)
+    const hide = body.search(/^\s*proxy_hide_header\s+Cache-Control\s*;\s*$/m)
+    expect(hide, 'proxy_hide_header Cache-Control must exist').toBeGreaterThanOrEqual(0)
+    expect(hide).toBeLessThan(body.search(/add_header\s+Cache-Control/))
+    // Vary: Accept-Encoding vient de Nitro (précompression br/gzip) : jamais masqué.
+    expect(body).not.toMatch(/proxy_hide_header\s+Vary/i)
+    // Nitro précompresse : pas de compression propre à cette location.
+    expect(body).not.toMatch(/^\s*(gzip|brotli)\s/m)
+  })
+
+  it('should never mark non fingerprinted files as immutable (/landing/, /_ipx/, /_fonts/)', () => {
+    const landing = locationBlock('/landing/')
+    expect(cacheControls(landing)).toEqual(['public, max-age=86400, stale-while-revalidate=604800'])
+    expect(landing).not.toMatch(/immutable/i)
+    expect(landing).toMatch(/^\s*proxy_hide_header\s+Cache-Control\s*;\s*$/m)
+    for (const prefix of ['/_ipx/', '/_fonts/']) {
+      const body = locationBlock(prefix)
+      expect(body, `${prefix} immutable`).not.toMatch(/immutable/i)
+      expect(cacheControls(body), `${prefix} single Cache-Control`).toHaveLength(1)
+    }
+  })
+
+  it('should allow immutable only on /_nuxt/ and through the status map of /medias/', () => {
+    let rest = activeLines(readFileSync(NGINX_LOCATION_PATH, 'utf-8'))
+    for (const prefix of ['/_nuxt/', '/medias/']) rest = rest.replace(locationBlock(prefix), '')
+    expect(rest).not.toMatch(/immutable/i)
+  })
+
+  it('should compress text/html and JSON through nginx with Vary, without touching precompressed files', () => {
+    const source = activeLines(readFileSync(NGINX_LOCATION_PATH, 'utf-8'))
+    expect(source).toMatch(/^gzip\s+on\s*;\s*$/m)
+    expect(source).toMatch(/^gzip_vary\s+on\s*;\s*$/m)
+    const types = /^gzip_types\s+([^;]+);\s*$/m.exec(source)?.[1] ?? ''
+    for (const type of ['text/css', 'application/json', 'application/ld+json', 'image/svg+xml']) expect(types).toContain(type)
+    // text/html est implicite dans nginx (le déclarer provoque un avertissement) ; on ne force pas non plus gzip_proxied any.
+    expect(types).not.toContain('text/html')
+    expect(source).not.toMatch(/^gzip_proxied\s+any/m)
+  })
+
+  it('should provide a public server example with TLS, h2, the shared location file and no HSTS (S13-B)', () => {
+    expect(existsSync(NGINX_PUBLIC_EXAMPLE_PATH)).toBe(true)
+    const example = activeLines(readFileSync(NGINX_PUBLIC_EXAMPLE_PATH, 'utf-8'))
+    expect(example).toMatch(/^\s*listen\s+443\s+ssl\s+http2\s*;\s*$/m)
+    expect(example).toMatch(/^\s*return\s+301\s+https:\/\/\$host\$request_uri\s*;\s*$/m)
+    expect(example).toMatch(/^\s*include\s+\/etc\/nginx\/brandself-location\.conf\s*;\s*$/m)
+    expect(example).toMatch(/^\s*server_tokens\s+off\s*;\s*$/m)
+    expect(example).not.toMatch(/Strict-Transport-Security/i)
+    // Brotli : seulement en commentaire (module absent du paquet de base : `nginx -t` échouerait).
+    expect(example).not.toMatch(/^\s*brotli/m)
+  })
+
+  it('should run the CI nginx on the same location and cache files as production, with a self-signed certificate', () => {
+    const ci = activeLines(readFileSync(NGINX_CI_PATH, 'utf-8'))
+    expect(ci).toMatch(/^\s*listen\s+127\.0\.0\.1:8443\s+ssl\s+http2\s*;\s*$/m)
+    expect(ci).toMatch(/^\s*include\s+\/etc\/nginx\/brandself-location\.conf\s*;\s*$/m)
+    expect(ci).toMatch(/^\s*include\s+\/etc\/nginx\/brandself-cache\.conf\s*;\s*$/m)
+    expect(ci).toMatch(/^\s*ssl_certificate\s+\/etc\/nginx\/ci-tls\/cert\.pem\s*;\s*$/m)
+    // Ni cache ni compression redéfinis ici : tout vient des fichiers de production.
+    expect(ci).not.toMatch(/proxy_cache_valid|add_header|^\s*gzip\s/m)
+    expect(existsSync(path.join(PROJECT_ROOT, 'deploy/nginx/ci-tls'))).toBe(false)
+    expect(readFileSync(NGINX_CI_PATH, 'utf-8')).not.toMatch(/BEGIN (RSA |EC )?PRIVATE KEY/)
   })
 })

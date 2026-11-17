@@ -21,24 +21,29 @@ const lire = (fichier: string): string => readFileSync(path.join(RACINE, fichier
 interface Assertion { 0: string, 1: { minScore?: number, maxNumericValue?: number } }
 interface LighthouseRc {
   ci: {
-    collect: { numberOfRuns: number, url: string[], startServerCommand?: string }
+    collect: { numberOfRuns: number, url: string[], startServerCommand?: string, settings?: { chromeFlags?: string } }
     assert: { assertions: Record<string, Assertion> }
-    upload: { target: string }
+    upload: { target: string, outputDir: string }
   }
 }
 
-function chargerLighthouse(ci: boolean): LighthouseRc {
+function chargerLighthouse(ci: boolean, cible?: string): LighthouseRc {
   const exiger = createRequire(import.meta.url)
   const chemin = path.join(RACINE, 'lighthouserc.cjs')
   const ancien = process.env.CI
+  const ancienneCible = process.env.LHCI_CIBLE
   if (ci) process.env.CI = 'true'
   else delete process.env.CI
+  if (cible === undefined) delete process.env.LHCI_CIBLE
+  else process.env.LHCI_CIBLE = cible
   Reflect.deleteProperty(exiger.cache, chemin)
   try {
     return exiger(chemin) as LighthouseRc
   } finally {
     if (ancien === undefined) delete process.env.CI
     else process.env.CI = ancien
+    if (ancienneCible === undefined) delete process.env.LHCI_CIBLE
+    else process.env.LHCI_CIBLE = ancienneCible
     Reflect.deleteProperty(exiger.cache, chemin)
   }
 }
@@ -71,6 +76,26 @@ describe('lighthouserc.cjs', () => {
     expect(chargerLighthouse(false).ci.collect.startServerCommand).toContain('.output/server/index.mjs')
   })
 
+  it('should measure through nginx (https, h2) with the same pages, budgets and runs when LHCI_CIBLE=nginx', () => {
+    const nginx = chargerLighthouse(true, 'nginx')
+    expect(nginx.ci.collect.url.every(url => url.startsWith('https://127.0.0.1:8443/'))).toBe(true)
+    expect(nginx.ci.collect.url.map(url => new URL(url).pathname)).toEqual(rc.ci.collect.url.map(url => new URL(url).pathname))
+    expect(nginx.ci.collect.settings?.chromeFlags).toContain('--ignore-certificate-errors')
+    expect(nginx.ci.collect.startServerCommand).toBeUndefined()
+    expect(chargerLighthouse(false, 'nginx').ci.collect.startServerCommand).toBeUndefined()
+    expect(nginx.ci.collect.numberOfRuns).toBe(rc.ci.collect.numberOfRuns)
+    // Mêmes assertions, mêmes niveaux : la mesure nginx ne change aucun budget.
+    expect(nginx.ci.assert.assertions).toEqual(rc.ci.assert.assertions)
+    // La cible Node, elle, n'accepte jamais un certificat invalide.
+    expect(rc.ci.collect.settings).toBeUndefined()
+  })
+
+  it('should write each target report into its own folder', () => {
+    expect(rc.ci.upload.outputDir).toBe('.lighthouseci/node')
+    expect(chargerLighthouse(true, 'nginx').ci.upload.outputDir).toBe('.lighthouseci/nginx')
+    expect(chargerLighthouse(true, 'nimporte-quoi').ci.upload.outputDir).toBe('.lighthouseci/node')
+  })
+
   it('should audit the landing, tarifs and the demo showcase, not the noindex lien-bio page', () => {
     const urls = rc.ci.collect.url
     expect(urls.some((url) => /localhost:\d+\/$/.test(url))).toBe(true)
@@ -96,6 +121,35 @@ describe('.github/workflows/ci.yml : job seo-perf', () => {
     expect(job.indexOf('--retry-connrefused')).toBeGreaterThan(job.indexOf('index.mjs'))
     expect(job.indexOf('pnpm e2e:seo')).toBeGreaterThan(job.indexOf('--retry-connrefused'))
     expect(job.indexOf('pnpm perf')).toBeGreaterThan(job.indexOf('pnpm e2e:seo'))
+  })
+
+  it('should measure Lighthouse twice (Node blocking, nginx warning only) and publish both report folders', () => {
+    const pasNginx = job.slice(job.indexOf('Installer et démarrer nginx de CI'), job.indexOf('LHCI_CIBLE: node'))
+    expect(pasNginx).toContain('ci-lighthouse.conf')
+    expect(pasNginx).toContain('openssl req -x509')
+    expect(pasNginx).toContain('nginx -t -c')
+    expect(pasNginx).toContain('systemctl stop nginx')
+    // La mesure nginx n'est lancée qu'APRÈS la mesure Node et ne peut pas la masquer.
+    const indexNode = job.indexOf('LHCI_CIBLE: node')
+    const indexNginx = job.indexOf('LHCI_CIBLE: nginx')
+    expect(indexNode).toBeGreaterThan(job.indexOf('pnpm perf'))
+    expect(indexNginx).toBeGreaterThan(indexNode)
+    // `continue-on-error` seulement sur les pas nginx (installation et mesure), jamais sur la mesure Node.
+    const pasNode = job.slice(job.indexOf('- run: pnpm perf'), indexNode)
+    expect(pasNode).not.toContain('continue-on-error')
+    expect(job.match(/continue-on-error: true/g)).toHaveLength(2)
+    const pasMesureNginx = job.slice(job.indexOf('Lighthouse derrière nginx'), job.indexOf('Résumé de la double mesure'))
+    expect(pasMesureNginx).toContain('continue-on-error: true')
+    expect(job).toContain('GITHUB_STEP_SUMMARY')
+    const artefact = job.slice(job.indexOf('actions/upload-artifact'))
+    expect(artefact).toContain('.lighthouseci/node/')
+    expect(artefact).toContain('.lighthouseci/nginx/')
+    expect(artefact).toContain('include-hidden-files: true')
+  })
+
+  it('should never commit the self-signed certificate, only generate it in the job', () => {
+    expect(job).not.toMatch(/BEGIN (RSA |EC )?PRIVATE KEY/)
+    expect(job).toContain('/etc/nginx/ci-tls/')
   })
 
   it('should install the Playwright browser it needs', () => {

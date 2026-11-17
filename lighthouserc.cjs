@@ -2,9 +2,21 @@
 // Les budgets reprennent BUDGET_* de shared/seo.ts (un test unitaire vérifie qu'ils sont identiques).
 // En CI, le serveur est déjà démarré par le workflow (partagé avec e2e:seo) : on ne le relance pas.
 // En local (`pnpm perf:local`), lhci démarre lui-même le serveur et attend sa ligne « Listening ».
+//
+// S13-A : DOUBLE MESURE. `LHCI_CIBLE` choisit la cible, avec UN seul fichier de configuration (mêmes pages, mêmes budgets) :
+//   - absente ou `node` : directement le serveur Node (HTTP/1.1, sans TLS, HTML non compressé) ; rapports dans `.lighthouseci/node` ;
+//   - `nginx` : à travers le nginx de CI (HTTP/2, TLS auto-signé, gzip, mêmes `location` qu'en production,
+//     deploy/nginx/ci-lighthouse.conf), https://127.0.0.1:8443 ; rapports dans `.lighthouseci/nginx`.
+// La simulation (4G lente, CPU x4) est celle par défaut de Lighthouse dans les deux cas : jamais modifiée.
 const PORT = process.env.PORT_SERVEUR || '3000'
-const BASE = `http://localhost:${PORT}`
-const DEMARRAGE_LOCAL = process.env.CI
+const PORT_NGINX = process.env.PORT_NGINX || '8443'
+const CIBLE = process.env.LHCI_CIBLE === 'nginx' ? 'nginx' : 'node'
+const BASE = CIBLE === 'nginx' ? `https://127.0.0.1:${PORT_NGINX}` : `http://localhost:${PORT}`
+// Certificat auto-signé généré par le job : Chrome doit l'accepter. `--no-sandbox` : Chrome sur un runner sans espace
+// de noms utilisateur non privilégié (Ubuntu 24.04) refuse sinon de démarrer ; sans effet sur la mesure.
+const REGLAGES_NGINX = CIBLE === 'nginx' ? { settings: { chromeFlags: '--ignore-certificate-errors --no-sandbox' } } : {}
+// En local, seule la cible Node démarre son serveur ; la cible nginx suppose nginx et Node déjà lancés (voir le workflow).
+const DEMARRAGE_LOCAL = process.env.CI || CIBLE === 'nginx'
   ? {}
   : { startServerCommand: 'node .output/server/index.mjs', startServerReadyPattern: 'Listening', startServerReadyTimeout: 120000 }
 
@@ -13,6 +25,7 @@ module.exports = {
     collect: {
       numberOfRuns: 3,
       ...DEMARRAGE_LOCAL,
+      ...REGLAGES_NGINX,
       // `/@dr-cabrel` (lien en bio) est volontairement `noindex` : son score SEO ne serait jamais valide.
       url: [
         `${BASE}/`,
@@ -40,7 +53,8 @@ module.exports = {
     // Aucun envoi vers un stockage public : rapports écrits sur disque, publiés en artefact par le workflow.
     upload: {
       target: 'filesystem',
-      outputDir: '.lighthouseci',
+      // Un sous-dossier par cible : `collect` vide les `lhr-*.json` de `.lighthouseci/` à chaque lancement, pas ses sous-dossiers.
+      outputDir: `.lighthouseci/${CIBLE}`,
     },
   },
 }

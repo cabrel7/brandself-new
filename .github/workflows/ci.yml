@@ -275,9 +275,98 @@ jobs:
         env:
           CI: 'true'
 
+      # S13-A : nginx de CI (HTTP/2, TLS auto-signé, gzip, mêmes location et cache que la production) devant le
+      # serveur Node déjà démarré. Sert à la SECONDE mesure Lighthouse. Un échec de ce pas ne rend jamais le job
+      # rouge (la mesure nginx est un avertissement) ; la mesure Node, elle, reste bloquante.
+      - name: Installer et démarrer nginx de CI (h2, TLS auto-signé)
+        id: nginx
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq nginx openssl
+          # Arrêt de l'instance par défaut du paquet (port 80) : seule l'instance de CI reste.
+          sudo systemctl stop nginx || true
+          # Les fichiers de production, recopiés TELS QUELS ; le secret du cache des médias est jetable et aléatoire.
+          sudo cp deploy/nginx/brandself-cache.conf deploy/nginx/brandself-location.conf deploy/nginx/ci-lighthouse.conf /etc/nginx/
+          sed "s/CHANGER-MOI/$(openssl rand -hex 32)/" deploy/nginx/brandself-medias-secret.conf.exemple | sudo tee /etc/nginx/brandself-medias-secret.conf > /dev/null
+          # Certificat auto-signé généré ici, jamais commité.
+          sudo mkdir -p /etc/nginx/ci-tls
+          sudo openssl req -x509 -newkey rsa:2048 -nodes -days 1 -subj "/CN=localhost" \
+            -addext "subjectAltName=DNS:localhost,IP:127.0.0.1" \
+            -keyout /etc/nginx/ci-tls/key.pem -out /etc/nginx/ci-tls/cert.pem
+          sudo mkdir -p /var/cache/nginx/brandself
+          sudo chown www-data:www-data /var/cache/nginx/brandself
+          # Vérification de la syntaxe AVANT le démarrage, puis démarrage (le processus maître se détache seul).
+          sudo nginx -t -c /etc/nginx/ci-lighthouse.conf
+          sudo nginx -c /etc/nginx/ci-lighthouse.conf
+          # Vérification : HTTP/2 réel, HTML compressé en gzip, un seul Cache-Control sur /_nuxt/, jamais immutable sur /landing/.
+          curl --insecure --silent --show-error --output /dev/null --retry 10 --retry-delay 1 --retry-connrefused \
+            "https://127.0.0.1:8443/tarifs"
+          curl --insecure --silent --head --http2 -H 'Accept-Encoding: gzip' https://127.0.0.1:8443/tarifs | tee /tmp/entetes-nginx.txt
+          head -1 /tmp/entetes-nginx.txt | grep -q '^HTTP/2 200'
+          grep -qi '^content-encoding: gzip' /tmp/entetes-nginx.txt
+
+      # Mesure 1/2 : directement contre Node (comme avant). BLOQUANTE : rapports dans .lighthouseci/node.
       - run: pnpm perf
         env:
           CI: 'true'
+          LHCI_CIBLE: node
+
+      # Mesure 2/2 : à travers nginx (h2, gzip). AVERTISSEMENT seulement (`continue-on-error` sur ce seul pas) : elle
+      # ne masque jamais un échec de la mesure Node (pas précédent, qui rend le job rouge). `!cancelled()` : elle
+      # tourne même si la mesure Node a échoué, pour comparer. Rapports dans .lighthouseci/nginx.
+      - name: Lighthouse derrière nginx (avertissement)
+        id: perf-nginx
+        if: ${{ !cancelled() && steps.nginx.outcome == 'success' }}
+        continue-on-error: true
+        run: pnpm perf
+        env:
+          CI: 'true'
+          LHCI_CIBLE: nginx
+
+      - name: Résumé de la double mesure
+        if: ${{ !cancelled() }}
+        run: |
+          node --input-type=commonjs <<'JS' >> "$GITHUB_STEP_SUMMARY"
+          const fs = require('node:fs')
+          const path = require('node:path')
+          const LIGNES = []
+          const arrondi = (ms) => (typeof ms === 'number' ? Math.round(ms) : 'n/a')
+          // Un rapport représentatif (médiane) par page et par cible, lu dans le manifeste écrit par lhci.
+          function lire(cible) {
+            const dossier = path.join('.lighthouseci', cible)
+            const manifeste = path.join(dossier, 'manifest.json')
+            if (!fs.existsSync(manifeste)) return new Map()
+            const pages = new Map()
+            for (const entree of JSON.parse(fs.readFileSync(manifeste, 'utf-8'))) {
+              if (!entree.isRepresentativeRun) continue
+              const lhr = JSON.parse(fs.readFileSync(entree.jsonPath, 'utf-8'))
+              const audit = (id) => lhr.audits[id]?.numericValue
+              pages.set(new URL(entree.url).pathname, {
+                perf: lhr.categories.performance?.score,
+                fcp: audit('first-contentful-paint'),
+                lcp: audit('largest-contentful-paint'),
+                tbt: audit('total-blocking-time'),
+              })
+            }
+            return pages
+          }
+          const mesures = { node: lire('node'), nginx: lire('nginx') }
+          LIGNES.push('## Double mesure Lighthouse (médiane de 3 passages, mobile, 4G lente simulée, CPU x4)', '')
+          LIGNES.push('Node seul : HTTP/1.1, HTML non compressé. nginx : HTTP/2, TLS auto-signé, gzip (mesure en avertissement seulement).', '')
+          LIGNES.push('| Page | Cible | Performance | FCP (ms) | LCP (ms) | TBT (ms) |', '|---|---|---|---|---|---|')
+          const chemins = new Set([...mesures.node.keys(), ...mesures.nginx.keys()])
+          for (const chemin of chemins) {
+            for (const cible of ['node', 'nginx']) {
+              const m = mesures[cible].get(chemin)
+              LIGNES.push(m
+                ? `| \`${chemin}\` | ${cible} | ${m.perf ?? 'n/a'} | ${arrondi(m.fcp)} | ${arrondi(m.lcp)} | ${arrondi(m.tbt)} |`
+                : `| \`${chemin}\` | ${cible} | non mesuré | | | |`)
+            }
+          }
+          console.log(LIGNES.join('\n'))
+          JS
 
       - name: Rapports SEO et Lighthouse
         if: always()
@@ -285,6 +374,8 @@ jobs:
         with:
           name: seo-perf
           path: |
+            .lighthouseci/node/
+            .lighthouseci/nginx/
             .lighthouseci/
             test-results/
             serveur-prod.log
