@@ -46,12 +46,29 @@ async function attendreNouveauCode(avant: ReadonlySet<string>): Promise<string> 
   }
 }
 
+// Le serveur limite les demandes de code à 5 par quart d'heure et par administrateur (ADMIN_REAUTH_LIMITE). Les specs
+// partagent un même compte administrateur sur toute une partie de la CI : sans cette remise à zéro, la sixième demande
+// du quart d'heure est refusée et l'interface n'envoie aucun code. La limite elle-même est testée dans les tests
+// d'intégration, pas ici. Redis d'e2e uniquement.
+async function purgerLimiteReauth(): Promise<void> {
+  fileAuth()
+  const client = redis
+  if (!client) return
+  let curseur = '0'
+  do {
+    const [suivant, cles] = await client.scan(curseur, 'MATCH', 'limite:admin-reauth:*', 'COUNT', '200')
+    curseur = suivant
+    if (cles.length > 0) await client.del(...cles)
+  } while (curseur !== '0')
+}
+
 /**
  * Clique « Recevoir le code » dans `zone`, lit le code envoyé (file en pause) et le saisit dans les six cases.
  * `zone` est le panneau ou la boîte de dialogue qui contient la confirmation.
  */
 export async function demanderEtSaisirCode(zone: Locator): Promise<void> {
   const file = fileAuth()
+  await purgerLimiteReauth()
   await file.pause()
   try {
     const avant = await identifiantsExistants()

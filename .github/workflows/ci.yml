@@ -251,8 +251,12 @@ jobs:
             echo "NUXT_BETTER_AUTH_SECRET=$NUXT_BETTER_AUTH_SECRET"
           } > .env
 
+      # Le job simule la production (NODE_ENV=production) pour le build et le serveur ; le seed de démonstration, lui, est
+      # refusé en production par conception : on le lance avec NODE_ENV=development, contre la même base de test.
       - run: pnpm db:migrate
       - run: pnpm db:seed
+        env:
+          NODE_ENV: development
 
       - run: pnpm build
 

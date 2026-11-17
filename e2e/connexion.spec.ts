@@ -63,7 +63,8 @@ async function seConnecterParEmail(page: import('@playwright/test').Page, email:
     await cases.nth(i).fill(code[i])
   }
   await page.getByRole('button', { name: 'Valider' }).click()
-  await expect(page).toHaveURL(/\/onboarding/)
+  // Premier passage de la partie : le serveur de développement compile /studio puis /onboarding à la demande (lent en CI).
+  await expect(page).toHaveURL(/\/onboarding/, { timeout: 60_000 })
 }
 
 test('parcours complet : email → code → onboarding', async ({ page }) => {

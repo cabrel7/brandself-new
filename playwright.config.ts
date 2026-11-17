@@ -25,6 +25,9 @@ export default defineConfig({
   // Machine de 7 Go partagée : deux workers Chromium déclenchent des
   // ERR_ABORTED (renderer OOM) — la sérialisation évite les navigations avortées.
   workers: 1,
+  // CI : le serveur de développement compile à la demande, la première navigation vers une page peut être avortée
+  // (net::ERR_ABORTED). Un seul nouvel essai ; un test qui n'a réussi qu'au second essai est rapporté « flaky », pas « passed ».
+  retries: process.env.CI ? 1 : 0,
   projects: [
     {
       name: 'chromium',

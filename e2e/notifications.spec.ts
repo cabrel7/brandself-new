@@ -524,9 +524,9 @@ test.describe('S9 interface : préférences, désabonnement, prochaine étape, p
       await expect(panneau.qr()).toBeVisible()
       await sansDebordementHorizontal(page, viewport.width)
       for (const bouton of [panneau.copier(), panneau.telecharger()]) {
-        const boite = await bouton.boundingBox()
-        // 0,5 px de tolérance : sous-pixel pendant l'animation d'ouverture (la cible vaut `--cible-tactile` = 2,75 rem = 44 px).
-        expect(boite?.height ?? 0, `cible à ${viewport.width} px`).toBeGreaterThanOrEqual(44 - 0.5)
+        // Le panneau s'anime à l'ouverture : on attend que la hauteur se stabilise (la cible vaut `--cible-tactile` = 2,75 rem = 44 px)
+        // au lieu de mesurer en cours d'animation (43,3 px relevés en CI).
+        await expect.poll(async () => (await bouton.boundingBox())?.height ?? 0, { message: `cible à ${viewport.width} px` }).toBeGreaterThanOrEqual(44 - 0.5)
       }
       await page.keyboard.press('Escape')
       await expect(panneau.dialogue()).toHaveCount(0)
