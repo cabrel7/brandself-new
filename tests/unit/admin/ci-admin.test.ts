@@ -72,7 +72,8 @@ describe('Playwright : configuration de l\'hôte d\'administration', () => {
 
   it('should keep the existing project and not ignore the administration specs', () => {
     expect(config).toContain("name: 'chromium'")
-    expect(config).toContain("testIgnore: ['seo/**', 'a11y/**']")
+    expect(config).toContain("testIgnore: ['seo/**', 'a11y/**'")
+    expect(config).not.toMatch(/testIgnore:[^\n]*admin/)
     expect(config).toContain("testDir: './e2e'")
   })
 

@@ -4,11 +4,11 @@
 import { computed, ref, type Ref } from 'vue'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-// `~` n'est pas un alias du projet Vitest : on lui substitue le vrai module de données (même contenu, pas de copie).
-vi.mock('~/data/landing', async () => await import('../../app/data/landing'))
-
 import { SERVICES_DEMO } from '../../app/data/landing'
 import { estCreneauPris, FUSEAU_AGENDA_DEMO, useAgendaDemo } from '../../app/composables/useAgendaDemo'
+
+// `~` n'est pas un alias du projet Vitest : on lui substitue le vrai module de données (même contenu, pas de copie).
+vi.mock('~/data/landing', async () => await import('../../app/data/landing'))
 
 const NBSP = ' '
 const TZ_INITIAL = process.env.TZ
