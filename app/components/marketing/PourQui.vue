@@ -201,7 +201,10 @@ onBeforeUnmount(() => {
 .voile {
   position: absolute;
   inset: 0;
-  background: color-mix(in srgb, var(--encre) 46%, transparent);
+  /* Encre pleine + opacité, pas `color-mix(… transparent)` : résolu en `color(srgb … / α)`, illisible par l'audit
+     d'accessibilité de Lighthouse (catégorie sans valeur). */
+  background: var(--encre);
+  opacity: 0.46;
 }
 
 .contenu {
@@ -235,11 +238,21 @@ onBeforeUnmount(() => {
   height: var(--pas);
   margin: 0;
   padding: 0 1.375rem;
-  background: color-mix(in srgb, var(--encre) 35%, transparent);
+  z-index: 0;
   font-size: var(--fs-14);
   font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
+}
+
+/* Fond du bandeau : encre pleine + opacité (voir `.voile`), derrière le texte du bandeau. */
+.onglet::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: var(--encre);
+  opacity: 0.35;
 }
 
 .onglet-ville {
