@@ -137,6 +137,11 @@ jobs:
       DATABASE_URL: postgresql://brandself:brandself@localhost:5432/brandself_test
       REDIS_URL: redis://localhost:6379
       NUXT_BETTER_AUTH_SECRET: secret-de-test-au-moins-trente-deux-caracteres
+      # Clés K-PAY FACTICES (aucun appel externe : les specs n'initient aucun paiement) : sans elles, le formulaire de paiement
+      # n'existe pas et les specs d'abonnement ne peuvent pas tourner. Formats validés par shared/env.ts.
+      KPAY_API_KEY: kpay_test_ci
+      KPAY_SECRET_KEY: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+      KPAY_WEBHOOK_SECRET: secret-webhook-de-test-ci
     steps:
       - uses: actions/checkout@v4
 
