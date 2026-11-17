@@ -37,6 +37,15 @@ L'ancien projet (Laravel + Nuxt, système de blocs polymorphique, ~60 tables, do
 | A3 | Administration : abonnements, paiements, revenus | **implémenté, commité** | migration 0030 ; service unique `confirmerPaiement` ; `limit_req` nginx webhooks (non validé par `nginx -t`) ; e2e `admin-a3` non exécutés |
 | A4 | Administration : supervision et registre des réglages | **implémenté, commité (1fc45a3, a5f3dfb, 9121e17), CI en cours** | idem |
 | A5 | Administration : catalogues (pays, devises, fuseaux) et versions (plans, prix, frais, prompts IA) | **implémenté, commité (mêmes commits), CI en cours** | idem |
+| L1 | Landing `/` (jesuis.pro) | **implémentée 2026-11-17, non commitée, non poussée** | maquette validée `docs/maquettes/landing/source.html` ; contenu typé `app/data/landing.ts` ; `app/pages/index.vue` + `app/components/marketing/*` (Entete, Hero, Adresse, Trouve, Compris + Cadre*, Contact, PourQui, Tarifs, Faq, Cloture, Pied, TitreRubrique) ; composables `useAgendaDemo`, `useScenePremierPlan`, `useImageLanding` ; photos provisoires `public/landing/` ; anciens `Promesse/Fonctions/TarifsResume` supprimés ; tarifs via `useTarifs()` (règle 4.11). Revues : code 8/10 (0 CRITICAL, MAJOR corrigés), UX 7,5/10 (3 MAJOR corrigés), régression 553 tests ciblés verts. lint 0, typecheck 0 (agents). **Reste** : tests unitaires (en cours), build prod + vérif `/_ipx` (NuxtImg sans config `image:`), e2e/axe/Lighthouse non lancés |
+
+### Landing L1 : décisions et dettes
+- **Dérogation couleurs** : 14 hexadécimaux `--mock-*` dans `Trouve.vue` (illustration de Google/navigateur, tierces) ; seule exception à CLAUDE.md §5, à valider.
+- **`?adresse=`** : le champ du hero envoie vers `/connexion?adresse=…` mais ni `/connexion` ni l'onboarding ne lisent ce paramètre (saisie perdue) → à brancher (sprint court) ou transformer le champ en bouton.
+- **Mots réservés** : `landing` et `_ipx` absents de `shared/reserved.ts` (`public/landing/` masquerait une vitrine `landing`) → à ajouter (relancer `tests/username.test.ts`).
+- **Licences** : photos provisoires de banque d'images et logo Google à régler avant la production ; témoignages et métiers fictifs étiquetés « exemple » (à ne pas garder en production) ; capture `vit-d.jpg` vieillira.
+- **Dettes MINOR** : calcul de prix de `Tarifs.vue` dupliqué avec `pages/tarifs.vue` (composable à extraire) ; `Trouve.vue` 859 lignes (styles à sortir) ; textes courts en constantes locales `TEXTES` (à rapatrier dans `landing.ts`) ; chargement lent des photos de la pile en dev (à mesurer en prod) ; « Être compris » répète 4 fois le même gabarit (piste : une seule rangée de coches).
+- **e2e** (2026-11-17) : 3 tests IA de `onboarding.spec.ts` (CA54, CA55, attente longue) rouges en local, cause probable = mode du faux fournisseur partagé via Redis, non prouvé ; à trancher par la CI ou un run isolé.
 
 ## 3. Décisions ouvertes (valeurs par défaut en attendant)
 
