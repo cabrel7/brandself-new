@@ -228,28 +228,27 @@ onBeforeUnmount(() => {
 }
 
 /* ---------- Apparition en cascade (sous 961 px, après montage, jamais en mouvement réduit) ---------- */
+/* La transition ne s'applique qu'à l'ENTRÉE (état « vue ») : le masquage initial est immédiat. Sinon, au montage, le contenu
+   déjà rendu par le serveur s'efface en 600 ms, et un lecteur d'écran ou un test d'accessibilité qui l'évalue pendant ce
+   fondu mesure un texte semi-transparent (contraste faussé). */
 
 @media (max-width: 60rem) {
   .etape--anime .texte {
     opacity: 0;
     transform: translateY(1.125rem);
-    transition:
-      opacity 600ms ease-out,
-      transform 600ms ease-out;
   }
 
   .etape--anime.etape--vue .texte {
     opacity: 1;
     transform: none;
+    transition:
+      opacity 600ms ease-out,
+      transform 600ms ease-out;
   }
 
   .cliche--anime :deep(.cadre > *) {
     opacity: 0;
     transform: translateY(1.625rem);
-    transition:
-      opacity 650ms ease-out,
-      transform 650ms cubic-bezier(0.2, 0.7, 0.2, 1);
-    transition-delay: calc(var(--k, 0) * 110ms);
   }
 
   .cliche--anime :deep(.cadre > .principale) {
@@ -259,6 +258,10 @@ onBeforeUnmount(() => {
   .cliche--anime.cliche--vue :deep(.cadre > *) {
     opacity: 1;
     transform: none;
+    transition:
+      opacity 650ms ease-out,
+      transform 650ms cubic-bezier(0.2, 0.7, 0.2, 1);
+    transition-delay: calc(var(--k, 0) * 110ms);
   }
 }
 

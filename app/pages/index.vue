@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { MARQUE } from '#shared/brand'
-import { OG_IMAGE_DEFAUT, OG_IMAGE_HAUTEUR, OG_IMAGE_LARGEUR, SITE_DESCRIPTION, urlAbsolue, urlCanonique } from '#shared/seo'
+import { OG_IMAGE_DEFAUT, OG_IMAGE_HAUTEUR, OG_IMAGE_LARGEUR, SITE_DESCRIPTION, ogLocale, urlAbsolue, urlCanonique } from '#shared/seo'
 
 // `site.url` (nuxt-site-config) : même source que la canonique du module. L'Organization et le WebSite
 // viennent de `schemaOrg.identity` (nuxt.config.ts) : rien à déclarer ici.
@@ -13,6 +13,7 @@ useSeoMeta({
   ogTitle: `${MARQUE.nom} — votre vitrine en ligne`,
   ogDescription: SITE_DESCRIPTION,
   ogType: 'website',
+  ogLocale: ogLocale(null),
   ogUrl: urlCanonique(siteUrl, '/'),
   ogImage: [{ url: imagePartage, width: OG_IMAGE_LARGEUR, height: OG_IMAGE_HAUTEUR, alt: MARQUE.nom }],
   twitterCard: 'summary_large_image',
