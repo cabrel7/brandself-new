@@ -289,4 +289,6 @@ jobs:
             test-results/
             serveur-prod.log
           if-no-files-found: ignore
+          # `.lighthouseci/` est un dossier caché : sans cette option, les rapports Lighthouse ne sont jamais publiés.
+          include-hidden-files: true
 
