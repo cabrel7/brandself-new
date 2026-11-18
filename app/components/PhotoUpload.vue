@@ -38,7 +38,7 @@ async function surChoix(event: Event): Promise<void> {
   <div class="flex flex-col gap-3">
     <div class="flex items-start gap-4">
       <div
-        class="flex h-36 w-28 shrink-0 items-center justify-center overflow-hidden rounded-t-full rounded-b-(--rayon-interne) bg-accent-doux"
+        class="fondu-bas flex h-36 w-28 shrink-0 items-center justify-center overflow-hidden bg-accent-doux"
       >
         <img
           v-if="photo"

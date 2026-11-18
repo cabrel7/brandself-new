@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { VitrinePubliqueDTO } from '#shared/dto'
 import type { ProchainCreneauPublic } from '~/composables/usePublicAgenda'
-import { ajouterJoursAgenda, dateLocaleAgenda, formaterHeureAgenda } from '~/composables/usePublicAgenda'
+import { formaterHeureAgenda } from '~/composables/usePublicAgenda'
 
 const props = defineProps<{ vitrine: VitrinePubliqueDTO, prochainCreneau?: ProchainCreneauPublic | null }>()
 
@@ -18,12 +18,6 @@ const lienReservation = computed(() => props.prochainCreneau
       query: { service: props.prochainCreneau.serviceSlug },
     }
   : '#contact')
-const disponibleCetteSemaine = computed(() => {
-  if (!props.prochainCreneau) return false
-  const aujourdHui = dateLocaleAgenda(new Date(), props.prochainCreneau.fuseau)
-  const dateCreneau = dateLocaleAgenda(props.prochainCreneau.debut, props.prochainCreneau.fuseau)
-  return dateCreneau >= aujourdHui && dateCreneau <= ajouterJoursAgenda(aujourdHui, 6)
-})
 const libelleProchainCreneau = computed(() => {
   if (!props.prochainCreneau) return ''
   const jour = new Intl.DateTimeFormat('fr-FR', {
@@ -57,20 +51,10 @@ const libelleProchainCreneau = computed(() => {
       </NuxtLink>
     </div>
     <div class="flex flex-col gap-4 px-6 md:order-1 md:px-0">
-      <p
-        v-if="disponibleCetteSemaine"
-        class="inline-flex min-h-(--cible-tactile) items-center gap-2 self-start rounded-full border border-bordure bg-fond px-4 text-(length:--fs-14) font-medium"
-      >
-        <span class="size-2 rounded-full bg-accent" aria-hidden="true" />
-        Disponible cette semaine
-      </p>
       <p class="text-(length:--fs-14) font-semibold tracking-widest text-accent-texte uppercase">{{ surtitre }}</p>
       <h1 class="font-(family-name:--font-titre) text-(length:--fs-32) leading-[1.1] font-bold md:text-(length:--fs-48)">
         {{ vitrine.accroche ?? vitrine.nomAffiche }}
       </h1>
-      <p v-if="vitrine.bio" class="max-w-prose text-(length:--fs-16) whitespace-pre-line text-texte-secondaire">
-        {{ vitrine.bio }}
-      </p>
       <div class="mt-2 flex flex-col gap-3 sm:flex-row">
         <UButton :to="lienReservation" block class="sm:w-auto">
           {{ prochainCreneau ? 'Prendre rendez-vous' : 'Me contacter' }}
