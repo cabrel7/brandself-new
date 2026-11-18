@@ -29,6 +29,7 @@ import { db } from '../../utils/db'
 import { lireConfigPaiements } from '../configuration/lecture'
 import { enforceLimit } from '../limiteur'
 import { reserverAppelFournisseur } from './budget'
+import type { NatureAppel } from './budget'
 import { decrirePaiement, getPaiementProvider } from './fournisseurs'
 import { calculerMontants } from './montants'
 import { prixDeDevise } from './offre'
@@ -60,7 +61,7 @@ export interface InitiationDeps {
   getProvider?: (nom: FournisseurPaiement) => PaiementProvider | null
   config?: Partial<ConfigInitiation>
   /** Réserve un appel dans le budget global du fournisseur (défaut : compteur Redis fail-closed). */
-  reserverAppel?: (nom: FournisseurPaiement) => Promise<void>
+  reserverAppel?: (nom: FournisseurPaiement, nature?: NatureAppel) => Promise<void>
   genererId?: () => string
 }
 
@@ -199,8 +200,8 @@ export async function initierPaiement(
     PAIEMENT_INIT_LIMIT_NUMERO.windowS,
     { failClosed: true },
   )
-  // Budget global d'appels du fournisseur (100/min chez K-PAY, 60 chez nous), avant de créer la ligne.
-  await (deps.reserverAppel ?? reserverAppelFournisseur)(moyen.fournisseur)
+  // Budget global d'appels du fournisseur (100/min chez K-PAY, 60 chez nous ; Mercy Pay : 40 écritures/min), avant de créer la ligne.
+  await (deps.reserverAppel ?? reserverAppelFournisseur)(moyen.fournisseur, 'ecriture')
 
   // (2) Ligne `cree`, COMMITÉE avant l'appel : son id est l'`externalId` du fournisseur. Le verrou consultatif
   // sérialise les initiations d'un même utilisateur (le plafond de paiements ouverts tient sous concurrence).

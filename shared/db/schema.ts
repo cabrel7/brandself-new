@@ -1311,9 +1311,10 @@ export const paiements = pgTable(
     abonnementExpireAvant: timestamp('abonnement_expire_avant', { withTimezone: true }),
     abonnementExpireApres: timestamp('abonnement_expire_apres', { withTimezone: true }),
     termineLe: timestamp('termine_le', { withTimezone: true }),
-    // A3 (migration 0030, D-A3-03) : origine de l'encaissement. 'kpay' = passé par le fournisseur (toutes les lignes
-    // existantes) ; 'manuel' = créé par l'administration (marquage manuel). Source côté application : shared/paiements.ts.
-    source: text('source').notNull().default('kpay'),
+    // A3 (migration 0030, D-A3-03) : origine de l'encaissement. P1 (migration 0033) : 'fournisseur' = passé par un
+    // fournisseur de paiement (K-PAY, Mercy Pay…, toutes les lignes existantes) ; 'manuel' = créé par l'administration
+    // (marquage manuel). Le fournisseur précis est dans `fournisseur`. Source côté application : shared/paiements.ts.
+    source: text('source').notNull().default('fournisseur'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
@@ -1389,11 +1390,12 @@ export const paiements = pgTable(
       sql`${table.statut} <> 'en_attente' OR ${table.idFournisseur} IS NOT NULL OR ${table.initiationIncertaine}`,
     ),
     check('paiements_verifications_check', sql`${table.verifications} BETWEEN 0 AND 1000`),
-    check('paiements_source_check', sql`${table.source} IN ('kpay','manuel')`),
+    check('paiements_source_check', sql`${table.source} IN ('fournisseur','manuel')`),
     // A3 : un paiement manuel (et lui seul) a le fournisseur 'manuel' ; il n'a ni identifiant fournisseur, ni frais,
     // ni code d'échec, sa référence est 'manuel-' || id, il ne peut être que `cree` (transitoire) ou `reussi`.
     // Les index uniques (fournisseur, id_fournisseur) et (fournisseur, reference_fournisseur) sont inchangés : un
-    // manuel ne peut pas entrer en collision avec une référence K-PAY (fournisseur différent).
+    // manuel ne peut pas entrer en collision avec une référence d'un fournisseur de paiement (fournisseur différent).
+    // P1 (migration 0033) : la source 'kpay' devient 'fournisseur' (K-PAY, Mercy Pay… partagent la même source).
     // ÉCART DE LA SPEC §3 (voir rapport) : la spec écrit (source = 'kpay') = (fournisseur = 'kpay'), ce qui interdirait
     // tout autre fournisseur en base (contraire à la règle S10 « fournisseur n'est pas une énumération » et à une
     // ligne `stripe` créée par tests/integration/webhook-kpay-route.test.ts). On garantit ici l'équivalence côté
@@ -1402,7 +1404,7 @@ export const paiements = pgTable(
     check(
       'paiements_source_coherence_check',
       sql`(${table.source} = 'manuel') = (${table.fournisseur} = 'manuel')
-        AND (${table.source} = 'kpay' OR (
+        AND (${table.source} = 'fournisseur' OR (
           ${table.methode} = 'manuel' AND ${table.statut} IN ('cree','reussi')
           AND ${table.idFournisseur} IS NULL AND ${table.referenceFournisseur} IS NOT NULL
           AND ${table.referenceFournisseur} = 'manuel-' || ${table.id}

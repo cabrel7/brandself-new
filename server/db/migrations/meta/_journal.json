@@ -232,6 +232,20 @@
       "when": 1794816854168,
       "tag": "0032_a5_catalogues_versions",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1794966010914,
+      "tag": "0033_p1_paiements_source_fournisseur",
+      "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1794967170386,
+      "tag": "0034_p1_catalogue_mercypay",
+      "breakpoints": true
     }
   ]
 }

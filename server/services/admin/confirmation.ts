@@ -17,6 +17,7 @@ import { readPgError, PG_UNIQUE_VIOLATION } from '../../utils/pg-error'
 import { enforceLimit } from '../limiteur'
 import { appliquerEvenement } from '../paiements/application'
 import { reserverAppelFournisseur } from '../paiements/budget'
+import type { NatureAppel } from '../paiements/budget'
 import { estFournisseurConnu, getPaiementProvider } from '../paiements/fournisseurs'
 import { FournisseurIndisponibleError } from '../paiements/types'
 import type { EtatFournisseur, EvenementNormalise, PaiementProvider } from '../paiements/types'
@@ -26,7 +27,7 @@ import type { ActeurAdmin } from './paiements-journal'
 
 export interface ReverificationDeps {
   getProvider?: (nom: FournisseurPaiement) => PaiementProvider | null
-  reserverAppel?: (nom: FournisseurPaiement) => Promise<void>
+  reserverAppel?: (nom: FournisseurPaiement, nature?: NatureAppel) => Promise<void>
   now?: Date
 }
 
@@ -154,7 +155,7 @@ export async function reverifierPaiement(
   } else {
     const provider = (deps.getProvider ?? getPaiementProvider)(fournisseur)
     if (provider === null) throw new ServiceUnavailableError('FOURNISSEUR_INDISPONIBLE')
-    await (deps.reserverAppel ?? reserverAppelFournisseur)(fournisseur)
+    await (deps.reserverAppel ?? reserverAppelFournisseur)(fournisseur, 'lecture')
     let etat: EtatFournisseur | null
     try {
       etat = await provider.consulter(paiement.idFournisseur, new AbortController().signal)

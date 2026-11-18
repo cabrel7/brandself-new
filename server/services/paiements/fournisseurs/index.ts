@@ -1,15 +1,25 @@
-import { env, resolveKpayEnvironnement } from '../../../../shared/env'
+import { env, resolveKpayEnvironnement, resolveMercyPayEnvironnement } from '../../../../shared/env'
 import type { Env } from '../../../../shared/env'
 import { FOURNISSEURS_PAIEMENT } from '../../../../shared/paiements'
 import type { FournisseurPaiement } from '../../../../shared/paiements'
 import type { PaiementProvider } from '../types'
 import { creerKpayProvider, decrireAbonnementKpay } from './kpay/adaptateur'
+import { creerMercyPayProvider, decrireAbonnementMercy } from './mercypay/adaptateur'
 
 // S10 (docs/specs/S10-abonnements.md §5.2) : registre des fournisseurs. C'est le SEUL endroit qui lit les clés
-// (`KPAY_*`) pour construire un adaptateur ; un fournisseur est « configuré » quand ses clés sont présentes.
-// Ajouter un fournisseur (carte) = un adaptateur + une entrée ici, sans migration.
+// (`KPAY_*`, `MERCY_PAY_*`) pour construire un adaptateur ; un fournisseur est « configuré » quand ses clés sont présentes.
+// Ajouter un fournisseur = un adaptateur + une entrée ici (la source en base reste `fournisseur`, P1 D5).
 
-export type EnvPaiements = Pick<Env, 'KPAY_API_KEY' | 'KPAY_SECRET_KEY' | 'KPAY_WEBHOOK_SECRET' | 'KPAY_BASE_URL'>
+export type EnvPaiements = Pick<
+  Env,
+  | 'KPAY_API_KEY'
+  | 'KPAY_SECRET_KEY'
+  | 'KPAY_WEBHOOK_SECRET'
+  | 'KPAY_BASE_URL'
+  | 'MERCY_PAY_API_KEY'
+  | 'MERCY_PAY_WEBHOOK_SECRET'
+  | 'MERCY_PAY_BASE_URL'
+>
 
 export function estFournisseurConnu(nom: string): nom is FournisseurPaiement {
   return (FOURNISSEURS_PAIEMENT as readonly string[]).includes(nom)
@@ -28,6 +38,17 @@ export function getPaiementProvider(nom: FournisseurPaiement, source: EnvPaiemen
         ...(source.KPAY_WEBHOOK_SECRET ? { secretWebhook: source.KPAY_WEBHOOK_SECRET } : {}),
       })
     }
+    case 'mercypay': {
+      // Seule la clé API conditionne le fournisseur : sans secret de webhook, l'initiation et le rapprochement
+      // fonctionnent et la route webhook refuse tout (`webhookConfigure` faux).
+      if (!source.MERCY_PAY_API_KEY) return null
+      return creerMercyPayProvider({
+        baseUrl: source.MERCY_PAY_BASE_URL,
+        cleApi: source.MERCY_PAY_API_KEY,
+        environnement: resolveMercyPayEnvironnement(source.MERCY_PAY_API_KEY),
+        ...(source.MERCY_PAY_WEBHOOK_SECRET ? { secretWebhook: source.MERCY_PAY_WEBHOOK_SECRET } : {}),
+      })
+    }
   }
 }
 
@@ -41,5 +62,7 @@ export function decrirePaiement(nom: FournisseurPaiement, periodeMois: number): 
   switch (nom) {
     case 'kpay':
       return decrireAbonnementKpay(periodeMois)
+    case 'mercypay':
+      return decrireAbonnementMercy(periodeMois)
   }
 }

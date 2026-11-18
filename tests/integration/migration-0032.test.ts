@@ -561,9 +561,9 @@ describe('migration 0032 : configuration_versions (structure, valeurs de départ
     expect(index.configuration_versions_programmee_unique).toMatch(/UNIQUE INDEX .*\(categorie, cle\) WHERE \(statut = 'programmee'::text\)/)
   })
 
-  it('should hold the five seed versions with their immutable content (numero 1, author `systeme`, dated 2000-01-01)', async () => {
+  it('should hold the five seed versions of 0032 (the Mercy Pay ones belong to 0034) with their immutable content (numero 1, author `systeme`, dated 2000-01-01)', async () => {
     const resultat = await db.execute<{ id: string, categorie: string, cle: string, numero: number, cree_par: string, effective_a: Date }>(sql`
-      SELECT id, categorie, cle, numero, cree_par, effective_a FROM configuration_versions WHERE cree_par = ${EMPREINTE_SEED} ORDER BY id`)
+      SELECT id, categorie, cle, numero, cree_par, effective_a FROM configuration_versions WHERE cree_par = ${EMPREINTE_SEED} AND id IN (${sql.join(Object.values(SEED_IDS).map((id) => sql`${id}`), sql`, `)}) ORDER BY id`)
 
     expect(resultat.rows.map((r) => [r.id, r.categorie, r.cle, r.numero, r.cree_par])).toEqual([
       [SEED_IDS.frais, 'frais', 'kpay:mobile_money', 1, 'systeme'],
@@ -593,11 +593,12 @@ describe('migration 0032 : configuration_versions (structure, valeurs de départ
 
   it('should seed the active payment methods with EXACTLY the active entries of MOYENS_PAIEMENT', async () => {
     const seed = await lireValeurs(SEED_IDS.moyens) as { actifs: string[] }
-    const actifsDuCode = MOYENS_PAIEMENT.filter((m) => m.actif)
+    // P1 (0033/0034) : la v1 de 0032 ne couvre que K-PAY ; les moyens d'un autre fournisseur ont leur propre clé (0034).
+    const actifsDuCode = MOYENS_PAIEMENT.filter((m) => m.actif && m.fournisseur === 'kpay')
 
     expect(Object.keys(seed)).toEqual(['actifs'])
     expect([...seed.actifs].sort()).toEqual(actifsDuCode.map((m) => m.id).sort())
-    expect(actifsDuCode.every((m) => m.fournisseur === 'kpay')).toBe(true)
+    expect(actifsDuCode.length).toBeGreaterThan(0)
   })
 
   it('should serve the real queries by the right index: active version of a key, scheduled versions due, history of a key', async () => {

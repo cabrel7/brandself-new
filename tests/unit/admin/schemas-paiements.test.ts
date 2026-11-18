@@ -118,7 +118,7 @@ describe('sorties A3 (liste blanche)', () => {
     id: 'p1',
     reference: 'ref-1',
     fournisseur: 'kpay',
-    source: 'kpay',
+    source: 'fournisseur',
     methode: 'mobile_money',
     operateur: 'MTN_MOMO_CMR',
     statut: 'reussi',

@@ -29,7 +29,7 @@ Dans toute l'interface, les textes, les commentaires et les noms visibles : **vi
 7. Secrets et configuration par `runtimeConfig`, validés au démarrage. **`process.env` interdit hors du fichier de configuration.**
 8. Dates en `timestamptz`, affichées dans le fuseau de la vitrine (défaut `Africa/Douala`). Prix en entiers (plus petite unité de la devise ou montant entier selon la devise), jamais en flottants.
 9. **Pas de double réservation** : garantie par la contrainte d'exclusion PostgreSQL, pas seulement par le code.
-10. **Webhooks K-PAY** : signature vérifiée, traitement idempotent (`reference_kpay` unique).
+10. **Webhooks de paiement (K-PAY, Mercy Pay)** : signature vérifiée sur le corps brut avec tolérance d'horloge, traitement idempotent (`(fournisseur, reference_fournisseur)` unique), types d'événements non gérés ignorés avec une réponse 200 (jamais 5xx : le fournisseur désactiverait l'endpoint). Un fournisseur = un adaptateur (`server/services/paiements/fournisseurs/`) ; clés par `runtimeConfig`, jamais en clair dans un log.
 11. **Aucune limite de plan écrite en dur** dans un composant ou une route : tout passe par `PlanService` et la configuration des plans.
 12. **Bibliothèque d'abord** : avant d'écrire du code technique non métier, chercher une bibliothèque maintenue (version récente, TypeScript, compatible Nuxt, peu de dépendances). Chaque ajout est noté dans `docs/bibliotheques.md` (voir §8) avec sa raison.
 13. Un `username` n'est jamais l'un des **mots réservés** (liste dans `shared/reserved.ts` : `api`, `studio`, `connexion`, `inscription`, `onboarding`, `tarifs`, `l`, `admin`, `www`, `app`, `aide`, `contact`, `cgu`, `confidentialite`, `sitemap`, `robots`, `assets`, `_nuxt`, etc.).

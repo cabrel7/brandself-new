@@ -55,7 +55,9 @@ export interface EvenementNormalise {
   codeEchec: string | null
   /** Statut brut du fournisseur (audit), en majuscules. */
   statutBrut?: string | null
-  /** Renseignés seulement par une interrogation (les webhooks ne portent pas les frais). */
+  /** P1 : environnement de l'événement (`livemode`), s'il est porté ; comparé à celui de la clé configurée. */
+  environnement?: PaiementEnvironnement
+  /** Renseignés par une interrogation, ou par un webhook qui porte les frais (Mercy Pay). */
   fraisReels?: number | null
   netReel?: number | null
 }
@@ -65,11 +67,30 @@ export interface PaiementProvider {
   readonly environnement: PaiementEnvironnement
   /** Faux si le secret de signature des webhooks est absent (le webhook répond alors 503). Défaut : vrai. */
   readonly webhookConfigure?: boolean
+  /**
+   * Réponse de la route webhook quand le secret est absent. `non_configure` (défaut, K-PAY) : 503 `WEBHOOK_NON_CONFIGURE`.
+   * `signature_invalide` (Mercy Pay, P1) : 401 `SIGNATURE_INVALIDE`, jamais 200 ni 5xx (la route se comporte comme face
+   * à une signature fausse : un secret non encore déclaré ne doit pas faire désactiver l'endpoint par le fournisseur).
+   */
+  readonly webhookSansSecret?: 'non_configure' | 'signature_invalide'
   initier(req: InitiationRequete, signal: AbortSignal): Promise<InitiationResultat>
   /** `null` = transaction inconnue (404). Lève `FournisseurIndisponibleError` sur toute autre panne. */
   consulter(idFournisseur: string, signal: AbortSignal): Promise<EtatFournisseur | null>
-  verifierSignature(corpsBrut: Buffer, entetes: Readonly<Record<string, string | undefined>>): boolean
-  /** `null` = schéma invalide. Les champs inconnus sont ignorés. */
+  /**
+   * Optionnel. Retrouve chez le fournisseur un paiement dont l'initiation est restée INCERTAINE (délai dépassé : le paiement
+   * existe peut-être mais son identifiant n'a pas été reçu) à partir de NOTRE identifiant (`externalId`, transmis dans les
+   * métadonnées) parmi les paiements créés à partir de `depuis`. `null` = introuvable. Même contrat d'erreur que `consulter`.
+   */
+  retrouver?(externalId: string, depuis: Date, signal: AbortSignal): Promise<EtatFournisseur | null>
+  /**
+   * `now` est injecté (horloge testable) : un fournisseur dont la signature porte un horodatage (Mercy Pay, tolérance
+   * 300 s) l'utilise ; K-PAY l'ignore. Jamais d'exception : toute entrée invalide donne `false`.
+   */
+  verifierSignature(corpsBrut: Buffer, entetes: Readonly<Record<string, string | undefined>>, now: Date): boolean
+  /**
+   * `null` = schéma invalide, et SEULEMENT ce cas : un type d'événement non géré donne `statut: 'autre'` (journalisé
+   * `ignore`, réponse 200). Les champs inconnus sont ignorés.
+   */
   interpreterWebhook(corps: unknown): EvenementNormalise | null
 }
 

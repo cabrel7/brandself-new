@@ -5,11 +5,11 @@ import { Temporal } from '@js-temporal/polyfill'
 import { sql } from 'drizzle-orm'
 import { ADMIN_ACTIONS } from '../../../shared/admin'
 import {
-  PAIEMENT_SOURCE_KPAY,
   PAIEMENT_SOURCE_MANUEL,
   REVENUS_MENTION_INCERTITUDE,
 } from '../../../shared/admin-paiements'
 import { ADMIN_REVENUS_REPARTITION_MOIS } from '../../../shared/limites'
+import { PAIEMENT_SOURCE_FOURNISSEUR } from '../../../shared/paiements'
 import { ABONNEMENT_FUSEAU_REPLI, PERIODES_MOIS } from '../../../shared/plans'
 import type { PeriodeMois } from '../../../shared/plans'
 import { db } from '../../utils/db'
@@ -99,7 +99,7 @@ async function agregerPeriode(debut: Date, fin: Date): Promise<Map<string, { kpa
       fraisReels: versEntierSur(ligne.frais),
       nombreSansFrais: versEntierSur(ligne.sans_frais),
     }
-    if (ligne.source === PAIEMENT_SOURCE_KPAY) entree.kpay = agregat
+    if (ligne.source === PAIEMENT_SOURCE_FOURNISSEUR) entree.kpay = agregat
     else if (ligne.source === PAIEMENT_SOURCE_MANUEL) entree.manuel = agregat
     parDevise.set(ligne.devise, entree)
   }
@@ -128,12 +128,12 @@ async function lireOfferts(): Promise<{ jours: number, nombre: number }> {
   return { jours: versEntierSur(ligne?.jours), nombre: versEntierSur(ligne?.nombre) }
 }
 
-/** Répartition des encaissements K-PAY par durée d'abonnement sur les `ADMIN_REVENUS_REPARTITION_MOIS` derniers mois. */
+/** Répartition des encaissements des fournisseurs par durée d'abonnement sur les `ADMIN_REVENUS_REPARTITION_MOIS` derniers mois. */
 async function lireRepartition(debut: Date, fin: Date): Promise<Map<string, Map<number, { nombre: number, brut: number }>>> {
   const resultat = await db.execute<{ devise: string, periode_mois: number, nombre: string | number, brut: string | number | null }>(sql`
     SELECT devise, periode_mois, count(*) AS nombre, COALESCE(sum(montant), 0) AS brut
     FROM paiements
-    WHERE statut = 'reussi' AND source = ${PAIEMENT_SOURCE_KPAY}
+    WHERE statut = 'reussi' AND source = ${PAIEMENT_SOURCE_FOURNISSEUR}
       AND applique_le >= ${debut.toISOString()}::timestamptz AND applique_le < ${fin.toISOString()}::timestamptz
     GROUP BY devise, periode_mois`)
   const parDevise = new Map<string, Map<number, { nombre: number, brut: number }>>()

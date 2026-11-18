@@ -1,4 +1,4 @@
-import { and, asc, eq, inArray, isNotNull, lte } from 'drizzle-orm'
+import { and, asc, eq, gte, inArray, isNotNull, isNull, lte, or } from 'drizzle-orm'
 import { paiements } from '../../../shared/db/schema'
 import {
   PAIEMENTS_VERIFICATION_CALENDRIER_S,
@@ -12,6 +12,7 @@ import type { FournisseurPaiement } from '../../../shared/paiements'
 import { ServiceUnavailableError } from '../../exceptions/http'
 import { db } from '../../utils/db'
 import { reserverAppelFournisseur } from './budget'
+import type { NatureAppel } from './budget'
 import { estFournisseurConnu, getPaiementProvider } from './fournisseurs'
 import { appliquerEvenement } from './application'
 import type { EtatFournisseur, EvenementNormalise, PaiementProvider } from './types'
@@ -25,12 +26,14 @@ const VERIFICATIONS_MAX = 1_000
 
 export interface RapprochementDeps {
   getProvider?: (nom: FournisseurPaiement) => PaiementProvider | null
-  reserverAppel?: (nom: FournisseurPaiement) => Promise<void>
+  reserverAppel?: (nom: FournisseurPaiement, nature?: NatureAppel) => Promise<void>
   lot?: number
 }
 
 export interface ResultatVerification {
   expires: number
+  /** Initiations incertaines dont le paiement a été retrouvé chez le fournisseur (identifiant rattaché). */
+  rattaches: number
   reclames: number
   interroges: number
   appliques: number
@@ -120,10 +123,78 @@ function versEvenement(etat: EtatFournisseur, paiementId: string, statut: Exclud
   }
 }
 
-/** Un tick du rapprochement : expiration locale, puis interrogation d'au plus `lot` paiements dus. */
+// Initiation INCERTAINE (délai dépassé, le paiement existe peut-être chez le fournisseur sans que son identifiant nous soit
+// parvenu) : le numéro de téléphone n'étant jamais conservé, on ne peut pas rejouer l'initiation. On retrouve le paiement par
+// NOTRE identifiant (métadonnées) chez les fournisseurs qui l'offrent (`retrouver`), après avoir laissé au webhook le temps
+// d'arriver, et dans la fenêtre de conservation des clés d'idempotence (24 h). Le rattachement ne décide de rien : il pose
+// l'identifiant et programme une vérification ordinaire, qui applique le résultat (aucune logique d'application dupliquée).
+const RATTACHEMENT_ATTENTE_S = 120
+const RATTACHEMENT_FENETRE_S = 24 * 60 * 60
+const RATTACHEMENT_INTERVALLE_S = 60
+const RATTACHEMENT_MARGE_S = 60
+
+async function rattacherInitiationsIncertaines(
+  now: Date,
+  lot: number,
+  cherche: (nom: FournisseurPaiement) => PaiementProvider | null,
+  reserver: (nom: FournisseurPaiement, nature?: NatureAppel) => Promise<void>,
+  resultat: ResultatVerification,
+): Promise<void> {
+  const incertains = await db
+    .select({ id: paiements.id, fournisseur: paiements.fournisseur, createdAt: paiements.createdAt })
+    .from(paiements)
+    .where(and(
+      inArray(paiements.statut, [...PAIEMENT_STATUTS_OUVERTS]),
+      isNull(paiements.idFournisseur),
+      eq(paiements.initiationIncertaine, true),
+      lte(paiements.createdAt, new Date(now.getTime() - RATTACHEMENT_ATTENTE_S * MS_PAR_SECONDE)),
+      gte(paiements.createdAt, new Date(now.getTime() - RATTACHEMENT_FENETRE_S * MS_PAR_SECONDE)),
+      or(isNull(paiements.prochaineVerification), lte(paiements.prochaineVerification, now)),
+    ))
+    .orderBy(asc(paiements.createdAt), asc(paiements.id))
+    .limit(lot)
+
+  for (const ligne of incertains) {
+    if (!estFournisseurConnu(ligne.fournisseur)) continue
+    const provider = cherche(ligne.fournisseur)
+    if (!provider?.retrouver) continue
+    // Prochain essai dans une minute, qu'on trouve ou non : un fournisseur lent ou une liste vide ne sont pas rejoués à chaque tick.
+    await db.update(paiements)
+      .set({ prochaineVerification: new Date(now.getTime() + RATTACHEMENT_INTERVALLE_S * MS_PAR_SECONDE), updatedAt: now })
+      .where(and(eq(paiements.id, ligne.id), isNull(paiements.idFournisseur)))
+    try {
+      await reserver(ligne.fournisseur, 'lecture')
+    } catch (erreur) {
+      if (erreur instanceof ServiceUnavailableError) return
+      throw erreur
+    }
+    try {
+      const depuis = new Date(ligne.createdAt.getTime() - RATTACHEMENT_MARGE_S * MS_PAR_SECONDE)
+      const etat = await provider.retrouver(ligne.id, depuis, new AbortController().signal)
+      if (etat === null || etat.externalId !== ligne.id) continue
+      const rattache = await db.update(paiements)
+        .set({ idFournisseur: etat.idFournisseur, initiationIncertaine: false, prochaineVerification: now, updatedAt: now })
+        .where(and(eq(paiements.id, ligne.id), isNull(paiements.idFournisseur)))
+        .returning({ id: paiements.id })
+      if (rattache.length > 0) resultat.rattaches++
+    } catch (erreur) {
+      resultat.erreurs++
+      console.error({ paiement: 'rattachement_echoue', id: ligne.id, nom: erreur instanceof Error ? erreur.name : typeof erreur })
+    }
+  }
+}
+
+/** Un tick du rapprochement : expiration locale, rattachement des initiations incertaines, puis interrogation d'au plus `lot` paiements dus. */
 export async function verifierPaiementsDus(now: Date, deps: RapprochementDeps = {}): Promise<ResultatVerification> {
-  const resultat: ResultatVerification = { expires: 0, reclames: 0, interroges: 0, appliques: 0, erreurs: 0 }
+  const resultat: ResultatVerification = { expires: 0, rattaches: 0, reclames: 0, interroges: 0, appliques: 0, erreurs: 0 }
   resultat.expires = await expirerPaiements(now)
+  await rattacherInitiationsIncertaines(
+    now,
+    deps.lot ?? PAIEMENTS_VERIFICATION_LOT,
+    deps.getProvider ?? getPaiementProvider,
+    deps.reserverAppel ?? reserverAppelFournisseur,
+    resultat,
+  )
 
   const reclames = await reclamer(now, deps.lot ?? PAIEMENTS_VERIFICATION_LOT)
   resultat.reclames = reclames.length
@@ -138,7 +209,7 @@ export async function verifierPaiementsDus(now: Date, deps: RapprochementDeps = 
     const provider = cherche(ligne.fournisseur)
     if (!provider) { resultat.erreurs++; continue }
     try {
-      await reserver(ligne.fournisseur)
+      await reserver(ligne.fournisseur, 'lecture')
     } catch (erreur) {
       if (erreur instanceof ServiceUnavailableError) break
       throw erreur

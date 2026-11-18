@@ -3,10 +3,16 @@
 // l'exposant des devises sont recopiées (ou contrôlées) par les CHECK de la migration 0021
 // (shared/db/schema.ts) : les garder synchronisées.
 
-export const FOURNISSEURS_PAIEMENT = ['kpay'] as const
+export const FOURNISSEURS_PAIEMENT = ['kpay', 'mercypay'] as const
 export type FournisseurPaiement = (typeof FOURNISSEURS_PAIEMENT)[number]
 /** Format du nom d'un fournisseur (CHECK `paiements_fournisseur_check`) : un nouveau fournisseur n'exige aucune migration. */
 export const FOURNISSEUR_FORMAT = /^[a-z0-9_-]{1,40}$/
+
+/**
+ * P1 (D5) : valeur de `paiements.source` pour tout paiement encaissé par un fournisseur (l'autre valeur est `manuel`).
+ * Le comportement ne se décide plus sur le nom du fournisseur mais sur cette source.
+ */
+export const PAIEMENT_SOURCE_FOURNISSEUR = 'fournisseur'
 
 /** `carte` est déclarée mais aucun moyen n'est actif en S10. */
 export const METHODES_PAIEMENT = ['mobile_money', 'carte'] as const
@@ -53,6 +59,8 @@ export const CODES_ANOMALIE = [
   'PAIEMENT_INCONNU',
   'REMBOURSE',
   'EVENEMENT_NON_GERE',
+  // P1 : événement `livemode` différent de l'environnement de la clé configurée (motif libre côté base : ^[A-Z0-9_]{1,64}$).
+  'ENVIRONNEMENT_INCOHERENT',
 ] as const
 export type CodeAnomalie = (typeof CODES_ANOMALIE)[number]
 
@@ -68,6 +76,10 @@ export const MESSAGES_ECHEC: Record<string, string> = {
   PAYER_LIMIT_REACHED: 'Le plafond de ce compte Mobile Money est atteint. Réessayez plus tard ou avec un autre numéro.',
   INSUFFICIENT_BALANCE: 'Le solde de ce compte est insuffisant.',
   TRANSACTION_ALREADY_IN_PROCESS: 'Un paiement est déjà en cours sur ce numéro. Patientez quelques minutes.',
+  CUSTOMER_NOT_ELIGIBLE: 'Ce compte Mobile Money ne peut pas effectuer ce paiement. Essayez avec un autre numéro ou un autre opérateur.',
+  INVALID_PHONE_NUMBER: 'Ce numéro ne semble pas valide pour cet opérateur. Vérifiez-le, puis réessayez.',
+  PROVIDER_TEMPORARILY_UNAVAILABLE: 'Cet opérateur est momentanément indisponible. Réessayez dans quelques minutes.',
+  AMOUNT_OUT_OF_BOUNDS: 'Ce montant dépasse les limites autorisées par cet opérateur. Essayez avec un autre moyen de paiement.',
   [CODE_ECHEC_EXPIRE]: 'Nous n’avons pas reçu la validation à temps. Si un montant a été prélevé, votre abonnement sera activé automatiquement.',
   [CODE_ECHEC_DEFAUT]: 'Le paiement n’a pas abouti. Vous pouvez réessayer.',
 }
@@ -110,3 +122,18 @@ export const KPAY_CLE_API_FORMAT = /^kpay_(?:test|live)_[A-Za-z0-9_-]+$/
 export const KPAY_CLE_SECRETE_FORMAT = /^[0-9a-fA-F]{64}$/
 /** Caractères : longueur minimale du secret de signature des webhooks. */
 export const KPAY_WEBHOOK_SECRET_LONGUEUR_MIN = 16
+
+// --- Mercy Pay (P1) : clés et adresse (validées dans shared/env.ts) ---
+
+/** Adresse par défaut de l'API Mercy Pay (HTTPS), préfixe de version inclus, sans barre finale. */
+export const MERCY_PAY_BASE_URL_DEFAUT = 'https://mercy-pay.com/api/v1'
+/** Seuls hôtes autorisés en HTTP clair, hors production (faux serveur Mercy Pay des tests). */
+export const MERCY_PAY_HOTES_HTTP_AUTORISES: readonly string[] = ['127.0.0.1', 'localhost']
+export const MERCY_PAY_CLE_PREFIXE_TEST = 'mp_sandbox_'
+export const MERCY_PAY_CLE_PREFIXE_LIVE = 'mp_live_'
+/** `mp_sandbox_…` ou `mp_live_…` ; jeu de caractères non documenté : permissif mais sans espace ni ponctuation exotique. */
+export const MERCY_PAY_CLE_API_FORMAT = /^mp_(?:sandbox|live)_[A-Za-z0-9_-]+$/
+/** Secret de signature des webhooks : `whsec_` suivi de caractères ASCII imprimables. */
+export const MERCY_PAY_WEBHOOK_SECRET_FORMAT = /^whsec_[\x21-\x7E]+$/
+/** Caractères (préfixe inclus) : longueur minimale du secret de signature des webhooks. */
+export const MERCY_PAY_WEBHOOK_SECRET_LONGUEUR_MIN = 22

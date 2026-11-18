@@ -1,5 +1,5 @@
 import { PRIX_MAX_MINOR } from '../../shared/devises'
-import { resolveKpayEnvironnement } from '../../shared/env'
+import { resolveKpayEnvironnement, resolveMercyPayEnvironnement } from '../../shared/env'
 import type { Env } from '../../shared/env'
 import {
   DEVISE_FORMAT,
@@ -67,6 +67,35 @@ export const MOYENS_PAIEMENT: readonly MoyenPaiementConfig[] = [
   {
     id: 'kpay:ORANGE_CMR',
     fournisseur: 'kpay',
+    methode: 'mobile_money',
+    operateur: 'ORANGE_CMR',
+    libelle: 'Orange Money',
+    pays: 'CMR',
+    indicatif: '237',
+    devise: 'XAF',
+    montantMin: MONTANT_MIN_DEFAUT,
+    numeroNational: /^6\d{8}$/,
+    exemple: '6XX XXX XXX',
+    actif: true,
+  },
+  // P1 : Mercy Pay, fournisseur principal. Même format de numéro que K-PAY au Cameroun.
+  {
+    id: 'mercypay:MTN_MOMO_CMR',
+    fournisseur: 'mercypay',
+    methode: 'mobile_money',
+    operateur: 'MTN_MOMO_CMR',
+    libelle: 'MTN MoMo',
+    pays: 'CMR',
+    indicatif: '237',
+    devise: 'XAF',
+    montantMin: MONTANT_MIN_DEFAUT,
+    numeroNational: /^6\d{8}$/,
+    exemple: '6XX XXX XXX',
+    actif: true,
+  },
+  {
+    id: 'mercypay:ORANGE_CMR',
+    fournisseur: 'mercypay',
     methode: 'mobile_money',
     operateur: 'ORANGE_CMR',
     libelle: 'Orange Money',
@@ -155,6 +184,11 @@ export interface ConfigFrais {
   tauxPointsBase: number
   /** `marchand` : jesuis.pro absorbe les frais ; `client` : le montant demandé est majoré. */
   supporteur: FraisSupporteur
+  /**
+   * P1 : part fixe en unité mineure (0 par défaut, ex. 200 XAF sur la carte Mercy Pay, P2). Frais estimés =
+   * arrondi supérieur de `montant × taux / 10 000` + fixe. Inutilisée en mobile money.
+   */
+  fixeMinor?: number
 }
 
 /** Frais par (fournisseur, méthode). Snapshot sur chaque paiement : changer ici ne réécrit jamais l'historique. */
@@ -163,6 +197,10 @@ export type TableFrais = Partial<Record<FournisseurPaiement, Partial<Record<Meth
 export const FRAIS_PAIEMENT: TableFrais = {
   kpay: {
     mobile_money: { tauxPointsBase: 500, supporteur: 'marchand' },
+  },
+  // P1 (D2) : taux réel du compte Mercy Pay en mobile money (350 points de base), frais à notre charge.
+  mercypay: {
+    mobile_money: { tauxPointsBase: 350, supporteur: 'marchand' },
   },
 }
 
@@ -212,6 +250,9 @@ function verifierFrais(frais: TableFrais, problemes: string[]): void {
         problemes.push(`${cible} : le taux doit être un entier de 0 à ${FRAIS_TAUX_PB_MAX} points de base`)
       }
       if (!(FRAIS_SUPPORTEURS as readonly string[]).includes(config.supporteur)) problemes.push(`${cible} : supporteur inconnu`)
+      if (config.fixeMinor !== undefined && (!Number.isSafeInteger(config.fixeMinor) || config.fixeMinor < 0)) {
+        problemes.push(`${cible} : la part fixe doit être un entier positif ou nul`)
+      }
     }
   }
 }
@@ -239,7 +280,7 @@ function verifierPrixDevise(devise: string, prix: GrillePrix, montantMin: number
  * fait échouer le démarrage (#106).
  */
 export function assertConfigPaiements(
-  env: Pick<Env, 'NODE_ENV'> & Partial<Pick<Env, 'KPAY_API_KEY'>>,
+  env: Pick<Env, 'NODE_ENV'> & Partial<Pick<Env, 'KPAY_API_KEY' | 'MERCY_PAY_API_KEY'>>,
   config: ConfigPaiementsVerifiable = { moyens: MOYENS_PAIEMENT, frais: FRAIS_PAIEMENT, prix: PRIX_PLANS.payant, prixStatut: PRIX_STATUT },
 ): void {
   const problemes: string[] = []
@@ -278,8 +319,11 @@ export function assertConfigPaiements(
     // Grille provisoire en production : le serveur DÉMARRE (le reste du produit n'a pas à tomber), mais le paiement
     // est verrouillé (offre vide, initiation 503). Il ne démarre PAS si des clés de production seraient déjà
     // branchées sur une grille non validée : de l'argent réel serait encaissé à des prix provisoires.
-    if (env.KPAY_API_KEY && resolveKpayEnvironnement(env.KPAY_API_KEY) === 'live') {
-      problemes.push('PRIX_STATUT vaut a_valider avec des clés K-PAY de production : validez la grille de prix avant d’encaisser')
+    // Le contrôle couvre TOUS les fournisseurs (P1) : une clé de production de l'un d'eux suffit à refuser le démarrage.
+    const cleProduction = (env.KPAY_API_KEY && resolveKpayEnvironnement(env.KPAY_API_KEY) === 'live')
+      || (env.MERCY_PAY_API_KEY && resolveMercyPayEnvironnement(env.MERCY_PAY_API_KEY) === 'live')
+    if (cleProduction) {
+      problemes.push('PRIX_STATUT vaut a_valider avec des clés de paiement de production : validez la grille de prix avant d’encaisser')
     } else {
       console.warn('[paiements] PRIX_STATUT vaut a_valider en production : le paiement en ligne est désactivé jusqu’à validation des prix')
     }

@@ -19,7 +19,7 @@ import {
 import type { AdminConnecte } from '../support/admin-a3'
 
 // A3 CA07, CA14, D-A3-01/02 : revenus par DEVISE, en entiers, jamais d'addition entre devises. « Encaissé K-PAY » = somme de
-// `montant` des paiements `source = 'kpay'` et `statut = 'reussi'`, bornée par `applique_le` dans le mois local (Africa/Douala).
+// `montant` des paiements `source = 'fournisseur'` et `statut = 'reussi'`, bornée par `applique_le` dans le mois local (Africa/Douala).
 // Les `manuel` sont à part ; `cree`, `en_attente`, `expire`, `echoue`, `annule`, `anomalie` ne sont jamais comptés. La route lit
 // l'horloge système : les paiements sont posés par rapport au mois courant réel.
 

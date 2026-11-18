@@ -26,10 +26,13 @@ import type { EvenementNormalise } from './types'
 /** Forme d'un nom d'événement acceptée par la base (`evenements_paiement_evenement_check`). */
 const EVENEMENT_FORMAT = /^[a-z_]{1,20}\.[a-z_]{1,20}$/
 const STATUT_FOURNISSEUR_FORMAT = /^[A-Z_]{1,30}$/
+/** Longueur maximale de chaque moitié d'un nom d'événement (`^[a-z_]{1,20}\.[a-z_]{1,20}$`). */
+const EVENEMENT_PARTIE_MAX = 20
 /** Plus grand entier d'une colonne `integer` PostgreSQL. */
 const ENTIER_MAX = 2_147_483_647
 /** Motifs posés par ce module (en plus de `CodeAnomalie`). */
 const MOTIF_NON_TERMINAL = 'NON_TERMINAL'
+const MOTIF_ENVIRONNEMENT_INCOHERENT = 'ENVIRONNEMENT_INCOHERENT'
 
 export interface OptionsApplication {
   /** Environnement de la clé du fournisseur : un paiement d'un autre environnement est « inconnu ». */
@@ -45,6 +48,19 @@ export interface ResultatApplication {
 type Decision =
   | DecisionTransition
   | { type: 'anomalie', code: CodeAnomalie }
+
+/**
+ * Nom d'événement du fournisseur assaini pour respecter le format de la base : minuscules, tout caractère hors `[a-z_]`
+ * remplacé par `_`, chaque moitié (avant/après le premier point) tronquée à 20. `null` si aucun format valide n'en sort.
+ */
+export function assainirNomEvenement(nom: string): string | null {
+  if (EVENEMENT_FORMAT.test(nom)) return nom
+  const [gauche, ...reste] = nom.toLowerCase().split('.')
+  if (gauche === undefined || reste.length === 0) return null
+  const nettoyer = (partie: string): string => partie.replace(/[^a-z_]/g, '_').slice(0, EVENEMENT_PARTIE_MAX)
+  const assaini = `${nettoyer(gauche)}.${nettoyer(reste.join('_'))}`
+  return EVENEMENT_FORMAT.test(assaini) ? assaini : null
+}
 
 function entierOuNull(valeur: number | null | undefined): number | null {
   return typeof valeur === 'number' && Number.isSafeInteger(valeur) && valeur >= 0 && valeur <= ENTIER_MAX ? valeur : null
@@ -96,6 +112,11 @@ async function decider(
 ): Promise<Decision> {
   // Virements, remboursements, statuts contradictoires : journalisés, jamais appliqués (même sans paiement connu).
   if (evt.statut === 'autre') return { type: 'ignorer', motif: 'EVENEMENT_NON_GERE' }
+  // P1 : un événement d'un autre environnement (`livemode`) que celui de la clé n'est JAMAIS appliqué. `ignore` et non
+  // `anomalie` : l'anomalie verrouillerait le paiement, or l'événement légitime (bon environnement) doit pouvoir l'activer.
+  if (options.environnement !== undefined && evt.environnement !== undefined && evt.environnement !== options.environnement) {
+    return { type: 'ignorer', motif: MOTIF_ENVIRONNEMENT_INCOHERENT }
+  }
   if (paiement === undefined || (options.environnement !== undefined && paiement.environnement !== options.environnement)) {
     return { type: 'ignorer', motif: 'PAIEMENT_INCONNU' }
   }
@@ -240,8 +261,11 @@ export async function appliquerEvenement(
 ): Promise<ResultatApplication> {
   // Résultat non terminal : ni écriture, ni journal (« seuls les événements terminaux changent l'état »).
   if (evt.statut === 'en_attente') return { traitement: 'ignore', motif: MOTIF_NON_TERMINAL, paiementId: null }
-  // Un nom d'événement hors format ne peut pas être journalisé (CHECK) : ignoré sans écriture, jamais une 500.
-  if (!EVENEMENT_FORMAT.test(evt.evenement)) return { traitement: 'ignore', motif: 'EVENEMENT_NON_GERE', paiementId: null }
+  // Un nom d'événement hors format est assaini avant l'insertion (CHECK) ; sans forme exploitable : ignoré sans écriture,
+  // jamais une 500.
+  const nomEvenement = assainirNomEvenement(evt.evenement)
+  if (nomEvenement === null) return { traitement: 'ignore', motif: 'EVENEMENT_NON_GERE', paiementId: null }
+  if (nomEvenement !== evt.evenement) evt = { ...evt, evenement: nomEvenement }
 
   return db.transaction(async (tx): Promise<ResultatApplication> => {
     const paiement = await verrouillerPaiement(tx, fournisseur, evt)
