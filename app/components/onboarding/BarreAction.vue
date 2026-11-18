@@ -19,8 +19,9 @@ function surClic(): void {
 </script>
 
 <template>
-  <div class="fixed inset-x-0 bottom-0 border-t border-bordure bg-fond">
-    <div class="mx-auto flex w-full max-w-120 flex-col gap-3 px-6 pt-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
+  <!-- Téléphone : barre fixée en bas de l'écran. Dès 768 px : à la suite de l'étape, dans sa colonne. -->
+  <div class="fixed inset-x-0 bottom-0 border-t border-bordure bg-fond md:static md:border-t-0 md:bg-transparent">
+    <div class="mx-auto flex w-full max-w-120 flex-col gap-3 px-6 pt-4 pb-[max(1rem,env(safe-area-inset-bottom))] md:max-w-none md:px-0 md:pt-8 md:pb-0">
       <slot name="message" />
       <p v-if="disabled && aide" :id="idAide" class="sr-only">{{ aide }}</p>
       <UButton

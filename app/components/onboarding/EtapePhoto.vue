@@ -51,12 +51,12 @@ defineExpose({ focusErreur })
     <div class="flex flex-col items-center gap-3">
       <div
         v-if="photo"
-        class="h-60 w-50 overflow-hidden rounded-t-full rounded-b-(--rayon-carte) bg-accent-doux"
+        class="fondu-bas h-72 w-56 overflow-hidden bg-accent-doux md:h-80 md:w-64"
       >
         <img
           :src="photo.url"
           :srcset="photo.srcset"
-          sizes="200px"
+          sizes="(min-width: 768px) 256px, 224px"
           :width="photo.largeur"
           :height="photo.hauteur"
           alt="Aperçu de votre photo"
@@ -67,7 +67,7 @@ defineExpose({ focusErreur })
         v-else
         ref="arche"
         type="button"
-        class="flex h-60 w-50 cursor-pointer flex-col items-center justify-center gap-3 rounded-t-full rounded-b-(--rayon-carte) border-2 border-dashed border-accent bg-accent-doux font-semibold text-accent-texte transition-colors hover:bg-surface disabled:cursor-wait disabled:opacity-70"
+        class="flex h-72 w-56 cursor-pointer flex-col md:h-80 md:w-64 items-center justify-center gap-3 border-2 border-dashed border-accent bg-accent-doux font-semibold text-accent-texte transition-colors hover:bg-surface disabled:cursor-wait disabled:opacity-70"
         :disabled="televersement"
         :aria-busy="televersement"
         :aria-describedby="erreur ? idErreur : undefined"

@@ -117,7 +117,7 @@ test.describe.serial('parcours d’inscription guidée (contrats)', () => {
 
     expect(reponse.status()).toBe(200)
     const { onboarding } = await corps<{ onboarding: Record<string, unknown> }>(reponse)
-    expect(onboarding).toMatchObject({ statut: 'en_cours', etapeReprise: 2, usernameSuggere: 'dr-cabrel', photo: null, generationId: null })
+    expect(onboarding).toMatchObject({ statut: 'en_cours', etapeReprise: 2, usernameSuggere: 'dr-cabrel-nguesso', photo: null, generationId: null })
     expect(onboarding.identite).toMatchObject({ titre: 'dr', prenom: 'Cabrel', nom: 'Nguesso', ville: 'Douala', pays: 'CM' })
   })
 

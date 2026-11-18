@@ -12,7 +12,7 @@ import type { OnboardingEtape } from '#shared/onboarding'
 import { DEFAULT_PALETTE } from '#shared/palettes'
 import type { Palette } from '#shared/palettes'
 import type { OnboardingEtapeInput } from '#shared/schemas/onboarding'
-import { validateUsername } from '#shared/schemas/username'
+import { finaliserUsernameSaisie, validateUsername } from '#shared/schemas/username'
 import type { NextStep } from '#shared/vitrine'
 import type { EtatUsername } from '~/composables/useUsernameDisponible'
 import type { ErreurGeneration } from '~/composables/useGeneration'
@@ -410,7 +410,7 @@ export function useOnboarding() {
     try {
       const { vitrine, resume } = await $fetch<OnboardingTerminerReponse>('/api/studio/onboarding/terminer', {
         method: 'POST',
-        body: { username: username.value.trim().toLowerCase(), palette: palette.value },
+        body: { username: finaliserUsernameSaisie(username.value), palette: palette.value },
       })
       adresseSouhaitee.value = null
       enLigne.value = { username: vitrine.username, prochaineEtape: resume.prochaineEtape }

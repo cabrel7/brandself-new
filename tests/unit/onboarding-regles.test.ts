@@ -144,10 +144,19 @@ describe('computeManquants', () => {
 })
 
 describe('computeUsernameSuggere', () => {
-  it('should suggest dr-cabrel for (dr, Cabrel, Nguesso)', async () => {
+  it('should suggest title, first name and last name: dr-cabrel-nguesso for (dr, Cabrel, Nguesso)', async () => {
     const { computeUsernameSuggere } = await regles()
 
-    expect(computeUsernameSuggere(IDENTITE_DEMO)).toBe('dr-cabrel')
+    expect(computeUsernameSuggere(IDENTITE_DEMO)).toBe('dr-cabrel-nguesso')
+  })
+
+  it('should fall back to first name + last name, then title + first name, when the full address is longer than 30 characters', async () => {
+    const { computeUsernameSuggere } = await regles()
+
+    // « dr-cabrel-nguesso-mbarga-ekambi » (31 caractères) ne tient pas en entier : on prend le candidat suivant, jamais un mot coupé.
+    expect(computeUsernameSuggere({ ...IDENTITE_DEMO, nom: 'Nguesso Mbarga Ekambi' })).toBe('cabrel-nguesso-mbarga-ekambi')
+    // Prénom + nom (35 caractères) trop long aussi : titre + prénom.
+    expect(computeUsernameSuggere({ ...IDENTITE_DEMO, prenom: 'Jean Baptiste', nom: 'Nguesso Mbarga Ekambi' })).toBe('dr-jean-baptiste')
   })
 
   it('should answer an empty string while the identity is incomplete', async () => {
@@ -161,13 +170,13 @@ describe('computeUsernameSuggere', () => {
   it('should transliterate accents and lower-case the result', async () => {
     const { computeUsernameSuggere } = await regles()
 
-    expect(computeUsernameSuggere({ ...IDENTITE_DEMO, prenom: 'Éloïse' })).toBe('dr-eloise')
+    expect(computeUsernameSuggere({ ...IDENTITE_DEMO, prenom: 'Éloïse' })).toBe('dr-eloise-nguesso')
   })
 
-  it('should build the suggestion from the first name when there is no title', async () => {
+  it('should build the suggestion from the first name and last name when there is no title', async () => {
     const { computeUsernameSuggere } = await regles()
 
-    expect(computeUsernameSuggere({ ...IDENTITE_DEMO, titre: null })).toContain('cabrel')
+    expect(computeUsernameSuggere({ ...IDENTITE_DEMO, titre: null })).toBe('cabrel-nguesso')
   })
 
   it.each([

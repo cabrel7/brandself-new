@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { Palette } from '#shared/palettes'
+import { finaliserUsernameSaisie, formaterUsernameSaisie } from '#shared/schemas/username'
 import type { EtatUsername } from '~/composables/useUsernameDisponible'
 
 defineProps<{
@@ -14,6 +15,15 @@ const username = defineModel<string>('username', { required: true })
 const palette = defineModel<Palette>('palette', { required: true })
 
 const racine = useTemplateRef<HTMLFormElement>('racine')
+
+function saisir(valeur: string | number | undefined): void {
+  username.value = formaterUsernameSaisie(String(valeur ?? ''))
+}
+
+// À la sortie du champ, un tiret laissé à la fin (« dr-cabrel- ») est retiré.
+function terminerSaisie(): void {
+  username.value = finaliserUsernameSaisie(username.value)
+}
 
 function focusErreur(): void {
   racine.value?.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus()
@@ -31,8 +41,9 @@ defineExpose({ focusErreur })
         >
           {{ HOTE_VITRINES }}/
         </span>
+        <!-- L'adresse se met en forme toute seule (espaces en tirets, minuscules, sans accents) : aucune erreur de format à afficher. -->
         <UInput
-          v-model="username"
+          :model-value="username"
           type="text"
           autocapitalize="none"
           autocomplete="off"
@@ -41,6 +52,8 @@ defineExpose({ focusErreur })
           :disabled="desactive"
           class="min-w-0 flex-1"
           :ui="{ base: 'rounded-s-none font-semibold' }"
+          @update:model-value="saisir"
+          @blur="terminerSaisie"
         />
       </div>
       <template #help>

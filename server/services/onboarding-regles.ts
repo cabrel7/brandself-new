@@ -71,21 +71,33 @@ export function identiteIaModifiee(avant: IdentiteProgression, apres: IdentitePr
   )
 }
 
-/** Candidats d'adresse, du plus court au plus précis : « dr-cabrel », puis « cabrel-nguesso ». */
+/** Longueur de travail d'un candidat avant de savoir s'il tient dans l'adresse (30 caractères) sans être coupé. */
+const LONGUEUR_CANDIDAT_MAX = 200
+
+/**
+ * Candidats d'adresse, du plus complet au plus court : « dr-cabrel-nguesso » (titre, prénom, nom), puis
+ * « cabrel-nguesso », « dr-cabrel » et « cabrel ». Sans titre, le premier et le deuxième sont identiques.
+ */
 function candidatsAdresse(identite: IdentiteProgression): string[] {
   const prenom = identite.prenom ?? ''
   const nom = identite.nom ?? ''
-  const avecTitre = identite.titre === null ? prenom : `${identite.titre} ${prenom}`
-  return [avecTitre, `${prenom} ${nom}`]
+  const titre = identite.titre ?? ''
+  return [`${titre} ${prenom} ${nom}`, `${prenom} ${nom}`, `${titre} ${prenom}`, prenom]
 }
 
 /**
- * Adresse proposée à l'étape 4. Vide si l'identité est incomplète ; jamais une adresse que le studio
- * refuserait (format, longueur, mot réservé) : on prend le premier candidat valide, sinon rien.
+ * Adresse proposée à l'étape 4 : titre, prénom et nom (« dr-cabrel-nguesso »). Vide si l'identité est incomplète ;
+ * jamais une adresse que le studio refuserait (format, longueur, mot réservé). On prend le premier candidat qui tient
+ * en entier dans la limite, sans être coupé en plein mot ; à défaut, le premier candidat valide une fois coupé.
  */
 export function computeUsernameSuggere(identite: IdentiteProgression): string {
   if (!identiteComplete(identite)) return ''
-  for (const candidat of candidatsAdresse(identite)) {
+  const candidats = candidatsAdresse(identite)
+  for (const candidat of candidats) {
+    const adresse = slugFromText(candidat, { max: LONGUEUR_CANDIDAT_MAX, repli: '' })
+    if (adresse.length <= USERNAME_MAX_LENGTH && hasValidUsernameFormat(adresse) && !isReserved(adresse)) return adresse
+  }
+  for (const candidat of candidats) {
     const adresse = slugFromText(candidat, { max: USERNAME_MAX_LENGTH, repli: '' })
     if (hasValidUsernameFormat(adresse) && !isReserved(adresse)) return adresse
   }
