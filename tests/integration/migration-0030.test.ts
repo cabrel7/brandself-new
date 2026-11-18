@@ -203,7 +203,9 @@ describe('migration 0030 : fichiers et journal drizzle', () => {
 })
 
 describe('migration 0030 : paiements.source', () => {
-  it("should add source (text, not null, default 'kpay') and keep an existing payment a K-PAY one (no backfill)", async () => {
+  // P1 (migration 0033) : la source 'kpay' est devenue 'fournisseur' (défaut compris). Le modèle d'origine de 0030
+  // (défaut 'kpay') est éprouvé plus bas, dans « rejouabilité », en rejouant 0030 dans l'état d'avant 0033.
+  it("should have source (text, not null), defaulting to 'fournisseur' since 0033: a payment inserted without source is a provider one", async () => {
     const c = await colonnes('paiements')
     const compte = await createUser()
     const ligne = paiementKpay({ userId: compte.id })
@@ -215,8 +217,8 @@ describe('migration 0030 : paiements.source', () => {
     const [relu] = await db.select({ source: paiements.source }).from(paiements).where(eq(paiements.id, ligne.id))
 
     expect(c.source).toMatchObject({ type: 'text', nullable: false })
-    expect(c.source?.defaut).toContain("'kpay'")
-    expect(relu?.source).toBe('kpay')
+    expect(c.source?.defaut).toContain("'fournisseur'")
+    expect(relu?.source).toBe('fournisseur')
   })
 
   it('should declare paiements_source_check and paiements_source_coherence_check, validated', async () => {
@@ -226,7 +228,7 @@ describe('migration 0030 : paiements.source', () => {
     expect(c.paiements_source_coherence_check).toMatchObject({ type: 'c', validee: true })
   })
 
-  it.each(['stripe', 'KPAY', 'Manuel', '', 'admin'])('should refuse the source %j (23514)', async (source) => {
+  it.each(['kpay', 'stripe', 'KPAY', 'Manuel', '', 'admin'])('should refuse the source %j (23514)', async (source) => {
     const erreur = await rejet(db.insert(paiements).values(paiementKpay({ source })))
 
     expect(erreurPostgres(erreur.brute)).toMatchObject({ sqlstate: CHECK_VIOLATION, contrainte: 'paiements_source_check' })
@@ -239,7 +241,7 @@ describe('migration 0030 : paiements.source', () => {
     await db.insert(paiements).values([paiementKpay(), paiementManuel(), manuelReussi])
 
     const lignes = await db.select({ source: paiements.source, statut: paiements.statut }).from(paiements)
-    expect(lignes.map((l) => `${l.source}:${l.statut}`).sort()).toEqual(['kpay:cree', 'manuel:cree', 'manuel:reussi'])
+    expect(lignes.map((l) => `${l.source}:${l.statut}`).sort()).toEqual(['fournisseur:cree', 'manuel:cree', 'manuel:reussi'])
   })
 
   it('should leave the provider an open value: a non-K-PAY, non-manual provider is still accepted (S10 rule, no migration to add one)', async () => {
@@ -250,7 +252,7 @@ describe('migration 0030 : paiements.source', () => {
 describe('migration 0030 : cohérence du paiement manuel', () => {
   it.each<[string, Partial<LignePaiement>]>([
     ['une source manuel avec le fournisseur kpay', { fournisseur: 'kpay' }],
-    ['le fournisseur manuel avec la source kpay', { source: 'kpay' }],
+    ['le fournisseur manuel avec la source fournisseur', { source: 'fournisseur' }],
     ['une méthode autre que manuel', { methode: 'mobile_money' }],
     ['un statut en_attente', { statut: 'en_attente', idFournisseur: null, initiationIncertaine: true }],
     ['un statut echoue', { statut: 'echoue', termineLe: new Date() }],
@@ -303,7 +305,7 @@ describe('migration 0030 : cohérence du paiement manuel', () => {
     await db.execute(sql`UPDATE paiements SET statut = 'anomalie', code_echec = 'REMPLACE_PAR_MANUEL' WHERE id = ${original.id}`)
 
     const [relu] = await db.select({ statut: paiements.statut, codeEchec: paiements.codeEchec, source: paiements.source }).from(paiements).where(eq(paiements.id, original.id))
-    expect(relu).toEqual({ statut: 'anomalie', codeEchec: 'REMPLACE_PAR_MANUEL', source: 'kpay' })
+    expect(relu).toEqual({ statut: 'anomalie', codeEchec: 'REMPLACE_PAR_MANUEL', source: 'fournisseur' })
   })
 })
 
@@ -319,7 +321,7 @@ describe('migration 0030 : index des listes et des revenus', () => {
     const liste = await planSansBalayageSequentiel(sql`SELECT id FROM paiements WHERE statut = 'echoue' ORDER BY created_at DESC LIMIT 25`)
     const revenus = await planSansBalayageSequentiel(sql`
       SELECT devise, count(*), sum(montant) FROM paiements
-      WHERE statut = 'reussi' AND source = 'kpay' AND applique_le >= now() - interval '31 days' AND applique_le < now() GROUP BY devise`)
+      WHERE statut = 'reussi' AND source = 'fournisseur' AND applique_le >= now() - interval '31 days' AND applique_le < now() GROUP BY devise`)
 
     expect(liste).toContain('paiements_liste_admin_idx')
     expect(revenus).toContain('paiements_encaisse_idx')
@@ -416,40 +418,106 @@ describe('migration 0030 : parité entre le schéma Drizzle et la base', () => {
   })
 })
 
-describe('migration 0030 : rejouabilité', () => {
-  async function rejouer(): Promise<void> {
+// P1 (migration 0033) : 0030 ne se rejoue plus SEUL sur l'état courant (ses CHECK n'admettent que 'kpay' | 'manuel' et la
+// base contient des lignes 'fournisseur'). Le rejeu est donc éprouvé dans l'état d'avant 0033 : on exécute d'abord le
+// retour arrière documenté de 0033, on rejoue 0030 deux fois, puis on rejoue 0033. Tout se passe dans UNE transaction
+// ANNULÉE à la fin : rien n'est jamais validé dans la base commune, donc aucun état intermédiaire n'y survit.
+describe('migration 0030 : rejouabilité (dans l\'état d\'avant 0033)', () => {
+  const MIGRATION_0033 = path.join(MIGRATIONS_DIR, '0033_p1_paiements_source_fournisseur.sql')
+
+  function instructionsDe0030(): string[] {
     const contenu = readFileSync(path.join(MIGRATIONS_DIR, fichierMigration()), 'utf-8')
-    const instructions = contenu
+    return contenu
       .split(BREAKPOINT)
       .map((bloc) => bloc.trim())
       .filter((bloc) => bloc.split('\n').some((ligne) => ligne.trim() !== '' && !ligne.trimStart().startsWith('--')))
-    await db.transaction(async (tx) => {
-      for (const instruction of instructions) await tx.execute(sql.raw(instruction))
-    })
   }
 
-  it('should replay twice without error and without losing any data (K-PAY payment, manual payment, refusal counter)', async () => {
-    const kpay = paiementKpay()
+  function instructionsUp0033(): string[] {
+    const contenu = readFileSync(MIGRATION_0033, 'utf-8')
+    return contenu
+      .slice(0, contenu.indexOf('-- ROLLBACK'))
+      .split(BREAKPOINT)
+      .map((bloc) => bloc.split('\n').filter((ligne) => !ligne.trimStart().startsWith('--')).join('\n').trim())
+      .filter((bloc) => bloc !== '')
+  }
+
+  function instructionsRollback0033(): string[] {
+    const lignes = readFileSync(MIGRATION_0033, 'utf-8').split('\n')
+    const debut = lignes.findIndex((l) => l.trim() === '-- BEGIN;')
+    const fin = lignes.findIndex((l) => l.trim() === '-- COMMIT;')
+    if (debut === -1 || fin <= debut) throw new Error('Bloc ROLLBACK de 0033 introuvable.')
+    return lignes.slice(debut + 1, fin).map((l) => l.replace(/^--\s?/, '').trim()).filter((l) => l !== '')
+  }
+
+  type Transaction = Parameters<Parameters<typeof db.transaction>[0]>[0]
+  class AnnulationVolontaire extends Error {}
+
+  async function executer(tx: Transaction, instructions: string[]): Promise<void> {
+    for (const instruction of instructions) await tx.execute(sql.raw(instruction))
+  }
+
+  /** Joue `corps` dans l'état d'avant 0033, puis rétablit 0033, puis ANNULE toute la transaction. */
+  async function dansEtatAvant0033(corps: (tx: Transaction) => Promise<void>): Promise<void> {
+    const erreur = await rejet(db.transaction(async (tx) => {
+      await executer(tx, instructionsRollback0033())
+      await corps(tx)
+      await executer(tx, instructionsUp0033())
+      throw new AnnulationVolontaire('annulation volontaire de la transaction de test')
+    }))
+    expect(erreur.brute).toBeInstanceOf(AnnulationVolontaire)
+  }
+
+  async function contraintesDans(tx: Transaction): Promise<Record<string, Contrainte>> {
+    const resultat = await tx.execute<{ conname: string, convalidated: boolean, def: string }>(sql`
+      SELECT conname, convalidated, pg_get_constraintdef(oid) AS def FROM pg_constraint
+      WHERE conrelid = 'public.paiements'::regclass AND contype = 'c'`)
+    return Object.fromEntries(resultat.rows.map((r) => [r.conname, { type: 'c', validee: r.convalidated, definition: r.def }]))
+  }
+
+  it('should replay twice without error and without losing any data (K-PAY payment, manual payment, refusal counter), then 0033 relabels the K-PAY row', async () => {
+    const kpay = paiementKpay({ source: 'kpay' })
     const manuel = paiementManuel()
-    await db.insert(paiements).values([kpay, manuel])
-    await incrementerRefus(new Date('2026-11-14T10:00:00.000Z'), 'kpay', 'SIGNATURE_INVALIDE')
-    await incrementerRefus(new Date('2026-11-14T10:00:00.000Z'), 'kpay', 'SIGNATURE_INVALIDE')
+    const heure = new Date('2026-11-14T10:00:00.000Z')
 
-    await rejouer()
-    await rejouer()
+    await dansEtatAvant0033(async (tx) => {
+      await tx.insert(paiements).values([kpay, manuel])
+      await tx.execute(sql`INSERT INTO webhooks_refuses (heure, fournisseur, motif, nombre) VALUES (${heure}, 'kpay', 'SIGNATURE_INVALIDE', 2)`)
 
-    const lignes = await db.select({ id: paiements.id, source: paiements.source }).from(paiements)
-    expect(lignes.sort((a, b) => a.source.localeCompare(b.source))).toEqual([{ id: kpay.id, source: 'kpay' }, { id: manuel.id, source: 'manuel' }])
-    expect((await db.select().from(webhooksRefuses)).map((l) => l.nombre)).toEqual([2])
+      await executer(tx, instructionsDe0030())
+      await executer(tx, instructionsDe0030())
+
+      const apres0030 = await tx.select({ id: paiements.id, source: paiements.source }).from(paiements)
+      expect(apres0030.sort((a, b) => a.source.localeCompare(b.source))).toEqual([{ id: kpay.id, source: 'kpay' }, { id: manuel.id, source: 'manuel' }])
+      expect((await tx.select().from(webhooksRefuses)).map((l) => l.nombre)).toEqual([2])
+
+      await executer(tx, instructionsUp0033())
+
+      const apres0033 = await tx.select({ id: paiements.id, source: paiements.source }).from(paiements)
+      expect(apres0033.sort((a, b) => a.source.localeCompare(b.source))).toEqual([{ id: kpay.id, source: 'fournisseur' }, { id: manuel.id, source: 'manuel' }])
+    })
   })
 
-  it('should keep the constraints validated and effective after a replay', async () => {
-    await rejouer()
+  it('should keep the 0030 constraints validated and effective after a replay (a manual payment without reference is refused)', async () => {
+    await dansEtatAvant0033(async (tx) => {
+      await executer(tx, instructionsDe0030())
 
+      const c = await contraintesDans(tx)
+      expect(c.paiements_source_check?.validee).toBe(true)
+      expect(c.paiements_source_check?.definition).toContain("'kpay'")
+      expect(c.paiements_source_coherence_check?.validee).toBe(true)
+      await tx.execute(sql`SAVEPOINT avant_refus`)
+      const erreur = await rejet(tx.insert(paiements).values(paiementManuel({ referenceFournisseur: null })))
+      expect(erreurPostgres(erreur.brute)).toMatchObject({ sqlstate: CHECK_VIOLATION, contrainte: 'paiements_source_coherence_check' })
+      await tx.execute(sql`ROLLBACK TO SAVEPOINT avant_refus`)
+    })
+  })
+
+  it('should leave the common database in the post-0033 state (nothing from the replays is committed)', async () => {
     const c = await contraintes('paiements')
-    expect(c.paiements_source_check?.validee).toBe(true)
-    expect(c.paiements_source_coherence_check?.validee).toBe(true)
-    const erreur = await rejet(db.insert(paiements).values(paiementManuel({ referenceFournisseur: null })))
-    expect(erreurPostgres(erreur.brute)).toMatchObject({ sqlstate: CHECK_VIOLATION, contrainte: 'paiements_source_coherence_check' })
+
+    expect(c.paiements_source_check?.definition).toContain("'fournisseur'")
+    expect(c.paiements_source_check?.definition).not.toContain("'kpay'")
+    expect(c.paiements_source_coherence_check?.definition).toContain("'fournisseur'")
   })
 })
