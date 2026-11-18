@@ -82,7 +82,8 @@ const { ready: squeletteVisible } = useTimeout(200, { controls: true })
 <template>
   <VitrineEnLigne v-if="enLigne" :username="enLigne.username" :prochaine-etape="enLigne.prochaineEtape" />
 
-  <main v-else class="mx-auto w-full max-w-120 px-6 pt-4 pb-48">
+  <main v-else class="mx-auto w-full max-w-120 px-6 pt-4 pb-48 md:max-w-5xl md:px-8 md:pt-8 md:pb-16">
+    <!-- Téléphone : une colonne de 480 px, bouton fixé en bas. Dès 768 px : titre et progression à gauche, étape à droite, bouton à la suite. -->
     <div v-if="erreurChargement" class="pt-8">
       <UEmpty
         icon="i-ph-warning-circle"
@@ -102,19 +103,22 @@ const { ready: squeletteVisible } = useTimeout(200, { controls: true })
       </div>
     </div>
 
-    <template v-else>
-      <OnboardingEntete :etape="etape" @retour="retour" />
+    <div v-else class="md:grid md:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] md:items-start md:gap-x-16">
+      <div class="md:sticky md:top-8">
+        <OnboardingEntete :etape="etape" @retour="retour" />
 
-      <h1
-        ref="titre"
-        tabindex="-1"
-        class="mt-8 font-(family-name:--font-titre) text-(length:--fs-32) leading-[1.15] font-bold text-encre outline-none"
-        :class="sousTitre ? 'mb-0' : 'mb-8'"
-      >
-        {{ TITRES_ECRAN[etape] }}
-      </h1>
-      <p v-if="sousTitre" class="mt-3 mb-8 text-texte-secondaire">{{ sousTitre }}</p>
+        <h1
+          ref="titre"
+          tabindex="-1"
+          class="mt-8 font-(family-name:--font-titre) text-(length:--fs-32) leading-[1.15] font-bold text-encre outline-none md:text-(length:--fs-48)"
+          :class="sousTitre ? 'mb-0' : 'mb-8'"
+        >
+          {{ TITRES_ECRAN[etape] }}
+        </h1>
+        <p v-if="sousTitre" class="mt-3 mb-8 text-texte-secondaire md:mb-0">{{ sousTitre }}</p>
+      </div>
 
+      <div class="md:pt-16">
       <Transition name="etape" mode="out-in">
         <OnboardingEtapeIdentite
           v-if="etape === 1"
@@ -173,7 +177,8 @@ const { ready: squeletteVisible } = useTimeout(200, { controls: true })
           </p>
         </template>
       </OnboardingBarreAction>
-    </template>
+      </div>
+    </div>
   </main>
 </template>
 

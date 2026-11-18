@@ -148,7 +148,7 @@ describe('saveEtape 1 : identité (CA07, CA09)', () => {
     await etape1(user.id, { prenom: '  Cabrel ', ville: ' Douala  ' })
 
     expect(await getOnboarding(user.id)).toMatchObject({
-      statut: 'en_cours', etapeReprise: 2, usernameSuggere: 'dr-cabrel',
+      statut: 'en_cours', etapeReprise: 2, usernameSuggere: 'dr-cabrel-nguesso',
       identite: { titre: 'dr', prenom: 'Cabrel', nom: 'Nguesso', metier: 'Cardiologue interventionnel', ville: 'Douala', pays: 'CM' },
     })
   })

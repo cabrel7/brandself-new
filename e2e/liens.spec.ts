@@ -182,7 +182,8 @@ test.describe.serial('studio liens — vitrine fraîche', () => {
     const pagePublique = await publique.newPage()
     await pagePublique.setViewportSize(PC)
     await pagePublique.goto(`/@${username}`)
-    const liens = pagePublique.getByRole('link')
+    // Le grand bouton et la barre d'actions précèdent « Suivez-moi » : l'ordre du studio se lit dans cette zone.
+    const liens = pagePublique.getByRole('region', { name: 'Suivez-moi' }).getByRole('link')
     await expect(liens.first()).toHaveAttribute('href', 'https://www.linkedin.com/in/dr-cabrel-nguesso')
     await publique.close()
   })

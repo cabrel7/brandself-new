@@ -8,13 +8,13 @@ const initiales = computed(() => `${props.prenom.charAt(0)}${props.nom.charAt(0)
 
 <template>
   <div
-    class="relative flex aspect-[4/3] w-full items-center justify-center overflow-hidden rounded-b-3xl bg-accent-doux md:aspect-[4/5] md:max-w-md md:justify-self-end md:rounded-t-full md:rounded-b-3xl"
+    class="fondu-bas md:fondu-cotes relative flex aspect-square w-full items-center justify-center overflow-hidden bg-accent-doux md:aspect-[4/5] md:max-w-xl md:justify-self-end"
   >
     <img
       v-if="photo"
       :src="photo.url"
       :srcset="photo.srcset"
-      sizes="(min-width: 768px) 28rem, 100vw"
+      sizes="(min-width: 768px) 36rem, 100vw"
       :width="photo.largeur"
       :height="photo.hauteur"
       :alt="`Portrait de ${nomAffiche}`"

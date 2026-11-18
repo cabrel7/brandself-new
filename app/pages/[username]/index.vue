@@ -54,6 +54,7 @@ const agendaEnErreur = computed(() => Boolean(agendaErreur.value))
 <template>
   <VitrineCadre :vitrine="vitrine">
     <VitrineHero :vitrine="vitrine" :prochain-creneau="prochainCreneau" />
+    <VitrineAPropos v-if="vitrine.bio" :bio="vitrine.bio" />
     <VitrineServicesALaUne v-if="total > 0 && aLaUne.length > 0" :username="vitrine.username" :services="aLaUne" :total="total" />
     <div v-if="contenus.agenda" class="mx-auto w-full max-w-6xl px-6 pb-12 md:pb-16">
       <LazyAgendaPublic

@@ -257,3 +257,17 @@ h3 {
     animation-iteration-count: 1 !important;
   }
 }
+
+/* Portrait fondu vers le fond de la palette : un masque (opacité seule), jamais une couleur composée. */
+@utility fondu-bas {
+  -webkit-mask-image: linear-gradient(to bottom, var(--encre) 55%, transparent 100%);
+  mask-image: linear-gradient(to bottom, var(--encre) 55%, transparent 100%);
+}
+
+/* Tablette et PC : le portrait est posé dans une colonne, il fond aussi à gauche et à droite (bas + côtés, masques croisés). */
+@utility fondu-cotes {
+  -webkit-mask-image: linear-gradient(to bottom, var(--encre) 55%, transparent 100%), linear-gradient(to right, transparent 0, var(--encre) 16%, var(--encre) 84%, transparent 100%);
+  mask-image: linear-gradient(to bottom, var(--encre) 55%, transparent 100%), linear-gradient(to right, transparent 0, var(--encre) 16%, var(--encre) 84%, transparent 100%);
+  -webkit-mask-composite: source-in;
+  mask-composite: intersect;
+}
