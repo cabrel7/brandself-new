@@ -193,7 +193,8 @@ async function parcourirJusquALaFin(op: OnboardingPage, delai: number, indexAccr
   await op.continuer().click()
   await op.attendreEtape(4)
 
-  await expect(op.adresse()).toHaveValue('dr-cabrel')
+  // Adresse suggérée : titre, prénom et nom (dr-cabrel-nguesso).
+  await expect(op.adresse()).toHaveValue('dr-cabrel-nguesso')
   await op.saisirAdresse(username, delai)
   await reinitialiserLimites('')
   await op.publier().click()
@@ -438,7 +439,9 @@ test.describe('Inscription guidée (fournisseur d’IA faux)', () => {
 
   test('CA58 adresse : prise, réservée, format, une seule vérification après environ 450 ms, 409 si prise entre-temps', async ({ playwright, browser }) => {
     const { page, session } = await nouvelUtilisateur({ playwright, browser })
-    await preparerProgression(session, 4)
+    // Nom de famille unique : l'adresse suggérée (titre, prénom, nom) ne dépend pas des vitrines déjà publiées dans la base.
+    const suffixeNom = randomUUID().slice(0, 6)
+    await preparerProgression(session, 4, { nom: `Nguesso${suffixeNom}` })
     const op = new OnboardingPage(page)
     const verifications: number[] = []
     page.on('request', (requete) => {
@@ -448,10 +451,18 @@ test.describe('Inscription guidée (fournisseur d’IA faux)', () => {
     await op.ouvrir()
     await op.attendreEtape(4)
 
-    // Adresse suggérée = « dr-cabrel » : celle de la vitrine de démonstration (seed), donc prise.
-    await expect(op.adresse()).toHaveValue('dr-cabrel')
+    // Adresse suggérée : titre, prénom et nom, libre.
+    await expect(op.adresse()).toHaveValue(`dr-cabrel-nguesso${suffixeNom}`)
+    await expect(page.getByText(MESSAGE_ADRESSE_LIBRE)).toBeVisible()
+
+    // « dr-cabrel » est l'adresse de la vitrine de démonstration (seed) : prise.
+    await op.adresse().fill('dr-cabrel')
     await expect(page.getByText(MESSAGE_ADRESSE_PRISE)).toBeVisible()
     await attendreInactif(op.publier())
+
+    // Mise en forme automatique : espaces en tirets, minuscules, sans accents, caractères interdits retirés.
+    await op.adresse().fill('Dr  Éloïse N’Diaye!')
+    await expect(op.adresse()).toHaveValue('dr-eloise-n-diaye')
 
     await op.adresse().fill('studio')
     await expect(page.getByText(MESSAGE_ADRESSE_RESERVEE)).toBeVisible()
