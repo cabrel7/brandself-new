@@ -12,13 +12,12 @@ import {
   PAIEMENT_FOURNISSEUR_MANUEL,
   PAIEMENT_METHODE_MANUEL,
   PAIEMENT_REFERENCE_MANUEL_PREFIXE,
-  PAIEMENT_SOURCE_KPAY,
   PAIEMENT_SOURCE_MANUEL,
   PAIEMENT_STATUTS_REMPLACABLES,
 } from '../../../shared/admin-paiements'
 import { paiements } from '../../../shared/db/schema'
 import { ADMIN_REVERIFICATION_VALIDITE_MIN } from '../../../shared/limites'
-import { PAIEMENT_STATUTS_OUVERTS } from '../../../shared/paiements'
+import { PAIEMENT_SOURCE_FOURNISSEUR, PAIEMENT_STATUTS_OUVERTS } from '../../../shared/paiements'
 import { schemaMarquagePaiementReponse } from '../../../shared/schemas/admin-paiements'
 import type { ActionPaiement } from '../../../shared/schemas/admin-paiements'
 import { MS_PAR_MINUTE } from '../../../shared/temps'
@@ -71,7 +70,7 @@ export async function marquerPayeManuellement(
     const rejeu = await lireRejeu(tx, acteur.adminId, entree.cleIdempotence, ADMIN_ACTIONS.paiementMarquerPaye, paiementId)
     if (rejeu !== null) return reponseRejouee(rejeu.apres)
 
-    if (original.source !== PAIEMENT_SOURCE_KPAY) throw new ConflictError('PAIEMENT_NON_ELIGIBLE')
+    if (original.source !== PAIEMENT_SOURCE_FOURNISSEUR) throw new ConflictError('PAIEMENT_NON_ELIGIBLE')
     // Déjà remplacé par un marquage manuel (clé différente) : jamais un second encaissement pour le même paiement.
     if (original.codeEchec === CODE_ANOMALIE_REMPLACE_PAR_MANUEL) throw new ConflictError('PAIEMENT_NON_ELIGIBLE')
     if (original.statut === 'reussi') throw new ConflictError('DEJA_PAYE')

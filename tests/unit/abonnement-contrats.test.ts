@@ -105,8 +105,8 @@ describe('shared/plans.ts', () => {
 })
 
 describe('shared/paiements.ts', () => {
-  it('should declare K-PAY as the only provider, with card declared but not active', () => {
-    expect([...FOURNISSEURS_PAIEMENT]).toEqual(['kpay'])
+  it('should declare K-PAY and Mercy Pay as providers, with card declared but not active', () => {
+    expect([...FOURNISSEURS_PAIEMENT]).toEqual(['kpay', 'mercypay'])
     expect([...METHODES_PAIEMENT]).toEqual(['mobile_money', 'carte'])
     for (const f of FOURNISSEURS_PAIEMENT) expect(f).toMatch(FOURNISSEUR_FORMAT)
     for (const m of METHODES_PAIEMENT) expect(m).toMatch(METHODE_FORMAT)
@@ -118,7 +118,7 @@ describe('shared/paiements.ts', () => {
   })
 
   it('should keep anomaly codes within the CHECK format and cover the spec list', () => {
-    expect([...CODES_ANOMALIE]).toEqual(['MONTANT_INCOHERENT', 'ID_INCOHERENT', 'DEVISE_INCOHERENTE', 'PAIEMENT_INCONNU', 'REMBOURSE', 'EVENEMENT_NON_GERE'])
+    expect([...CODES_ANOMALIE]).toEqual(['MONTANT_INCOHERENT', 'ID_INCOHERENT', 'DEVISE_INCOHERENTE', 'PAIEMENT_INCONNU', 'REMBOURSE', 'EVENEMENT_NON_GERE', 'ENVIRONNEMENT_INCOHERENT'])
     for (const code of [...CODES_ANOMALIE, ...Object.keys(MESSAGES_ECHEC)]) expect(code).toMatch(CODE_ECHEC_FORMAT)
   })
 

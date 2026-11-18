@@ -381,7 +381,7 @@ describe('versions : prix, frais, moyens', () => {
 
   it('should accept the seeded active methods and the ones the code holds, without duplicate', () => {
     const actifs = MOYENS_PAIEMENT.filter((moyen) => moyen.actif).map((moyen) => moyen.id)
-    expect(actifs).toEqual(['kpay:MTN_MOMO_CMR', 'kpay:ORANGE_CMR'])
+    expect(actifs).toEqual(['kpay:MTN_MOMO_CMR', 'kpay:ORANGE_CMR', 'mercypay:MTN_MOMO_CMR', 'mercypay:ORANGE_CMR'])
     expect(versions.schemaValeursMoyens.safeParse({ actifs }).success).toBe(true)
     expect(versions.schemaValeursMoyens.safeParse({ actifs: [] }).success).toBe(true)
     expect(versions.schemaValeursMoyens.safeParse({ actifs: ['kpay:ORANGE_CMR', 'kpay:ORANGE_CMR'] }).success).toBe(false)

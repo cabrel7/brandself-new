@@ -1,6 +1,6 @@
 import { eq } from 'drizzle-orm'
 import { paiements } from '../../../shared/db/schema'
-import { PAIEMENT_SOURCE_KPAY } from '../../../shared/admin-paiements'
+import { PAIEMENT_SOURCE_FOURNISSEUR } from '../../../shared/paiements'
 import type { ConfirmationResultat } from '../../../shared/admin-paiements'
 import { NotFoundError } from '../../exceptions/http'
 import { insertTransactionalEmailEvents } from '../email-outbox'
@@ -76,7 +76,7 @@ export async function confirmerPaiement(
   // Reçu dans la MÊME transaction : jamais d'activation sans reçu planifié, jamais de reçu sans activation. La clé
   // d'unicité (entité, type, occurrence vide) l'empêche d'être planifié deux fois. Pas de reçu pour un paiement
   // manuel (D-A3-03, ⚠️ R7) : l'administrateur n'est pas le fournisseur.
-  if (paiement.userId !== null && paiement.source === PAIEMENT_SOURCE_KPAY) {
+  if (paiement.userId !== null && paiement.source === PAIEMENT_SOURCE_FOURNISSEUR) {
     await insertTransactionalEmailEvents(tx, 'paiement', paiement.id, ['paiement_confirme'], now)
   }
   return 'applique'

@@ -59,14 +59,14 @@ describe('A3 UI : libellés complets', () => {
 
 describe('A3 UI : actions proposées (le serveur reste l’autorité)', () => {
   it('revérifier : K-PAY seulement', () => {
-    expect(peutReverifier({ source: 'kpay' })).toBe(true)
+    expect(peutReverifier({ source: 'fournisseur' })).toBe(true)
     expect(peutReverifier({ source: 'manuel' })).toBe(false)
   })
   it('marquer payé : K-PAY et statut remplaçable, jamais réussi ni en cours', () => {
-    expect(peutMarquerPaye({ source: 'kpay', statut: 'echoue' })).toBe(true)
-    expect(peutMarquerPaye({ source: 'kpay', statut: 'anomalie' })).toBe(true)
-    expect(peutMarquerPaye({ source: 'kpay', statut: 'reussi' })).toBe(false)
-    expect(peutMarquerPaye({ source: 'kpay', statut: 'en_attente' })).toBe(false)
+    expect(peutMarquerPaye({ source: 'fournisseur', statut: 'echoue' })).toBe(true)
+    expect(peutMarquerPaye({ source: 'fournisseur', statut: 'anomalie' })).toBe(true)
+    expect(peutMarquerPaye({ source: 'fournisseur', statut: 'reussi' })).toBe(false)
+    expect(peutMarquerPaye({ source: 'fournisseur', statut: 'en_attente' })).toBe(false)
     expect(peutMarquerPaye({ source: 'manuel', statut: 'echoue' })).toBe(false)
   })
 })
@@ -90,11 +90,11 @@ describe('A3 UI : motif et clé d’idempotence', () => {
 describe('A3 UI : filtres lus dans l’URL', () => {
   it('ignore toute valeur inconnue ou mal formée', () => {
     const filtres = lireFiltresPaiements(
-      { statut: 'bidon', source: 'kpay', devise: 'ZZZ', du: '2026-02-30x', au: '2026-11-01' },
+      { statut: 'bidon', source: 'fournisseur', devise: 'ZZZ', du: '2026-02-30x', au: '2026-11-01' },
       PAIEMENT_STATUTS,
       PAIEMENT_SOURCES,
     )
-    expect(filtres).toEqual({ source: 'kpay', au: '2026-11-01' })
+    expect(filtres).toEqual({ source: 'fournisseur', au: '2026-11-01' })
   })
   it('prend la première valeur d’un paramètre répété', () => {
     expect(lireFiltresPaiements({ statut: ['reussi', 'echoue'] }, PAIEMENT_STATUTS, PAIEMENT_SOURCES)).toEqual({ statut: 'reussi' })

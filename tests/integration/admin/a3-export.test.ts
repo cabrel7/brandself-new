@@ -64,7 +64,7 @@ describe('export CSV : colonnes, filtres, en-têtes (CA10)', () => {
       id: paiement.id,
       reference: 'KPAY-1',
       statut: 'reussi',
-      source: 'kpay',
+      source: 'fournisseur',
       methode: 'mobile_money',
       operateur: 'MTN_MOMO_CMR',
       plan: 'payant',
@@ -95,7 +95,7 @@ describe('export CSV : colonnes, filtres, en-têtes (CA10)', () => {
     await insererPaiementManuel(user.id, { createdAt: plus(NOW, -jours(10)), appliqueLe: plus(NOW, -jours(10)), termineLe: plus(NOW, -jours(10)) })
     await insererEncaissement(user.id, plus(NOW, -jours(100)))
 
-    const texte = await csvDe({ motif: MOTIF, filtres: { statut: 'reussi', devise: 'XAF', source: 'kpay', du: plus(NOW, -jours(20)).toISOString().slice(0, 10), au: plus(NOW, -jours(5)).toISOString().slice(0, 10) } })
+    const texte = await csvDe({ motif: MOTIF, filtres: { statut: 'reussi', devise: 'XAF', source: 'fournisseur', du: plus(NOW, -jours(20)).toISOString().slice(0, 10), au: plus(NOW, -jours(5)).toISOString().slice(0, 10) } })
 
     expect(lignesExport(texte).map((l) => l.id)).toEqual([reussiXaf.id])
   })

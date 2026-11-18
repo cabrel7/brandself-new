@@ -7,7 +7,6 @@ import { formatPrix } from '#shared/devises'
 import type { AbonnementOrigine } from '#shared/admin-a2'
 import {
   PAIEMENT_SOURCES,
-  PAIEMENT_SOURCE_KPAY,
   PAIEMENT_STATUTS_REMPLACABLES,
   type AbonnementOnglet,
   type PaiementSource,
@@ -16,7 +15,7 @@ import {
 import type { ErrorCode } from '#shared/erreurs'
 import { ABONNEMENT_FUSEAU_REPLI, PLAN_LIBELLES } from '#shared/plans'
 import type { EtatAbonnement, PlanId } from '#shared/plans'
-import { PAIEMENT_STATUTS } from '#shared/paiements'
+import { PAIEMENT_SOURCE_FOURNISSEUR, PAIEMENT_STATUTS } from '#shared/paiements'
 import type { PaiementStatut } from '#shared/paiements'
 import type { FiltresPaiements, PaiementDto } from '#shared/schemas/admin-paiements'
 
@@ -98,7 +97,7 @@ export const COULEURS_STATUT: Record<PaiementStatut, CouleurBadge> = {
   anomalie: 'error',
 }
 
-export const LIBELLES_SOURCE: Record<PaiementSource, string> = { kpay: 'K-PAY', manuel: 'Manuel' }
+export const LIBELLES_SOURCE: Record<PaiementSource, string> = { fournisseur: 'Fournisseur', manuel: 'Manuel' }
 
 export const LIBELLES_ETAT_ABONNEMENT: Record<EtatAbonnement, string> = {
   gratuit: 'Gratuit',
@@ -160,15 +159,15 @@ export function motifValide(motif: string): boolean {
 
 // --- Règles d'affichage des actions (le serveur reste la seule autorité) ---
 
-/** Une revérification n'a de sens que pour un paiement K-PAY (un paiement manuel n'a pas d'identifiant fournisseur). */
+/** Une revérification n'a de sens que pour un paiement de fournisseur (un paiement manuel n'a pas d'identifiant fournisseur). */
 export function peutReverifier(paiement: Pick<PaiementDto, 'source'>): boolean {
-  return paiement.source === PAIEMENT_SOURCE_KPAY
+  return paiement.source === PAIEMENT_SOURCE_FOURNISSEUR
 }
 
-/** D-A3-03 : seuls `echoue`, `expire`, `annule` et `anomalie` d'origine K-PAY se marquent comme payés. */
+/** D-A3-03 : seuls `echoue`, `expire`, `annule` et `anomalie` d'origine fournisseur se marquent comme payés. */
 export function peutMarquerPaye(paiement: Pick<PaiementDto, 'source' | 'statut'>): boolean {
   return (
-    paiement.source === PAIEMENT_SOURCE_KPAY &&
+    paiement.source === PAIEMENT_SOURCE_FOURNISSEUR &&
     (PAIEMENT_STATUTS_REMPLACABLES as readonly string[]).includes(paiement.statut)
   )
 }

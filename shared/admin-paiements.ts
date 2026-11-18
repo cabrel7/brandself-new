@@ -1,11 +1,14 @@
 // A3 (docs/specs/A3-abonnements-paiements.md) : constantes partagées de l'administration des paiements et des
 // abonnements. Constantes et types seulement : aucune logique, aucune dépendance serveur.
 // Les limites chiffrées (10 revérifications par minute, rétention 90 j, seuils d'alerte, fenêtres) sont dans `limites.ts`.
+import { PAIEMENT_SOURCE_FOURNISSEUR } from './paiements'
 
-/** D-A3-03 : `paiements.source` (CHECK `paiements_source_check`). Un paiement manuel a pour fournisseur `manuel`. */
-export const PAIEMENT_SOURCES = ['kpay', 'manuel'] as const
+/**
+ * D-A3-03 + P1 (D5) : `paiements.source` (CHECK `paiements_source_check`). `fournisseur` = encaissé par un fournisseur (K-PAY,
+ * Mercy Pay…, le nom est dans `paiements.fournisseur`) ; un paiement manuel a pour fournisseur `manuel`.
+ */
+export const PAIEMENT_SOURCES = [PAIEMENT_SOURCE_FOURNISSEUR, 'manuel'] as const
 export type PaiementSource = (typeof PAIEMENT_SOURCES)[number]
-export const PAIEMENT_SOURCE_KPAY: PaiementSource = 'kpay'
 export const PAIEMENT_SOURCE_MANUEL: PaiementSource = 'manuel'
 export const PAIEMENT_FOURNISSEUR_MANUEL = 'manuel'
 export const PAIEMENT_METHODE_MANUEL = 'manuel'

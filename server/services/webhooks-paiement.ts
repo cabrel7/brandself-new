@@ -101,8 +101,18 @@ export async function recevoirWebhook(
 ): Promise<{ recu: true }> {
   if (!estFournisseurConnu(fournisseur)) throw new NotFoundError('FOURNISSEUR_INCONNU')
   const provider = deps.provider !== undefined ? deps.provider : getPaiementProvider(fournisseur)
-  if (!provider || provider.webhookConfigure === false) {
-    console.error({ webhook: 'non_configure', fournisseur, cles: Boolean(provider) })
+  if (!provider) {
+    console.error({ webhook: 'non_configure', fournisseur, cles: false })
+    throw new ServiceUnavailableError(CODE_NON_DISPONIBLE)
+  }
+  if (provider.webhookConfigure === false) {
+    // P1 : un secret non encore déclaré (Mercy Pay, développement) se comporte comme une signature fausse : 401 compté, jamais
+    // 200 ni 5xx. K-PAY garde son 503 (il réessaie, et le secret est un défaut de déploiement à corriger).
+    if (provider.webhookSansSecret === 'signature_invalide') {
+      await enregistrerRefusWebhook(fournisseur, 'SIGNATURE_INVALIDE', now)
+      throw new UnauthorizedError('SIGNATURE_INVALIDE')
+    }
+    console.error({ webhook: 'non_configure', fournisseur, cles: true })
     throw new ServiceUnavailableError(CODE_NON_DISPONIBLE)
   }
   if (corpsBrut.length > (deps.maxOctets ?? WEBHOOK_CORPS_MAX_OCTETS)) {
@@ -112,7 +122,7 @@ export async function recevoirWebhook(
 
   // Signature AVANT tout parsing, sur les octets reçus. Aucun détail sur la cause du refus. A3 : le refus est compté
   // (best-effort, jamais d'effet sur la réponse 401).
-  if (!provider.verifierSignature(corpsBrut, entetes)) {
+  if (!provider.verifierSignature(corpsBrut, entetes, now)) {
     await enregistrerRefusWebhook(fournisseur, 'SIGNATURE_INVALIDE', now)
     throw new UnauthorizedError('SIGNATURE_INVALIDE')
   }

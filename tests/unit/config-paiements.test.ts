@@ -45,10 +45,10 @@ function messageDe(config: ConfigPaiementsVerifiable, env: Parameters<typeof ass
 }
 
 describe('catalogue des moyens (#104)', () => {
-  it('should activate only MTN MoMo and Orange Money in Cameroon, in XAF', () => {
+  it('should activate only MTN MoMo and Orange Money in Cameroon, in XAF, for K-PAY and Mercy Pay', () => {
     const actifs = MOYENS_PAIEMENT.filter((m) => m.actif)
 
-    expect(actifs.map((m) => m.id).sort()).toEqual(['kpay:MTN_MOMO_CMR', 'kpay:ORANGE_CMR'])
+    expect(actifs.map((m) => m.id).sort()).toEqual(['kpay:MTN_MOMO_CMR', 'kpay:ORANGE_CMR', 'mercypay:MTN_MOMO_CMR', 'mercypay:ORANGE_CMR'])
     expect(actifs.every((m) => m.pays === 'CMR' && m.devise === 'XAF' && m.indicatif === '237')).toBe(true)
     expect(getMoyenPaiement('kpay:MTN_MOMO_CMR')?.libelle).toBe('MTN MoMo')
     expect(getMoyenPaiement('kpay:ORANGE_CMR')?.libelle).toBe('Orange Money')
@@ -202,7 +202,8 @@ describe('assertConfigPaiements (CA11, CA15)', () => {
   })
 
   it('should accept a zero fee rate', () => {
-    const frais = { kpay: { mobile_money: { tauxPointsBase: 0, supporteur: 'client' as const } } }
+    const zero = { mobile_money: { tauxPointsBase: 0, supporteur: 'client' as const } }
+    const frais = { kpay: zero, mercypay: zero }
 
     expect(() => assertConfigPaiements(DEVELOPPEMENT, configValide({ frais }))).not.toThrow()
   })

@@ -49,7 +49,7 @@ describe('liste des paiements : contenu', () => {
       id: recent.id,
       reference: 'KPAY-RECENT',
       fournisseur: 'kpay',
-      source: 'kpay',
+      source: 'fournisseur',
       methode: 'mobile_money',
       operateur: 'MTN_MOMO_CMR',
       statut: 'reussi',
@@ -123,10 +123,10 @@ describe('liste des paiements : filtres et pagination', () => {
     ['statut=reussi', ['reussiXaf', 'reussiEur', 'manuelXaf']],
     ['statut=echoue', ['echoueXaf']],
     ['source=manuel', ['manuelXaf']],
-    ['source=kpay', ['reussiXaf', 'reussiEur', 'echoueXaf']],
+    ['source=fournisseur', ['reussiXaf', 'reussiEur', 'echoueXaf']],
     ['devise=EUR', ['reussiEur']],
     ['devise=XAF', ['reussiXaf', 'echoueXaf', 'manuelXaf']],
-    ['statut=reussi&devise=XAF&source=kpay', ['reussiXaf']],
+    ['statut=reussi&devise=XAF&source=fournisseur', ['reussiXaf']],
   ] as const)('should filter by %s', async (requete, attendus) => {
     const lignes = await jeu()
 

@@ -54,6 +54,8 @@ const LIBELLES_CLE: Record<string, string> = {
   seo_vitrine: 'Référencement de la vitrine',
   kpay: 'K-PAY',
   'kpay:mobile_money': 'K-PAY · Mobile Money',
+  mercypay: 'Mercy Pay',
+  'mercypay:mobile_money': 'Mercy Pay · Mobile Money',
 }
 
 export function libelleCleVersion(cle: string): string {

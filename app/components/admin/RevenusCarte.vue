@@ -13,9 +13,9 @@ defineProps<{ revenu: RevenuDeviseDto }>()
     </template>
 
     <dl class="grid grid-cols-[1fr_auto] gap-x-4 gap-y-2">
-      <dt class="text-muted">Encaissé K-PAY ce mois-ci</dt>
+      <dt class="text-muted">Encaissé ce mois-ci (opérateurs)</dt>
       <dd class="text-right font-medium">{{ formaterMontantAdmin(revenu.mois.courant.kpay.brut, revenu.devise) }}</dd>
-      <dt class="text-muted">Paiements K-PAY</dt>
+      <dt class="text-muted">Paiements des opérateurs</dt>
       <dd class="text-right">{{ formaterNombre(revenu.mois.courant.kpay.nombre) }}</dd>
       <dt class="text-muted">Frais réels connus</dt>
       <dd class="text-right">{{ formaterMontantAdmin(revenu.mois.courant.kpay.fraisReels, revenu.devise) }}</dd>
@@ -28,7 +28,7 @@ defineProps<{ revenu: RevenuDeviseDto }>()
         {{ formaterMontantAdmin(revenu.mois.courant.manuel.brut, revenu.devise) }}
         ({{ formaterNombre(revenu.mois.courant.manuel.nombre) }})
       </dd>
-      <dt class="text-muted">Mois précédent, K-PAY</dt>
+      <dt class="text-muted">Mois précédent, opérateurs</dt>
       <dd class="text-right">{{ formaterMontantAdmin(revenu.mois.precedent.kpay.brut, revenu.devise) }}</dd>
       <dt class="text-muted">Abonnés actifs</dt>
       <dd class="text-right">{{ formaterNombre(revenu.abonnesActifs) }}</dd>
