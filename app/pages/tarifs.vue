@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { MARQUE } from '#shared/brand'
-import { PERIODES_MOIS } from '#shared/plans'
 import { OG_IMAGE_DEFAUT, OG_IMAGE_HAUTEUR, OG_IMAGE_LARGEUR, ogLocale, urlAbsolue, urlCanonique } from '#shared/seo'
 
 const TITRE_PAGE = 'Tarifs'
@@ -23,112 +22,57 @@ useSeoMeta({
   twitterImage: imagePartage,
 })
 
-const {
-  tarifs, erreur, refresh, gratuit, payant, paiementDisponible, devises, devise, deviseChoisie, deviseOffre,
-  prixPeriodes, periode, prixChoisi, moyensLibelles,
-} = await useTarifs()
-
-const LIEN_COMMENCER = '/connexion'
-const { loggedIn } = useUserSession()
-const exposant = computed(() => deviseOffre.value?.exposant ?? 0)
-
-const itemsDevises = computed(() => devises.value.map((d) => ({ value: d.devise, label: d.devise })))
-const itemsPeriodes = computed(() => prixPeriodes.value.map((p) => ({ value: String(p.periodeMois), label: libellePeriode(p.periodeMois) })))
-const deviseTexte = computed({
-  get: () => devise.value ?? '',
-  set: (valeur: string) => {
-    deviseChoisie.value = valeur
-  },
-})
-const periodeTexte = computed({
-  get: () => String(periode.value ?? ''),
-  set: (texte: string) => {
-    periode.value = PERIODES_MOIS.find((p) => String(p) === texte) ?? null
-  },
-})
-
-const prixGratuit = computed(() => (devise.value ? formaterMontant(0, devise.value, exposant.value) : null))
-const prixPayant = computed(() => {
-  const choisi = prixChoisi.value
-  return choisi && devise.value ? formaterMontant(montantParMoisPaye(choisi), devise.value, exposant.value) : null
-})
-const precisionPayant = computed(() => {
-  const choisi = prixChoisi.value
-  if (!choisi || !devise.value) return undefined
-  if (choisi.periodeMois === 1) return 'par mois'
-  return `par mois, facturé ${formaterMontant(montantPaye(choisi), devise.value, exposant.value)} pour ${libellePeriode(choisi.periodeMois)}`
-})
-
-// Connecté : sa carte Abonnement s'ouvre, la durée choisie ici est présélectionnée. Visiteur : il commence par se connecter
-// (aucun retour vers l'abonnement après la connexion n'existe : il le retrouve depuis son compte).
-const lienPayant = computed(() => {
-  if (!loggedIn.value) return LIEN_COMMENCER
-  return periode.value ? `/studio/compte?periode=${periode.value}#abonnement` : '/studio/compte#abonnement'
-})
-const moyensTexte = computed(() => moyensLibelles.value.join(' ou '))
+const source = await useTarifs()
+const { erreur, refresh, tarifs, devises, prixPeriodes } = source
+const { cartes, itemsDevises, itemsPeriodes, deviseTexte, periodeTexte, moyensTexte } = useTarifsAffichage(source)
 </script>
 
 <template>
-  <div class="min-h-dvh bg-fond text-encre">
-    <TarifsEntete />
+  <div class="bg-fond text-encre">
+    <MarketingEntete />
 
-    <main class="mx-auto w-full max-w-6xl px-6 py-12 md:py-20">
-      <UEmpty
-        v-if="erreur || !tarifs"
-        icon="i-ph-warning-circle"
-        title="Les tarifs ne s’affichent pas"
-        description="Nous n’avons pas pu les charger. Réessayez dans un instant."
-        :as="{ title: 'h1' }"
-        :actions="[{ label: 'Réessayer', size: 'xl', onClick: () => refresh() }]"
-      />
+    <main id="haut" class="bg-surface px-4 py-20 md:px-6 md:py-30">
+      <div class="mx-auto w-full max-w-290">
+        <UEmpty
+          v-if="erreur || !tarifs"
+          icon="i-ph-warning-circle"
+          title="Les tarifs ne s’affichent pas"
+          description="Nous n’avons pas pu les charger. Réessayez dans un instant."
+          :as="{ title: 'h1' }"
+          :actions="[{ label: 'Réessayer', size: 'xl', onClick: () => refresh() }]"
+        />
 
-      <template v-else>
-        <div class="mx-auto flex max-w-2xl flex-col items-center gap-4 text-center">
-          <h1 class="m-0 text-(length:--fs-32) leading-tight font-bold md:text-(length:--fs-48)">
-            Un plan gratuit, un plan payant
-          </h1>
-        </div>
+        <template v-else>
+          <div class="mx-auto mb-10 flex max-w-200 flex-col items-center gap-3 text-center md:mb-12">
+            <p class="m-0 text-(length:--fs-14) font-semibold tracking-widest text-accent-texte uppercase">
+              Tarifs
+            </p>
+            <h1 class="m-0 text-balance font-(family-name:--font-titre) text-[clamp(2.125rem,4.8vw,3.625rem)] leading-[1.06] font-medium text-encre">
+              Un plan gratuit, un plan payant
+            </h1>
+          </div>
 
-        <div v-if="prixPeriodes.length > 0" class="mt-8 flex flex-col items-center gap-4">
-          <TarifsSelecteur v-if="devises.length > 1" v-model="deviseTexte" :items="itemsDevises" legende="Devise" />
-          <TarifsSelecteur v-model="periodeTexte" :items="itemsPeriodes" legende="Durée de l’abonnement" />
-        </div>
+          <div v-if="prixPeriodes.length > 0" class="mx-auto mb-10 flex w-full max-w-md flex-col gap-4 md:mb-12">
+            <TarifsSelecteur v-if="devises.length > 1" v-model="deviseTexte" :items="itemsDevises" legende="Devise" fond="fond" />
+            <TarifsSelecteur v-model="periodeTexte" :items="itemsPeriodes" legende="Durée de l’abonnement" fond="fond" />
+          </div>
 
-        <div class="mt-10 grid items-stretch gap-6 md:grid-cols-2">
-          <TarifsPlanCarte
-            v-if="gratuit"
-            titre="Gratuit"
-            :prix="prixGratuit"
-            :lignes="lignesPlan(gratuit)"
-            :action="{ label: 'Commencer gratuitement', to: LIEN_COMMENCER }"
-          />
-          <TarifsPlanCarte
-            v-if="payant"
-            titre="Payant"
-            :prix="prixPayant"
-            :precision="precisionPayant"
-            :lignes="lignesPlan(payant)"
-            mise-en-avant
-            :action="paiementDisponible ? { label: 'Passer au plan payant', to: lienPayant } : undefined"
-            note-action="Le paiement en ligne arrive bientôt."
-          />
-        </div>
+          <div class="mx-auto grid max-w-240 items-stretch gap-6 md:grid-cols-2 md:gap-7">
+            <MarketingPlanCarte v-for="carte in cartes" :key="carte.id" :carte="carte" :niveau="2" />
+          </div>
 
-        <div class="mx-auto mt-8 flex max-w-2xl flex-col gap-2 text-center text-base text-texte-secondaire">
-          <p v-if="moyensTexte" class="m-0">
-            Paiement par {{ moyensTexte }}.
-          </p>
-          <p class="m-0">
-            Sans renouvellement automatique.
-          </p>
-        </div>
-      </template>
+          <div class="mx-auto mt-8 flex max-w-2xl flex-col gap-2 text-center text-base text-encre">
+            <p v-if="moyensTexte" class="m-0">
+              Paiement par {{ moyensTexte }}.
+            </p>
+            <p class="m-0">
+              Sans renouvellement automatique.
+            </p>
+          </div>
+        </template>
+      </div>
     </main>
 
-    <footer class="border-t border-bordure">
-      <div class="mx-auto flex w-full max-w-6xl items-center justify-between gap-4 px-6 py-6 text-(length:--fs-14) text-texte-secondaire">
-        <BsLogo variante="wordmark" class="h-8" />
-      </div>
-    </footer>
+    <MarketingPied />
   </div>
 </template>

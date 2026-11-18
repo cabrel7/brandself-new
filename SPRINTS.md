@@ -412,20 +412,48 @@ RAPPORT FINAL OBLIGATOIRE (dans l'ordre) :
 
 ---
 
-# S13 — Durcissement et lancement
+# S13 — Optimisation, durcissement et lancement
 
-**Objectif** : mettre en production en confiance.
-**Pré-requis** : S12 ; décision #12 tranchée (hébergement, domaine, courriels). **Maquettes** : aucune.
+**Objectif** : atteindre les budgets de performance, puis mettre en production en confiance. Ce sprint regroupe l'ancien S13 (durcissement et lancement) et le sprint d'optimisation décidé le 2026-11-17 après la première exécution réelle du job `seo-perf` (voir la mesure de départ ci-dessous). **Ordre imposé** : partie A (optimisation, mesurée), puis B (durcissement), puis C (lancement). Une partie ne démarre qu'avec la précédente verte en CI.
+**Pré-requis** : S12, A1 à A5 et la landing fusionnées dans `main` (fait le 2026-11-17, `8134d94`) ; décision #12 tranchée (hébergement, domaine, courriels). **Maquettes** : aucune.
+
+## Partie A — Optimisation de la performance (avant tout le reste)
+
+**Mesure de départ** (Lighthouse CI, build de production, simulation 4G lente et CPU x4, 2026-11-17, après compression gzip/brotli des fichiers publics) : performance 0,60 à 0,74 (budget 0,85), **LCP 4,4 s sur `/tarifs` et `/dr-cabrel`, 8,4 s sur le détail d'un service, 7 à 8 s sur `/`** (budget 2,5 s). Avant la compression : 0,51 à 0,59 et 7 à 14 s. Éléments constatés : CSS ~231 Ko, ~62 fichiers JS (~914 Ko bruts) sur `/tarifs`, ~330 Ko de JS non utilisé, `uses-text-compression` à 0,13 avant correction. Le serveur répond en moins de 100 ms : le coût est dans le poids et l'exécution côté navigateur. Les pages de **vitrine** sont prioritaires (ce sont celles que les visiteurs ouvrent depuis Google).
+
+**Périmètre**
+- **Mesurer d'abord** : `nuxi analyze` (composition du bundle), rapport Lighthouse par page (les rapports sont publiés en artefact `seo-perf`), liste chiffrée des gains attendus ; rien n'est optimisé « au jugé ».
+- **Pages publiques sans JavaScript inutile** : le client d'authentification, le studio, `@nuxt/ui` complet et les bibliothèques du studio (`sortablejs`, éditeurs) ne doivent pas être chargés sur `/`, `/tarifs` et les pages de vitrine. Hydratation différée (`Lazy`, `hydrate-on-visible`, `hydrate-on-idle`) des parties sous la ligne de flottaison de la landing (Être trouvé, Être compris, Être contacté, Pour qui, FAQ). Évaluer des pages de vitrine sans hydratation complète (lecture seule, aucun store global : règle d'architecture existante).
+- **Poids du CSS** (~231 Ko bruts) : n'embarquer que les composants `@nuxt/ui` réellement utilisés par les pages publiques, vérifier la génération Tailwind, extraire le CSS critique si le gain est mesuré.
+- **Découpage** : `manualChunks` seulement après l'analyse, pour isoler les bibliothèques lourdes qui n'ont pas à être chargées sur les pages publiques (le gain visé est le cache et les octets, pas le nombre de fichiers).
+- **Compression et cache** : vérifier de bout en bout (Nginx public, pas seulement `admin.conf`) la compression brotli/gzip du HTML, du CSS, du JS, des SVG ; `Cache-Control` long et immuable sur `/_nuxt/**` et `/landing/**` ; ne pas recompresser ce que Nitro précompresse (`compressPublicAssets`).
+- **Images et polices** : tailles réelles des images affichées (srcset), pas d'image au-dessus de la ligne de flottaison, polices Fraunces/Figtree préchargées au strict nécessaire, `font-display`. Photos de la landing : remplacer les photos provisoires par des fichiers licenciés et adaptés (dimensions, poids).
+- **Landing** : masquer dès le rendu serveur (CSS) l'état initial des effets d'apparition sous 961 px, au lieu de le poser au montage (clignotement actuel) ; extraire les styles de `Trouve.vue` (859 lignes) ; vérifier le LCP réel (le `h1`).
+- **Repasser Lighthouse en erreur** : `categories:performance` et `largest-contentful-paint` redeviennent `error` dans `lighthouserc.cjs` ; budgets de `shared/seo.ts` inchangés (0,85 et 2 500 ms), sur les 4 pages mesurées, avec le résultat collé dans le rapport. SEO à 0,92 (directive `Content-Signal` volontaire) : à réévaluer si Lighthouse la reconnaît.
+- **Garde-fou** : un test unitaire interdit les couleurs composées (`color-mix` en fond ou texte, modificateurs d'opacité Tailwind `text-xxx/80`) sur les pages mesurées, car elles rendent la catégorie « accessibilité » de Lighthouse sans valeur.
+
+**Critères de réception (A)** : Lighthouse CI vert avec performance ≥ 0,85 et LCP ≤ 2,5 s sur les 4 pages, `seo-perf` en erreur (plus en avertissement) ; poids JS et CSS avant/après chiffrés dans le rapport ; aucune régression e2e, axe ni SEO.
+
+## Partie B — Durcissement
 
 **Périmètre**
 - **Sécurité** : limites de débit sur toutes les routes publiques d'écriture (connexion, OTP, messages, réservations, demandes, clics, vues) ; en-têtes de sécurité (CSP, HSTS, X-Content-Type-Options, Referrer-Policy) ; cookies sécurisés ; vérification que tout texte utilisateur est échappé (aucun HTML dans la présentation) ; téléversements revérifiés ; revue de toutes les routes `/api/studio/**` (propriétaire uniquement, **test d'accès croisé** : l'utilisateur A ne lit ni ne modifie rien de l'utilisateur B) ; secrets hors du dépôt.
 - **Données** : sauvegarde quotidienne de PostgreSQL et du dossier d'images, **restauration testée**, rétention définie ; export des données de l'utilisateur et suppression du compte (RGPD) avec effacement des images ; pages **CGU et confidentialité** (textes fournis par Cabrel ; ne pas les inventer, placer des marqueurs).
 - **Observabilité** : journaux structurés, suivi d'erreurs (Sentry), alerte sur échec de jobs, vérification de santé (`/api/health`) surveillée.
-- **Déploiement** : Nginx (HTTPS, compression, cache des fichiers statiques et des images), PM2 (application + worker), variables de production validées, migrations appliquées au déploiement, **procédure de retour arrière**, `README` d'exploitation (démarrer, arrêter, déployer, restaurer, lire les journaux).
+- **Reports à traiter ici** (relevés dans `PROJECT_STATE.md`) : `storeOTP` en mode `hashed` en production (vérifier le comportement réel) ; risques résiduels acceptés pour la bêta fermée (contacts rotatifs et rotation IPv6 qui contournent les limites, compteurs de contact incrémentés avant la validation métier, SHA-256 sans secret à remplacer par un HMAC, IP en clair dans les clés Redis) ; routes d'écriture non limitées (endpoint `creneaux`) ; replis OTP qui journalisent l'identifiant et le code en clair en développement (garde de production) ; pages **conditions d'utilisation, confidentialité et contact** que le pied de page de la landing ne peut pas encore lier (elles n'existent pas : les créer avec des marqueurs, puis ajouter les liens) ; administration : sauvegarde du journal d'audit, second superadmin de secours, clé d'accès (passkey), `nginx -t` des fichiers `deploy/nginx/`, `MEDIAS_CACHE_REFRESH_SECRET` à renseigner au déploiement.
+
+## Partie C — Lancement
+
+**Périmètre**
+- **Déploiement** : Nginx (HTTPS, compression, cache des fichiers statiques et des images), PM2 (application + worker ; le worker tourne aujourd'hui par `tsx` : valider ou produire un build dédié esbuild), variables de production validées (dont K-PAY : montant du webhook brut ou net, fournisseur SMS de production, canal d'alerte), migrations appliquées au déploiement, **procédure de retour arrière**, `README` d'exploitation (démarrer, arrêter, déployer, restaurer, lire les journaux).
 - **Tests de fin** : e2e du parcours complet (connexion → inscription guidée → vitrine → réservation par un visiteur → confirmation → abonnement de test), test de charge léger sur les pages publiques, essai complet sur de vrais téléphones.
 - **Liste de contrôle de mise en production** vérifiée point par point dans le rapport.
 
-**Critères de réception** : tous les points de la liste de contrôle cochés avec preuve ; restauration d'une sauvegarde réussie sur une base vide ; test d'accès croisé vert ; déploiement et retour arrière exécutés une fois à blanc.
+- **Licences et contenus de la landing** : photos de banque d'images (provisoires) remplacées ou licenciées, usage du logo Google validé (ou illustration neutre), témoignages et métiers fictifs retirés ou étiquetés, tarifs affichés validés (`PRIX_STATUT` ≠ `a_valider`).
+
+**Critères de réception (B et C)** : tous les points de la liste de contrôle cochés avec preuve ; restauration d'une sauvegarde réussie sur une base vide ; test d'accès croisé vert ; déploiement et retour arrière exécutés une fois à blanc.
+
+**Critères de réception du sprint** : A, B et C chacun vert en CI (vérification, e2e, `seo-perf` avec performance en erreur) avant de passer à la partie suivante.
 
 ---
 

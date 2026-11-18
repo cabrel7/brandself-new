@@ -12,9 +12,10 @@ const TEXTES = {
   fermer: 'Fermer le menu',
 } as const
 
-const ANCRE_CREER = '#adresse-fin'
 const SEUIL_FILET_PX = 8
 const ID_MENU = 'menu-accueil'
+
+const { lienNav, lienCreer, lienLogo } = useLiensMarketing()
 
 const ouvert = ref(false)
 const defile = ref(false)
@@ -76,7 +77,7 @@ onBeforeUnmount(() => {
     >{{ TEXTES.evitement }}</a>
 
     <div class="mx-auto flex min-h-18 w-full max-w-290 items-center justify-between gap-4 px-4 md:px-6">
-      <NuxtLink to="#haut" :aria-label="`${MARQUE.nom}, accueil`" class="inline-flex min-h-(--cible-tactile) items-center">
+      <NuxtLink :to="lienLogo" :aria-label="`${MARQUE.nom}, accueil`" class="inline-flex min-h-(--cible-tactile) items-center">
         <BsLogo variante="wordmark" class="h-8 md:hidden" />
         <BsLogo variante="horizontal" class="hidden h-10 md:block" />
       </NuxtLink>
@@ -85,7 +86,7 @@ onBeforeUnmount(() => {
         <NuxtLink
           v-for="lien in NAV_LIENS"
           :key="lien.ancre"
-          :to="lien.ancre"
+          :to="lienNav(lien.ancre)"
           class="inline-flex min-h-(--cible-tactile) min-w-(--cible-tactile) items-center justify-center rounded-(--rayon-interne) px-3.5 font-medium text-encre no-underline transition-colors hover:bg-surface"
         >
           {{ lien.libelle }}
@@ -99,7 +100,7 @@ onBeforeUnmount(() => {
         >
           {{ TEXTES.connexion }}
         </NuxtLink>
-        <BsButton :to="ANCRE_CREER" class="min-h-(--cible-tactile)! px-4! max-[520px]:px-3! max-[520px]:text-sm!">
+        <BsButton :to="lienCreer" class="min-h-(--cible-tactile)! px-4! max-[520px]:px-3! max-[520px]:text-sm!">
           {{ TEXTES.creer }}
         </BsButton>
         <button
@@ -121,7 +122,7 @@ onBeforeUnmount(() => {
         <NuxtLink
           v-for="lien in NAV_LIENS"
           :key="lien.ancre"
-          :to="lien.ancre"
+          :to="lienNav(lien.ancre)"
           class="flex min-h-(--cible-tactile) items-center border-b border-bordure py-3 font-(family-name:--font-titre) text-(length:--fs-24) font-medium text-encre no-underline"
         >
           {{ lien.libelle }}
@@ -132,7 +133,7 @@ onBeforeUnmount(() => {
         >
           {{ TEXTES.connexion }}
         </NuxtLink>
-        <BsButton :to="ANCRE_CREER" block class="mt-4">
+        <BsButton :to="lienCreer" block class="mt-4">
           {{ TEXTES.creer }}
         </BsButton>
       </nav>
