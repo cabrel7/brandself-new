@@ -1,19 +1,27 @@
 <script setup lang="ts">
 import { fr } from '@nuxt/ui/locale'
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, watch } from 'vue'
+import { cheminPwa } from '~/utils/pwa-install'
 
 const nouvelleVersion = ref(false)
 // A1 : l'hôte d'administration n'a ni installation, ni service worker, ni message de mise à jour.
 const hoteAdmin = useHoteAdmin()
+const route = useRoute()
 
 function activerNouvelleVersion(): void {
   nouvelleVersion.value = false
   window.location.reload()
 }
 
-onMounted(() => {
-  // Détection d'une nouvelle version du service worker (maquette « PWA · Mise à jour »).
-  if (hoteAdmin || typeof window === 'undefined' || !('serviceWorker' in navigator)) return
+/**
+ * Détection d'une nouvelle version du service worker (maquette « PWA · Mise à jour »). Le service worker n'est
+ * enregistré que sur les pages autorisées (S13-A, `cheminAutorise`) : l'écoute commence à la première page
+ * autorisée visitée et n'est posée qu'une fois.
+ */
+let ecouteNouvelleVersion = false
+function ecouterNouvelleVersion(): void {
+  if (ecouteNouvelleVersion || !('serviceWorker' in navigator)) return
+  ecouteNouvelleVersion = true
   navigator.serviceWorker.ready.then((registration) => {
     registration.addEventListener('updatefound', () => {
       const installingWorker = registration.installing
@@ -25,6 +33,13 @@ onMounted(() => {
       })
     })
   })
+}
+
+onMounted(() => {
+  if (hoteAdmin) return
+  watch(() => route.path, (chemin) => {
+    if (cheminPwa(chemin)) ecouterNouvelleVersion()
+  }, { immediate: true })
 })
 </script>
 
@@ -45,7 +60,7 @@ onMounted(() => {
         </div>
       </div>
       <NuxtPage />
-      <InstallPrompt v-if="!hoteAdmin" />
+      <LazyInstallPrompt v-if="!hoteAdmin && cheminPwa(route.path)" hydrate-on-idle />
     </NuxtLayout>
   </UApp>
 </template>

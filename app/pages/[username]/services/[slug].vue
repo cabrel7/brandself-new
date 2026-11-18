@@ -2,6 +2,9 @@
 import type { ServiceLien } from '~/composables/usePublicService'
 import { SERVICE_ACTIONS, SERVICE_TYPE_PASTILLES } from '#shared/services'
 
+// Les créneaux s'hydratent avant d'entrer à l'écran : un appui rapide après le défilement n'est pas perdu.
+const MARGE_HYDRATATION = '400px'
+
 const route = useRoute()
 const username = String(route.params.username)
 const slug = String(route.params.slug)
@@ -105,8 +108,9 @@ useSeoVitrine({ vitrine: vitrine.value, page: 'service', service: service.value,
               </p>
             </div>
 
-            <AgendaCreneauxProchains
+            <LazyAgendaCreneauxProchains
               v-if="parcoursReservation"
+              :hydrate-on-visible="{ rootMargin: MARGE_HYDRATATION }"
               :username="vitrine.username"
               :service-slug="service.slug"
               :fuseau="vitrine.fuseau"
@@ -116,6 +120,7 @@ useSeoVitrine({ vitrine: vitrine.value, page: 'service', service: service.value,
               @reessayer="rafraichirAgenda"
             />
 
+            <!-- Hydratation normale : une saisie faite avant l'hydratation serait écrasée par le v-model, et un envoi avant elle partirait en GET. -->
             <ReservationDemandeForm
               v-if="parcoursDemande"
               :username="vitrine.username"
@@ -125,7 +130,7 @@ useSeoVitrine({ vitrine: vitrine.value, page: 'service', service: service.value,
               :professionnel="vitrine.nomAffiche"
             />
 
-            <ServiceAutres :autres="reponse.autres" :total="reponse.total" :username="vitrine.username" />
+            <LazyServiceAutres hydrate-on-visible :autres="reponse.autres" :total="reponse.total" :username="vitrine.username" />
           </div>
         </article>
 

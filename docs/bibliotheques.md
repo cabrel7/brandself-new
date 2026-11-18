@@ -15,7 +15,7 @@ Tableau tenu à jour à chaque ajout de dépendance (règle 4.12 de `CLAUDE.md` 
 | Tailwind CSS 4 (`@tailwindcss/vite`) | styles branchés sur les variables CSS des palettes |
 | `sharp` | traitement d'images |
 | Resend | emails |
-| VueUse, dayjs | utilitaires, dates et fuseaux |
+| VueUse, dayjs | utilitaires, dates et fuseaux. Le module `dayjs-nuxt` est **retiré le 2026-11-17** (S13-A L7) : aucun `useDayjs`/`$dayjs` dans le code, son plugin global alourdissait l'entrée client. `dayjs` reste en dépendance directe (aucun import à ce jour : à retirer si rien ne l'utilise) |
 | `qrcode` | QR codes |
 | `@nuxt/eslint` (eslint + typescript-eslint) | lint ; **TypeScript 6 obligatoire** : typescript-eslint ne supporte pas TS 7 |
 | tsx | exécuter `worker/`, `db:seed` et scripts en TypeScript (process séparé de Nitro) |
@@ -34,3 +34,5 @@ Tableau tenu à jour à chaque ajout de dépendance (règle 4.12 de `CLAUDE.md` 
 | `@better-auth/mcp` | plugin Better Auth MCP, authentification OAuth 2.1 pour le serveur MCP (S16) |
 | `@modelcontextprotocol/sdk` | SDK officiel du protocole MCP, serveur McpServer et types (S16) |
 | `libphonenumber-js` | pays d'un numéro de téléphone (indicatif résolu en code ISO alpha-2) pour le journal d'envoi des codes (A4, D-A4-15) : bibliothèque maintenue, TypeScript natif, sans dépendance ; seul le code pays est conservé, jamais le numéro. Utilisée dans le worker (build « min » des métadonnées) |
+| `defu` (6.1.7, épinglé) | fusion des règles de route du module local `modules/auth-differee` (S13-A) : déjà dans l’arbre de Nuxt, déclaré en dépendance directe car pnpm strict ne le résout pas depuis `modules/` |
+| `radix3` (1.1.2, épinglé) | correspondance des routes avec leurs règles d’authentification dans le module local `modules/auth-differee` (S13-A) : même logique que la garde de `@nuxtjs/better-auth`, déjà dans l’arbre de Nuxt, déclaré en direct pour la même raison |

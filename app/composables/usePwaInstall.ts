@@ -8,6 +8,7 @@ import {
   avecRefus,
   avecVisite,
   cheminAutorise,
+  cheminPwa,
   lireEtat,
   origineDuChemin,
   peutAfficher,
@@ -246,12 +247,23 @@ export function useInstallPrompt() {
 
 // Enregistrement du service worker (côté client uniquement, une seule fois, au premier usage d'un composable
 // ci-dessus). A1 : jamais sur l'hôte d'administration (aucun service worker, aucune mise en cache).
+// S13-A : seulement sur une page où l'installation est proposée (`cheminAutorise` : /, /tarifs, /studio/) et hors du
+// chemin critique (temps mort du navigateur). Une vitrine n'enregistre donc jamais de service worker ; en navigation
+// interne vers une page autorisée, le composable est rappelé et l'enregistrement a lieu alors.
 let serviceWorkerDemande = false
+
+function lorsqueInactif(tache: () => void): void {
+  if ('requestIdleCallback' in window) window.requestIdleCallback(tache)
+  else setTimeout(tache, 1)
+}
+
 function enregistrerServiceWorker(): void {
   if (serviceWorkerDemande || !isClient() || !('serviceWorker' in navigator)) return
+  if (useHoteAdmin() || !cheminPwa(window.location.pathname)) return
   serviceWorkerDemande = true
-  if (useHoteAdmin()) return
-  navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch(() => {
-    // Échec silencieux : le SW n'est pas critique pour le fonctionnement de l'app.
+  lorsqueInactif(() => {
+    navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch(() => {
+      // Échec silencieux : le SW n'est pas critique pour le fonctionnement de l'app.
+    })
   })
 }

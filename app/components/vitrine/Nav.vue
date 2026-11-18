@@ -6,6 +6,21 @@ const props = defineProps<{ nomAffiche: string, username: string, contenus: Cont
 
 const route = useRoute()
 const menuOuvert = ref(false)
+// Le volet (Dialog + Slideover) n'est monté, donc téléchargé, qu'à la première intention d'ouvrir le menu.
+const menuDemande = ref(false)
+const boutonMenu = useTemplateRef<HTMLButtonElement>('boutonMenu')
+// Survol, focus ou appui précèdent le clic : le volet est prêt quand le clic arrive.
+function preparerMenu() { menuDemande.value = true }
+function ouvrirMenu() {
+  menuDemande.value = true
+  menuOuvert.value = true
+}
+// Sans déclencheur Reka, le focus revient explicitement au bouton à la fermeture.
+watch(menuOuvert, async (ouvert) => {
+  if (ouvert) return
+  await nextTick()
+  boutonMenu.value?.focus()
+})
 // Le menu se ferme aussi quand la navigation vient d'ailleurs (retour du navigateur).
 watch(() => route.fullPath, () => { menuOuvert.value = false })
 
@@ -59,21 +74,29 @@ const liens = computed(() => {
           </NuxtLink>
         </nav>
 
-        <!-- Sous 768 px : les liens passent dans un menu qui descend du haut. Le focus revient au bouton à la fermeture. -->
-        <USlideover
+        <!-- Sous 768 px : les liens passent dans un menu qui descend du haut. Les liens restent dans la navigation principale rendue au serveur. -->
+        <button
+          ref="boutonMenu"
+          type="button"
+          aria-haspopup="dialog"
+          :aria-expanded="menuOuvert"
+          class="inline-flex size-(--cible-tactile) items-center justify-center rounded-(--rayon) text-encre transition-colors hover:bg-surface hover:text-accent-texte focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-accent md:hidden"
+          @pointerenter="preparerMenu"
+          @pointerdown="preparerMenu"
+          @focus="preparerMenu"
+          @click="ouvrirMenu"
+        >
+          <UIcon name="i-ph-list" class="size-6" aria-hidden="true" />
+          <span class="sr-only">Menu</span>
+        </button>
+
+        <LazyUSlideover
+          v-if="menuDemande"
           v-model:open="menuOuvert"
           side="top"
           description="Pages de la vitrine"
           :ui="{ content: 'bg-fond text-encre', wrapper: 'min-w-0 flex-1', title: 'line-clamp-2 font-(family-name:--font-titre) text-(length:--fs-20) font-bold text-encre', description: 'sr-only', close: 'shrink-0' }"
         >
-          <button
-            type="button"
-            class="inline-flex size-(--cible-tactile) items-center justify-center rounded-(--rayon) text-encre transition-colors hover:bg-surface hover:text-accent-texte focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-accent md:hidden"
-          >
-            <UIcon name="i-ph-list" class="size-6" aria-hidden="true" />
-            <span class="sr-only">Menu</span>
-          </button>
-
           <template #title>
             {{ nomAffiche }}<span class="sr-only">, menu</span>
           </template>
@@ -102,7 +125,7 @@ const liens = computed(() => {
               </NuxtLink>
             </nav>
           </template>
-        </USlideover>
+        </LazyUSlideover>
       </div>
     </div>
   </header>

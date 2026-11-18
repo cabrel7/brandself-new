@@ -89,6 +89,15 @@ export function cheminAutorise(chemin: string): boolean {
   return chemin === '/' || chemin === '/tarifs' || chemin.startsWith('/studio/')
 }
 
+/**
+ * Pages où le code PWA (invite, comptage des visites, service worker) est chargé : les pages où l'invite peut s'afficher,
+ * plus `/studio` seul, la page d'arrivée après la connexion (l'invite n'y est pas proposée mais la visite y est comptée
+ * et le service worker enregistré, comme avant S13-A). Jamais une vitrine, ni l'administration, ni `/connexion`.
+ */
+export function cheminPwa(chemin: string): boolean {
+  return cheminAutorise(chemin) || chemin === '/studio'
+}
+
 export function origineDuChemin(chemin: string): OrigineInstallation {
   return chemin.startsWith('/studio/') ? 'studio' : 'marketing'
 }

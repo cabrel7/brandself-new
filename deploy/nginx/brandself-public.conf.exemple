@@ -1,0 +1,76 @@
+# S13-A (L10) : bloc `server` PUBLIC de référence (jesuis.pro). EXEMPLE versionné : le dépôt ne contenait
+# jusqu'ici que les morceaux (brandself-cache.conf, brandself-location.conf, admin.conf). Remplacer le nom
+# de domaine, puis installer à la main (rien ici n'est exécuté par le dépôt) :
+#
+#   sudo cp deploy/nginx/brandself-cache.conf    /etc/nginx/conf.d/brandself-cache.conf      # contexte http (zones, maps)
+#   sudo cp deploy/nginx/brandself-location.conf /etc/nginx/brandself-location.conf          # inclus ci-dessous
+#   sudo cp deploy/nginx/brandself-medias-secret.conf.exemple /etc/nginx/brandself-medias-secret.conf   # puis ÉDITER (voir ce fichier)
+#   sudo cp deploy/nginx/brandself-public.conf.exemple /etc/nginx/sites-available/brandself-public.conf
+#   sudo ln -s /etc/nginx/sites-available/brandself-public.conf /etc/nginx/sites-enabled/
+#   sudo mkdir -p /var/cache/nginx/brandself && sudo chown www-data:www-data /var/cache/nginx/brandself
+#   sudo certbot certonly --webroot -w /var/www/certbot -d jesuis.pro -d www.jesuis.pro
+#   sudo nginx -t && sudo systemctl reload nginx        # reload, jamais restart
+# Vérification : curl -sI --http2 https://jesuis.pro/ | head -1        => « HTTP/2 200 »
+#
+# HSTS, CSP et le durcissement des en-têtes sont hors de ce fichier : sprint S13-B.
+# Ne PAS mettre `proxy_cache` ni `add_header` au niveau `server` : `add_header` d'un niveau supérieur n'est PAS
+# hérité par une `location` qui en déclare un (c'est le cas de /_nuxt/, /medias/, etc. dans
+# brandself-location.conf) ; les en-têtes ci-dessous valent donc pour `/` et les chemins sans `add_header`.
+
+# Port 80 : défi ACME http-01 puis redirection HTTPS.
+server {
+  listen 80;
+  listen [::]:80;
+  server_name jesuis.pro www.jesuis.pro;
+  server_tokens off;
+
+  access_log /var/log/nginx/jesuis.pro.access.log;
+  error_log /var/log/nginx/jesuis.pro.error.log warn;
+
+  location ^~ /.well-known/acme-challenge/ {
+    root /var/www/certbot;
+    default_type "text/plain";
+  }
+
+  location / {
+    return 301 https://$host$request_uri;
+  }
+}
+
+# Port 443 : HTTP/2 + TLS. (`listen ... ssl http2` : syntaxe valable de nginx 1.18 (Ubuntu 22.04) à
+# aujourd'hui ; depuis 1.25.1 elle est dépréciée au profit de `http2 on;`, avertissement sans effet.)
+server {
+  listen 443 ssl http2;
+  listen [::]:443 ssl http2;
+  server_name jesuis.pro www.jesuis.pro;
+  server_tokens off;
+
+  ssl_certificate /etc/letsencrypt/live/jesuis.pro/fullchain.pem;
+  ssl_certificate_key /etc/letsencrypt/live/jesuis.pro/privkey.pem;
+  include /etc/letsencrypt/options-ssl-nginx.conf;      # protocoles et chiffrements (installé par Certbot)
+
+  access_log /var/log/nginx/jesuis.pro.access.log;
+  error_log /var/log/nginx/jesuis.pro.error.log warn;
+
+  # À aligner sur la limite d'envoi de l'application (images du studio).
+  client_max_body_size 20M;
+
+  add_header X-Content-Type-Options "nosniff" always;
+  add_header X-Frame-Options "SAMEORIGIN" always;
+  add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+
+  # Brotli (OPTIONNEL) : le paquet nginx d'Ubuntu ne l'inclut pas. Pour l'activer :
+  #   sudo apt-get install libnginx-mod-http-brotli-filter     # puis, en tête de nginx.conf :
+  #   load_module modules/ngx_http_brotli_filter_module.so;    # (le paquet ajoute souvent ce fichier dans modules-enabled/)
+  # `nginx -t` doit passer AVANT le reload. Sans le module, les directives `brotli` font échouer `nginx -t` :
+  # c'est pourquoi elles restent commentées. gzip (ci-dessous, dans brandself-location.conf) reste le repli.
+  # Ne jamais lister ici ce que Nitro précompresse déjà (/_nuxt/) : une réponse déjà encodée n'est pas recompressée.
+  #   brotli on;
+  #   brotli_comp_level 5;
+  #   brotli_types text/plain text/css text/xml text/javascript application/javascript application/json application/ld+json application/manifest+json application/xml image/svg+xml;
+
+  # Compression gzip (text/html compris), proxy vers Node (127.0.0.1:3000), microcache HTML de 10 s,
+  # cache de /_nuxt/ (immutable), /_fonts/, /landing/, /_ipx/, /medias/, robots et sitemaps,
+  # limite de débit des webhooks, 404 sur /admin : tout est dans ce fichier.
+  include /etc/nginx/brandself-location.conf;
+}
