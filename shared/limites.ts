@@ -64,6 +64,13 @@ export const KPAY_APPELS_MAX_PAR_MINUTE = 60
 export const KPAY_APPELS_FENETRE_S = 60
 /** Clé Redis du compteur global d'appels K-PAY (fail-closed). */
 export const KPAY_APPELS_CLE = 'kpay:appels'
+/**
+ * P1 : Mercy Pay plafonne à 60 écritures et 300 lectures par minute et par clé. On s'en tient à 40 écritures (marge pour
+ * les rejeux d'idempotence et les autres usages de la clé) et 200 lectures (rapprochement, revérifications admin).
+ */
+export const MERCY_PAY_ECRITURES_MAX_PAR_MINUTE = 40
+export const MERCY_PAY_LECTURES_MAX_PAR_MINUTE = 200
+export const MERCY_PAY_APPELS_FENETRE_S = 60
 /** Octets : taille maximale du corps d'un webhook (K-PAY envoie moins de 1 Ko). */
 export const WEBHOOK_CORPS_MAX_OCTETS = 16_384
 

@@ -11,6 +11,12 @@ import {
   KPAY_CLE_SECRETE_FORMAT,
   KPAY_HOTES_HTTP_AUTORISES,
   KPAY_WEBHOOK_SECRET_LONGUEUR_MIN,
+  MERCY_PAY_BASE_URL_DEFAUT,
+  MERCY_PAY_CLE_API_FORMAT,
+  MERCY_PAY_CLE_PREFIXE_LIVE,
+  MERCY_PAY_HOTES_HTTP_AUTORISES,
+  MERCY_PAY_WEBHOOK_SECRET_FORMAT,
+  MERCY_PAY_WEBHOOK_SECRET_LONGUEUR_MIN,
 } from './paiements'
 import type { PaiementEnvironnement } from './paiements'
 
@@ -36,6 +42,7 @@ const SITE_ENVIRONNEMENTS = ['production', 'staging', 'development'] as const
 
 const baseUrlIaValide = (valeur: string): boolean => baseUrlValide(valeur, IA_HOTES_HTTP_AUTORISES)
 const baseUrlKpayValide = (valeur: string): boolean => baseUrlValide(valeur, KPAY_HOTES_HTTP_AUTORISES)
+const baseUrlMercyPayValide = (valeur: string): boolean => baseUrlValide(valeur, MERCY_PAY_HOTES_HTTP_AUTORISES)
 
 /** Variable texte facultative : vide ou espaces = absente, sinon rognée. */
 const rognerOuAbsent = (valeur: unknown): unknown => videVautAbsent(typeof valeur === 'string' ? valeur.trim() : valeur)
@@ -126,6 +133,29 @@ const schemaEnv = z
     ),
     // Autorise une clé kpay_test_ en production (préproduction uniquement). Défaut faux.
     KPAY_MODE_TEST_AUTORISE: schemaBooleenFaux,
+    // P1 : Mercy Pay (paiement mobile money). Mêmes règles que K-PAY : serveur seulement, vide = absent, messages sans
+    // valeur. Fournisseur « configuré » <=> `MERCY_PAY_API_KEY` présente ; le secret de webhook est facultatif hors
+    // production (le rapprochement par interrogation assure alors le résultat).
+    MERCY_PAY_API_KEY: z.preprocess(
+      rognerOuAbsent,
+      z.string().regex(MERCY_PAY_CLE_API_FORMAT, 'format invalide (clé Mercy Pay de test ou de production attendue)').optional(),
+    ),
+    MERCY_PAY_WEBHOOK_SECRET: z.preprocess(
+      rognerOuAbsent,
+      z
+        .string()
+        .regex(MERCY_PAY_WEBHOOK_SECRET_FORMAT, 'format invalide (secret de signature des webhooks Mercy Pay attendu)')
+        .min(MERCY_PAY_WEBHOOK_SECRET_LONGUEUR_MIN, `doit contenir au moins ${MERCY_PAY_WEBHOOK_SECRET_LONGUEUR_MIN} caractères`)
+        .optional(),
+    ),
+    // Absente = MERCY_PAY_BASE_URL_DEFAUT. HTTPS obligatoire en production ; http://127.0.0.1 ou http://localhost
+    // seulement hors production. Sans identifiants dans l'URL.
+    MERCY_PAY_BASE_URL: z.preprocess(
+      rognerOuAbsent,
+      z.string().refine(baseUrlMercyPayValide, 'doit être une URL https (http seulement pour localhost ou 127.0.0.1 hors production), sans identifiants').optional(),
+    ),
+    // Autorise une clé mp_sandbox_ en production (préproduction uniquement). Défaut faux.
+    MERCY_PAY_MODE_TEST_AUTORISE: schemaBooleenFaux,
     // Serveur MCP (S16) : désactivé par défaut. Activé pour une liste de comptes pilotes,
     // puis pour tous les comptes payants.
     MCP_ACTIF: schemaBooleenFaux,
@@ -262,6 +292,31 @@ const schemaEnv = z
         })
       }
     }
+    // P1 : Mercy Pay. En production : pas de clé de test (sauf préproduction explicite), secret de webhook obligatoire
+    // (même en préproduction : aucun flux non signé) et HTTPS strict. Messages sans valeur. Un K-PAY absent ne bloque rien.
+    if (env.NODE_ENV === 'production') {
+      if (env.MERCY_PAY_API_KEY && resolveMercyPayEnvironnement(env.MERCY_PAY_API_KEY) === 'test' && !env.MERCY_PAY_MODE_TEST_AUTORISE) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['MERCY_PAY_API_KEY'],
+          message: 'une clé de test est interdite en production (MERCY_PAY_MODE_TEST_AUTORISE=true seulement en préproduction)',
+        })
+      }
+      if (env.MERCY_PAY_API_KEY && !env.MERCY_PAY_WEBHOOK_SECRET) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['MERCY_PAY_WEBHOOK_SECRET'],
+          message: 'requis en production dès que la clé Mercy Pay est présente (signature des webhooks)',
+        })
+      }
+      if (env.MERCY_PAY_BASE_URL && !env.MERCY_PAY_BASE_URL.startsWith('https://')) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['MERCY_PAY_BASE_URL'],
+          message: 'doit commencer par https:// en production',
+        })
+      }
+    }
     if ((env.GOOGLE_CLIENT_ID && !env.GOOGLE_CLIENT_SECRET) || (!env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET)) {
       ctx.addIssue({
         code: 'custom',
@@ -279,6 +334,8 @@ const schemaEnv = z
     NUXT_PUBLIC_SITE_URL: (env.NUXT_PUBLIC_SITE_URL ?? SITE_URL_DEV_DEFAUT).replace(/\/+$/, ''),
     // Garanti défini : adresse par défaut de K-PAY sinon (sans barre finale, les chemins commencent par `/`).
     KPAY_BASE_URL: (env.KPAY_BASE_URL ?? KPAY_BASE_URL_DEFAUT).replace(/\/+$/, ''),
+    // Garanti défini : adresse par défaut de Mercy Pay sinon (sans barre finale).
+    MERCY_PAY_BASE_URL: (env.MERCY_PAY_BASE_URL ?? MERCY_PAY_BASE_URL_DEFAUT).replace(/\/+$/, ''),
     // Garanti défini : requis en production par la validation ci-dessus, `admin.localhost` sinon.
     ADMIN_HOST: env.ADMIN_HOST ?? ADMIN_HOST_DEV_DEFAUT,
     // Garanti défini : `inconnue` sinon (D-A4-22).
@@ -303,6 +360,11 @@ export function loadEnv(source: Record<string, string | undefined>): Env {
 /** Environnement K-PAY déduit du préfixe de la clé API (`kpay_live_` = production, tout le reste = test). */
 export function resolveKpayEnvironnement(cleApi: string): PaiementEnvironnement {
   return cleApi.startsWith(KPAY_CLE_PREFIXE_LIVE) ? 'live' : 'test'
+}
+
+/** Environnement Mercy Pay déduit du préfixe de la clé API (`mp_live_` = production, tout le reste = test). */
+export function resolveMercyPayEnvironnement(cleApi: string): PaiementEnvironnement {
+  return cleApi.startsWith(MERCY_PAY_CLE_PREFIXE_LIVE) ? 'live' : 'test'
 }
 
 /** K-PAY est configuré <=> la clé API et la clé secrète sont présentes (la validation exige qu'elles aillent ensemble). */
