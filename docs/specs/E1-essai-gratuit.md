@@ -19,12 +19,13 @@ Spec de l'architecte (2026-11-23). Décisions de départ : `docs/JOURNAL_DECISIO
 - **D1** Déclencheur : `terminer` et `createVitrine`, dans leur transaction, après l'INSERT de la vitrine, avant le quota de services. Aucun rétroactif.
 - **D2** Origine `essai` : CHECK étendu, `ABONNEMENT_ORIGINES` + `essai`, `offrirJours(..., origineCreation: 'offert' | 'essai' = 'offert')`. Un paiement fait passer à `paiement` (existant).
 - **D3** Durée : catégorie A5 `essai`, clé `inscription`, valeurs `{ actif, dureeJours 1..90, relanceServicesJour, relanceStatistiquesJour }` avec `1 ≤ services < statistiques < durée`. Seed v1 `{ true, 14, 2, 7 }`. Lecture SANS cache dans la transaction. Repli sur `ESSAI_DEFAUT` (= v1) : ⚠️ repli « ouvert » (c'est un cadeau, pas un encaissement). Un changement ne touche que les essais accordés ensuite. Les tests qui activent une autre version appellent `restaurerConfiguration()`.
-- **D4** Marqueur anti-abus : table `essais_empreintes`, HMAC-SHA256 sur clé HKDF dérivée de `NUXT_BETTER_AUTH_SECRET` (`info = jesuispro:essai-empreinte:v1`), sans FK vers `users`, sans donnée en clair. Clés : e-mail `trim().toLowerCase()` (ignoré si temporaire), numéro vérifié en chiffres seuls. Pas de normalisation Gmail/alias `+tag`. ⚠️ Un numéro ajouté après l'essai n'est pas enregistré.
+- **D4** Marqueur anti-abus : table `essais_empreintes`, HMAC-SHA256 sur clé HKDF dérivée d'un secret DÉDIÉ `ESSAI_EMPREINTE_SECRET` (décision Cabrel : l'empreinte ne dépend plus du secret d'authentification, qui peut être tourné sans rouvrir les essais). Variable validée au démarrage (`shared/env.ts`, min. 32 caractères), OBLIGATOIRE en production, avec repli dérivé de `NUXT_BETTER_AUTH_SECRET` (label HKDF distinct) hors production seulement ; ne jamais la tourner ni la perdre (à documenter dans `docs/exploitation-admin.md`). HKDF `info = jesuispro:essai-empreinte:v1`, sans FK vers `users`, sans donnée en clair. Clés : e-mail `trim().toLowerCase()` (ignoré si temporaire), numéro vérifié en chiffres seuls. Pas de normalisation Gmail/alias `+tag`. ⚠️ Un numéro ajouté après l'essai n'est pas enregistré.
+- **D4bis** Comptes d'avant E1 (décision Cabrel) : l'application n'est pas en production, donc AUCUN rattrapage ni migration pour eux. E1 est déployé avant les premiers vrais comptes ; la base de développement peut être purgée. Si un jour des comptes existaient sans empreinte, un script TypeScript de rattrapage (le SQL ne peut pas calculer le HMAC) serait à écrire à ce moment-là.
 - **D5** Aucun `journal_admin`.
 - **D6** Éligibilité sous verrou `abonnement:<userId>`, dans l'ordre : config `actif` → aucun abonnement → aucun essai pour ce compte → au moins une clé → aucune clé déjà présente. Insertion des empreintes `ON CONFLICT DO NOTHING RETURNING` ; une ligne manquante annule le savepoint (`deja_consomme`).
 - **D7** Concurrence : `terminer` déjà idempotent ; `createVitrine` contre `terminer` : unicité `vitrines_user_id` ; unicité `essais.user_id` et `abonnements.user_id`.
-- **D8** E-mails `abonnement_essai_services` (jour 2) et `abonnement_essai_statistiques` (jour 7) : planifiés dans l'outbox à l'octroi (9 h locale, fuseau du compte, repli Douala), revalidés à l'envoi. Annulation : `ENTITE_INTROUVABLE`, `ESSAI_TERMINE` (origine ≠ essai), `RAPPEL_PERIME`, `DESTINATAIRE_ABSENT`, `CONTENU_DEJA_AJOUTE` (« services » seulement). ⚠️ Catégorie `transactionnel`, sans désabonnement (alternative : respecter `email_hebdo`).
-- **D9** J-3 et J0 : J-7 sauté pour un essai (`ESSAI_RAPPELS_JOURS = [3, 0]`), variante `essai: true` du contenu `abonnement_rappel`, même lien de renouvellement. ⚠️ La grâce s'applique à l'essai (14 + 7 jours de fait).
+- **D8** E-mails `abonnement_essai_services` (jour 2) et `abonnement_essai_statistiques` (jour 7) : planifiés dans l'outbox à l'octroi (9 h locale, fuseau du compte, repli Douala), revalidés à l'envoi. Annulation : `ENTITE_INTROUVABLE`, `ESSAI_TERMINE` (origine ≠ essai), `RAPPEL_PERIME`, `DESTINATAIRE_ABSENT`, `CONTENU_DEJA_AJOUTE` (« services » seulement). Catégorie `relationnel` (décision Cabrel : chaque e-mail porte un lien de désabonnement), préférence `email_hebdo` réutilisée (aucune nouvelle colonne), jeton signé existant (`signUnsubscribeToken`), annulation `PREFERENCE_DESACTIVEE` si désactivée. Les rappels J-3 et J0 de fin d'essai restent `transactionnel` (fin d'accès).
+- **D9** J-3 et J0 : J-7 sauté pour un essai (`ESSAI_RAPPELS_JOURS = [3, 0]`), variante `essai: true` du contenu `abonnement_rappel`, même lien de renouvellement. **Pas de grâce pour un essai** (défaut : un essai de 14 jours dure 14 jours ; la grâce de 7 jours est faite pour un payeur qui oublie de renouveler). `getPlanEffectif` : grâce appliquée seulement si `origine <> 'essai'` ; un essai prolongé par l'admin garde `essai`, donc pas de grâce non plus. À inverser si Cabrel le souhaite.
 - **D10** Affichage : `terminer` renvoie `essai: { finLe, dureeJours } | null` ; DTO d'abonnement du studio `essai: { finLe } | null` ; `/tarifs` et landing : `essai: { actif, dureeJours }`. Texte : « 14 jours du plan payant offerts à la création de votre vitrine. Aucun paiement demandé. » ; jamais « sans engagement » ni « résiliable ».
 - **D11** Conversions : `prolonger(..., paiementId ≠ null)` exécute `UPDATE essais SET converti_le = now WHERE user_id = $1 AND converti_le IS NULL`. Indicateur admin sur 30 jours (accordés, en cours, convertis, taux).
 - **D12** Retour au plan gratuit par l'admin pendant un essai : l'essai reste consommé, ses e-mails s'annulent.
@@ -86,7 +87,7 @@ Spec de l'architecte (2026-11-23). Décisions de départ : `docs/JOURNAL_DECISIO
 - 25 [PG] Routes admin avec un abonnement `essai` : 200, `origine = essai`, aucune 500.
 - 26 [PG] Un essai n'est pas compté dans les revenus, les abonnés payants ni l'alerte « payant sans paiement ».
 - 27 [PG] Admin réauthentifié : crée et active une version `essai` (journal `version.activer`) ; sans réauthentification : `REAUTH_REQUISE`.
-- 28 [PG] Essai expiré au-delà de la grâce : `getPlanEffectif` = gratuit, services au-delà de 3 masqués publiquement, jamais supprimés.
+- 28 [PG] Essai expiré (aucune grâce, même après 1 s) : `getPlanEffectif` = gratuit ; un abonnement payé expiré garde sa grâce (non-régression) ; services au-delà de 3 masqués publiquement, jamais supprimés.
 - 29 [PG] Tarifs publics : `essai` suit `actif` (≤ 5 s).
 - 30 [U] `empreinteEssai` : insensible à la casse et aux espaces ; deux secrets donnent deux empreintes ; e-mail temporaire et numéro non vérifié exclus.
 - 31 [PG] CHECK : `essai` accepté, `Essai` refusé ; catégorie `essai` avec une autre clé refusée ; types d'outbox acceptés.
@@ -97,11 +98,11 @@ Spec de l'architecte (2026-11-23). Décisions de départ : `docs/JOURNAL_DECISIO
 ## 7. Risques et inconnus
 
 - **R1** `regression-checker` obligatoire sur `prolongation.ts`, `onboarding.ts`, `planifierRappelsAbonnement`.
-- **R2** Rotation de `NUXT_BETTER_AUTH_SECRET` : empreintes perdues, essais de nouveau possibles. Option : secret dédié.
-- **R3** Comptes d'avant E1 : pas d'empreinte, un compte supprimé puis recréé obtient un essai.
+- **R2** Résolu (D4) : secret dédié `ESSAI_EMPREINTE_SECRET`. Reste : le perdre ou le tourner rouvre les essais ; à conserver comme une clé de chiffrement.
+- **R3** Résolu (D4bis) : pas de production, pas de rattrapage.
 - **R4** Numéro ajouté après l'essai : non enregistré (crochet Better Auth possible).
-- **R5** E-mails jour 2 et jour 7 en `transactionnel` : à valider (ePrivacy).
-- **R6** Grâce appliquée à l'essai : 21 jours de fait.
+- **R5** Résolu (D8) : `relationnel` avec désabonnement.
+- **R6** Résolu (D9) : pas de grâce pour un essai.
 - **R7** Paiement en ligne verrouillé (`a_valider`) : le lien de J0 mène à une page où l'on ne peut pas encore payer ; état de la page d'abonnement NON VÉRIFIÉ.
 - **R8** Savepoint Drizzle imbriqué NON VÉRIFIÉ ; repli `SAVEPOINT` explicite.
 - **NON VÉRIFIÉ** : forme de `server/resources/abonnement.ts`, DTO et carte Abonnement, écran de fin d'onboarding, route publique des tarifs, interface `adaptateurs/types.ts`, fichier de la vue d'ensemble admin, `shared/notifications.ts`, `seed-v1.test.ts`, listes figées de `migration-0020.test.ts`, présence de `essai.spec.ts` dans la CI, `getPlanEffectif` dans la transaction passée, réutilisation de `ABONNEMENT_RAPPEL_HEURE_LOCALE`.
