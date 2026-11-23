@@ -16,7 +16,7 @@ import {
   vitrines,
 } from '../../shared/db/schema'
 import { env } from '../../shared/env'
-import { ESSAI_EMAIL_ENTITE_TYPE, ESSAI_EMAIL_TYPES } from '../../shared/essai'
+import { ESSAI_CONSTAT_EMAIL_TYPE, ESSAI_EMAIL_ENTITE_TYPE, ESSAI_EMAIL_TYPES } from '../../shared/essai'
 import type { EssaiEmailType } from '../../shared/essai'
 import { isValidTimeZone } from '../../shared/fuseau'
 import {
@@ -875,6 +875,50 @@ async function prepareEssaiRelance(row: EmailOutboxRow, now: Date): Promise<Prep
 }
 
 /**
+ * E1 : constat de fin d'essai (e-mail de service). La ligne porte l'id de l'ABONNEMENT ; origine, fin d'essai et
+ * destinataire sont relus à l'envoi puis jugés par `evaluerPertinence` (pure) : un essai converti ou prolongé est annulé.
+ */
+async function prepareEssaiConstat(row: EmailOutboxRow, now: Date): Promise<Preparation> {
+  const [result] = await db
+    .select({
+      origine: abonnements.origine,
+      expireLe: abonnements.expireLe,
+      email: users.email,
+      fuseau: users.fuseau,
+      prenom: vitrines.prenom,
+      emailContact: vitrines.emailContact,
+    })
+    .from(abonnements)
+    .innerJoin(users, eq(users.id, abonnements.userId))
+    .leftJoin(vitrines, eq(vitrines.userId, users.id))
+    .where(eq(abonnements.id, row.entiteId))
+    .limit(1)
+
+  const destinataire = result ? resolveRecipient(result.emailContact, result.email) : null
+  const code = evaluerPertinence({
+    type: ESSAI_CONSTAT_EMAIL_TYPE,
+    occurrence: row.occurrence,
+    createdAt: row.createdAt,
+    abonnement: result ? { origine: result.origine, expireLe: result.expireLe, destinataire: destinataire !== null } : null,
+  }, now)
+  if (code !== null) return { annule: code }
+  if (!result || destinataire === null) return { annule: 'ENTITE_INTROUVABLE' }
+  return {
+    contenu: {
+      type: ESSAI_CONSTAT_EMAIL_TYPE,
+      outboxId: row.id,
+      generatedAt: row.createdAt,
+      destinataire,
+      prenom: result.prenom ?? '',
+      fuseau: fuseauAffichage(result.fuseau),
+      siteUrl: env.NUXT_PUBLIC_SITE_URL,
+      expireLe: result.expireLe,
+      periodeMois: PERIODES_MOIS[0],
+    },
+  }
+}
+
+/**
  * Plafond S9 #88 côté relances d'essai : un autre e-mail `relationnel` du compte (résumé : `entite_id` = compte ;
  * relance d'essai : `entite_id` = un abonnement du compte) est-il DÉJÀ PARTI (`envoye`) depuis le lundi local de `now` ?
  * Seul `envoye` compte : deux lignes en cours en même temps ne s'annulent pas l'une l'autre (la course restante, deux
@@ -927,6 +971,7 @@ async function prepareEmail(row: EmailOutboxRow, now: Date): Promise<Preparation
   assertEventMatchesEntity(row.type, row.entiteType as EmailEntityType)
   if ((ADMIN_A2_EMAIL_TYPES as readonly string[]).includes(row.type)) return preparerEmailAdminCompte(db, row)
   if (isEssaiEmailType(row.type)) return prepareEssaiRelance(row, now)
+  if (row.type === ESSAI_CONSTAT_EMAIL_TYPE) return prepareEssaiConstat(row, now)
   if (row.type === 'abonnement_rappel') return prepareRappelAbonnement(row, now)
   if (row.type === 'paiement_confirme') return preparePaiementConfirme(row, now)
   if (row.type === 'reservation_visiteur_rappel') return prepareRappelVisiteur(row, now)

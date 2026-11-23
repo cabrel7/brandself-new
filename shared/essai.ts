@@ -55,6 +55,17 @@ export type EssaiEmailType = (typeof ESSAI_EMAIL_TYPES)[number]
 export const ESSAI_EMAIL_ENTITE_TYPE = 'abonnement'
 
 /**
+ * E1 : e-mail de CONSTAT de fin d'essai. E-mail de SERVICE (catégorie `transactionnel`, comme les rappels J-3 et J0 :
+ * pas de désabonnement), d'où son absence de `ESSAI_EMAIL_TYPES` (les relances `relationnel`). Même occurrence
+ * `ESSAI:<fin ISO>` que les relances (l'unicité de l'outbox porte aussi sur le type).
+ */
+export const ESSAI_CONSTAT_EMAIL_TYPE = 'abonnement_essai_constat'
+/** Jours civils (fuseau du compte) entre le dernier jour de l'essai et l'envoi du constat (9 h locale). */
+export const ESSAI_CONSTAT_DELAI_JOURS = 1
+/** Jours après la fin de l'essai au-delà desquels le constat est périmé (`RAPPEL_PERIME`) : worker arrêté, retard. */
+export const ESSAI_CONSTAT_PEREMPTION_JOURS = 3
+
+/**
  * Occurrence d'un e-mail d'essai : `ESSAI:<fin ISO>` (30 caractères pour une ISO en millisecondes, 32 au plus
  * et `^[0-9A-Z:.-]*$` selon `emails_transactionnels_occurrence_check`).
  */
@@ -90,3 +101,9 @@ export interface EssaiPublicDTO {
   actif: boolean
   dureeJours: number
 }
+
+/**
+ * Conservation des empreintes de l'essai, en mois. La fonction SQL `essais_empreintes_purger(avant)` refuse un `avant`
+ * plus récent que `now() - 24 mois` : seul chemin de suppression autorisé. Au-delà, un nouvel essai redevient possible.
+ */
+export const ESSAI_EMPREINTES_CONSERVATION_MOIS = 24

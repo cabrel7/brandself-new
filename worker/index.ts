@@ -37,6 +37,7 @@ import { planifierNotificationsRepetees, planifierPurgeNotifications } from '../
 import { planifierPurgeIndisponibilites } from '../server/jobs/indisponibilites'
 import { planifierPurgeOauth } from '../server/jobs/oauth'
 import { planifierPurgeEnvois } from '../server/jobs/envois-codes'
+import { planifierPurgeEssaiEmpreintes } from '../server/jobs/essai-empreintes'
 import { planifierControleEchecs, traiterControleEchecs } from '../server/jobs/supervision'
 import { JOB_ALERTE_ECHECS, traiterAlerteEchecs } from '../server/services/admin/supervision-alertes'
 import { traiterRafraichirCacheMedias } from '../server/jobs/rafraichir-cache-medias'
@@ -52,6 +53,7 @@ import type { ExecutionDeps } from '../server/services/ia/types'
 import { purgerIndisponibilites } from '../server/services/indisponibilites-purge'
 import { purgerOauth } from '../server/services/oauth-purge'
 import { purgerEnvois } from '../server/services/envois-codes'
+import { purgerEmpreintesEssai } from '../server/services/essai'
 import { enregistrerEchecFile } from '../server/services/supervision-echecs'
 import { purgerWebhooksRefuses } from '../server/services/webhooks-refuses'
 import { agregerStatistiques, purgerStatistiques } from '../server/services/statistiques'
@@ -170,6 +172,12 @@ const workerMaintenance = new Worker(
     if (job.name === JOBS.purgerEnvois) {
       const purgees = await purgerEnvois(new Date())
       console.info(`[worker] purge envois de codes : ${purgees} ligne(s) supprimée(s)`)
+      return
+    }
+    // E1 : empreintes de l'essai de plus de 24 mois (nombre seulement dans le journal, jamais une valeur d'empreinte).
+    if (job.name === JOBS.purgerEssaiEmpreintes) {
+      const purgees = await purgerEmpreintesEssai(new Date())
+      console.info(`[worker] purge empreintes d'essai : ${purgees} ligne(s) supprimée(s)`)
       return
     }
     throw new Error(`Unknown job: ${job.name}`)
@@ -369,6 +377,10 @@ planifierPurgeIndisponibilites(maintenanceQueue).catch(() => {
 
 planifierPurgeEnvois(maintenanceQueue).catch(() => {
   console.error('[worker] code sends purge scheduling failed (ENVOIS_CODES_PURGE_SCHEDULE_FAILED)')
+})
+
+planifierPurgeEssaiEmpreintes(maintenanceQueue).catch(() => {
+  console.error('[worker] trial fingerprints purge scheduling failed (ESSAI_EMPREINTES_PURGE_SCHEDULE_FAILED)')
 })
 
 planifierControleEchecs(maintenanceQueue).catch(() => {

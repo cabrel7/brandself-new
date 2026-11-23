@@ -364,6 +364,7 @@ export function buildTransactionalEmail(content: TransactionalEmailContent): Ema
     case 'utilisateur_resume_hebdo':
       return buildUtilisateurEmail(content)
     case 'abonnement_rappel':
+    case 'abonnement_essai_constat':
     case 'paiement_confirme':
       return buildAbonnementEmail(content)
     case 'abonnement_essai_services':

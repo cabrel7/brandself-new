@@ -1,11 +1,14 @@
 import { createHmac, hkdfSync, randomUUID } from 'node:crypto'
 import { Temporal } from '@js-temporal/polyfill'
-import { and, count, eq, gt, gte, inArray, isNotNull, isNull } from 'drizzle-orm'
+import { and, count, eq, gt, gte, inArray, isNotNull, isNull, sql } from 'drizzle-orm'
 import { TEMP_EMAIL_DOMAIN } from '../../shared/compte'
 import { abonnements, essais, essaisEmpreintes, users } from '../../shared/db/schema'
 import {
+  ESSAI_CONSTAT_DELAI_JOURS,
+  ESSAI_CONSTAT_EMAIL_TYPE,
   ESSAI_EMAIL_ENTITE_TYPE,
   ESSAI_EMPREINTE_HKDF_INFO,
+  ESSAI_EMPREINTES_CONSERVATION_MOIS,
   ESSAI_STATISTIQUES_JOURS,
 } from '../../shared/essai'
 import type { EssaiDTO, EssaiEmailType, EssaiEmpreinteNature, RaisonRefusEssai } from '../../shared/essai'
@@ -34,6 +37,8 @@ const LOG_CONTEXTE = 'essai'
 const ESSAI_EMAIL_TYPE_SERVICES: EssaiEmailType = 'abonnement_essai_services'
 const ESSAI_EMAIL_TYPE_STATISTIQUES: EssaiEmailType = 'abonnement_essai_statistiques'
 const CATEGORIE_EMAIL_ESSAI = 'relationnel'
+/** Le constat de fin d'essai est un e-mail de service (comme les rappels J-3 et J0). */
+const CATEGORIE_EMAIL_CONSTAT = 'transactionnel'
 const ORIGINE_ESSAI = 'essai'
 
 /** Une clé d'unicité d'un compte : sa nature et son empreinte (64 caractères hexadécimaux minuscules). */
@@ -147,6 +152,33 @@ export function instantRelance(now: Date, jour: number, fuseau: string): Date {
   return new Date(neuf.epochMilliseconds)
 }
 
+/**
+ * Instant d'envoi du constat de fin d'essai : `ESSAI_CONSTAT_DELAI_JOURS` jour(s) civil(s) après le DERNIER jour de
+ * l'essai (date locale de `finLe - 1 ms`, `finLe` étant exclusive), à 9 h dans le fuseau du compte (repli Africa/Douala
+ * si invalide). Toujours après la fin de l'essai. PURE.
+ */
+export function instantConstat(finLe: Date, fuseau: string): Date {
+  const zone = isValidTimeZone(fuseau) ? fuseau : ABONNEMENT_FUSEAU_REPLI
+  const dernierJour = Temporal.Instant.fromEpochMilliseconds(finLe.getTime() - 1).toZonedDateTimeISO(zone).toPlainDate()
+  const neuf = dernierJour
+    .add({ days: ESSAI_CONSTAT_DELAI_JOURS })
+    .toZonedDateTime({ timeZone: zone, plainTime: Temporal.PlainTime.from({ hour: ABONNEMENT_RAPPEL_HEURE_LOCALE }) })
+  return new Date(neuf.epochMilliseconds)
+}
+
+/** Constat de fin d'essai de l'abonnement `abonnementId` (idempotent : unicité de l'outbox sur le type et l'occurrence). */
+export function evenementConstat(abonnementId: string, finLe: Date, now: Date, fuseau: string): ScheduledEmailEvent {
+  return {
+    entiteType: ESSAI_EMAIL_ENTITE_TYPE,
+    entiteId: abonnementId,
+    type: ESSAI_CONSTAT_EMAIL_TYPE,
+    occurrence: construireOccurrenceEssai(finLe),
+    categorie: CATEGORIE_EMAIL_CONSTAT,
+    prochaineTentative: instantConstat(finLe, fuseau),
+    creeLe: now,
+  }
+}
+
 function evenementsRelance(abonnementId: string, finLe: Date, now: Date, fuseau: string, jours: { services: number, statistiques: number }): ScheduledEmailEvent[] {
   const commun = {
     entiteType: ESSAI_EMAIL_ENTITE_TYPE,
@@ -158,6 +190,7 @@ function evenementsRelance(abonnementId: string, finLe: Date, now: Date, fuseau:
   return [
     { ...commun, type: ESSAI_EMAIL_TYPE_SERVICES, prochaineTentative: instantRelance(now, jours.services, fuseau) },
     { ...commun, type: ESSAI_EMAIL_TYPE_STATISTIQUES, prochaineTentative: instantRelance(now, jours.statistiques, fuseau) },
+    evenementConstat(abonnementId, finLe, now, fuseau),
   ]
 }
 
@@ -262,4 +295,24 @@ export async function statistiquesEssais(now: Date, jours: number = ESSAI_STATIS
     convertis: nbConvertis,
     tauxPct: nbAccordes === 0 ? null : Math.round((nbConvertis * POURCENT) / nbAccordes),
   }
+}
+
+/**
+ * Purge des empreintes de l'essai de plus de `ESSAI_EMPREINTES_CONSERVATION_MOIS` mois (D4). Passe UNIQUEMENT par la
+ * fonction SQL `essais_empreintes_purger` (SECURITY DEFINER, seul chemin de suppression autorisé : jamais de DELETE
+ * direct) ; les essais eux-mêmes ne sont jamais supprimés. Renvoie le nombre d'empreintes supprimées ; aucune valeur
+ * d'empreinte ne transite par ce service ni par le journal.
+ */
+export async function purgerEmpreintesEssai(now: Date): Promise<number> {
+  const avant = new Date(
+    Temporal.Instant.fromEpochMilliseconds(now.getTime())
+      .toZonedDateTimeISO('UTC')
+      .subtract({ months: ESSAI_EMPREINTES_CONSERVATION_MOIS })
+      .epochMilliseconds,
+  )
+  const resultat = await db.execute<{ supprimees: string | number }>(
+    sql`SELECT essais_empreintes_purger(${avant.toISOString()}::timestamptz) AS supprimees`,
+  )
+  const supprimees = Number(resultat.rows[0]?.supprimees ?? 0)
+  return Number.isSafeInteger(supprimees) ? supprimees : 0
 }

@@ -45,6 +45,8 @@ export const TEXTES_NOTIFICATIONS = {
       `Vous recevez ce rappel parce que vous l'avez demandé en réservant sur la vitrine de ${professionnel}. C'est le seul rappel prévu pour ce rendez-vous.`,
     // Même phrase pour la journée et le résumé : un seul libellé de désabonnement dans tous les e-mails planifiés.
     desabonnement: (url: string) => `Ne plus recevoir cet e-mail, en un clic : ${url}`,
+    // E1 : les e-mails d'essai disent ce qu'on ne recevra plus (conseils ET résumé : même préférence `email_hebdo`).
+    desabonnementEssai: (url: string) => `Ne plus recevoir nos conseils et le résumé de la semaine, en un clic : ${url}`,
     gerer: (url: string) => `Gérer vos e-mails : ${url}`,
   },
   journee: {
@@ -96,6 +98,20 @@ export const TEXTES_NOTIFICATIONS = {
       action: 'Garder le plan payant',
       pied: "Vous recevez cet e-mail parce que votre essai gratuit arrive à son terme. C'est un message de service : il ne peut pas être désactivé.",
     },
+  },
+  // E1 : constat de fin d'essai. E-mail de service (transactionnel) : ni désabonnement ni List-Unsubscribe.
+  essaiConstat: {
+    objet: 'Votre essai gratuit est terminé',
+    preheader: 'Votre vitrine est revenue au plan gratuit. Rien n’est supprimé.',
+    intro: (date: string) => `Votre essai gratuit ${MARQUE.nom} s'est terminé le ${date}.`,
+    retourGratuit: 'Votre vitrine est revenue au plan gratuit.',
+    masque:
+      "Ce qui dépasse les limites du plan gratuit n'est plus visible sur votre vitrine, mais rien n'est supprimé : vos services, réalisations et témoignages restent enregistrés et réapparaissent dès que vous passez au plan payant.",
+    sansPrelevement: "Rien n'est prélevé sans votre accord.",
+    invitation: 'Pour retrouver le plan payant, choisissez votre période depuis votre studio :',
+    action: 'Voir mon abonnement',
+    cloture: 'À bientôt,',
+    pied: "Vous recevez cet e-mail parce que votre essai gratuit est terminé. C'est un message de service : il ne peut pas être désactivé.",
   },
   // E1 (D8) : relances de l'essai gratuit. Catégorie `relationnel` : chaque message porte un lien de désabonnement
   // (préférence `email_hebdo`) et l'en-tête List-Unsubscribe.
@@ -295,7 +311,15 @@ export interface PaiementConfirmeContent extends AbonnementEmailBase {
   nouvelleEcheance: Date | null
 }
 
-export type AbonnementEmailContent = AbonnementRappelContent | PaiementConfirmeContent
+/** E1 : constat de fin d'essai (e-mail de service). `expireLe` : fin d'essai EXCLUSIVE ; le dernier jour inclus est écrit. */
+export interface EssaiConstatContent extends AbonnementEmailBase {
+  type: 'abonnement_essai_constat'
+  expireLe: Date
+  /** Période présélectionnée dans le lien vers l'abonnement (la plus courte : un essai n'a pas de dernière période payée). */
+  periodeMois: number
+}
+
+export type AbonnementEmailContent = AbonnementRappelContent | PaiementConfirmeContent | EssaiConstatContent
 
 /** Socle des e-mails d'administration (A2) : `entite_type = 'utilisateur'`, l'occurrence est le numéro de journal. */
 interface AdminCompteEmailBase {
@@ -660,8 +684,39 @@ export function buildPaiementConfirmeEmail(content: PaiementConfirmeContent): Em
   }
 }
 
+/** E1 : constat de fin d'essai, HTML et texte du même document. Message de service : pas de List-Unsubscribe. */
+export function buildEssaiConstatEmail(content: EssaiConstatContent): EmailMessage {
+  const t = TEXTES_NOTIFICATIONS.essaiConstat
+  const lien = lienRenouvellement(content.siteUrl, content.periodeMois)
+  const { subject, text, html } = rendreEmail({
+    objet: t.objet,
+    preheader: t.preheader,
+    siteUrl: content.siteUrl,
+    identite: { type: 'plateforme' },
+    salutation: salutation(content.prenom),
+    elements: [
+      { type: 'paragraphe', texte: t.intro(dernierJourInclus(content.expireLe, content.fuseau)) },
+      { type: 'paragraphe', texte: t.retourGratuit },
+      { type: 'paragraphe', texte: t.masque },
+      { type: 'paragraphe', texte: t.sansPrelevement },
+      { type: 'paragraphe', texte: t.invitation },
+      { type: 'bouton', libelle: t.action, url: lien, lignesTexte: [`${t.action} : ${lien}`] },
+    ],
+    cloture: t.cloture,
+    pied: [{ texte: t.pied }],
+  })
+  return { to: content.destinataire, subject, text, html, attachments: [] }
+}
+
 export function buildAbonnementEmail(content: AbonnementEmailContent): EmailMessage {
-  return content.type === 'abonnement_rappel' ? buildAbonnementRappelEmail(content) : buildPaiementConfirmeEmail(content)
+  switch (content.type) {
+    case 'abonnement_rappel':
+      return buildAbonnementRappelEmail(content)
+    case 'abonnement_essai_constat':
+      return buildEssaiConstatEmail(content)
+    case 'paiement_confirme':
+      return buildPaiementConfirmeEmail(content)
+  }
 }
 
 // --- E1 : relances de l'essai gratuit (jour 2 services, jour 7 statistiques) ---
@@ -726,7 +781,7 @@ export function buildEssaiRelanceEmail(content: EssaiRelanceContent): EmailMessa
     cloture: t.cloture,
     pied: [
       { texte: t.pied },
-      { texte: TEXTES_NOTIFICATIONS.pied.desabonnement(urlDesabonnement), url: urlDesabonnement },
+      { texte: TEXTES_NOTIFICATIONS.pied.desabonnementEssai(urlDesabonnement), url: urlDesabonnement },
       { texte: TEXTES_NOTIFICATIONS.pied.gerer(urlGerer), url: urlGerer },
     ],
   })

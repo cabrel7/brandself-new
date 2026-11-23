@@ -13,6 +13,7 @@ import type { AbonnementRappelJours } from '../../../shared/plans'
 import { JOUR_MS } from '../../../shared/temps'
 import { db } from '../../utils/db'
 import { insertScheduledEmailEvents, resolveRecipient } from '../email-outbox'
+import { evenementConstat } from '../essai'
 import type { ScheduledEmailEvent } from '../email-outbox'
 import { dansFenetre } from './fenetres'
 import { construireOccurrenceRappel } from './pertinence'
@@ -100,6 +101,9 @@ export async function planifierRappelsAbonnement(
       .limit(PLANIFICATION_LOT_UTILISATEURS)
 
     const evenements: ScheduledEmailEvent[] = []
+    // E1 : constat de fin d'essai, posé au dernier jour (J0) en filet de sécurité (essai prolongé par l'administrateur :
+    // nouvelle fin donc nouvelle occurrence). Idempotent ; non compté dans `rappels` (ce ne sont pas des rappels).
+    const constats: ScheduledEmailEvent[] = []
     for (const ligne of lot) {
       if (!isValidTimeZone(ligne.fuseau)) {
         fuseauxInvalides.add(ligne.fuseau)
@@ -117,7 +121,9 @@ export async function planifierRappelsAbonnement(
         categorie: 'transactionnel',
         creeLe: now,
       })
+      if (ligne.origine === ORIGINE_ESSAI && jours === 0) constats.push(evenementConstat(ligne.id, ligne.expireLe, now, ligne.fuseau))
     }
+    if (constats.length > 0) await database.transaction((tx) => insertScheduledEmailEvents(tx, constats))
     if (evenements.length > 0) {
       rappels += await database.transaction((tx) => insertScheduledEmailEvents(tx, evenements))
     }

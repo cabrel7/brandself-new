@@ -2,7 +2,7 @@ import { z } from 'zod'
 import { schemaIaJobData } from './schemas/ia'
 import type { IaJobData, SeoJobData } from './schemas/ia'
 import { ADMIN_A2_EMAIL_TYPES } from './admin-a2'
-import { ESSAI_EMAIL_TYPES } from './essai'
+import { ESSAI_CONSTAT_EMAIL_TYPE, ESSAI_EMAIL_TYPES } from './essai'
 
 // Une file = une nature de travail et un profil de latence. Une opération sensible à la latence n'attend
 // jamais derrière une opération lente ou limitée en débit.
@@ -67,6 +67,8 @@ export const TRANSACTIONAL_EMAIL_TYPES = [
   ...ADMIN_A2_EMAIL_TYPES,
   // E1 : relances de l'essai gratuit (jour 2 services, jour 7 statistiques), planifiées à l'octroi.
   ...ESSAI_EMAIL_TYPES,
+  // E1 : constat de fin d'essai (e-mail de service, lendemain de la fin à 9 h locale).
+  ESSAI_CONSTAT_EMAIL_TYPE,
 ] as const
 
 export type TransactionalEmailType = (typeof TRANSACTIONAL_EMAIL_TYPES)[number]
@@ -105,6 +107,8 @@ export const JOBS = {
   purgerEnvois: 'envois-codes-purger',
   // A5 : fait passer à `active` les versions de configuration programmées dont la date est échue (file `maintenance`).
   appliquerVersions: 'versions-appliquer',
+  // E1 : purge des empreintes de l'essai de plus de 24 mois, via la fonction SQL dédiée (file `maintenance`).
+  purgerEssaiEmpreintes: 'essai-empreintes-purger',
 } as const
 
 export type JobName = (typeof JOBS)[keyof typeof JOBS]
@@ -223,6 +227,10 @@ export const SAUVEGARDE_ALERTE_HEURES = 26
 // A5 (D-A5-03) : application des versions programmées, toutes les 60 secondes (idempotent).
 export const VERSIONS_APPLIQUER_SCHEDULER_ID = 'versions-appliquer'
 export const VERSIONS_APPLIQUER_INTERVALLE_MS = 60_000
+
+// E1 : purge quotidienne des empreintes de l'essai (> `ESSAI_EMPREINTES_CONSERVATION_MOIS`). Aucune charge utile.
+export const ESSAI_EMPREINTES_PURGE_SCHEDULER_ID = 'essai-empreintes-purger'
+export const ESSAI_EMPREINTES_PURGE_CRON = '15 5 * * *'
 
 export { mediasCacheRefreshJobDataSchema } from './medias-cache'
 export type { MediasCacheRefreshJobData } from './medias-cache'

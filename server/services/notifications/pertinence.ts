@@ -6,12 +6,12 @@ import {
   RAPPEL_VISITEUR_RATTRAPAGE_HEURES,
   RESUME_RATTRAPAGE_HEURES,
 } from '../../../shared/notifications'
-import { ESSAI_EMAIL_TYPES, ESSAI_OCCURRENCE_PREFIXE } from '../../../shared/essai'
+import { ESSAI_CONSTAT_EMAIL_TYPE, ESSAI_CONSTAT_PEREMPTION_JOURS, ESSAI_EMAIL_TYPES, ESSAI_OCCURRENCE_PREFIXE } from '../../../shared/essai'
 import type { EssaiEmailType } from '../../../shared/essai'
 import type { CodeAnnulation } from '../../../shared/notifications'
 import { ABONNEMENT_FUSEAU_REPLI, ABONNEMENT_RAPPEL_RATTRAPAGE_HEURES, ABONNEMENT_RAPPELS_JOURS } from '../../../shared/plans'
 import type { AbonnementRappelJours } from '../../../shared/plans'
-import { HEURE_MS } from '../../../shared/temps'
+import { HEURE_MS, JOUR_MS } from '../../../shared/temps'
 
 // S9 (docs/specs/S9-notifications.md #83, #102, §4.4) : revalidation PURE d'une ligne d'outbox juste
 // avant l'envoi. Les faits (réservation, préférences, vitrine publiée, nombre de rendez-vous du jour,
@@ -140,6 +140,15 @@ export interface EntreePaiementConfirme extends EntreeBase {
   paiement: { statut: string, utilisateurPresent: boolean, destinataire: boolean } | null
 }
 
+/**
+ * E1 : constat de fin d'essai (e-mail de service). `abonnement` `null` : introuvable. `origine` et `expireLe` sont ceux
+ * de la base ; `destinataire` : une adresse d'envoi existe.
+ */
+export interface EntreeEssaiConstat extends EntreeBase {
+  type: typeof ESSAI_CONSTAT_EMAIL_TYPE
+  abonnement: { origine: string, expireLe: Date, destinataire: boolean } | null
+}
+
 export interface EntreeEssaiRelance extends EntreeBase {
   type: EssaiEmailType
   /**
@@ -170,6 +179,7 @@ export type EntreePertinence =
   | EntreeRappelAbonnement
   | EntreePaiementConfirme
   | EntreeEssaiRelance
+  | EntreeEssaiConstat
   | EntreeHistorique
 
 /** Paramètres réglables ; les valeurs par défaut viennent de shared/notifications.ts et shared/plans.ts. */
@@ -214,6 +224,10 @@ function estPaiementConfirme(entree: EntreePertinence): entree is EntreePaiement
 
 function estEssaiRelance(entree: EntreePertinence): entree is EntreeEssaiRelance {
   return (ESSAI_EMAIL_TYPES as readonly string[]).includes(entree.type)
+}
+
+function estEssaiConstat(entree: EntreePertinence): entree is EntreeEssaiConstat {
+  return entree.type === ESSAI_CONSTAT_EMAIL_TYPE
 }
 
 function apresRattrapage(creeLe: Date, now: Date, heures: number): boolean {
@@ -310,6 +324,25 @@ function pertinenceEssaiRelance(entree: EntreeEssaiRelance, now: Date): CodeAnnu
   return null
 }
 
+/**
+ * E1 : constat de fin d'essai. Ne part que si l'essai n'a PAS été converti ni prolongé : une échéance différente de
+ * celle de l'occurrence (paiement, jours offerts) donne `ABONNEMENT_RENOUVELE` ; une origine qui n'est plus `essai`
+ * (offert, rendu gratuit) `ESSAI_TERMINE`. Avant la fin de l'essai, ou au-delà de `ESSAI_CONSTAT_PEREMPTION_JOURS`
+ * jours après, `RAPPEL_PERIME` (jamais d'e-mail de constat en retard de plusieurs jours).
+ */
+function pertinenceEssaiConstat(entree: EntreeEssaiConstat, now: Date): CodeAnnulation | null {
+  const { abonnement } = entree
+  if (abonnement === null) return 'ENTITE_INTROUVABLE'
+  const finLe = analyserOccurrenceEssai(entree.occurrence)
+  if (finLe === null) return 'RAPPEL_PERIME'
+  if (finLe.getTime() !== abonnement.expireLe.getTime()) return 'ABONNEMENT_RENOUVELE'
+  if (abonnement.origine !== ORIGINE_ESSAI) return 'ESSAI_TERMINE'
+  if (now.getTime() < finLe.getTime()) return 'RAPPEL_PERIME'
+  if (now.getTime() > finLe.getTime() + ESSAI_CONSTAT_PEREMPTION_JOURS * JOUR_MS) return 'RAPPEL_PERIME'
+  if (!abonnement.destinataire) return 'DESTINATAIRE_ABSENT'
+  return null
+}
+
 export function evaluerPertinence(
   entree: EntreePertinence,
   now: Date,
@@ -321,5 +354,6 @@ export function evaluerPertinence(
   if (estRappelAbonnement(entree)) return pertinenceRappelAbonnement(entree, now, reglages)
   if (estPaiementConfirme(entree)) return pertinencePaiementConfirme(entree)
   if (estEssaiRelance(entree)) return pertinenceEssaiRelance(entree, now)
+  if (estEssaiConstat(entree)) return pertinenceEssaiConstat(entree, now)
   return null
 }
