@@ -253,6 +253,13 @@
       "when": 1795424286616,
       "tag": "0035_p1b_catalogue_mercypay_xaf",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1795437551334,
+      "tag": "0036_e1_essai_gratuit",
+      "breakpoints": true
     }
   ]
 }

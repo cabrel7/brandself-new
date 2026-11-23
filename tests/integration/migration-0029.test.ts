@@ -253,7 +253,8 @@ describe('migration 0029 : abonnements.origine', () => {
     expect((await contraintes('abonnements')).abonnements_origine_check).toMatchObject({ type: 'c', validee: true })
   })
 
-  it.each(['paiement', 'offert', 'admin'])('should accept the origin %s', async (origine) => {
+  // E1 (migration 0036) ajoute `essai` : sa CHECK est prouvée en détail dans migration-0036-essai-gratuit.test.ts.
+  it.each(['paiement', 'offert', 'admin', 'essai'])('should accept the origin %s', async (origine) => {
     const compte = await createUser()
 
     const id = await insererAbonnement(compte.id, origine)
@@ -281,12 +282,12 @@ describe('migration 0029 : abonnements.origine', () => {
 })
 
 describe('migration 0029 : emails_transactionnels (4 nouveaux types)', () => {
-  it('should keep the type CHECK validated and list the 17 types', async () => {
+  it('should keep the type CHECK validated and list the 17 types of 0029 plus the 2 trial types of E1 (19)', async () => {
     const c = (await contraintes('emails_transactionnels')).emails_transactionnels_type_check
 
     expect(c).toMatchObject({ type: 'c', validee: true })
     for (const type of TYPES_ADMIN) expect(c?.definition, type).toContain(type)
-    for (const type of ['reservation_professionnel_nouvelle', 'utilisateur_resume_hebdo', 'abonnement_rappel', 'paiement_confirme']) expect(c?.definition, type).toContain(type)
+    for (const type of ['reservation_professionnel_nouvelle', 'utilisateur_resume_hebdo', 'abonnement_rappel', 'paiement_confirme', 'abonnement_essai_services', 'abonnement_essai_statistiques']) expect(c?.definition, type).toContain(type)
   })
 
   it.each(TYPES_ADMIN)('should accept %s for an `utilisateur` entity', async (type) => {
@@ -378,8 +379,8 @@ describe('migration 0029 : parité entre le schéma Drizzle et la base', () => {
 })
 
 describe('migration 0029 : rejouabilité', () => {
-  async function rejouer(): Promise<void> {
-    const contenu = readFileSync(path.join(MIGRATIONS_DIR, fichierMigration()), 'utf-8')
+  async function rejouerFichier(nom: string): Promise<void> {
+    const contenu = readFileSync(path.join(MIGRATIONS_DIR, nom), 'utf-8')
     const instructions = contenu
       .split(BREAKPOINT)
       .map((bloc) => bloc.trim())
@@ -387,6 +388,13 @@ describe('migration 0029 : rejouabilité', () => {
     await db.transaction(async (tx) => {
       for (const instruction of instructions) await tx.execute(sql.raw(instruction))
     })
+  }
+
+  // Rejouer 0029 remet les anciennes CHECK (origine, type, categorie) sur la base COMMUNE : la 0036 (E1), rejouable,
+  // les redéfinit ensuite. Sans cela, les tests suivants de la série (migration-0036) trouveraient une base rétrogradée.
+  async function rejouer(): Promise<void> {
+    await rejouerFichier(fichierMigration())
+    await rejouerFichier('0036_e1_essai_gratuit.sql')
   }
 
   it('should replay twice without error and without losing any data (blocked vitrine, offered abonnement, queued e-mail)', async () => {
