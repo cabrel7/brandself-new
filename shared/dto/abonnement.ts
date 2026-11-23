@@ -53,6 +53,10 @@ export interface MoyenPaiementDTO {
   libelle: string
   methode: MethodePaiement
   devise: string
+  /** Code pays ISO alpha-3 du moyen (`CMR`), pour regrouper les moyens par pays. */
+  pays: string
+  /** Nom du pays, prêt à afficher (`Cameroun`). */
+  paysLibelle: string
   indicatif: string
   /** Exemple de numéro national, pour l'aide à la saisie. */
   exemple: string

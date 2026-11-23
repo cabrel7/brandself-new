@@ -1,4 +1,4 @@
-import { DEVISES_EXPOSANT } from '../../../shared/paiements'
+import { DEVISES_EXPOSANT, libellePays } from '../../../shared/paiements'
 import type { FournisseurPaiement } from '../../../shared/paiements'
 import { calculerMontants, prixPeriodes } from '../../../shared/paiements-montants'
 import type { DeviseOffreDTO, MoyenPaiementDTO, OffreDTO, PrixPeriodeDTO } from '../../../shared/dto/abonnement'
@@ -30,6 +30,8 @@ function versDto(moyen: MoyenPaiementConfig): MoyenPaiementDTO {
     libelle: moyen.libelle,
     methode: moyen.methode,
     devise: moyen.devise,
+    pays: moyen.pays,
+    paysLibelle: libellePays(moyen.pays),
     indicatif: moyen.indicatif,
     exemple: moyen.exemple,
   }

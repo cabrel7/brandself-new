@@ -41,6 +41,18 @@ export const DEVISES_EXPOSANT: Record<string, number> = { XAF: 0, XOF: 0, EUR: 2
 
 /** Format d'un code de devise (CHECK `paiements_devise_check`). */
 export const DEVISE_FORMAT = /^[A-Z]{3}$/
+/** Pays des moyens de paiement (ISO 3166-1 alpha-3) -> nom affiché. Un pays absent s'affiche par son code. */
+export const PAYS_PAIEMENT_LIBELLES: Readonly<Record<string, string>> = {
+  CMR: 'Cameroun',
+  COG: 'Congo',
+  GAB: 'Gabon',
+  CIV: 'Côte d’Ivoire',
+  SEN: 'Sénégal',
+  BEN: 'Bénin',
+}
+export function libellePays(code: string): string {
+  return PAYS_PAIEMENT_LIBELLES[code] ?? code
+}
 /** Identifiant d'un moyen : `fournisseur:OPERATEUR` (ex. `kpay:MTN_MOMO_CMR`). */
 export const MOYEN_ID_FORMAT = /^[a-z0-9_-]{1,40}:[A-Z0-9_]{2,40}$/
 /** Code d'échec ou d'anomalie conservé (jamais un message brut du fournisseur). */
