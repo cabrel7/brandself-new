@@ -16,11 +16,14 @@ import { erreurPostgres, rejet } from './support/erreurs'
 
 const MIGRATIONS_DIR = path.resolve(import.meta.dirname, '../../server/db/migrations')
 const TAG = '0034_p1_catalogue_mercypay'
+const PREFIXE_0035 = '0035_'
 const RAISE_EXCEPTION = 'P0001'
 const UNIQUE_VIOLATION = '23505'
 const WHEN_0034 = 1794967170386
 
 const ID_MOYENS = 'a5000000-moyens-mercypay-1'
+// 0035 (P1-bis, zone XAF) remplace la v1 des moyens par une v2 : après toutes les migrations, la v1 est `remplacee`.
+const ID_MOYENS_V2 = 'a5000000-moyens-mercypay-2'
 const ID_FRAIS = 'a5000000-frais-mercypay-mobile-money-1'
 const VALEURS_MOYENS = { actifs: ['mercypay:MTN_MOMO_CMR', 'mercypay:ORANGE_CMR'] }
 const VALEURS_FRAIS = { tauxPointsBase: 350, supporteur: 'marchand' }
@@ -54,6 +57,17 @@ function instructionsRollback(): string[] {
   const debut = lignes.findIndex((l) => l.trim() === '-- BEGIN;')
   const fin = lignes.findIndex((l) => l.trim() === '-- COMMIT;')
   if (debut === -1 || fin <= debut) throw new Error('Bloc ROLLBACK BEGIN/COMMIT introuvable.')
+  return lignes.slice(debut + 1, fin).map((l) => l.replace(/^--\s?/, '').trim()).filter((l) => l !== '')
+}
+
+/** Bloc ROLLBACK de 0035 : à jouer AVANT celui de 0034 (le garde-fou de 0034 refuse tant que la v2 des moyens existe). */
+function instructionsRollback0035(): string[] {
+  const fichier = readdirSync(MIGRATIONS_DIR).find((f) => f.startsWith(PREFIXE_0035) && f.endsWith('.sql'))
+  if (fichier === undefined) throw new Error('Migration 0035 introuvable.')
+  const lignes = readFileSync(path.join(MIGRATIONS_DIR, fichier), 'utf-8').split('\n')
+  const debut = lignes.findIndex((l) => l.trim() === '-- BEGIN;')
+  const fin = lignes.findIndex((l) => l.trim() === '-- COMMIT;')
+  if (debut === -1 || fin <= debut) throw new Error('Bloc ROLLBACK 0035 introuvable.')
   return lignes.slice(debut + 1, fin).map((l) => l.replace(/^--\s?/, '').trim()).filter((l) => l !== '')
 }
 
@@ -98,6 +112,7 @@ async function lignes(lecteur: Pick<typeof db, 'execute'>, filtre = sql`TRUE`): 
 }
 
 const MERCY = sql`cle IN ('mercypay', 'mercypay:mobile_money')`
+const MERCY_V1 = sql`id IN (${ID_MOYENS}, ${ID_FRAIS})`
 const KPAY_LIGNES = sql`id IN (${KPAY.moyens.id}, ${KPAY.frais.id})`
 
 describe('migration 0034 : fichiers et journal drizzle', () => {
@@ -136,12 +151,12 @@ describe('migration 0034 : fichiers et journal drizzle', () => {
 })
 
 describe('migration 0034 : versions Mercy Pay du catalogue', () => {
-  it('should hold exactly two active v1 versions, authored by `systeme`, dated 2000-01-01, with the expected ids, keys and values', async () => {
-    const rows = await lignes(db, MERCY)
+  it('should hold its two v1 versions, authored by `systeme`, dated 2000-01-01, with the expected ids, keys and values (the moyens v1 is replaced by the v2 of 0035)', async () => {
+    const rows = await lignes(db, MERCY_V1)
 
     expect(rows.map((r) => [r.id, r.categorie, r.cle, r.numero, r.statut, r.cree_par, r.validee_le])).toEqual([
       [ID_FRAIS, 'frais', 'mercypay:mobile_money', 1, 'active', 'systeme', null],
-      [ID_MOYENS, 'moyens', 'mercypay', 1, 'active', 'systeme', null],
+      [ID_MOYENS, 'moyens', 'mercypay', 1, 'remplacee', 'systeme', null],
     ])
     expect(rows.find((r) => r.id === ID_MOYENS)?.valeurs).toEqual(VALEURS_MOYENS)
     expect(rows.find((r) => r.id === ID_FRAIS)?.valeurs).toEqual(VALEURS_FRAIS)
@@ -163,7 +178,7 @@ describe('migration 0034 : versions Mercy Pay du catalogue', () => {
     expect(resultat.rows.map((r) => `${r.categorie}/${r.cle}:${r.n}`).sort()).toEqual(['frais/mercypay:mobile_money:1', 'moyens/mercypay:1'])
     const doublon = await dansTransactionAnnulee(async (tx) => {
       const erreur = await refus(tx, `INSERT INTO configuration_versions (id, categorie, cle, numero, valeurs, statut, effective_a, motif, cree_par)
-        VALUES ('a5000000-moyens-mercypay-9', 'moyens', 'mercypay', 2, '{"actifs":[]}', 'active', now(), 'Doublon de version active', 'admin-1')`)
+        VALUES ('a5000000-moyens-mercypay-9', 'moyens', 'mercypay', 3, '{"actifs":[]}', 'active', now(), 'Doublon de version active', 'admin-1')`)
       expect(erreurPostgres(erreur.brute)).toMatchObject({ sqlstate: UNIQUE_VIOLATION, contrainte: 'configuration_versions_active_unique' })
     })
     expect(doublon).toBeUndefined()
@@ -182,10 +197,10 @@ describe('migration 0034 : versions Mercy Pay du catalogue', () => {
     const moyens = await lireVersionActive('moyens', 'mercypay', { sansCache: true })
     const frais = await lireVersionActive('frais', 'mercypay:mobile_money', { sansCache: true })
 
-    expect([...(instantane.moyensActifs.get('mercypay') ?? [])].sort()).toEqual(['mercypay:MTN_MOMO_CMR', 'mercypay:ORANGE_CMR'])
+    expect([...(instantane.moyensActifs.get('mercypay') ?? [])]).toEqual(expect.arrayContaining(['mercypay:MTN_MOMO_CMR', 'mercypay:ORANGE_CMR']))
     expect(instantane.frais).toHaveProperty(['mercypay', 'mobile_money'])
     expect((instantane.frais as Record<string, Record<string, unknown>>).mercypay?.mobile_money).toMatchObject(VALEURS_FRAIS)
-    expect(moyens).toMatchObject({ id: ID_MOYENS, numero: 1, valeurs: VALEURS_MOYENS, valideeLe: null })
+    expect(moyens).toMatchObject({ id: ID_MOYENS_V2, numero: 2, valideeLe: null })
     expect(frais).toMatchObject({ id: ID_FRAIS, numero: 1, valeurs: VALEURS_FRAIS, valideeLe: null })
     expect([...(instantane.moyensActifs.get('kpay') ?? [])].sort()).toEqual(['kpay:MTN_MOMO_CMR', 'kpay:ORANGE_CMR'])
   })
@@ -200,15 +215,15 @@ describe('migration 0034 : rejeu, retour arrière, remontée', () => {
       await executer(tx, instructionsUp())
 
       expect(await lignes(tx)).toEqual(avant)
-      expect(await lignes(tx, MERCY)).toHaveLength(2)
+      expect(await lignes(tx, MERCY)).toHaveLength(3) // frais v1, moyens v1 (remplacee), moyens v2 (0035)
     })
   })
 
   it('should never resurrect nor overwrite a version the administration has replaced (v1 replaced by v2: replay leaves both as they are)', async () => {
     await dansTransactionAnnulee(async (tx) => {
-      await tx.execute(sql`UPDATE configuration_versions SET statut = 'remplacee' WHERE id = ${ID_MOYENS}`)
+      await tx.execute(sql`UPDATE configuration_versions SET statut = 'remplacee' WHERE id = ${ID_MOYENS_V2}`)
       await tx.insert(configurationVersions).values({
-        id: 'a5000000-moyens-mercypay-2', categorie: 'moyens', cle: 'mercypay', numero: 2, valeurs: { actifs: ['mercypay:MTN_MOMO_CMR'] },
+        id: 'a5000000-moyens-mercypay-3', categorie: 'moyens', cle: 'mercypay', numero: 3, valeurs: { actifs: ['mercypay:MTN_MOMO_CMR'] },
         statut: 'active', effectiveA: new Date('2026-11-18T00:00:00Z'), motif: 'Orange désactivé', creePar: 'admin-1',
       })
       const avant = await lignes(tx, MERCY)
@@ -217,13 +232,14 @@ describe('migration 0034 : rejeu, retour arrière, remontée', () => {
 
       expect(await lignes(tx, MERCY)).toEqual(avant)
       expect(avant.map((r) => `${r.id}:${r.statut}`)).toEqual([
-        `${ID_FRAIS}:active`, `${ID_MOYENS}:remplacee`, 'a5000000-moyens-mercypay-2:active',
+        `${ID_FRAIS}:active`, `${ID_MOYENS}:remplacee`, `${ID_MOYENS_V2}:remplacee`, 'a5000000-moyens-mercypay-3:active',
       ])
     })
   })
 
   it('should roll back (documented block, executed as is): Mercy Pay rows gone, K-PAY rows untouched, protection trigger re-enabled, journal row removed; then come back up', async () => {
     await dansTransactionAnnulee(async (tx) => {
+      await executer(tx, instructionsRollback0035()) // 0035 se retire avant 0034
       await executer(tx, instructionsRollback())
 
       expect(await lignes(tx, MERCY)).toEqual([])
@@ -246,7 +262,8 @@ describe('migration 0034 : rejeu, retour arrière, remontée', () => {
     const garde = instructionsRollback().find((i) => i.startsWith('DO $$'))!
 
     await dansTransactionAnnulee(async (tx) => {
-      await tx.execute(sql.raw(garde)) // état d'origine : le garde-fou laisse passer
+      await executer(tx, instructionsRollback0035())
+      await tx.execute(sql.raw(garde)) // état d'origine (sans 0035) : le garde-fou laisse passer
       await tx.execute(sql`UPDATE configuration_versions SET statut = 'remplacee' WHERE id = ${ID_FRAIS}`)
 
       const erreur = await refus(tx, garde)
@@ -265,13 +282,19 @@ describe('migration 0034 : rejeu, retour arrière, remontée', () => {
 
       expect(erreurPostgres(erreur.brute).sqlstate).toBe(RAISE_EXCEPTION)
     })
+    await dansTransactionAnnulee(async (tx) => {
+      // Tant que la v2 de 0035 existe, 0034 refuse de se retirer : l'ordre inverse de l'application est imposé.
+      const erreur = await refus(tx, garde)
+
+      expect(erreurPostgres(erreur.brute).sqlstate).toBe(RAISE_EXCEPTION)
+    })
   })
 
   it('should leave the common database with its Mercy Pay rows and the protection trigger enabled (nothing committed by the tests above)', async () => {
     const declencheur = await db.execute<{ tgenabled: string }>(sql`
       SELECT tgenabled FROM pg_trigger WHERE tgname = 'configuration_versions_proteger' AND tgrelid = 'public.configuration_versions'::regclass`)
 
-    expect(await lignes(db, MERCY)).toHaveLength(2)
+    expect(await lignes(db, MERCY)).toHaveLength(3)
     expect(declencheur.rows[0]?.tgenabled).toBe('O')
   })
 })

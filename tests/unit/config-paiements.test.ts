@@ -45,11 +45,17 @@ function messageDe(config: ConfigPaiementsVerifiable, env: Parameters<typeof ass
 }
 
 describe('catalogue des moyens (#104)', () => {
-  it('should activate only MTN MoMo and Orange Money in Cameroon, in XAF, for K-PAY and Mercy Pay', () => {
+  it('should activate only XAF wallets: Cameroon (K-PAY, Mercy Pay), Congo and Gabon (Mercy Pay)', () => {
     const actifs = MOYENS_PAIEMENT.filter((m) => m.actif)
 
-    expect(actifs.map((m) => m.id).sort()).toEqual(['kpay:MTN_MOMO_CMR', 'kpay:ORANGE_CMR', 'mercypay:MTN_MOMO_CMR', 'mercypay:ORANGE_CMR'])
-    expect(actifs.every((m) => m.pays === 'CMR' && m.devise === 'XAF' && m.indicatif === '237')).toBe(true)
+    expect(actifs.map((m) => m.id).sort()).toEqual([
+      'kpay:MTN_MOMO_CMR', 'kpay:ORANGE_CMR',
+      'mercypay:AIRTEL_COG', 'mercypay:AIRTEL_GAB', 'mercypay:MOOV_GAB', 'mercypay:MTN_MOMO_CMR', 'mercypay:MTN_MOMO_COG', 'mercypay:ORANGE_CMR',
+    ])
+    expect(actifs.every((m) => m.devise === 'XAF')).toBe(true)
+    const indicatifs: Record<string, string> = { CMR: '237', COG: '242', GAB: '241' }
+    expect(actifs.every((m) => indicatifs[m.pays] === m.indicatif)).toBe(true)
+    expect(actifs.filter((m) => m.pays !== 'CMR').every((m) => m.fournisseur === 'mercypay')).toBe(true)
     expect(getMoyenPaiement('kpay:MTN_MOMO_CMR')?.libelle).toBe('MTN MoMo')
     expect(getMoyenPaiement('kpay:ORANGE_CMR')?.libelle).toBe('Orange Money')
   })
