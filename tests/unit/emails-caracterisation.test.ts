@@ -275,6 +275,14 @@ function casEssaiStatistiques(fuseau: Fuseau): Cas[] {
   ]
 }
 
+/** E1 : constat de fin d'essai (e-mail de service, HTML et texte, sans désabonnement). */
+function casEssaiConstat(fuseau: Fuseau): Cas[] {
+  return [
+    { label: 'avec prénom', contenu: { ...baseAbonnement(fuseau), type: 'abonnement_essai_constat', expireLe: EXPIRE_LE, periodeMois: 1 } },
+    { label: 'sans prénom', contenu: { ...baseAbonnement(fuseau, ''), type: 'abonnement_essai_constat', expireLe: EXPIRE_LE, periodeMois: 1 } },
+  ]
+}
+
 /** E1 : variante « essai » du rappel d'échéance (J-3, J0). Fixtures SÉPARÉES de `abonnement_rappel` : le snapshot historique reste intact. */
 function casRappelEssai(fuseau: Fuseau): Cas[] {
   return [
@@ -305,6 +313,8 @@ const CAS_PAR_TYPE: Record<TransactionalEmailType, (fuseau: Fuseau) => Cas[]> = 
   // E1 : relances de l'essai gratuit (relationnelles, désabonnables).
   abonnement_essai_services: casEssaiServices,
   abonnement_essai_statistiques: casEssaiStatistiques,
+  // E1 : constat de fin d'essai (e-mail de service : aucun désabonnement).
+  abonnement_essai_constat: casEssaiConstat,
 }
 
 /** Rend visibles les espaces insécables d'Intl (sinon invisibles dans un diff) ; l'échappement est réversible. */
@@ -375,7 +385,7 @@ describe('e-mails : caractérisation du contenu actuel (texte seul)', () => {
     await expect(decrireHtml('abonnement_rappel', casRappelEssai)).toMatchFileSnapshot('./__snapshots__/emails/abonnement_rappel_essai.html')
   })
 
-  it.each(['abonnement_essai_services', 'abonnement_essai_statistiques'] as const)('should keep the exact HTML of %s', async (type) => {
+  it.each(['abonnement_essai_services', 'abonnement_essai_statistiques', 'abonnement_essai_constat'] as const)('should keep the exact HTML of %s', async (type) => {
     await expect(decrireHtml(type, CAS_PAR_TYPE[type])).toMatchFileSnapshot(`./__snapshots__/emails/${type}.html`)
   })
 

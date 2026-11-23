@@ -115,13 +115,13 @@ describe('shared/notifications.ts : valeurs décidées (#84, #86, #87, #88, #92,
   })
 
   it('should give both preferences a French label usable in « Ne plus recevoir … ? »', () => {
-    expect(N.PREFERENCES_EMAIL_LIBELLES.email_hebdo).toEqual({ titre: 'Résumé de la semaine', objet: 'le résumé de la semaine' })
+    expect(N.PREFERENCES_EMAIL_LIBELLES.email_hebdo).toEqual({ titre: 'Résumé de la semaine', objet: 'nos conseils et le résumé de la semaine' })
     expect(N.PREFERENCES_EMAIL_LIBELLES.email_rappel_jour).toEqual({ titre: 'Rendez-vous du jour', objet: 'les rendez-vous du jour' })
   })
 })
 
 describe('shared/jobs.ts : types d’e-mails et jobs (#81, #82)', () => {
-  it('should add the three planned e-mail types (S9), the two subscription ones (S10), the four administration ones (A2) then the two trial ones (E1) after the eight historical ones, without duplicates', () => {
+  it('should add the three planned e-mail types (S9), the two subscription ones (S10), the four administration ones (A2) then the three trial ones (E1) after the eight historical ones, without duplicates', () => {
     expect([...TRANSACTIONAL_EMAIL_TYPES]).toEqual([
       'reservation_professionnel_nouvelle',
       'reservation_visiteur_recue',
@@ -144,6 +144,8 @@ describe('shared/jobs.ts : types d’e-mails et jobs (#81, #82)', () => {
       // E1 : relances de l'essai gratuit (jour 2 services, jour 7 statistiques).
       'abonnement_essai_services',
       'abonnement_essai_statistiques',
+      // E1 : constat de fin d'essai (e-mail de service, lendemain de la fin à 9 h locale).
+      'abonnement_essai_constat',
     ])
     expect(new Set(TRANSACTIONAL_EMAIL_TYPES).size).toBe(TRANSACTIONAL_EMAIL_TYPES.length)
   })
@@ -166,6 +168,7 @@ describe('shared/jobs.ts : types d’e-mails et jobs (#81, #82)', () => {
       // E1 : relances de l'essai gratuit.
       'abonnement_essai_services',
       'abonnement_essai_statistiques',
+      'abonnement_essai_constat',
     ])
   })
 

@@ -1,6 +1,6 @@
 import { eq } from 'drizzle-orm'
 import { afterEach, describe, expect, it } from 'vitest'
-import { abonnements, emailsTransactionnels, vitrines } from '../../shared/db/schema'
+import { abonnements, emailsTransactionnels, users, vitrines } from '../../shared/db/schema'
 import { ESSAI_OCCURRENCE_PREFIXE } from '../../shared/essai'
 import { db } from '../../server/utils/db'
 import { poserAbonnementOrigine } from './support/admin-a3'
@@ -27,6 +27,9 @@ afterEach(() => {
 
 const SERVICES = 'abonnement_essai_services' as const
 const STATISTIQUES = 'abonnement_essai_statistiques' as const
+const CONSTAT = 'abonnement_essai_constat' as const
+/** Lendemain du dernier jour de l'essai (fin 2026-12-07T10:00Z, dernier jour 7 décembre), 9 h Douala. */
+const CONSTAT_ENVOI = utc('2026-12-08T08:00:00.000Z')
 const JOUR_2_ENVOI = utc('2026-11-25T08:05:00.000Z')
 const JOUR_7_ENVOI = utc('2026-11-30T08:05:00.000Z')
 
@@ -43,7 +46,7 @@ describe('planification à l\'octroi (CA-E1-16)', () => {
   it('should plan « services » at day 2 and « statistics » at day 7, 9:00 local, key ESSAI:<end ISO>, relational, on the subscription', async () => {
     const { abonnement } = await essaiTermine()
 
-    const lignes = await lireOutbox({ entiteId: abonnement.id })
+    const lignes = (await lireOutbox({ entiteId: abonnement.id })).filter((l) => l.type !== CONSTAT)
 
     expect(lignes.map((l) => l.type).sort()).toEqual([SERVICES, STATISTIQUES])
     for (const ligne of lignes) {
@@ -90,7 +93,119 @@ describe('planification à l\'octroi (CA-E1-16)', () => {
     }]))
 
     expect(rejoue).toBe(0)
-    expect(await lireOutbox({ entiteId: abonnement.id })).toHaveLength(2)
+    // Services, statistiques et constat de fin d'essai : trois lignes, jamais plus.
+    expect(await lireOutbox({ entiteId: abonnement.id })).toHaveLength(3)
+  })
+})
+
+describe('constat de fin d\'essai (E1 : e-mail de service, lendemain de la fin à 9 h locale)', () => {
+  it('should plan the report at the grant: transactional, key ESSAI:<end ISO>, the day after the last day at 9:00 local', async () => {
+    const { abonnement, ligne } = await essaiTermine()
+
+    expect(ligne(CONSTAT)).toMatchObject({
+      entiteType: 'abonnement', entiteId: abonnement.id, occurrence: OCCURRENCE_ESSAI_V1, categorie: 'transactionnel', statut: 'en_attente', tentatives: 0,
+    })
+    expect(ligne(CONSTAT).prochaineTentative?.toISOString()).toBe(CONSTAT_ENVOI.toISOString())
+  })
+
+  it('should count the day in the time zone of the account (Pago Pago, UTC-11)', async () => {
+    const { ligne } = await essaiTermine({ fuseau: 'Pacific/Pago_Pago' })
+
+    // Fin 2026-12-07T10:00Z = 6 décembre 23 h à Pago Pago : dernier jour 6 décembre, constat le 7 à 9 h (20 h UTC).
+    expect(ligne(CONSTAT).prochaineTentative?.toISOString()).toBe('2026-12-07T20:00:00.000Z')
+  })
+
+  it('should NOT send it before its hour: the line stays waiting, nothing leaves, no attempt is counted', async () => {
+    const { ligne } = await essaiTermine()
+
+    const { ligne: apres, transport } = await traiter(ligne(CONSTAT).id, plus(CONSTAT_ENVOI, -60_000))
+
+    expect(transport.sends).toHaveLength(0)
+    expect(apres).toMatchObject({ statut: 'en_attente', tentatives: 0 })
+  })
+
+  it('should send it the day after the end at 9:00 local when the trial was not converted: HTML and text, no unsubscribe, even with the weekly e-mails switched off', async () => {
+    const { user, ligne } = await essaiTermine()
+    await db.update(users).set({ email_hebdo: false }).where(eq(users.id, user.id))
+
+    const { ligne: apres, transport } = await traiter(ligne(CONSTAT).id, plus(CONSTAT_ENVOI, 300_000))
+
+    expect(apres).toMatchObject({ statut: 'envoye', erreurCode: null, categorie: 'transactionnel' })
+    expect(transport.sends).toHaveLength(1)
+    expect(transport.dernier.to).toBe(user.email)
+    expect(transport.dernier.subject).toBe('Votre essai gratuit est terminé')
+    expect(transport.dernier.html).toBeTruthy()
+    expect(transport.dernier.text).toContain('revenue au plan gratuit')
+    expect(transport.dernier.text).toContain('/studio/compte?periode=1#abonnement')
+    expect(transport.dernier.headers?.['List-Unsubscribe']).toBeUndefined()
+    expect(transport.dernier.text).not.toMatch(/Ne plus recevoir/)
+  })
+
+  it('should cancel it once the trial was converted by a payment (end date moved, origin `paiement`): nothing leaves', async () => {
+    const { abonnement, ligne } = await essaiTermine()
+    await db.update(abonnements).set({ origine: 'paiement', expireLe: new Date('2027-01-07T10:00:00.000Z') }).where(eq(abonnements.id, abonnement.id))
+
+    const { ligne: apres, transport } = await traiter(ligne(CONSTAT).id, CONSTAT_ENVOI)
+
+    expect(apres).toMatchObject({ statut: 'annule', erreurCode: 'ABONNEMENT_RENOUVELE' })
+    expect(transport.sends).toHaveLength(0)
+  })
+
+  it('should cancel it when the trial was extended by the administration (the origin stays `essai`, the end moves)', async () => {
+    const { abonnement, ligne } = await essaiTermine()
+    await db.update(abonnements).set({ expireLe: plus(FIN_ESSAI_V1, jours(7)) }).where(eq(abonnements.id, abonnement.id))
+
+    const { ligne: apres, transport } = await traiter(ligne(CONSTAT).id, CONSTAT_ENVOI)
+
+    expect(apres).toMatchObject({ statut: 'annule', erreurCode: 'ABONNEMENT_RENOUVELE' })
+    expect(transport.sends).toHaveLength(0)
+  })
+
+  it('should cancel it with ENTITE_INTROUVABLE when the subscription is gone, and with RAPPEL_PERIME when sent more than three days late', async () => {
+    const gone = await essaiTermine()
+    await db.delete(abonnements).where(eq(abonnements.id, gone.abonnement.id))
+    const tardif = await essaiTermine()
+
+    const supprime = await traiter(gone.ligne(CONSTAT).id, CONSTAT_ENVOI)
+    const enRetard = await traiter(tardif.ligne(CONSTAT).id, plus(FIN_ESSAI_V1, jours(4)))
+
+    expect(supprime.ligne).toMatchObject({ statut: 'annule', erreurCode: 'ENTITE_INTROUVABLE' })
+    expect(enRetard.ligne).toMatchObject({ statut: 'annule', erreurCode: 'RAPPEL_PERIME' })
+    expect(enRetard.transport.sends).toHaveLength(0)
+  })
+
+  it('should be planned by the J0 tick for a trial without the grant line (extended by the administration), once, and not counted as a reminder', async () => {
+    const expire = new Date('2026-12-03T23:00:00.000Z')
+    await viderOutbox()
+    const pro = await creerPro({ emailHebdo: false, emailRappelJour: false })
+    const abonnement = await poserAbonnementOrigine(pro.user.id, expire, { origine: 'essai' })
+    const { planifierNotifications } = await modulesPlanification()
+
+    // J-3 (30 novembre) : un rappel, aucun constat ; J0 (3 décembre) : un rappel et le constat, posé une seule fois.
+    const j3 = await planifierNotifications(utc('2026-11-30T08:00:00.000Z'))
+    expect(await lireOutbox({ entiteId: abonnement.id, type: CONSTAT })).toHaveLength(0)
+    const j0 = await planifierNotifications(utc('2026-12-03T08:00:00.000Z'))
+    await planifierNotifications(utc('2026-12-03T08:05:00.000Z'))
+
+    expect(j3.rappelsAbonnement).toBe(1)
+    expect(j0.rappelsAbonnement).toBe(1)
+    const lignes = await lireOutbox({ entiteId: abonnement.id, type: CONSTAT })
+    expect(lignes).toHaveLength(1)
+    expect(lignes[0]).toMatchObject({ occurrence: `ESSAI:${expire.toISOString()}`, categorie: 'transactionnel', statut: 'en_attente' })
+    // Dernier jour = 3 décembre (fin 23 h UTC = minuit Douala) : constat le 4 à 9 h Douala = 8 h UTC.
+    expect(lignes[0]?.prochaineTentative?.toISOString()).toBe('2026-12-04T08:00:00.000Z')
+  })
+
+  it('should plan NO report for a paid subscription at J0', async () => {
+    const expire = new Date('2026-12-03T23:00:00.000Z')
+    await viderOutbox()
+    const pro = await creerPro({ emailHebdo: false, emailRappelJour: false })
+    await poserAbonnementOrigine(pro.user.id, expire, { origine: 'paiement' })
+    const { planifierNotifications } = await modulesPlanification()
+
+    await planifierNotifications(utc('2026-12-03T08:00:00.000Z'))
+
+    expect(await lireOutbox({ type: CONSTAT })).toHaveLength(0)
   })
 })
 

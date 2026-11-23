@@ -25,7 +25,7 @@ jesuis.pro
 
 —
 Vous recevez cet e-mail parce que votre essai gratuit est en cours.
-Ne plus recevoir cet e-mail, en un clic : https://jesuis.pro/desabonnement?jeton=v1.eyJ1IjoiYSIsInAiOiJlbWFpbF9oZWJkbyIsImUiOjF9.c2lnbmF0dXJlLWRlLXRlc3QtMDEyMzQ1Njc4OTAxMjM0NQ
+Ne plus recevoir nos conseils et le résumé de la semaine, en un clic : https://jesuis.pro/desabonnement?jeton=v1.eyJ1IjoiYSIsInAiOiJlbWFpbF9oZWJkbyIsImUiOjF9.c2lnbmF0dXJlLWRlLXRlc3QtMDEyMzQ1Njc4OTAxMjM0NQ
 Gérer vos e-mails : https://jesuis.pro/studio/compte
 
 ==========
@@ -55,7 +55,7 @@ jesuis.pro
 
 —
 Vous recevez cet e-mail parce que votre essai gratuit est en cours.
-Ne plus recevoir cet e-mail, en un clic : https://jesuis.pro/desabonnement?jeton=v1.eyJ1IjoiYSIsInAiOiJlbWFpbF9oZWJkbyIsImUiOjF9.c2lnbmF0dXJlLWRlLXRlc3QtMDEyMzQ1Njc4OTAxMjM0NQ
+Ne plus recevoir nos conseils et le résumé de la semaine, en un clic : https://jesuis.pro/desabonnement?jeton=v1.eyJ1IjoiYSIsInAiOiJlbWFpbF9oZWJkbyIsImUiOjF9.c2lnbmF0dXJlLWRlLXRlc3QtMDEyMzQ1Njc4OTAxMjM0NQ
 Gérer vos e-mails : https://jesuis.pro/studio/compte
 
 ==========
@@ -82,7 +82,7 @@ jesuis.pro
 
 —
 Vous recevez cet e-mail parce que votre essai gratuit est en cours.
-Ne plus recevoir cet e-mail, en un clic : https://jesuis.pro/desabonnement?jeton=v1.eyJ1IjoiYSIsInAiOiJlbWFpbF9oZWJkbyIsImUiOjF9.c2lnbmF0dXJlLWRlLXRlc3QtMDEyMzQ1Njc4OTAxMjM0NQ
+Ne plus recevoir nos conseils et le résumé de la semaine, en un clic : https://jesuis.pro/desabonnement?jeton=v1.eyJ1IjoiYSIsInAiOiJlbWFpbF9oZWJkbyIsImUiOjF9.c2lnbmF0dXJlLWRlLXRlc3QtMDEyMzQ1Njc4OTAxMjM0NQ
 Gérer vos e-mails : https://jesuis.pro/studio/compte
 
 ==========
@@ -112,7 +112,7 @@ jesuis.pro
 
 —
 Vous recevez cet e-mail parce que votre essai gratuit est en cours.
-Ne plus recevoir cet e-mail, en un clic : https://jesuis.pro/desabonnement?jeton=v1.eyJ1IjoiYSIsInAiOiJlbWFpbF9oZWJkbyIsImUiOjF9.c2lnbmF0dXJlLWRlLXRlc3QtMDEyMzQ1Njc4OTAxMjM0NQ
+Ne plus recevoir nos conseils et le résumé de la semaine, en un clic : https://jesuis.pro/desabonnement?jeton=v1.eyJ1IjoiYSIsInAiOiJlbWFpbF9oZWJkbyIsImUiOjF9.c2lnbmF0dXJlLWRlLXRlc3QtMDEyMzQ1Njc4OTAxMjM0NQ
 Gérer vos e-mails : https://jesuis.pro/studio/compte
 
 ==========
@@ -142,7 +142,7 @@ jesuis.pro
 
 —
 Vous recevez cet e-mail parce que votre essai gratuit est en cours.
-Ne plus recevoir cet e-mail, en un clic : https://jesuis.pro/desabonnement?jeton=v1.eyJ1IjoiYSIsInAiOiJlbWFpbF9oZWJkbyIsImUiOjF9.c2lnbmF0dXJlLWRlLXRlc3QtMDEyMzQ1Njc4OTAxMjM0NQ
+Ne plus recevoir nos conseils et le résumé de la semaine, en un clic : https://jesuis.pro/desabonnement?jeton=v1.eyJ1IjoiYSIsInAiOiJlbWFpbF9oZWJkbyIsImUiOjF9.c2lnbmF0dXJlLWRlLXRlc3QtMDEyMzQ1Njc4OTAxMjM0NQ
 Gérer vos e-mails : https://jesuis.pro/studio/compte
 
 ==========
@@ -169,5 +169,5 @@ jesuis.pro
 
 —
 Vous recevez cet e-mail parce que votre essai gratuit est en cours.
-Ne plus recevoir cet e-mail, en un clic : https://jesuis.pro/desabonnement?jeton=v1.eyJ1IjoiYSIsInAiOiJlbWFpbF9oZWJkbyIsImUiOjF9.c2lnbmF0dXJlLWRlLXRlc3QtMDEyMzQ1Njc4OTAxMjM0NQ
+Ne plus recevoir nos conseils et le résumé de la semaine, en un clic : https://jesuis.pro/desabonnement?jeton=v1.eyJ1IjoiYSIsInAiOiJlbWFpbF9oZWJkbyIsImUiOjF9.c2lnbmF0dXJlLWRlLXRlc3QtMDEyMzQ1Njc4OTAxMjM0NQ
 Gérer vos e-mails : https://jesuis.pro/studio/compte
