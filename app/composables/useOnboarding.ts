@@ -6,6 +6,7 @@ import type {
   OnboardingTerminerReponse,
   PropositionOnboardingDTO,
 } from '#shared/dto'
+import type { EssaiDTO } from '#shared/essai'
 import { SERVICES_PROPOSES } from '#shared/ia'
 import { ONBOARDING_ETAPES_TOTAL, PAYS_DEFAUT } from '#shared/onboarding'
 import type { OnboardingEtape } from '#shared/onboarding'
@@ -29,6 +30,8 @@ export type EtatProposition = 'attente' | 'pret' | 'erreur'
 export interface EnLigne {
   username: string
   prochaineEtape: NextStep | null
+  /** Essai accordé par cette création ; `null` : rien à annoncer en plus. */
+  essai: EssaiDTO | null
 }
 
 const ETAPES: readonly OnboardingEtape[] = [1, 2, 3, 4]
@@ -408,12 +411,12 @@ export function useOnboarding() {
     reinitialiserMessages()
     enregistrement.value = true
     try {
-      const { vitrine, resume } = await $fetch<OnboardingTerminerReponse>('/api/studio/onboarding/terminer', {
+      const { vitrine, resume, essai } = await $fetch<OnboardingTerminerReponse>('/api/studio/onboarding/terminer', {
         method: 'POST',
         body: { username: finaliserUsernameSaisie(username.value), palette: palette.value },
       })
       adresseSouhaitee.value = null
-      enLigne.value = { username: vitrine.username, prochaineEtape: resume.prochaineEtape }
+      enLigne.value = { username: vitrine.username, prochaineEtape: resume.prochaineEtape, essai: essai ?? null }
       return true
     } catch (e) {
       const erreur = lireErreurApi(e)

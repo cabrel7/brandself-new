@@ -5,6 +5,7 @@ import { ADMIN_ACTIONS, ADMIN_CIBLES, ADMIN_VERSION_TYPES, VERSION_PLAN_LIMITE_M
 import type { AdminAction, AdminCible, AdminVersionType, VersionPromptStatut, VersionStatut } from '#shared/admin'
 import { DEVISES } from '#shared/compte'
 import type { Devise } from '#shared/compte'
+import { ESSAI_CLE_CONFIG, ESSAI_DUREE_MAX_JOURS, ESSAI_DUREE_MIN_JOURS } from '#shared/essai'
 import { formatPrixSaisi, parsePrixSaisi, PRIX_MAX_MINOR } from '#shared/devises'
 import { IA_TYPES, PROMPT_MAX_TOKENS_MAX, PROMPT_MAX_TOKENS_MIN, PROMPT_TEMPERATURE_MAX, PROMPT_TEMPERATURE_MIN } from '#shared/ia'
 import { FRAIS_SUPPORTEURS, FRAIS_TAUX_PB_MAX, POINTS_BASE_TOTAL } from '#shared/paiements'
@@ -15,6 +16,7 @@ import { STATISTIQUES_RETENTION_JOURS } from '#shared/statistiques'
 import { VERSION_PLAN_LIMITES_CLES } from '#shared/schemas/admin-versions'
 import type {
   ImpactPlan,
+  ValeursEssai,
   ValeursFrais,
   ValeursMoyens,
   ValeursPlan,
@@ -36,6 +38,7 @@ export const TYPES_VERSION: readonly TypeVersion[] = [
   { valeur: 'prix', libelle: 'Prix', aide: 'Grille de prix du plan payant : trois devises, trois durées.' },
   { valeur: 'frais', libelle: 'Frais', aide: 'Frais du fournisseur de paiement et qui les supporte.' },
   { valeur: 'moyens', libelle: 'Moyens', aide: 'Moyens de paiement ouverts aux clients.' },
+  { valeur: 'essai', libelle: 'Essai gratuit', aide: 'Jours du plan payant offerts à la création d’une vitrine. Un changement ne touche que les essais accordés ensuite.' },
   { valeur: 'prompts', libelle: 'Prompts IA', aide: 'Consignes données à l’IA. Modifier un prompt crée une nouvelle version.' },
 ]
 
@@ -50,6 +53,7 @@ const LIBELLES_CLE: Record<string, string> = {
   gratuit: 'Plan gratuit',
   payant: 'Plan payant',
   onboarding_vitrine: 'Création de la vitrine',
+  [ESSAI_CLE_CONFIG]: 'Essai gratuit',
   ameliorer_texte: 'Amélioration d’un texte',
   seo_vitrine: 'Référencement de la vitrine',
   kpay: 'K-PAY',
@@ -67,6 +71,7 @@ export function clesDuTypeVersion(type: AdminVersionType): readonly string[] {
   if (type === 'plans') return PLAN_IDS
   if (type === 'prix') return ['payant']
   if (type === 'prompts') return IA_TYPES
+  if (type === 'essai') return [ESSAI_CLE_CONFIG]
   return []
 }
 
@@ -334,6 +339,41 @@ export function formMoyensDepuis(valeurs: ValeursMoyens, connus: readonly string
 
 export const valeursMoyensDepuis = (form: FormMoyens): ValeursMoyens => ({ actifs: Object.keys(form).filter((id) => form[id]) })
 
+// --- Essai gratuit ---
+
+export interface FormEssai {
+  actif: boolean
+  dureeJours: number
+  relanceServicesJour: number
+  relanceStatistiquesJour: number
+}
+
+export const formEssaiDepuis = (valeurs: ValeursEssai): FormEssai => ({ ...valeurs })
+export const valeursEssaiDepuis = (form: FormEssai): ValeursEssai => ({ ...form })
+
+const MESSAGE_ESSAI_ENTIER = 'Indiquez un nombre de jours entier.'
+
+/**
+ * Mêmes règles que `schemaValeursEssai` : durée de 1 à 90 jours, `1 <= services < statistiques < durée`.
+ * Le serveur reste juge ; ceci évite l'aller-retour pour une faute de saisie.
+ */
+export function erreursEssai(form: FormEssai): Record<string, string> {
+  const erreurs: Record<string, string> = {}
+  if (!entierDans(form.dureeJours, ESSAI_DUREE_MIN_JOURS, ESSAI_DUREE_MAX_JOURS)) {
+    erreurs.dureeJours = `Indiquez une durée entière de ${ESSAI_DUREE_MIN_JOURS} à ${ESSAI_DUREE_MAX_JOURS} jours.`
+  }
+  if (!Number.isInteger(form.relanceServicesJour)) erreurs.relanceServicesJour = MESSAGE_ESSAI_ENTIER
+  else if (form.relanceServicesJour < 1) erreurs.relanceServicesJour = 'Le jour doit être au moins le 1er.'
+  else if (form.relanceServicesJour > ESSAI_DUREE_MAX_JOURS) erreurs.relanceServicesJour = `Le jour ne peut pas dépasser ${ESSAI_DUREE_MAX_JOURS}.`
+  if (!Number.isInteger(form.relanceStatistiquesJour)) erreurs.relanceStatistiquesJour = MESSAGE_ESSAI_ENTIER
+  else if (Number.isInteger(form.relanceServicesJour) && form.relanceStatistiquesJour <= form.relanceServicesJour) {
+    erreurs.relanceStatistiquesJour = 'Le second e-mail doit partir après le premier.'
+  } else if (Number.isInteger(form.dureeJours) && form.relanceStatistiquesJour >= form.dureeJours) {
+    erreurs.relanceStatistiquesJour = 'Le second e-mail doit partir avant la fin de l’essai.'
+  }
+  return erreurs
+}
+
 // --- Prompts ---
 
 export interface FormPrompt {
@@ -417,6 +457,13 @@ export function lignesValeursVersion(version: VersionDto): LigneValeur[] {
       ]
     case 'moyens':
       return [{ libelle: 'Moyens ouverts', valeur: version.valeurs.actifs.length > 0 ? version.valeurs.actifs.join(', ') : 'Aucun' }]
+    case 'essai':
+      return [
+        { libelle: 'Essai actif', valeur: oui(version.valeurs.actif) },
+        { libelle: 'Durée', valeur: `${version.valeurs.dureeJours} jours` },
+        { libelle: 'E-mail « services »', valeur: `Jour ${version.valeurs.relanceServicesJour}` },
+        { libelle: 'E-mail « statistiques »', valeur: `Jour ${version.valeurs.relanceStatistiquesJour}` },
+      ]
     case 'prompts':
       return [
         { libelle: 'Température', valeur: String(version.valeurs.parametres.temperature ?? '—') },

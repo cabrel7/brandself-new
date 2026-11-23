@@ -1,7 +1,12 @@
 <script setup lang="ts">
 import type { NextStep } from '#shared/vitrine'
 
-const props = defineProps<{ username: string, prochaineEtape: NextStep | null }>()
+const props = defineProps<{
+  username: string
+  prochaineEtape: NextStep | null
+  /** Durée de l'essai accordé à la création ; `null` : aucun essai, rien de plus à annoncer. */
+  essaiJours: number | null
+}>()
 
 const adresse = computed(() => `${HOTE_VITRINES}/${props.username}`)
 // Le partage est déjà sur cet écran : la carte « Partagez votre vitrine » ferait doublon.
@@ -67,6 +72,8 @@ onMounted(() => titre.value?.focus())
     />
     <StudioPartageVitrine v-model:open="panneauOuvert" />
 
-    <StudioProchaineEtape v-if="etape" :etape="etape" class="mt-4 w-full" />
+    <!-- Un seul message à l'écran : l'essai accordé remplace la carte « prochaine étape ». -->
+    <p v-if="essaiJours !== null" class="m-0 mt-2 text-(length:--fs-14) text-texte-secondaire">{{ messageEssaiAccorde(essaiJours) }}</p>
+    <StudioProchaineEtape v-else-if="etape" :etape="etape" class="mt-4 w-full" />
   </main>
 </template>

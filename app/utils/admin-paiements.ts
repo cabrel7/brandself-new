@@ -17,7 +17,7 @@ import { ABONNEMENT_FUSEAU_REPLI, PLAN_LIBELLES } from '#shared/plans'
 import type { EtatAbonnement, PlanId } from '#shared/plans'
 import { PAIEMENT_SOURCE_FOURNISSEUR, PAIEMENT_STATUTS } from '#shared/paiements'
 import type { PaiementStatut } from '#shared/paiements'
-import type { FiltresPaiements, PaiementDto } from '#shared/schemas/admin-paiements'
+import type { EssaisStatistiquesDto, FiltresPaiements, PaiementDto } from '#shared/schemas/admin-paiements'
 
 const LOCALE = 'fr-FR'
 const CLE_IDEMPOTENCE_PREFIXE = 'ui-'
@@ -109,6 +109,14 @@ export const LIBELLES_ORIGINE: Record<AbonnementOrigine, string> = {
   paiement: 'Paiement',
   offert: 'Offert',
   admin: 'Administration',
+  essai: 'Essai',
+}
+
+/** Libellés des dates d'un abonnement : un essai a un début et une fin, pas une « première activation » ni une échéance. */
+export function libellesDatesAbonnement(origine: AbonnementOrigine): { debut: string, fin: string } {
+  return origine === 'essai'
+    ? { debut: 'Début de l’essai', fin: 'Fin de l’essai le' }
+    : { debut: 'Première activation', fin: 'Expire le' }
 }
 
 export function libellePlan(plan: PlanId): string {
@@ -227,4 +235,25 @@ export function lirePage(valeur: ValeurQuery): number {
 /** Date locale d'un instant, pour nommer le fichier exporté (AAAA-MM-JJ). */
 export function nomFichierExport(prefixe: string, maintenant: Date): string {
   return `${prefixe}${maintenant.toISOString().slice(0, 10)}.csv`
+}
+
+// --- Essais gratuits (E1) ---
+
+export interface CompteurEssai {
+  id: 'accordes' | 'enCours' | 'convertis' | 'taux'
+  libelle: string
+  valeur: string
+}
+
+/** Titre de la carte des conversions : la fenêtre vient de la donnée (30 jours par défaut côté serveur). */
+export const titreEssais = (jours: number): string => `Essais gratuits · ${jours} derniers jours`
+
+/** Quatre chiffres de la carte des conversions. Taux inconnu (aucun essai accordé) : tiret, jamais « 0 % ». */
+export function compteursEssais(stats: EssaisStatistiquesDto): CompteurEssai[] {
+  return [
+    { id: 'accordes', libelle: 'Accordés', valeur: formaterNombre(stats.accordes) },
+    { id: 'enCours', libelle: 'En cours', valeur: formaterNombre(stats.enCours) },
+    { id: 'convertis', libelle: 'Convertis en abonnement', valeur: formaterNombre(stats.convertis) },
+    { id: 'taux', libelle: 'Taux de conversion', valeur: stats.tauxPct === null ? '—' : `${stats.tauxPct} %` },
+  ]
 }
