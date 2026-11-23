@@ -51,6 +51,8 @@ jobs:
       ADMIN_HOST: admin.ci.example
       # Obligatoire en production (éviction du cache d'images d'un compte suspendu) : valeur factice, 32 caractères ou plus.
       MEDIAS_CACHE_REFRESH_SECRET: 0000000000000000000000000000000000000000000000000000000000ci0001
+      # E1 : secret dédié des empreintes de l'essai gratuit, obligatoire en production : valeur factice, 32 caractères ou plus.
+      ESSAI_EMPREINTE_SECRET: 00000000000000000000000000000000000000000000000000000000ci-essai1
     steps:
       - uses: actions/checkout@v4
 
@@ -225,6 +227,8 @@ jobs:
       ADMIN_HOST: admin.ci.example
       # Obligatoire en production (éviction du cache d'images d'un compte suspendu) : valeur factice, 32 caractères ou plus.
       MEDIAS_CACHE_REFRESH_SECRET: 0000000000000000000000000000000000000000000000000000000000ci0001
+      # E1 : secret dédié des empreintes de l'essai gratuit, obligatoire en production : valeur factice, 32 caractères ou plus.
+      ESSAI_EMPREINTE_SECRET: 00000000000000000000000000000000000000000000000000000000ci-essai1
       # Sans cette valeur, nuxt-site-config ne déduit pas « production » : robots.txt serait en Disallow: /.
       NUXT_PUBLIC_SITE_ENV: production
       # Un seul serveur de production, partagé par e2e:seo et Lighthouse (voir playwright.seo.config.ts, lighthouserc.cjs).

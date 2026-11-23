@@ -75,7 +75,7 @@ Spec de l'architecte (2026-11-23). Décisions de départ : `docs/JOURNAL_DECISIO
 - 13 [PG] Valeurs de la v1 seedée = `ESSAI_DEFAUT`.
 - 14 [PG] Compte avec abonnement offert par l'admin : pas d'essai, échéance inchangée, rien de consommé.
 - 15 [PG] Panne simulée dans le savepoint : vitrine et services créés, `essai: null`.
-- 16 [PG] Outbox : `abonnement_essai_services` à J+2 9 h locale, `abonnement_essai_statistiques` à J+7, occurrence `ESSAI:<fin ISO>`, `transactionnel` ; pas de doublon à la replanification.
+- 16 [PG] Outbox : `abonnement_essai_services` à J+2 9 h locale, `abonnement_essai_statistiques` à J+7, occurrence `ESSAI:<fin ISO>`, `relationnel` avec jeton de désabonnement ; pas de doublon à la replanification.
 - 17 [U] Relances : `ESSAI_TERMINE` (origine paiement), `ENTITE_INTROUVABLE`, `RAPPEL_PERIME`.
 - 18 [PG] « services » annulée (`CONTENU_DEJA_AJOUTE`) si réalisation ou service ajouté après la vitrine ; sinon envoyée.
 - 19 [PG] Planificateur : essai, pas de rappel à J-7, rappels à J-3 et J0 ; abonnement payé : rappel à J-7 (non-régression).
