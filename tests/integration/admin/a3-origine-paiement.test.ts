@@ -43,7 +43,7 @@ async function abonnesPayants(): Promise<number> {
 }
 
 describe('origine de l\'abonnement après un vrai paiement', () => {
-  it.each(['offert', 'admin'] as const)('should turn a %s subscription into a paid one when a K-PAY payment extends it, and count the customer as payer', async (origine) => {
+  it.each(['offert', 'admin', 'essai'] as const)('should turn a %s subscription into a paid one when a K-PAY payment extends it, and count the customer as payer', async (origine) => {
     const maintenant = new Date()
     const user = await createUser()
     const echeance = plus(maintenant, jours(10))

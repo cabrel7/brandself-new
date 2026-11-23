@@ -198,7 +198,7 @@ describe('sorties : liste blanche stricte', () => {
     expect(schemaRevocationReponse.safeParse({ revoques: 1.5 }).success).toBe(false)
   })
 
-  it('should list exactly the three subscription origins', () => {
-    expect([...ABONNEMENT_ORIGINES]).toEqual(['paiement', 'offert', 'admin'])
+  it('should list exactly the four subscription origins (E1 adds `essai`, in last position)', () => {
+    expect([...ABONNEMENT_ORIGINES]).toEqual(['paiement', 'offert', 'admin', 'essai'])
   })
 })

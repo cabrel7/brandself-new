@@ -113,12 +113,13 @@ describe('alertes : incohérences (CA08)', () => {
     expect((await lire()).incoherences.paiementsSansProlongation).toEqual([trop.id])
   })
 
-  it('should detect an active paying subscription without any succeeded payment, and NOT an offered one, an admin one, an expired one', async () => {
-    const [u1, u2, u3, u4] = [await createUser(), await createUser(), await createUser(), await createUser()]
+  it('should detect an active paying subscription without any succeeded payment, and NOT an offered one, an admin one, a trial one (E1), an expired one', async () => {
+    const [u1, u2, u3, u4, u5] = [await createUser(), await createUser(), await createUser(), await createUser(), await createUser()]
     const payant = await poserAbonnementOrigine(u1.id, plus(new Date(), jours(30)), { origine: 'paiement' })
     await poserAbonnementOrigine(u2.id, plus(new Date(), jours(30)), { origine: 'offert' })
     await poserAbonnementOrigine(u3.id, plus(new Date(), jours(30)), { origine: 'admin' })
     await poserAbonnementOrigine(u4.id, plus(new Date(), -jours(3)), { origine: 'paiement' })
+    await poserAbonnementOrigine(u5.id, plus(new Date(), jours(10)), { origine: 'essai' })
 
     const { incoherences } = await lire()
 

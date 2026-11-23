@@ -1,0 +1,173 @@
+==========
+type: abonnement_essai_statistiques | cas: 12 visites et 3 clics | fuseau: Africa/Douala
+==========
+to: cabrel.pro@exemple.test
+subject: Votre vitrine cette semaine
+headers:
+  List-Unsubscribe: <https://jesuis.pro/api/public/desabonnement?jeton=v1.eyJ1IjoiYSIsInAiOiJlbWFpbF9oZWJkbyIsImUiOjF9.c2lnbmF0dXJlLWRlLXRlc3QtMDEyMzQ1Njc4OTAxMjM0NQ>
+  List-Unsubscribe-Post: List-Unsubscribe=One-Click
+attachments:
+  (aucun)
+--- text ---
+Bonjour Cabrel,
+
+Voici ce que votre vitrine a reçu depuis sa création :
+
+Visites : 12
+Clics sur vos liens : 3
+
+Votre essai se termine le 31 juillet 2026.
+
+Ouvrir mon studio : https://jesuis.pro/studio
+
+À bientôt,
+jesuis.pro
+
+—
+Vous recevez cet e-mail parce que votre essai gratuit est en cours.
+Ne plus recevoir cet e-mail, en un clic : https://jesuis.pro/desabonnement?jeton=v1.eyJ1IjoiYSIsInAiOiJlbWFpbF9oZWJkbyIsImUiOjF9.c2lnbmF0dXJlLWRlLXRlc3QtMDEyMzQ1Njc4OTAxMjM0NQ
+Gérer vos e-mails : https://jesuis.pro/studio/compte
+
+==========
+type: abonnement_essai_statistiques | cas: 1 visite, aucun clic | fuseau: Africa/Douala
+==========
+to: cabrel.pro@exemple.test
+subject: Votre vitrine cette semaine
+headers:
+  List-Unsubscribe: <https://jesuis.pro/api/public/desabonnement?jeton=v1.eyJ1IjoiYSIsInAiOiJlbWFpbF9oZWJkbyIsImUiOjF9.c2lnbmF0dXJlLWRlLXRlc3QtMDEyMzQ1Njc4OTAxMjM0NQ>
+  List-Unsubscribe-Post: List-Unsubscribe=One-Click
+attachments:
+  (aucun)
+--- text ---
+Bonjour Cabrel,
+
+Voici ce que votre vitrine a reçu depuis sa création :
+
+Visites : 1
+Clics sur vos liens : 0
+
+Votre essai se termine le 31 juillet 2026.
+
+Ouvrir mon studio : https://jesuis.pro/studio
+
+À bientôt,
+jesuis.pro
+
+—
+Vous recevez cet e-mail parce que votre essai gratuit est en cours.
+Ne plus recevoir cet e-mail, en un clic : https://jesuis.pro/desabonnement?jeton=v1.eyJ1IjoiYSIsInAiOiJlbWFpbF9oZWJkbyIsImUiOjF9.c2lnbmF0dXJlLWRlLXRlc3QtMDEyMzQ1Njc4OTAxMjM0NQ
+Gérer vos e-mails : https://jesuis.pro/studio/compte
+
+==========
+type: abonnement_essai_statistiques | cas: ni visite ni clic, sans prénom (invitation à partager) | fuseau: Africa/Douala
+==========
+to: cabrel.pro@exemple.test
+subject: Votre vitrine cette semaine
+headers:
+  List-Unsubscribe: <https://jesuis.pro/api/public/desabonnement?jeton=v1.eyJ1IjoiYSIsInAiOiJlbWFpbF9oZWJkbyIsImUiOjF9.c2lnbmF0dXJlLWRlLXRlc3QtMDEyMzQ1Njc4OTAxMjM0NQ>
+  List-Unsubscribe-Post: List-Unsubscribe=One-Click
+attachments:
+  (aucun)
+--- text ---
+Bonjour,
+
+Partagez votre adresse pour recevoir vos premières visites.
+
+Votre essai se termine le 31 juillet 2026.
+
+Ouvrir mon studio : https://jesuis.pro/studio
+
+À bientôt,
+jesuis.pro
+
+—
+Vous recevez cet e-mail parce que votre essai gratuit est en cours.
+Ne plus recevoir cet e-mail, en un clic : https://jesuis.pro/desabonnement?jeton=v1.eyJ1IjoiYSIsInAiOiJlbWFpbF9oZWJkbyIsImUiOjF9.c2lnbmF0dXJlLWRlLXRlc3QtMDEyMzQ1Njc4OTAxMjM0NQ
+Gérer vos e-mails : https://jesuis.pro/studio/compte
+
+==========
+type: abonnement_essai_statistiques | cas: 12 visites et 3 clics | fuseau: Europe/Paris
+==========
+to: cabrel.pro@exemple.test
+subject: Votre vitrine cette semaine
+headers:
+  List-Unsubscribe: <https://jesuis.pro/api/public/desabonnement?jeton=v1.eyJ1IjoiYSIsInAiOiJlbWFpbF9oZWJkbyIsImUiOjF9.c2lnbmF0dXJlLWRlLXRlc3QtMDEyMzQ1Njc4OTAxMjM0NQ>
+  List-Unsubscribe-Post: List-Unsubscribe=One-Click
+attachments:
+  (aucun)
+--- text ---
+Bonjour Cabrel,
+
+Voici ce que votre vitrine a reçu depuis sa création :
+
+Visites : 12
+Clics sur vos liens : 3
+
+Votre essai se termine le 1er août 2026.
+
+Ouvrir mon studio : https://jesuis.pro/studio
+
+À bientôt,
+jesuis.pro
+
+—
+Vous recevez cet e-mail parce que votre essai gratuit est en cours.
+Ne plus recevoir cet e-mail, en un clic : https://jesuis.pro/desabonnement?jeton=v1.eyJ1IjoiYSIsInAiOiJlbWFpbF9oZWJkbyIsImUiOjF9.c2lnbmF0dXJlLWRlLXRlc3QtMDEyMzQ1Njc4OTAxMjM0NQ
+Gérer vos e-mails : https://jesuis.pro/studio/compte
+
+==========
+type: abonnement_essai_statistiques | cas: 1 visite, aucun clic | fuseau: Europe/Paris
+==========
+to: cabrel.pro@exemple.test
+subject: Votre vitrine cette semaine
+headers:
+  List-Unsubscribe: <https://jesuis.pro/api/public/desabonnement?jeton=v1.eyJ1IjoiYSIsInAiOiJlbWFpbF9oZWJkbyIsImUiOjF9.c2lnbmF0dXJlLWRlLXRlc3QtMDEyMzQ1Njc4OTAxMjM0NQ>
+  List-Unsubscribe-Post: List-Unsubscribe=One-Click
+attachments:
+  (aucun)
+--- text ---
+Bonjour Cabrel,
+
+Voici ce que votre vitrine a reçu depuis sa création :
+
+Visites : 1
+Clics sur vos liens : 0
+
+Votre essai se termine le 1er août 2026.
+
+Ouvrir mon studio : https://jesuis.pro/studio
+
+À bientôt,
+jesuis.pro
+
+—
+Vous recevez cet e-mail parce que votre essai gratuit est en cours.
+Ne plus recevoir cet e-mail, en un clic : https://jesuis.pro/desabonnement?jeton=v1.eyJ1IjoiYSIsInAiOiJlbWFpbF9oZWJkbyIsImUiOjF9.c2lnbmF0dXJlLWRlLXRlc3QtMDEyMzQ1Njc4OTAxMjM0NQ
+Gérer vos e-mails : https://jesuis.pro/studio/compte
+
+==========
+type: abonnement_essai_statistiques | cas: ni visite ni clic, sans prénom (invitation à partager) | fuseau: Europe/Paris
+==========
+to: cabrel.pro@exemple.test
+subject: Votre vitrine cette semaine
+headers:
+  List-Unsubscribe: <https://jesuis.pro/api/public/desabonnement?jeton=v1.eyJ1IjoiYSIsInAiOiJlbWFpbF9oZWJkbyIsImUiOjF9.c2lnbmF0dXJlLWRlLXRlc3QtMDEyMzQ1Njc4OTAxMjM0NQ>
+  List-Unsubscribe-Post: List-Unsubscribe=One-Click
+attachments:
+  (aucun)
+--- text ---
+Bonjour,
+
+Partagez votre adresse pour recevoir vos premières visites.
+
+Votre essai se termine le 1er août 2026.
+
+Ouvrir mon studio : https://jesuis.pro/studio
+
+À bientôt,
+jesuis.pro
+
+—
+Vous recevez cet e-mail parce que votre essai gratuit est en cours.
+Ne plus recevoir cet e-mail, en un clic : https://jesuis.pro/desabonnement?jeton=v1.eyJ1IjoiYSIsInAiOiJlbWFpbF9oZWJkbyIsImUiOjF9.c2lnbmF0dXJlLWRlLXRlc3QtMDEyMzQ1Njc4OTAxMjM0NQ
+Gérer vos e-mails : https://jesuis.pro/studio/compte

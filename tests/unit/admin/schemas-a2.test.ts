@@ -59,7 +59,8 @@ describe('e-mails transactionnels A2', () => {
     expect([...ADMIN_A2_EMAIL_TYPES]).toEqual(['utilisateur_suspendu', 'utilisateur_reactive', 'utilisateur_jours_offerts', 'utilisateur_depubliee'])
     for (const type of ADMIN_A2_EMAIL_TYPES) expect(TRANSACTIONAL_EMAIL_TYPES).toContain(type)
     expect(new Set(TRANSACTIONAL_EMAIL_TYPES).size).toBe(TRANSACTIONAL_EMAIL_TYPES.length)
-    expect(TRANSACTIONAL_EMAIL_TYPES).toHaveLength(17)
+    // 17 types avant E1 + les deux relances de l'essai gratuit (abonnement_essai_services, abonnement_essai_statistiques).
+    expect(TRANSACTIONAL_EMAIL_TYPES).toHaveLength(19)
   })
 })
 

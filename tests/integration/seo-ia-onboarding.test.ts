@@ -163,7 +163,7 @@ describe('terminer : écrit le SEO IA de la vitrine (D)', () => {
     const resultat = await terminer(user.id)
 
     const vitrine = await lireVitrineDe(user.id)
-    expect(resultat).toEqual({ creee: true })
+    expect(resultat).toMatchObject({ creee: true })
     expect(vitrine.accroche).toBe(sortie.accroches[index])
     expect(vitrine.seoIaTitre).toBe(sortie.seo.titre)
     expect(vitrine.seoIaDescription).toBe(sortie.seo.description)
@@ -226,7 +226,7 @@ describe('terminer : écrit le SEO IA de la vitrine (D)', () => {
 
     const rejeu = await terminer(user.id)
 
-    expect(rejeu).toEqual({ creee: false })
+    expect(rejeu).toMatchObject({ creee: false })
     expect(await compterJobsFond()).toBe(0)
   })
 
@@ -239,7 +239,7 @@ describe('terminer : écrit le SEO IA de la vitrine (D)', () => {
 
     const resultat = await terminer(user.id)
 
-    expect(resultat).toEqual({ creee: true })
+    expect(resultat).toMatchObject({ creee: true })
     expect((await lireVitrineDe(user.id)).publieeLe).toBeInstanceOf(Date)
   })
 })

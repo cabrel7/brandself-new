@@ -20,6 +20,8 @@ const BASE_PRODUCTION = {
   NUXT_PUBLIC_SITE_URL: 'https://brandself.io',
   ADMIN_HOST: 'admin.brandself.io',
   MEDIAS_CACHE_REFRESH_SECRET: 'secret-de-test-cache-images-0123456789',
+  // E1 (D4) : secret dédié de l'empreinte d'essai, obligatoire en production (32 caractères au moins).
+  ESSAI_EMPREINTE_SECRET: 'secret-de-test-empreinte-essai-0123456789',
 }
 const CLE_SANDBOX = 'mp_sandbox_AbCdEf0123456789_-xyz'
 const CLE_LIVE = 'mp_live_AbCdEf0123456789_-xyz'

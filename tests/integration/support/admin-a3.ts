@@ -249,7 +249,8 @@ export async function insererEncaissement(userId: string | null, appliqueLe: Dat
 export async function poserAbonnementOrigine(
   userId: string,
   expireLe: Date,
-  options: { origine?: 'paiement' | 'offert' | 'admin', dernierPaiementId?: string | null } = {},
+  // E1 : `essai` (essai gratuit accordé à la création de la vitrine) est la quatrième origine.
+  options: { origine?: 'paiement' | 'offert' | 'admin' | 'essai', dernierPaiementId?: string | null } = {},
 ): Promise<AbonnementRow> {
   const ligne = await poserAbonnement(userId, expireLe, { dernierPaiementId: options.dernierPaiementId ?? null })
   if (options.origine !== undefined && options.origine !== 'paiement') {

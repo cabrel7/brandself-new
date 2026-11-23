@@ -701,7 +701,8 @@ describe('terminer : création atomique de la vitrine (CA37 à CA45)', () => {
 
     const rejeu = await terminer(user.id, schemaOnboardingTerminer.parse({ username: 'un-autre-nom', palette: 'indigo' }))
 
-    expect(rejeu).toEqual({ creee: false })
+    // E1 : un rejeu n'accorde jamais de second essai (`essai: null`).
+    expect(rejeu).toEqual({ creee: false, essai: null })
     expect(await db.$count(vitrines, eq(vitrines.userId, user.id))).toBe(1)
     expect(await lireServicesDe((await lireVitrineDe(user.id))!.id)).toHaveLength(2)
     expect((await lireProgression(user.id))?.termineLe?.getTime()).toBe(ligne.termineLe?.getTime())
@@ -749,7 +750,7 @@ describe('terminer : création atomique de la vitrine (CA37 à CA45)', () => {
     const { user } = await preparer()
     await redis.set(`limite:${ONBOARDING_TERMINER_CLE_PREFIXE}${user.id}`, 'abc')
 
-    await expect(terminer(user.id, schemaOnboardingTerminer.parse({ username: 'dr-cabrel-test', palette: 'sauge' }))).resolves.toEqual({ creee: true })
+    await expect(terminer(user.id, schemaOnboardingTerminer.parse({ username: 'dr-cabrel-test', palette: 'sauge' }))).resolves.toMatchObject({ creee: true })
   })
 
   it('should point the next step to the agenda opening (disponibilites), then to the realisations once opened (CA37, CA51)', async () => {
@@ -1084,7 +1085,8 @@ describe('réouverture après suppression de la vitrine (décision produit S8)',
     expect(await getOnboarding(user.id)).toMatchObject({ statut: 'en_cours', etapeReprise: 4 })
     const resultat = await terminer(user.id, schemaOnboardingTerminer.parse({ username: 'dr-cabrel-bis', palette: 'sauge' }))
 
-    expect(resultat).toEqual({ creee: true })
+    // E1 : un compte qui a déjà reçu son essai (avant la suppression de la vitrine) n'en reçoit pas un second.
+    expect(resultat).toEqual({ creee: true, essai: null })
     expect(await lireVitrineDe(user.id)).toMatchObject({ username: 'dr-cabrel-bis', metier: 'Pédiatre', photoMediaId: media.id })
     expect(await getOnboarding(user.id)).toEqual({ statut: 'termine', username: 'dr-cabrel-bis' })
     expect((await lireProgression(user.id))?.termineLe).toBeInstanceOf(Date)
@@ -1118,7 +1120,7 @@ describe('réouverture après suppression de la vitrine (décision produit S8)',
 
     expect(await getOnboarding(user.id)).toMatchObject({ statut: 'termine' })
     expect(await rejet(etape1(user.id))).toMatchObject({ code: 'ONBOARDING_TERMINE', status: 409 })
-    expect(await terminer(user.id, ENTREE())).toEqual({ creee: false })
+    expect(await terminer(user.id, ENTREE())).toEqual({ creee: false, essai: null })
 
     expect(await lireProgression(user.id)).toEqual(avant)
     expect(await db.$count(vitrines, eq(vitrines.userId, user.id))).toBe(1)
@@ -1287,6 +1289,9 @@ describe('terminer : quota de services du plan (S10 CA89)', () => {
   it('should create at most the services the plan still allows and still publish the vitrine, never failing the sign-up', async () => {
     const { terminer } = await onboardingService()
     const { user } = await preparer([true, true, true])
+    // E1 : une création éligible reçoit un essai (plan payant, donc aucun quota). Ce test prouve le quota du plan GRATUIT : le compte a
+    // déjà eu un abonnement, échu depuis longtemps (aucun essai, plan gratuit).
+    await poserAbonnement(user.id, new Date(Date.now() - 30 * 86_400_000))
     const avant = await limiteServicesGratuit()
     await fixerLimiteServicesGratuit(2)
     try {

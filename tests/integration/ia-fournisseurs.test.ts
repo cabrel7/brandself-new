@@ -25,6 +25,8 @@ const PRODUCTION = {
   // A1 (D-A1-02) : obligatoire en production.
   ADMIN_HOST: 'admin.exemple.test',
   // Obligatoire en production (éviction du cache d'images) : valeur factice de 32 caractères ou plus.
+  // E1 : secret dédié des empreintes de l'essai, obligatoire en production.
+  ESSAI_EMPREINTE_SECRET: '11111111111111111111111111111111111111111111111111111111111e0001',
   MEDIAS_CACHE_REFRESH_SECRET: '0000000000000000000000000000000000000000000000000000000000ci0001',
 }
 
