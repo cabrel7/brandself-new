@@ -77,6 +77,48 @@ export const TEXTES_NOTIFICATIONS = {
       `Si vous ne le renouvelez pas, vous gardez tout pendant une période de grâce de ${jours} jours, puis votre vitrine revient au plan gratuit. Rien n'est supprimé : vos services, réalisations et témoignages restent enregistrés et réapparaissent dès le renouvellement.`,
     cloture: 'À bientôt,',
     pied: "Vous recevez cet e-mail parce que votre vitrine a un abonnement payant qui arrive à échéance. C'est un message de service : il ne peut pas être désactivé.",
+    // E1 (D9) : variante pour un essai gratuit. Retour au plan gratuit ; JAMAIS de période de grâce (un essai dure ce
+    // qu'il dure).
+    essai: {
+      objet: (jours: number) =>
+        jours === 0
+          ? "Votre essai se termine aujourd'hui"
+          : jours === 1 ? 'Votre essai se termine demain' : `Votre essai se termine dans ${jours} jours`,
+      preheader: 'Votre vitrine revient au plan gratuit à la fin de l’essai.',
+      intro: (jours: number, date: string) =>
+        jours === 0
+          ? `Aujourd'hui est le dernier jour de votre essai gratuit ${MARQUE.nom} (jusqu'au ${date} inclus).`
+          : `Votre essai gratuit ${MARQUE.nom} est actif jusqu'au ${date} inclus.`,
+      retourGratuit:
+        "Ensuite, votre vitrine revient au plan gratuit. Rien n'est supprimé : vos services, réalisations et témoignages restent enregistrés et réapparaissent dès que vous passez au plan payant.",
+      sansPrelevement: "Rien n'est prélevé sans votre accord.",
+      invitation: 'Pour garder le plan payant, choisissez votre période depuis votre studio :',
+      action: 'Garder le plan payant',
+      pied: "Vous recevez cet e-mail parce que votre essai gratuit arrive à son terme. C'est un message de service : il ne peut pas être désactivé.",
+    },
+  },
+  // E1 (D8) : relances de l'essai gratuit. Catégorie `relationnel` : chaque message porte un lien de désabonnement
+  // (préférence `email_hebdo`) et l'en-tête List-Unsubscribe.
+  essaiRelance: {
+    cloture: 'À bientôt,',
+    pied: 'Vous recevez cet e-mail parce que votre essai gratuit est en cours.',
+    services: {
+      objet: 'Ajoutez vos services à votre vitrine',
+      preheader: 'Quelques minutes suffisent pour présenter ce que vous proposez.',
+      intro: "Votre essai gratuit est en cours : c'est le bon moment pour présenter ce que vous proposez.",
+      detail: 'Ajoutez vos services avec un titre, un tarif et une durée : vos visiteurs sauront tout de suite ce qu’ils peuvent vous demander, et pourront vous contacter ou réserver.',
+      action: 'Compléter ma vitrine',
+    },
+    statistiques: {
+      objet: 'Votre vitrine cette semaine',
+      preheader: 'Visites et clics depuis la création de votre vitrine.',
+      intro: 'Voici ce que votre vitrine a reçu depuis sa création :',
+      visites: 'Visites',
+      clics: 'Clics sur vos liens',
+      partager: 'Partagez votre adresse pour recevoir vos premières visites.',
+      fin: (date: string) => `Votre essai se termine le ${date}.`,
+      action: 'Ouvrir mon studio',
+    },
   },
   // S10 #123 : reçu. Ce n'est pas une facture (la mention est obligatoire).
   paiementConfirme: {
@@ -187,6 +229,25 @@ export interface ResumeHebdoContent extends UtilisateurEmailBase {
 
 export type UtilisateurEmailContent = RappelJourneeContent | ResumeHebdoContent
 
+/** E1 (D8) : relances de l'essai. Rattachées à l'abonnement (`entite_type = 'abonnement'`) mais avec désabonnement. */
+interface EssaiRelanceBase extends UtilisateurEmailBase {
+  /** Fin d'essai EXCLUSIVE (`abonnements.expire_le`) : « Votre essai se termine le {dernier jour inclus} ». */
+  expireLe: Date
+}
+
+export interface EssaiServicesContent extends EssaiRelanceBase {
+  type: 'abonnement_essai_services'
+}
+
+export interface EssaiStatistiquesContent extends EssaiRelanceBase {
+  type: 'abonnement_essai_statistiques'
+  /** Visites et clics depuis la création de la vitrine. */
+  visites: number
+  clics: number
+}
+
+export type EssaiRelanceContent = EssaiServicesContent | EssaiStatistiquesContent
+
 /** Socle des e-mails de service de l'abonnement (S10) : transactionnels, donc ni jeton ni List-Unsubscribe. */
 interface AbonnementEmailBase {
   outboxId: string
@@ -209,6 +270,11 @@ export interface AbonnementRappelContent extends AbonnementEmailBase {
   periodeMois: number
   /** Durée de la grâce (réglage `abonnement.grace_jours`, lu par l'appelant) ; défaut : la constante du code. */
   graceJours?: number
+  /**
+   * E1 (D9) : l'abonnement est un essai (`origine = 'essai'`). Objet et corps « essai », retour au plan gratuit, aucune
+   * mention de grâce ; rendu en HTML ET en texte. Absent ou `false` : texte inchangé (non-régression).
+   */
+  essai?: boolean
 }
 
 export interface PaiementConfirmeContent extends AbonnementEmailBase {
@@ -333,21 +399,27 @@ function salutation(prenom: string): string {
   return nom ? `Bonjour ${nom},` : TEXTES_NOTIFICATIONS.bonjourSansNom
 }
 
-function jetonSur(content: UtilisateurEmailBase): string {
+/** Ce dont un e-mail à désabonnement a besoin : le jeton signé et l'origine du site. */
+interface AvecJeton {
+  jetonDesabonnement: string
+  siteUrl: string
+}
+
+function jetonSur(content: AvecJeton): string {
   // Le jeton part dans une URL ET dans un en-tête : on refuse tout ce qui n'a pas la forme exacte.
   const verdict = schemaJetonDesabonnement.safeParse(content.jetonDesabonnement)
   if (!verdict.success) throw new Error('JETON_DESABONNEMENT_INVALIDE')
   return verdict.data
 }
 
-function entetesDesabonnement(content: UtilisateurEmailBase, jeton: string): Record<string, string> {
+function entetesDesabonnement(content: AvecJeton, jeton: string): Record<string, string> {
   return {
     'List-Unsubscribe': `<${joinUrl(content.siteUrl, DESABONNEMENT_API_CHEMIN)}?jeton=${jeton}>`,
     'List-Unsubscribe-Post': LIST_UNSUBSCRIBE_POST_VALEUR,
   }
 }
 
-function lienDesabonnement(content: UtilisateurEmailBase, jeton: string): string {
+function lienDesabonnement(content: AvecJeton, jeton: string): string {
   return `${joinUrl(content.siteUrl, DESABONNEMENT_PAGE_CHEMIN)}?jeton=${jeton}`
 }
 
@@ -507,8 +579,33 @@ function lienRenouvellement(siteUrl: string, periodeMois: number): string {
   return `${joinUrl(siteUrl, chemin)}?periode=${Math.trunc(periodeMois)}${ancre === undefined ? '' : `#${ancre}`}`
 }
 
-/** S10 #122 : rappel J-7, J-3 ou J0. Texte seul, sans List-Unsubscribe (message de service). */
+/** E1 (D9) : rappel de fin d'essai (J-3, J0), HTML et texte. Message de service : pas de List-Unsubscribe. */
+function buildEssaiRappelEmail(content: AbonnementRappelContent): EmailMessage {
+  const t = TEXTES_NOTIFICATIONS.abonnementRappel.essai
+  const date = dernierJourInclus(content.expireLe, content.fuseau)
+  const lien = lienRenouvellement(content.siteUrl, content.periodeMois)
+  const { subject, text, html } = rendreEmail({
+    objet: t.objet(content.jours),
+    preheader: t.preheader,
+    siteUrl: content.siteUrl,
+    identite: { type: 'plateforme' },
+    salutation: salutation(content.prenom),
+    elements: [
+      { type: 'paragraphe', texte: t.intro(content.jours, date) },
+      { type: 'paragraphe', texte: t.retourGratuit },
+      { type: 'paragraphe', texte: t.sansPrelevement },
+      { type: 'paragraphe', texte: t.invitation },
+      { type: 'bouton', libelle: t.action, url: lien, lignesTexte: [`${t.action} : ${lien}`] },
+    ],
+    cloture: TEXTES_NOTIFICATIONS.abonnementRappel.cloture,
+    pied: [{ texte: t.pied }],
+  })
+  return { to: content.destinataire, subject, text, html, attachments: [] }
+}
+
+/** S10 #122 : rappel J-7, J-3 ou J0. Texte seul, sans List-Unsubscribe (message de service). Essai : voir ci-dessus. */
 export function buildAbonnementRappelEmail(content: AbonnementRappelContent): EmailMessage {
+  if (content.essai === true) return buildEssaiRappelEmail(content)
   const t = TEXTES_NOTIFICATIONS.abonnementRappel
   const date = dernierJourInclus(content.expireLe, content.fuseau)
   return {
@@ -565,6 +662,75 @@ export function buildPaiementConfirmeEmail(content: PaiementConfirmeContent): Em
 
 export function buildAbonnementEmail(content: AbonnementEmailContent): EmailMessage {
   return content.type === 'abonnement_rappel' ? buildAbonnementRappelEmail(content) : buildPaiementConfirmeEmail(content)
+}
+
+// --- E1 : relances de l'essai gratuit (jour 2 services, jour 7 statistiques) ---
+
+function elementsEssaiRelance(content: EssaiRelanceContent): {
+  objet: string
+  preheader: string
+  elements: DocumentEmail['elements']
+} {
+  const t = TEXTES_NOTIFICATIONS.essaiRelance
+  if (content.type === 'abonnement_essai_services') {
+    const url = joinUrl(content.siteUrl, '/studio/services')
+    return {
+      objet: t.services.objet,
+      preheader: t.services.preheader,
+      elements: [
+        { type: 'paragraphe', texte: t.services.intro },
+        { type: 'paragraphe', texte: t.services.detail },
+        { type: 'bouton', libelle: t.services.action, url, lignesTexte: [`${t.services.action} : ${url}`] },
+      ],
+    }
+  }
+  const s = t.statistiques
+  const url = joinUrl(content.siteUrl, '/studio')
+  const sansVisite = content.visites + content.clics === 0
+  return {
+    objet: s.objet,
+    preheader: s.preheader,
+    elements: [
+      ...(sansVisite
+        ? [{ type: 'paragraphe', texte: s.partager } as const]
+        : [
+            { type: 'paragraphe', texte: s.intro } as const,
+            {
+              type: 'recapitulatif',
+              lignes: [
+                { libelle: s.visites, valeur: String(content.visites) },
+                { libelle: s.clics, valeur: String(content.clics) },
+              ],
+            } as const,
+          ]),
+      { type: 'paragraphe', texte: s.fin(dernierJourInclus(content.expireLe, content.fuseau)) },
+      { type: 'bouton', libelle: s.action, url, lignesTexte: [`${s.action} : ${url}`] },
+    ],
+  }
+}
+
+/** E1 D8 : HTML et texte issus du même document ; lien de désabonnement dans le pied ET en-têtes List-Unsubscribe. */
+export function buildEssaiRelanceEmail(content: EssaiRelanceContent): EmailMessage {
+  const jeton = jetonSur(content)
+  const t = TEXTES_NOTIFICATIONS.essaiRelance
+  const { objet, preheader, elements } = elementsEssaiRelance(content)
+  const urlDesabonnement = lienDesabonnement(content, jeton)
+  const urlGerer = joinUrl(content.siteUrl, '/studio/compte')
+  const { subject, text, html } = rendreEmail({
+    objet,
+    preheader,
+    siteUrl: content.siteUrl,
+    identite: { type: 'plateforme' },
+    salutation: salutation(content.prenom),
+    elements,
+    cloture: t.cloture,
+    pied: [
+      { texte: t.pied },
+      { texte: TEXTES_NOTIFICATIONS.pied.desabonnement(urlDesabonnement), url: urlDesabonnement },
+      { texte: TEXTES_NOTIFICATIONS.pied.gerer(urlGerer), url: urlGerer },
+    ],
+  })
+  return { to: content.destinataire, subject, text, html, attachments: [], headers: entetesDesabonnement(content, jeton) }
 }
 
 // --- A2 : e-mails d'administration au titulaire (suspension, réactivation, jours offerts, dépublication) ---

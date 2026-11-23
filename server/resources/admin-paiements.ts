@@ -175,6 +175,13 @@ export function toVueEnsembleEnrichie(vue: VueEnsembleEnrichie): VueEnsembleEnri
     },
     mention: vue.mention,
     alertes: alertesBrutes(vue.alertes),
+    essais: {
+      jours: vue.essais.jours,
+      accordes: vue.essais.accordes,
+      enCours: vue.essais.enCours,
+      convertis: vue.essais.convertis,
+      tauxPct: vue.essais.tauxPct,
+    },
     genereLe: iso(vue.genereLe),
   })
 }

@@ -5,7 +5,7 @@ import type { VersionCategorie } from '../../../../shared/admin'
 import type { TransactionAdmin } from '../../admin/audit'
 
 export interface AdaptateurVersion<V = unknown> {
-  type: 'plans' | 'prix' | 'frais' | 'moyens'
+  type: 'plans' | 'prix' | 'frais' | 'moyens' | 'essai'
   categorie: VersionCategorie
   schemaValeurs: z.ZodType<V>
   /** Refuse (422 `VALIDATION`) une valeur incohérente avec le reste de la configuration. Lit dans la transaction. */

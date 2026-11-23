@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { schemaIaJobData } from './schemas/ia'
 import type { IaJobData, SeoJobData } from './schemas/ia'
 import { ADMIN_A2_EMAIL_TYPES } from './admin-a2'
+import { ESSAI_EMAIL_TYPES } from './essai'
 
 // Une file = une nature de travail et un profil de latence. Une opération sensible à la latence n'attend
 // jamais derrière une opération lente ou limitée en débit.
@@ -64,6 +65,8 @@ export const TRANSACTIONAL_EMAIL_TYPES = [
   'paiement_confirme',
   // A2 : e-mails d'administration au titulaire du compte (suspension, réactivation, jours offerts, dépublication).
   ...ADMIN_A2_EMAIL_TYPES,
+  // E1 : relances de l'essai gratuit (jour 2 services, jour 7 statistiques), planifiées à l'octroi.
+  ...ESSAI_EMAIL_TYPES,
 ] as const
 
 export type TransactionalEmailType = (typeof TRANSACTIONAL_EMAIL_TYPES)[number]

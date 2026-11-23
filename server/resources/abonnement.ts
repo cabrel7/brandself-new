@@ -53,6 +53,7 @@ export function toAbonnementResource(vue: AbonnementView): AbonnementDTO {
     quotas: vue.quotas.map((quota) => ({ ressource: quota.ressource, utilise: quota.utilise, limite: quota.limite })),
     paiementEnCours: vue.paiementEnCours ? toPaiementResource(vue.paiementEnCours) : null,
     offre: vue.offre,
+    essai: vue.essai === null ? null : { finLe: vue.essai.finLe.toISOString() },
   }
 }
 
@@ -74,5 +75,5 @@ export function toTarifsResource(tarifs: ReturnType<typeof getTarifs>, graceJour
     badge: config.badge,
     statistiquesJours: config.statistiquesJours,
   }))
-  return { plans, offre: tarifs.offre, graceJours, renouvellementAutomatique: false }
+  return { plans, offre: tarifs.offre, graceJours, renouvellementAutomatique: false, essai: tarifs.essai }
 }

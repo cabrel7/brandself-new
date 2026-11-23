@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
-import { eq, sql } from 'drizzle-orm'
-import { abonnements, users } from '../../../shared/db/schema'
+import { and, eq, isNull, sql } from 'drizzle-orm'
+import { abonnements, essais, users } from '../../../shared/db/schema'
 import { ABONNEMENT_FUSEAU_REPLI } from '../../../shared/plans'
 import { PLAN_PAYANT_ID } from '../../config/plans'
 import { calculerNouvelleEcheance, choisirBase, fuseauEffectif } from '../abonnements-regles'
@@ -15,6 +15,16 @@ export interface ResultatProlongation {
   /** Échéance avant le paiement (`null` : première activation). */
   avant: Date | null
   apres: Date
+}
+
+/**
+ * E1 (D11) : un vrai paiement convertit l'essai du compte. `converti_le` est posé UNE fois (`IS NULL`) : une 2e
+ * confirmation ne le modifie pas. Sans essai pour ce compte, aucune ligne n'est touchée. Sans `paiementId` (aucun
+ * paiement derrière), rien n'est converti. Même transaction que la prolongation : les deux réussissent ou échouent ensemble.
+ */
+async function marquerEssaiConverti(tx: DbTransaction, userId: string, paiementId: string | null, now: Date): Promise<void> {
+  if (paiementId === null) return
+  await tx.update(essais).set({ convertiLe: now }).where(and(eq(essais.userId, userId), isNull(essais.convertiLe)))
 }
 
 /**
@@ -48,6 +58,7 @@ export async function prolonger(
       createdAt: now,
       updatedAt: now,
     })
+    await marquerEssaiConverti(tx, userId, paiementId, now)
     return { abonnementId: id, avant, apres }
   }
   await tx
@@ -61,5 +72,6 @@ export async function prolonger(
       ...(paiementId === null ? {} : { origine: 'paiement' as const }),
     })
     .where(eq(abonnements.id, existant.id))
+  await marquerEssaiConverti(tx, userId, paiementId, now)
   return { abonnementId: existant.id, avant, apres }
 }

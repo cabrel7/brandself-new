@@ -1,3 +1,4 @@
+import type { EssaiAbonnementDTO, EssaiPublicDTO } from '../essai'
 import type { MethodePaiement, PaiementStatut } from '../paiements'
 import type { EtatAbonnement, PeriodeMois, PlanId, RessourceQuota } from '../plans'
 
@@ -101,6 +102,8 @@ export interface AbonnementDTO {
   quotas: QuotaDTO[]
   paiementEnCours: PaiementDTO | null
   offre: OffreDTO
+  /** E1 : non nul tant que l'origine de l'abonnement est `essai` ; `finLe` = échéance de l'essai (ISO). */
+  essai: EssaiAbonnementDTO | null
 }
 
 export interface PlanTarifDTO {
@@ -116,6 +119,8 @@ export interface TarifsDTO {
   offre: OffreDTO
   graceJours: number
   renouvellementAutomatique: false
+  /** E1 : mention de l'essai gratuit (page tarifs, landing) ; suit la version `essai` active. */
+  essai: EssaiPublicDTO
 }
 
 /** `POST /api/studio/abonnement/paiements` et `GET …/paiements/:id`. */

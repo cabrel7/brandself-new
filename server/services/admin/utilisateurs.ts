@@ -15,6 +15,7 @@ import {
   abonnements,
   capacitesAccordees,
   demandes,
+  essais,
   liens,
   messages,
   realisations,
@@ -69,6 +70,8 @@ export interface UtilisateurFicheVue extends UtilisateurLigneVue {
   fuseau: string
   motifSuspension: string | null
   abonnement: { origine: AbonnementOrigine, expireLe: Date, premiereActivationLe: Date } | null
+  /** E1 : essai gratuit de ce compte (même terminé ou converti) ; `null` si le compte n'en a jamais eu. */
+  essai: { debutLe: Date, finLe: Date, convertiLe: Date | null } | null
   compteurs: { services: number, realisations: number, temoignages: number, liens: number }
   activite30j: { vues: number, reservations: number, demandes: number, messages: number }
   iaMois: number
@@ -160,7 +163,7 @@ export async function listerUtilisateurs(
 }
 
 function versOrigine(valeur: string): AbonnementOrigine {
-  return valeur === 'offert' || valeur === 'admin' ? valeur : 'paiement'
+  return valeur === 'offert' || valeur === 'admin' || valeur === 'essai' ? valeur : 'paiement'
 }
 
 /** Fiche d'un compte : 404 `UTILISATEUR_INTROUVABLE`. Des nombres seulement pour l'activité (aucun contenu de visiteur). */
@@ -186,7 +189,7 @@ export async function getFicheUtilisateur(id: string, now: Date = new Date()): P
   const [abonnement] = await db.select().from(abonnements).where(eq(abonnements.userId, id)).limit(1)
   const depuis = new Date(now.getTime() - ADMIN_ACTIVITE_JOURS * MS_PAR_JOUR)
   const vitrineId = brute.vitrineId
-  const [compteurs, activite, iaMois, sessionsActives, assistants, capacites] = await Promise.all([
+  const [compteurs, activite, iaMois, sessionsActives, assistants, capacites, essai] = await Promise.all([
     compterContenus(vitrineId),
     compterActivite(vitrineId, depuis),
     getIaQuota(id, now).then((quota) => quota.utilisees),
@@ -202,6 +205,11 @@ export async function getFicheUtilisateur(id: string, now: Date = new Date()): P
       .from(capacitesAccordees)
       .where(and(eq(capacitesAccordees.userId, id), isNull(capacitesAccordees.revoqueLe)))
       .orderBy(capacitesAccordees.capacite),
+    db
+      .select({ debutLe: essais.debutLe, finLe: essais.finLe, convertiLe: essais.convertiLe })
+      .from(essais)
+      .where(eq(essais.userId, id))
+      .limit(1),
   ])
 
   return {
@@ -219,6 +227,7 @@ export async function getFicheUtilisateur(id: string, now: Date = new Date()): P
           premiereActivationLe: abonnement.premiereActivationLe,
         }
       : null,
+    essai: essai[0] ?? null,
     compteurs,
     activite30j: activite,
     iaMois,
@@ -426,7 +435,7 @@ export async function changerPlan(
     await deps.reauth(tx)
     const [abonnement] = await tx.select().from(abonnements).where(eq(abonnements.userId, utilisateurId)).limit(1)
     const avant = planDuCompte(
-      { plan: abonnement?.plan ?? null, expireLe: abonnement?.expireLe ?? null },
+      { plan: abonnement?.plan ?? null, expireLe: abonnement?.expireLe ?? null, origine: abonnement?.origine ?? null },
       compte.fuseau,
       maintenant,
       graceJours,

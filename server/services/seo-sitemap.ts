@@ -40,7 +40,7 @@ async function listerVitrinesPubliees(now: Date, limite: number): Promise<Vitrin
   // Tous les abonnements en une seule requête, indexés par userId.
   const userIds = [...new Set(lignes.map((l) => l.userId))]
   const abos = await db
-    .select({ userId: abonnements.userId, plan: abonnements.plan, expireLe: abonnements.expireLe, fuseau: users.fuseau })
+    .select({ userId: abonnements.userId, plan: abonnements.plan, expireLe: abonnements.expireLe, origine: abonnements.origine, fuseau: users.fuseau })
     .from(abonnements)
     .innerJoin(users, eq(users.id, abonnements.userId))
     .where(inArray(abonnements.userId, userIds))
@@ -54,7 +54,7 @@ async function listerVitrinesPubliees(now: Date, limite: number): Promise<Vitrin
   for (const ligne of lignes) {
     const abo = abosParUser.get(ligne.userId)
     const effectif = abo
-      ? resoudrePlanEffectif({ plan: abo.plan, expireLe: abo.expireLe }, now, abo.fuseau, graceJours)
+      ? resoudrePlanEffectif({ plan: abo.plan, expireLe: abo.expireLe, origine: abo.origine }, now, abo.fuseau, graceJours)
       : resoudrePlanEffectif(null, now)
     const config = lirePlanConfig(effectif.plan)
     resultats.push({

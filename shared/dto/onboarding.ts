@@ -1,3 +1,4 @@
+import type { EssaiDTO } from '../essai'
 import type { OnboardingEtape } from '../onboarding'
 import type { Titre } from '../vitrine'
 import type { ServiceProposeDTO } from './ia'
@@ -49,4 +50,6 @@ export interface OnboardingReponse {
 export interface OnboardingTerminerReponse {
   vitrine: VitrineStudioDTO
   resume: StudioResumeDTO
+  /** E1 : essai accordé par cette création ; `null` au rejeu, si inéligible ou si l'octroi a échoué. */
+  essai: EssaiDTO | null
 }

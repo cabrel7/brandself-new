@@ -3,6 +3,7 @@ import { and, eq, inArray, isNotNull, isNull, lt, sql } from 'drizzle-orm'
 import { z } from 'zod'
 import { generationsIa, medias, progressionsInscription, services, users, vitrines } from '../../shared/db/schema'
 import type { ProgressionInscription } from '../../shared/db/schema'
+import type { EssaiDTO } from '../../shared/essai'
 import { GENERATION_EXPIRATION_MS, GENERATION_STATUTS_TERMINAUX } from '../../shared/ia'
 import { REGLAGE_CLES } from '../../shared/reglages'
 import type { OnboardingEtape, OnboardingManquant } from '../../shared/onboarding'
@@ -29,6 +30,7 @@ import { detecterInjection, entreeOnboarding, nettoyerTexte } from './ia/nettoya
 import type { EntreeOnboarding } from './ia/entrees'
 import type { MediaRow } from './medias'
 import { verifierNomUtilisateur } from './configuration/catalogues'
+import { accorderEssaiSiEligible } from './essai'
 import { getPlanEffectif, limiteDe } from './plans'
 import {
   computeEtapeReprise,
@@ -76,6 +78,8 @@ export type OnboardingView = OnboardingTermine | OnboardingEnCours
 export interface TerminerResultat {
   /** Vrai à la création de la vitrine, faux au rejeu (double clic, deuxième appareil). */
   creee: boolean
+  /** E1 : essai accordé par CETTE création ; `null` au rejeu, si inéligible ou si l'octroi a échoué (jamais bloquant). */
+  essai: EssaiDTO | null
 }
 
 const USERNAME_UNIQUE = 'vitrines_username_unique'
@@ -547,6 +551,8 @@ interface VitrineCreee {
   vitrineId: string
   /** Vrai si le SEO IA a été écrit à la création : aucune régénération à planifier. */
   seoEcrit: boolean
+  /** E1 : essai accordé dans la transaction (savepoint), `null` sinon. */
+  essai: EssaiDTO | null
 }
 
 async function creerVitrineEtServices(
@@ -600,6 +606,10 @@ async function creerVitrineEtServices(
     publieeLe: sql`now()`,
   })
 
+  // E1 (D1) : l'essai est accordé AVANT le calcul du quota de services, sinon des services seraient jetés alors que la
+  // personne a désormais le plan payant. Savepoint : un refus ou une panne n'annule jamais la vitrine (`essai: null`).
+  const octroi = await accorderEssaiSiEligible(tx, userId, now)
+
   // S10 #126 : au plus le quota du plan ; les services en trop sont ignorés (jamais d'échec de publication).
   // La vitrine vient d'être créée : aucun service n'existe encore, le quota restant est la limite entière.
   const limite = limiteDe((await getPlanEffectif(userId, now, tx)).plan, 'services')
@@ -630,7 +640,7 @@ async function creerVitrineEtServices(
       updatedAt: now,
     })
     .where(eq(progressionsInscription.userId, userId))
-  return { vitrineId, seoEcrit: seoIa !== null }
+  return { vitrineId, seoEcrit: seoIa !== null, essai: octroi.accorde ? octroi.essai : null }
 }
 
 /**
@@ -648,11 +658,11 @@ export async function terminer(userId: string, input: OnboardingTerminerInput, n
   )
   // Sans cela, un `terminer` d'un client périmé après suppression de la vitrine répondrait `creee: false` sans vitrine.
   await rouvrirSiVitrineSupprimee(userId)
-  let resultat: { creee: boolean, aPlanifier: string | null }
+  let resultat: { creee: boolean, aPlanifier: string | null, essai: EssaiDTO | null }
   try {
     resultat = await db.transaction(async (tx) => {
       const ligne = await verrouiller(tx, userId)
-      if (ligne?.termineLe) return { creee: false, aPlanifier: null }
+      if (ligne?.termineLe) return { creee: false, aPlanifier: null, essai: null }
 
       const [vitrine] = await tx.select({ id: vitrines.id }).from(vitrines).where(eq(vitrines.userId, userId)).limit(1)
       if (vitrine) throw new ConflictError('VITRINE_EXISTE')
@@ -663,8 +673,8 @@ export async function terminer(userId: string, input: OnboardingTerminerInput, n
       const manquants = computeManquants({ ...ligne, photoMediaId: photoValide ? ligne.photoMediaId : null })
       if (manquants.length > 0) throw incomplet(manquants)
 
-      const { vitrineId, seoEcrit } = await creerVitrineEtServices(tx, userId, ligne, input, now)
-      return { creee: true, aPlanifier: seoEcrit ? null : vitrineId }
+      const { vitrineId, seoEcrit, essai } = await creerVitrineEtServices(tx, userId, ligne, input, now)
+      return { creee: true, aPlanifier: seoEcrit ? null : vitrineId, essai }
     })
   } catch (error) {
     return traduireErreurTerminer(error)
@@ -672,7 +682,7 @@ export async function terminer(userId: string, input: OnboardingTerminerInput, n
   // Après le commit, jamais bloquant (`planifierRegenerationSeo` ne lève pas) : sans SEO produit par l'onboarding
   // (génération v1, SEO rejeté, repli), la vitrine en reçoit un en tâche de fond.
   if (resultat.aPlanifier !== null) await planifierRegenerationSeo(resultat.aPlanifier)
-  return { creee: resultat.creee }
+  return { creee: resultat.creee, essai: resultat.essai }
 }
 
 // ---------------------------------------------------------------------------------------------

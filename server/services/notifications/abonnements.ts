@@ -1,6 +1,7 @@
 import { Temporal } from '@js-temporal/polyfill'
 import { and, asc, gt, eq, lte } from 'drizzle-orm'
 import { abonnements, users, vitrines } from '../../../shared/db/schema'
+import { ESSAI_RAPPELS_JOURS } from '../../../shared/essai'
 import { isValidTimeZone } from '../../../shared/fuseau'
 import { PLANIFICATION_LOT_UTILISATEURS } from '../../../shared/notifications'
 import {
@@ -20,7 +21,9 @@ import { construireOccurrenceRappel } from './pertinence'
 // Appelée par `planifierNotifications` (tick de 5 minutes), jamais par un ordonnanceur propre. Une ligne =
 // un rappel pour UNE échéance (`occurrence` = `J{n}:{expire_le ISO}`), idempotent par l'unicité à 4 colonnes
 // de l'outbox : un tick rejoué, deux ticks concurrents ou un redémarrage ne doublent rien. Catégorie
-// `transactionnel` : aucun plafond hebdomadaire, aucune préférence de désabonnement. Aucun journal ne
+// `transactionnel` : aucun plafond hebdomadaire, aucune préférence de désabonnement. E1 (D9) : un abonnement
+// d'origine `essai` n'a que les paliers `ESSAI_RAPPELS_JOURS` (J-3, J0) : J-7 tomberait le jour de la relance
+// « statistiques » de l'essai. Les autres origines gardent J-7, J-3, J0. Aucun journal ne
 // contient d'adresse, de nom ni de fuseau : des NOMBRES seulement.
 
 type Database = typeof db
@@ -29,6 +32,7 @@ type Database = typeof db
 const MARGE_BALAYAGE_JOURS = 2
 const DERNIER_INSTANT_PAYE_MS = 1
 const TYPE_RAPPEL_ABONNEMENT = 'abonnement_rappel'
+const ORIGINE_ESSAI = 'essai'
 
 export interface RappelsAbonnementResultat {
   /** Lignes d'outbox créées par ce passage. */
@@ -42,9 +46,14 @@ export interface RappelsAbonnementResultat {
  * Dernier jour inclus = date locale du dernier instant payé (`expire_le` est exclusif et vaut le minuit local
  * suivant : pour une échéance alignée, c'est la date locale de `expire_le − 1 jour`). J{n} tombe `n` jours
  * calendaires avant ; l'envoi se fait dans la fenêtre locale `[9 h, 9 h + rattrapage)`.
- * `fuseau` doit être valide (l'appelant le vérifie).
+ * `fuseau` doit être valide (l'appelant le vérifie). `paliers` : jours de rappel de l'origine de l'abonnement.
  */
-export function rappelDu(expireLe: Date, fuseau: string, now: Date): AbonnementRappelJours | null {
+export function rappelDu(
+  expireLe: Date,
+  fuseau: string,
+  now: Date,
+  paliers: readonly AbonnementRappelJours[] = ABONNEMENT_RAPPELS_JOURS,
+): AbonnementRappelJours | null {
   if (expireLe.getTime() <= now.getTime()) return null
   const local = Temporal.Instant.fromEpochMilliseconds(now.getTime()).toZonedDateTimeISO(fuseau)
   if (!dansFenetre(local, ABONNEMENT_RAPPEL_HEURE_LOCALE, ABONNEMENT_RAPPEL_RATTRAPAGE_HEURES)) return null
@@ -53,7 +62,7 @@ export function rappelDu(expireLe: Date, fuseau: string, now: Date): AbonnementR
     .toZonedDateTimeISO(fuseau)
     .toPlainDate()
   const aujourdhui = local.toPlainDate()
-  return ABONNEMENT_RAPPELS_JOURS.find((jours) => dernierJour.subtract({ days: jours }).equals(aujourdhui)) ?? null
+  return paliers.find((jours) => dernierJour.subtract({ days: jours }).equals(aujourdhui)) ?? null
 }
 
 /**
@@ -74,6 +83,7 @@ export async function planifierRappelsAbonnement(
       .select({
         id: abonnements.id,
         expireLe: abonnements.expireLe,
+        origine: abonnements.origine,
         fuseau: users.fuseau,
         email: users.email,
         emailContact: vitrines.emailContact,
@@ -95,7 +105,8 @@ export async function planifierRappelsAbonnement(
         fuseauxInvalides.add(ligne.fuseau)
         continue
       }
-      const jours = rappelDu(ligne.expireLe, ligne.fuseau, now)
+      const paliers = ligne.origine === ORIGINE_ESSAI ? ESSAI_RAPPELS_JOURS : ABONNEMENT_RAPPELS_JOURS
+      const jours = rappelDu(ligne.expireLe, ligne.fuseau, now, paliers)
       if (jours === null || resolveRecipient(ligne.emailContact, ligne.email) === null) continue
       evenements.push({
         entiteType: 'abonnement',

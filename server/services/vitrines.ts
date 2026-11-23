@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { and, eq, sql } from 'drizzle-orm'
 import { disponibilites, liens, medias, realisations, services, temoignages, users, vitrines } from '../../shared/db/schema'
+import type { EssaiDTO } from '../../shared/essai'
 import { USERNAME_CHECK_LIMIT } from '../../shared/limites'
 import { REGLAGE_CLES } from '../../shared/reglages'
 import { isReserved } from '../../shared/reserved'
@@ -13,6 +14,7 @@ import { planifierRegenerationSeo } from '../jobs/seo'
 import { db } from '../utils/db'
 import { PG_FOREIGN_KEY_VIOLATION, PG_UNIQUE_VIOLATION, readPgError } from '../utils/pg-error'
 import { hasValidUsernameFormat, normalizeUsername } from '../utils/username'
+import { accorderEssaiSiEligible } from './essai'
 import { enforceLimit } from './limiteur'
 import { seoIaARegenerer, signatureEntreesSeo } from './ia/seo-regles'
 import { deleteMediaIfUnreferenced } from './medias'
@@ -85,31 +87,41 @@ function rethrowUniqueViolation(error: unknown): never {
   throw error
 }
 
-export async function createVitrine(userId: string, input: VitrineCreateInput): Promise<VitrineAvecPhoto> {
+/** Vitrine créée et, le cas échéant, l'essai gratuit accordé par cette création (E1 : `null` si inéligible ou en cas de panne). */
+export interface VitrineCreee extends VitrineAvecPhoto {
+  essai: EssaiDTO | null
+}
+
+export async function createVitrine(userId: string, input: VitrineCreateInput, now: Date = new Date()): Promise<VitrineCreee> {
   // A5 (CA16) : nom réservé par le code ou bloqué par l'administration : 422 `NOM_BLOQUE`.
   await verifierNomUtilisateur(input.username)
   // A4 (D-A4-14) : défauts d'agenda pilotés, appliqués aux NOUVELLES vitrines seulement.
   const preavisHeures = await Reglages.lire(REGLAGE_CLES.agendaPreavisDefautHeures)
   const horizonJours = await Reglages.lire(REGLAGE_CLES.agendaHorizonDefautJours)
   try {
-    const [vitrine] = await db
-      .insert(vitrines)
-      .values({
-        id: randomUUID(),
-        userId,
-        preavisHeures,
-        horizonJours,
-        username: input.username,
-        titre: input.titre,
-        prenom: input.prenom,
-        nom: input.nom,
-        metier: input.metier,
-        // Le fuseau du compte devient celui de la vitrine (modifiable ensuite via /moi).
-        fuseau: sql<string>`(select ${users.fuseau} from ${users} where ${users.id} = ${userId})`,
-      })
-      .returning()
-    if (!vitrine) throw new Error('Insertion de la vitrine sans résultat.')
-    return { vitrine, photo: null }
+    // E1 (D1) : la vitrine et l'essai gratuit dans UNE transaction ; l'essai vit dans un savepoint (ne lève jamais), une
+    // vitrine déjà existante (contrainte unique) annule tout avant l'octroi.
+    return await db.transaction(async (tx) => {
+      const [vitrine] = await tx
+        .insert(vitrines)
+        .values({
+          id: randomUUID(),
+          userId,
+          preavisHeures,
+          horizonJours,
+          username: input.username,
+          titre: input.titre,
+          prenom: input.prenom,
+          nom: input.nom,
+          metier: input.metier,
+          // Le fuseau du compte devient celui de la vitrine (modifiable ensuite via /moi).
+          fuseau: sql<string>`(select ${users.fuseau} from ${users} where ${users.id} = ${userId})`,
+        })
+        .returning()
+      if (!vitrine) throw new Error('Insertion de la vitrine sans résultat.')
+      const octroi = await accorderEssaiSiEligible(tx, userId, now)
+      return { vitrine, photo: null, essai: octroi.accorde ? octroi.essai : null }
+    })
   } catch (error) {
     return rethrowUniqueViolation(error)
   }

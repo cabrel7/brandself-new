@@ -36,7 +36,16 @@ import type { Executor, Transaction } from './vitrine-acces'
 export interface AbonnementLu {
   plan: string
   expireLe: Date
+  /**
+   * E1 (D9) : origine de la ligne. `'essai'` = AUCUNE grâce (un essai de 14 jours dure 14 jours ; la grâce est faite pour
+   * un payeur qui oublie de renouveler). OBLIGATOIRE (peut valoir `null`) : un appelant qui ne la lit pas oublierait la
+   * règle de l'essai, le compilateur le signale.
+   */
+  origine: string | null
 }
+
+/** Origine d'un abonnement d'essai gratuit (`abonnements.origine`). */
+const ORIGINE_ESSAI = 'essai'
 
 export interface PlanEffectif {
   /** Plan dont les DROITS s'appliquent (`payant` pendant l'abonnement ET pendant la grâce). */
@@ -86,6 +95,7 @@ function estPlanVendu(valeur: string): valeur is PlanId {
 /**
  * Plan effectif à l'instant `now` (fonction PURE, l'horloge est injectée) :
  * `now < expire_le` : actif · `now < expire_le + 7 jours` : grâce (droits du plan payant conservés) · sinon gratuit.
+ * Un abonnement d'origine `essai` n'a PAS de grâce (E1 D9) : à l'échéance, gratuit immédiatement.
  * Sans abonnement, ou avec un plan inconnu : gratuit. `fuseau` (celui du compte) ne sert qu'aux dates locales.
  */
 export function resoudrePlanEffectif(
@@ -95,7 +105,8 @@ export function resoudrePlanEffectif(
   graceJours: number = ABONNEMENT_GRACE_JOURS,
 ): PlanEffectif {
   if (abonnement === null || !estPlanVendu(abonnement.plan)) return planGratuit()
-  const graceJusquau = ajouterJoursLocaux(abonnement.expireLe, graceJours, fuseau)
+  const sansGrace = abonnement.origine === ORIGINE_ESSAI
+  const graceJusquau = sansGrace ? null : ajouterJoursLocaux(abonnement.expireLe, graceJours, fuseau)
   const commun = {
     plan: abonnement.plan,
     expireLe: abonnement.expireLe,
@@ -104,7 +115,7 @@ export function resoudrePlanEffectif(
   }
   const reste = abonnement.expireLe.getTime() - now.getTime()
   if (reste > 0) return { ...commun, etat: 'actif', joursRestants: Math.ceil(reste / MS_PAR_JOUR) }
-  if (now.getTime() < graceJusquau.getTime()) return { ...commun, etat: 'grace', joursRestants: null }
+  if (graceJusquau !== null && now.getTime() < graceJusquau.getTime()) return { ...commun, etat: 'grace', joursRestants: null }
   return planGratuit()
 }
 
@@ -133,13 +144,13 @@ async function lirePlan(executor: Executor, userId: string, now: Date): Promise<
   // A5 (D-A5-04) : l'instantané des versions actives a au plus 5 s ; `limiteDe` et les lecteurs de `lirePlanConfig` sont synchrones.
   await assurerInstantane()
   const [ligne] = await executor
-    .select({ fuseau: users.fuseau, plan: abonnements.plan, expireLe: abonnements.expireLe })
+    .select({ fuseau: users.fuseau, plan: abonnements.plan, expireLe: abonnements.expireLe, origine: abonnements.origine })
     .from(users)
     .leftJoin(abonnements, eq(abonnements.userId, users.id))
     .where(eq(users.id, userId))
     .limit(1)
   if (!ligne) return { effectif: planGratuit(), fuseau: ABONNEMENT_FUSEAU_REPLI }
-  const abonnement = ligne.plan !== null && ligne.expireLe !== null ? { plan: ligne.plan, expireLe: ligne.expireLe } : null
+  const abonnement = ligne.plan !== null && ligne.expireLe !== null ? { plan: ligne.plan, expireLe: ligne.expireLe, origine: ligne.origine } : null
   // A4 : durée de grâce pilotée par le réglage `abonnement.grace_jours` (repli : valeur du code, jamais d'exception).
   const graceJours = await lireGraceJours()
   return { effectif: resoudrePlanEffectif(abonnement, now, ligne.fuseau, graceJours), fuseau: ligne.fuseau }

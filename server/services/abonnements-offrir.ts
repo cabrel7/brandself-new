@@ -11,6 +11,7 @@ import { choisirBase } from './abonnements-regles'
 
 const MS_PAR_JOUR = 86_400_000
 const VERROU_ABONNEMENT_PREFIXE = 'abonnement:'
+const ORIGINE_ESSAI = 'essai'
 
 export interface EtatAbonnementEcrit {
   expireLe: Date
@@ -29,19 +30,33 @@ export function calculerEcheanceOfferte(now: Date, expireLe: Date | null, jours:
   return new Date(choisirBase(now, expireLe).getTime() + jours * MS_PAR_JOUR)
 }
 
-async function verrouiller(tx: TransactionAdmin, userId: string): Promise<void> {
+/** Verrou consultatif `abonnement:<userId>` (transactionnel, ré-entrant dans la transaction) : sérialise toute écriture de l'abonnement. */
+export async function verrouiller(tx: TransactionAdmin, userId: string): Promise<void> {
   await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${`${VERROU_ABONNEMENT_PREFIXE}${userId}`}, 0))`)
 }
 
 function versOrigine(valeur: string): AbonnementOrigine {
-  return valeur === 'offert' || valeur === 'admin' ? valeur : 'paiement'
+  return valeur === 'offert' || valeur === 'admin' || valeur === 'essai' ? valeur : 'paiement'
 }
+
+/** Origines qu'une CRÉATION par `offrirJours` peut porter (E1 : l'essai gratuit à la création de la vitrine). */
+export type OrigineCreationOffre = Extract<AbonnementOrigine, 'offert' | 'essai'>
 
 /**
  * Offre `jours` jours. Sans ligne : INSERT `plan='payant'`, `origine='offert'`, première activation = `now`. Avec une
- * ligne : UPDATE de `expire_le` seulement (l'origine de création est inchangée, les paiements aussi).
+ * ligne : UPDATE de `expire_le` (les paiements sont inchangés) ; l'origine est inchangée SAUF pour un essai (E1 D9) :
+ * un essai prolongé par une offre devient un abonnement normal (`origineCreation`, avec sa grâce), sinon il resterait
+ * sans grâce et verrait ses relances d'essai continuer.
+ * `origineCreation` (E1) : origine de la ligne CRÉÉE, ou de l'offre qui remplace un essai ; `'offert'` par défaut ;
+ * `'essai'` pour l'essai gratuit (jamais appliqué à une ligne existante : l'octroi refuse tout abonnement existant).
  */
-export async function offrirJours(tx: TransactionAdmin, userId: string, jours: number, now: Date): Promise<ResultatOffre> {
+export async function offrirJours(
+  tx: TransactionAdmin,
+  userId: string,
+  jours: number,
+  now: Date,
+  origineCreation: OrigineCreationOffre = 'offert',
+): Promise<ResultatOffre> {
   await verrouiller(tx, userId)
   const [existant] = await tx.select().from(abonnements).where(eq(abonnements.userId, userId)).for('update')
   const expireLe = calculerEcheanceOfferte(now, existant?.expireLe ?? null, jours)
@@ -54,18 +69,19 @@ export async function offrirJours(tx: TransactionAdmin, userId: string, jours: n
       expireLe,
       premiereActivationLe: now,
       dernierPaiementId: null,
-      origine: 'offert',
+      origine: origineCreation,
       createdAt: now,
       updatedAt: now,
     })
-    return { abonnementId: id, avant: null, apres: { expireLe, origine: 'offert' } }
+    return { abonnementId: id, avant: null, apres: { expireLe, origine: origineCreation } }
   }
-  await tx.update(abonnements).set({ expireLe, updatedAt: now }).where(eq(abonnements.id, existant.id))
-  const origine = versOrigine(existant.origine)
+  const origineAvant = versOrigine(existant.origine)
+  const origineApres = origineAvant === ORIGINE_ESSAI ? origineCreation : origineAvant
+  await tx.update(abonnements).set({ expireLe, origine: origineApres, updatedAt: now }).where(eq(abonnements.id, existant.id))
   return {
     abonnementId: existant.id,
-    avant: { expireLe: existant.expireLe, origine },
-    apres: { expireLe, origine },
+    avant: { expireLe: existant.expireLe, origine: origineAvant },
+    apres: { expireLe, origine: origineApres },
   }
 }
 

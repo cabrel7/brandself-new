@@ -32,7 +32,7 @@ const PREFIXE_ID_VERSION = 'a5v'
 const STATUT_NON_APPLICABLE = 'non_applicable'
 /** Catégorie journalisée d'une version de prompt (hors `configuration_versions`). */
 const CATEGORIE_PROMPT = 'prompt'
-const TYPE_PAR_CATEGORIE: Record<string, TypeVersionConfiguration> = { plan: 'plans', prix: 'prix', frais: 'frais', moyens: 'moyens' }
+const TYPE_PAR_CATEGORIE: Record<string, TypeVersionConfiguration> = { plan: 'plans', prix: 'prix', frais: 'frais', moyens: 'moyens', essai: 'essai' }
 
 export interface VersionConfigurationLue {
   type: TypeVersionConfiguration

@@ -7,13 +7,14 @@ import { getStudioView } from '#server/services/vitrines'
 import { schemaOnboardingTerminer } from '#shared/schemas/onboarding'
 
 // S8 §6 : 201 à la création de la vitrine, 200 au rejeu (double clic, deuxième appareil). Jamais mis en cache.
+// E1 : `essai` = essai gratuit accordé par cette création (`null` au rejeu ou si inéligible).
 // Le débit par utilisateur est appliqué dans le service `terminer`.
 export default defineApiHandler(async (event) => {
   const { user } = await requireUserSession(event)
   setResponseHeader(event, 'Cache-Control', 'no-store')
   const input = await readBodyWith(event, schemaOnboardingTerminer)
-  const { creee } = await terminer(user.id, input)
+  const { creee, essai } = await terminer(user.id, input)
   const { vitrine, resume } = await getStudioView(user.id)
   setResponseStatus(event, creee ? 201 : 200)
-  return { vitrine: toVitrineStudioResource(vitrine), resume: toStudioResumeResource(resume) }
+  return { vitrine: toVitrineStudioResource(vitrine), resume: toStudioResumeResource(resume), essai }
 })

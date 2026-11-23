@@ -1,5 +1,5 @@
 // A3 (D-A3-07, D-A3-14) : onglets d'abonnements et rappel manuel « envoyer maintenant ».
-import { and, asc, count, desc, eq, gt, like, lte, sql } from 'drizzle-orm'
+import { and, asc, count, desc, eq, gt, like, lte, ne, sql } from 'drizzle-orm'
 import { ADMIN_ACTIONS, ADMIN_CIBLES } from '../../../shared/admin'
 import { ABONNEMENT_ONGLETS } from '../../../shared/admin-paiements'
 import type { AbonnementOnglet } from '../../../shared/admin-paiements'
@@ -24,6 +24,8 @@ import { lireGraceJours, resoudrePlanEffectif } from '../plans'
 import { enregistrer } from './audit'
 import type { ActeurAdmin } from './paiements-journal'
 
+const ORIGINE_ESSAI = 'essai'
+
 /** Fenêtre d'un onglet : `expire_le > apres` ET `expire_le <= jusqua`. */
 export interface FenetreOnglet {
   apres: Date
@@ -31,10 +33,13 @@ export interface FenetreOnglet {
 }
 
 /**
- * Fenêtres des trois onglets (PURE, `now` passé). Elles forment une PARTITION sans recouvrement :
+ * Fenêtres des trois onglets (PURE, `now` passé). Ces trois fenêtres d'échéance sont DISJOINTES et contiguës :
  *  - renouvellement : `now < expire_le <= now + 7 j` ;
  *  - grâce : `now - 7 j < expire_le <= now` ;
  *  - expirés : `now - 37 j < expire_le <= now - 7 j`.
+ * Ce ne sont des onglets d'ABONNEMENTS qu'avec le filtre d'origine : un essai n'a pas de grâce (E1 D9), il est écarté de
+ * l'onglet « grâce » (`listerAbonnements`, `ongletAbonnement`) et n'apparaît alors dans aucun onglet tant qu'il n'est pas
+ * échu depuis plus que la durée de la grâce.
  */
 export function fenetreOnglet(onglet: AbonnementOnglet, now: Date, graceJours: number = ABONNEMENT_GRACE_JOURS): FenetreOnglet {
   const instant = now.getTime()
@@ -49,10 +54,19 @@ export function fenetreOnglet(onglet: AbonnementOnglet, now: Date, graceJours: n
   }
 }
 
-/** Onglet d'un abonnement à cet instant, ou `null` (échéance lointaine ou expirée depuis trop longtemps). PURE. */
-export function ongletAbonnement(expireLe: Date, now: Date, graceJours: number = ABONNEMENT_GRACE_JOURS): AbonnementOnglet | null {
+/**
+ * Onglet d'un abonnement à cet instant, ou `null` (échéance lointaine, expirée depuis trop longtemps, ou essai échu
+ * encore dans la fenêtre de grâce des autres : un essai n'a jamais d'onglet « grâce », E1 D9). PURE.
+ */
+export function ongletAbonnement(
+  expireLe: Date,
+  now: Date,
+  graceJours: number = ABONNEMENT_GRACE_JOURS,
+  origine: string | null = null,
+): AbonnementOnglet | null {
   const echeance = expireLe.getTime()
   return ABONNEMENT_ONGLETS.find((onglet) => {
+    if (onglet === 'grace' && origine === ORIGINE_ESSAI) return false
     const { apres, jusqua } = fenetreOnglet(onglet, now, graceJours)
     return echeance > apres.getTime() && echeance <= jusqua.getTime()
   }) ?? null
@@ -81,7 +95,12 @@ export async function listerAbonnements(query: ListeAbonnementsQuery, now: Date 
   const { onglet, page, limite } = query
   const graceJours = await lireGraceJours()
   const { apres, jusqua } = fenetreOnglet(onglet, now, graceJours)
-  const where = and(gt(abonnements.expireLe, apres), lte(abonnements.expireLe, jusqua))
+  // Un essai n'a pas de grâce (E1, D9) : il n'apparaît jamais dans l'onglet « grâce ».
+  const where = and(
+    gt(abonnements.expireLe, apres),
+    lte(abonnements.expireLe, jusqua),
+    onglet === 'grace' ? ne(abonnements.origine, ORIGINE_ESSAI) : undefined,
+  )
   // Les plus proches de l'échéance d'abord, sauf les expirés (les plus récemment échus d'abord).
   const ordre = onglet === 'expires' ? desc(abonnements.expireLe) : asc(abonnements.expireLe)
   const [lignes, totaux] = await Promise.all([
@@ -116,7 +135,7 @@ export async function listerAbonnements(query: ListeAbonnementsQuery, now: Date 
     plan: ligne.plan,
     devise: ligne.deviseCompte,
     expireLe: ligne.expireLe,
-    etat: resoudrePlanEffectif({ plan: ligne.plan, expireLe: ligne.expireLe }, now, ligne.fuseau, graceJours).etat,
+    etat: resoudrePlanEffectif({ plan: ligne.plan, expireLe: ligne.expireLe, origine: ligne.origine }, now, ligne.fuseau, graceJours).etat,
     origine: ligne.origine,
     dernierPaiement: ligne.paiementId !== null && ligne.paiementStatut !== null && ligne.paiementMontant !== null
       && ligne.paiementDevise !== null && ligne.paiementCreeLe !== null
