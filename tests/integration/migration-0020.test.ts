@@ -4,7 +4,7 @@ import path from 'node:path'
 import { Client } from 'pg'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { ADMIN_A2_EMAIL_TYPES } from '../../shared/admin-a2'
-import { ESSAI_EMAIL_TYPES } from '../../shared/essai'
+import { ESSAI_CONSTAT_EMAIL_TYPE, ESSAI_EMAIL_TYPES } from '../../shared/essai'
 import { TRANSACTIONAL_EMAIL_TYPES } from '../../shared/jobs'
 import { EMAIL_CATEGORIES, EMAIL_STATUTS } from '../../shared/notifications'
 import { NEXT_STEPS } from '../../shared/vitrine'
@@ -251,7 +251,7 @@ describe('migration 0020 : fichier, journal et synchronisation avec shared/', ()
     // Les 4 types d'administration sont ajoutés par la migration 0029 (A2) : prouvés dans migration-0029.test.ts.
     // Les types `abonnement_rappel` et `paiement_confirme` sont ajoutés par la migration 0021 (S10) : leur CHECK est prouvée dans migration-0021.test.ts.
     // Les 2 types d'essai gratuit sont ajoutés par la migration 0036 (E1) : prouvés dans migration-0036-essai-gratuit.test.ts.
-    expect(valeursContrainte('emails_transactionnels_type_check')).toEqual(TRANSACTIONAL_EMAIL_TYPES.filter((type) => !TYPES_AJOUTES_PAR_0021.includes(type) && !(ADMIN_A2_EMAIL_TYPES as readonly string[]).includes(type) && !(ESSAI_EMAIL_TYPES as readonly string[]).includes(type)))
+    expect(valeursContrainte('emails_transactionnels_type_check')).toEqual(TRANSACTIONAL_EMAIL_TYPES.filter((type) => !TYPES_AJOUTES_PAR_0021.includes(type) && !(ADMIN_A2_EMAIL_TYPES as readonly string[]).includes(type) && !(ESSAI_EMAIL_TYPES as readonly string[]).includes(type) && type !== ESSAI_CONSTAT_EMAIL_TYPE))
   })
 
   it('recopie exactement EMAIL_STATUTS et EMAIL_CATEGORIES dans leurs CHECK', () => {

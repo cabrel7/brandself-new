@@ -624,7 +624,8 @@ export const messages = pgTable(
 // '' pour les types S7, `debut` en ISO UTC pour le rappel visiteur, `AAAA-MM-JJ` pour le rendez-vous du jour,
 // `GGGG-Www` pour le résumé hebdomadaire). `categorie` : le résumé et les deux relances de l'essai gratuit (E1,
 // migration 0036 : `abonnement_essai_services`, `abonnement_essai_statistiques`) sont les seuls e-mails `relationnel`
-// (désabonnables, préférence `email_hebdo`) ; tout le reste est `transactionnel`. Statut `annule` = ligne devenue non pertinente, jamais
+// (désabonnables, préférence `email_hebdo`) ; tout le reste est `transactionnel`, dont `abonnement_essai_constat`
+// (constat que l'essai est terminé : e-mail de service, occurrence `ESSAI:<fin ISO>` comme les deux relances). Statut `annule` = ligne devenue non pertinente, jamais
 // envoyée (`erreur_code` = code d'annulation). Les listes (types, entités, statuts, catégories, types à
 // occurrence obligatoire) sont recopiées depuis shared/jobs.ts (TRANSACTIONAL_EMAIL_TYPES) et
 // shared/notifications.ts (EMAIL_STATUTS, EMAIL_CATEGORIES) : garder synchronisées.
@@ -684,7 +685,8 @@ export const emailsTransactionnels = pgTable(
         'utilisateur_jours_offerts',
         'utilisateur_depubliee',
         'abonnement_essai_services',
-        'abonnement_essai_statistiques'
+        'abonnement_essai_statistiques',
+        'abonnement_essai_constat'
       )`,
     ),
     check(
@@ -736,7 +738,7 @@ export const emailsTransactionnels = pgTable(
     // Un e-mail récurrent ou replanifiable sans clé d'occurrence ne serait plus idempotent.
     check(
       'emails_transactionnels_occurrence_requise_check',
-      sql`${table.type} NOT IN ('reservation_visiteur_rappel','utilisateur_resume_hebdo','utilisateur_rappel_journee','abonnement_rappel','abonnement_essai_services','abonnement_essai_statistiques')
+      sql`${table.type} NOT IN ('reservation_visiteur_rappel','utilisateur_resume_hebdo','utilisateur_rappel_journee','abonnement_rappel','abonnement_essai_services','abonnement_essai_statistiques','abonnement_essai_constat')
         OR ${table.occurrence} <> ''`,
     ),
   ],
@@ -1872,8 +1874,10 @@ export const essais = pgTable(
 // (`INSERT ... ON CONFLICT DO NOTHING RETURNING`, D6) : deux comptes simultanés avec la même clé ne peuvent pas
 // obtenir chacun un essai. RESTRICT : un essai ne se supprime pas tant qu'il porte des empreintes (il ne se supprime
 // de toute façon jamais, `essais_proteger`). Le déclencheur `essais_empreintes_proteger` (écrit dans la migration, non
-// généré par drizzle-kit) rend la ligne immuable (DELETE et UPDATE qui change une valeur = 42501) : sinon un DELETE
-// ou un changement de `essai_id` rouvrirait l'essai à la personne.
+// généré par drizzle-kit) rend la ligne immuable (UPDATE qui change une valeur = 42501 ; DELETE = 42501 sauf dans la purge) :
+// sinon un DELETE ou un changement de `essai_id` rouvrirait l'essai à la personne. Conservation : 24 mois ; seul chemin de
+// suppression = la fonction SQL `essais_empreintes_purger(avant timestamptz)` (SECURITY DEFINER, refuse un `avant` plus récent
+// que now() - 24 mois, retourne le nombre de lignes supprimées), elle aussi écrite dans la migration.
 export const essaisEmpreintes = pgTable(
   'essais_empreintes',
   {

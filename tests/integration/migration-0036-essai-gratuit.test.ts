@@ -10,7 +10,6 @@ import {
   ESSAI_CLE_CONFIG,
   ESSAI_DEFAUT,
   ESSAI_EMAIL_ENTITE_TYPE,
-  ESSAI_EMAIL_TYPES,
   ESSAI_EMPREINTE_NATURES,
   ESSAI_OCCURRENCE_PREFIXE,
 } from '../../shared/essai'
@@ -21,8 +20,8 @@ import { erreurPostgres, rejet } from './support/erreurs'
 
 // E1 : migration 0036 (essai gratuit à la création de la vitrine) : origine d'abonnement `essai`, catégorie de configuration
 // `essai` (clé unique `inscription`, v1 seedée), tables `essais` et `essais_empreintes` (déclencheurs `essais_proteger` et
-// `essais_empreintes_proteger`), deux types
-// d'e-mail d'outbox. Couvre CA-E1-24 (UPDATE de `fin_le`, DELETE, `user_id` remplacé : 42501) et CA-E1-31 (CHECK : `essai` accepté,
+// `essais_empreintes_proteger`), fonction de purge `essais_empreintes_purger` (conservation 24 mois, seul chemin de DELETE des
+// empreintes), trois types d'e-mail d'outbox (deux relances `relationnel`, un constat de fin `transactionnel`). Couvre CA-E1-24 (UPDATE de `fin_le`, DELETE, `user_id` remplacé : 42501) et CA-E1-31 (CHECK : `essai` accepté,
 // `Essai` refusé ; catégorie `essai` avec une autre clé refusée ; types d'outbox acceptés), plus la valeur de la v1 (CA-E1-13, côté base).
 // État de la base APRÈS la migration (jouée par le globalSetup sur la vraie base de test), contraintes éprouvées par des écritures
 // RÉELLES, puis REJEU, RETOUR ARRIÈRE documenté (bloc ROLLBACK exécuté tel quel) et remontée.
@@ -42,11 +41,22 @@ const RAISE_EXCEPTION = 'P0001'
 
 const ID_SEED = 'e1000000-essai-inscription-1'
 const TABLES_TOUCHEES = ['abonnements', 'configuration_versions', 'emails_transactionnels', 'essais', 'essais_empreintes'] as const
-const TYPES_OUTBOX_ESSAI = [...ESSAI_EMAIL_TYPES]
-const TYPES_OUTBOX_ANCIENS = TRANSACTIONAL_EMAIL_TYPES.filter((t) => !(TYPES_OUTBOX_ESSAI as readonly string[]).includes(t))
+// Les trois types ajoutés par 0036 sont écrits ICI (et non lus dans shared/essai.ts) : la migration fige sa propre liste, le test
+// compare ensuite cette liste à celle du code (TRANSACTIONAL_EMAIL_TYPES).
+const TYPES_RELATIONNELS_ESSAI = ['abonnement_essai_services', 'abonnement_essai_statistiques']
+const TYPE_CONSTAT_ESSAI = 'abonnement_essai_constat'
+const TYPES_OUTBOX_ESSAI = [...TYPES_RELATIONNELS_ESSAI, TYPE_CONSTAT_ESSAI]
+const TYPES_OUTBOX_ANCIENS = TRANSACTIONAL_EMAIL_TYPES.filter((t) => !TYPES_OUTBOX_ESSAI.includes(t))
 const TYPES_A_OCCURRENCE = [
   'reservation_visiteur_rappel', 'utilisateur_resume_hebdo', 'utilisateur_rappel_journee', 'abonnement_rappel', ...TYPES_OUTBOX_ESSAI,
 ]
+const FONCTIONS_ESSAI = ['essais_proteger', 'essais_empreintes_proteger', 'essais_empreintes_purger']
+// Âges (intervalles PostgreSQL, passés en paramètre) des empreintes de test, par rapport à la limite de conservation de 24 mois.
+const AGE_ANCIEN = '30 months'
+const AGE_VIEUX = '25 months'
+const AGE_JUSTE_SOUS_LIMITE = '23 months 29 days'
+const AGE_RECENT = '6 months'
+const NOM_REGLAGE_PURGE = 'essais.purge_empreintes'
 const OCCURRENCE_ESSAI = `${ESSAI_OCCURRENCE_PREFIXE}2026-12-07T09:00:00.000Z`
 const DEBUT = '2026-11-23T09:00:00.000Z'
 const FIN = '2026-12-07T09:00:00.000Z'
@@ -125,6 +135,15 @@ function insererEmpreinte(empreinte: string, nature: string, essaiId: string): S
   return sql`INSERT INTO essais_empreintes (empreinte, nature, essai_id) VALUES (${empreinte}, ${nature}, ${essaiId})`
 }
 
+/** Empreinte datée dans le passé (`cree_le` = now() - age) : l'INSERT n'est pas protégé, seuls UPDATE et DELETE le sont. */
+function insererEmpreinteAgee(empreinte: string, nature: string, essaiId: string, age: string): SQL {
+  return sql`INSERT INTO essais_empreintes (empreinte, nature, essai_id, cree_le) VALUES (${empreinte}, ${nature}, ${essaiId}, now() - ${age}::interval)`
+}
+
+function empreinteNumero(n: number): string {
+  return n.toString(16).padStart(64, '0')
+}
+
 function insererAbonnement(id: string, userId: string, origine: string): SQL {
   return sql`INSERT INTO abonnements (id, user_id, expire_le, premiere_activation_le, origine)
     VALUES (${id}, ${userId}, ${FIN}::timestamptz, ${DEBUT}::timestamptz, ${origine})`
@@ -136,9 +155,9 @@ function insererVersion(id: string, categorie: string, cle: string, numero: numb
     VALUES (${id}, ${categorie}, ${cle}, ${numero}, ${JSON.stringify(ESSAI_DEFAUT)}::jsonb, ${statut}, ${effective}::timestamptz, ${'Version de test de la migration'}, ${'admin-1'})`
 }
 
-/** Catégorie liée au type (emails_transactionnels_categorie_type_check) : le résumé et les deux relances d'essai sont `relationnel`. */
+/** Catégorie liée au type (emails_transactionnels_categorie_type_check) : le résumé et les deux relances d'essai sont `relationnel`, le constat de fin non. */
 function categorieAttendue(type: string): string {
-  return type === 'utilisateur_resume_hebdo' || (TYPES_OUTBOX_ESSAI as readonly string[]).includes(type) ? 'relationnel' : 'transactionnel'
+  return type === 'utilisateur_resume_hebdo' || TYPES_RELATIONNELS_ESSAI.includes(type) ? 'relationnel' : 'transactionnel'
 }
 
 /** Entité de l'outbox déduite du préfixe du type (emails_transactionnels_entite_coherence_check). */
@@ -189,7 +208,8 @@ async function structure(lecteur: Lecteur): Promise<Structure> {
     SELECT tgname AS nom, tgrelid::regclass::text AS table, tgenabled::text AS etat, pg_get_triggerdef(oid) AS definition
     FROM pg_trigger WHERE NOT tgisinternal AND tgrelid::regclass::text IN (${liste}) ORDER BY 1`)
   const fonction = await lecteur.execute<{ definition: string }>(sql`
-    SELECT pg_get_functiondef(oid) AS definition FROM pg_proc WHERE proname IN ('essais_proteger', 'essais_empreintes_proteger') ORDER BY proname`)
+    SELECT pg_get_functiondef(oid) || E'\n-- droits : ' || coalesce(proacl::text, 'defaut') AS definition
+    FROM pg_proc WHERE proname IN (${sql.join(FONCTIONS_ESSAI.map((f) => sql`${f}`), sql`, `)}) ORDER BY proname`)
   return {
     contraintes: contraintes.rows, index: index.rows, declencheurs: declencheurs.rows, fonction: fonction.rows.map((r) => r.definition),
   }
@@ -291,7 +311,7 @@ describe('migration 0036 : structure en base (CA-E1-24, tables et déclencheur)'
     expect(etat.declencheurs.find((d) => d.nom === 'essais_proteger')?.definition).toMatch(/BEFORE DELETE OR UPDATE ON .*essais FOR EACH ROW/)
     expect(etat.declencheurs.filter((d) => d.table === 'essais_empreintes').map((d) => [d.nom, d.etat])).toEqual([['essais_empreintes_proteger', 'O']])
     expect(etat.declencheurs.find((d) => d.nom === 'essais_empreintes_proteger')?.definition).toMatch(/BEFORE DELETE OR UPDATE ON .*essais_empreintes FOR EACH ROW/)
-    expect(etat.fonction).toHaveLength(2)
+    expect(etat.fonction).toHaveLength(FONCTIONS_ESSAI.length)
     for (const definition of etat.fonction) expect(definition).toMatch(/SET search_path TO 'public', 'pg_temp'/)
   })
 
@@ -655,35 +675,37 @@ describe('migration 0036 : essais_empreintes (attribution atomique)', () => {
 })
 
 describe('migration 0036 : outbox (CA-E1-31, types acceptés)', () => {
-  it('should hold in emails_transactionnels_type_check EXACTLY the types of the code (TRANSACTIONAL_EMAIL_TYPES), the two new ones included', async () => {
+  it('should hold in emails_transactionnels_type_check EXACTLY the types of the code (TRANSACTIONAL_EMAIL_TYPES), the three new ones included', async () => {
     const definition = await definitionContrainte(db, 'emails_transactionnels', 'emails_transactionnels_type_check')
 
     expect(litteraux(definition).sort()).toEqual([...TRANSACTIONAL_EMAIL_TYPES].sort())
-    expect(TRANSACTIONAL_EMAIL_TYPES).toHaveLength(19)
+    expect(TRANSACTIONAL_EMAIL_TYPES).toHaveLength(20)
     expect(litteraux(definition)).toEqual(expect.arrayContaining([...TYPES_OUTBOX_ESSAI]))
   })
 
-  it('should hold in emails_transactionnels_occurrence_requise_check the four older types and the two new ones', async () => {
+  it('should hold in emails_transactionnels_occurrence_requise_check the four older types and the three new ones', async () => {
     const definition = await definitionContrainte(db, 'emails_transactionnels', 'emails_transactionnels_occurrence_requise_check')
 
     expect(litteraux(definition).sort()).toEqual([...TYPES_A_OCCURRENCE].sort())
   })
 
-  it('should bind the category `relationnel` to the summary and the two essai e-mails, and only to them (emails_transactionnels_categorie_type_check)', async () => {
+  it('should bind the category `relationnel` to the summary and the two essai reminders, and only to them: the end-of-essai notice is a service e-mail, `transactionnel` (emails_transactionnels_categorie_type_check)', async () => {
     const definition = await definitionContrainte(db, 'emails_transactionnels', 'emails_transactionnels_categorie_type_check')
 
     expect(litteraux(definition).filter((valeur) => valeur !== 'relationnel').sort())
-      .toEqual(['abonnement_essai_services', 'abonnement_essai_statistiques', 'utilisateur_resume_hebdo'])
+      .toEqual([...TYPES_RELATIONNELS_ESSAI, 'utilisateur_resume_hebdo'])
+    expect(litteraux(definition)).not.toContain(TYPE_CONSTAT_ESSAI)
     await dansTransactionAnnulee(async (tx) => {
-      for (const type of ['utilisateur_resume_hebdo', ...TYPES_OUTBOX_ESSAI]) {
+      for (const type of ['utilisateur_resume_hebdo', ...TYPES_RELATIONNELS_ESSAI]) {
         await tx.execute(insererEmail(`rel-${type}`, type, '2026-12-07', 'relationnel'))
         const transactionnel = await refus(tx, insererEmail(`trans-${type}`, type, '2026-12-14', 'transactionnel'))
         expect(erreurPostgres(transactionnel.brute), type).toMatchObject({ sqlstate: CHECK_VIOLATION, contrainte: 'emails_transactionnels_categorie_type_check' })
       }
-      for (const type of ['abonnement_rappel', 'paiement_confirme', 'reservation_visiteur_recue']) {
+      for (const type of ['abonnement_rappel', 'paiement_confirme', 'reservation_visiteur_recue', TYPE_CONSTAT_ESSAI]) {
         const relationnel = await refus(tx, insererEmail(`rel-refuse-${type}`, type, '2026-12-07', 'relationnel'))
         expect(erreurPostgres(relationnel.brute), type).toMatchObject({ sqlstate: CHECK_VIOLATION, contrainte: 'emails_transactionnels_categorie_type_check' })
       }
+      await tx.execute(insererEmail('constat-ok', TYPE_CONSTAT_ESSAI, OCCURRENCE_ESSAI, 'transactionnel'))
     })
   })
 
@@ -694,16 +716,18 @@ describe('migration 0036 : outbox (CA-E1-31, types acceptés)', () => {
     expect(index.rows[0]?.definition).toMatch(/\(entite_id, created_at\) WHERE \(categorie = 'relationnel'::text\)/)
   })
 
-  it('should accept the two essai e-mails (entity `abonnement`, category `relationnel`, occurrence `ESSAI:<fin ISO>` within the 32 characters)', async () => {
+  it('should accept the three essai e-mails (entity `abonnement`, occurrence `ESSAI:<fin ISO>` within the 32 characters; `relationnel` for the reminders, `transactionnel` for the notice)', async () => {
     expect(OCCURRENCE_ESSAI).toHaveLength(30)
     expect(ESSAI_EMAIL_ENTITE_TYPE).toBe('abonnement')
     await dansTransactionAnnulee(async (tx) => {
       await tx.execute(insererEmail('mail-1', 'abonnement_essai_services', OCCURRENCE_ESSAI))
       await tx.execute(insererEmail('mail-2', 'abonnement_essai_statistiques', OCCURRENCE_ESSAI))
+      await tx.execute(insererEmail('mail-3', TYPE_CONSTAT_ESSAI, OCCURRENCE_ESSAI))
 
       const rows = await tx.execute<{ type: string, occurrence: string, categorie: string, statut: string }>(
         sql`SELECT type, occurrence, categorie, statut FROM emails_transactionnels ORDER BY type`)
       expect(rows.rows).toEqual([
+        { type: TYPE_CONSTAT_ESSAI, occurrence: OCCURRENCE_ESSAI, categorie: 'transactionnel', statut: 'en_attente' },
         { type: 'abonnement_essai_services', occurrence: OCCURRENCE_ESSAI, categorie: 'relationnel', statut: 'en_attente' },
         { type: 'abonnement_essai_statistiques', occurrence: OCCURRENCE_ESSAI, categorie: 'relationnel', statut: 'en_attente' },
       ])
@@ -723,7 +747,7 @@ describe('migration 0036 : outbox (CA-E1-31, types acceptés)', () => {
     })
   })
 
-  it('should REQUIRE an occurrence for both new types (a replannable e-mail without key would not be idempotent)', async () => {
+  it('should REQUIRE an occurrence for the three new types (a replannable e-mail without key would not be idempotent)', async () => {
     await dansTransactionAnnulee(async (tx) => {
       for (const type of TYPES_OUTBOX_ESSAI) {
         const erreur = await refus(tx, insererEmail('mail-sans-occurrence', type, ''))
@@ -740,12 +764,14 @@ describe('migration 0036 : outbox (CA-E1-31, types acceptés)', () => {
       const minuscules = await refus(tx, insererEmail('m-format', 'abonnement_essai_services', 'essai:2026-12-07'))
       const longue = await refus(tx, insererEmail('m-long', 'abonnement_essai_services', `${ESSAI_OCCURRENCE_PREFIXE}${'1'.repeat(27)}`))
       const transactionnel = await refus(tx, insererEmail('m-trans', 'abonnement_essai_services', OCCURRENCE_ESSAI, 'transactionnel'))
+      const constatRelationnel = await refus(tx, insererEmail('m-constat', TYPE_CONSTAT_ESSAI, OCCURRENCE_ESSAI, 'relationnel'))
 
       expect(erreurPostgres(inconnu.brute)).toMatchObject({ sqlstate: CHECK_VIOLATION, contrainte: 'emails_transactionnels_type_check' })
       expect(erreurPostgres(entite.brute)).toMatchObject({ sqlstate: CHECK_VIOLATION, contrainte: 'emails_transactionnels_entite_coherence_check' })
       expect(erreurPostgres(minuscules.brute)).toMatchObject({ sqlstate: CHECK_VIOLATION, contrainte: 'emails_transactionnels_occurrence_check' })
       expect(erreurPostgres(longue.brute)).toMatchObject({ sqlstate: CHECK_VIOLATION, contrainte: 'emails_transactionnels_occurrence_check' })
       expect(erreurPostgres(transactionnel.brute)).toMatchObject({ sqlstate: CHECK_VIOLATION, contrainte: 'emails_transactionnels_categorie_type_check' })
+      expect(erreurPostgres(constatRelationnel.brute)).toMatchObject({ sqlstate: CHECK_VIOLATION, contrainte: 'emails_transactionnels_categorie_type_check' })
     })
   })
 
@@ -757,6 +783,183 @@ describe('migration 0036 : outbox (CA-E1-31, types acceptés)', () => {
       }
 
       expect((await tx.execute<{ n: number }>(sql`SELECT count(*)::int AS n FROM emails_transactionnels`)).rows[0]?.n).toBe(17)
+    })
+  })
+})
+
+describe('migration 0036 : purge des empreintes (conservation 24 mois, essais_empreintes_purger)', () => {
+  /** Quatre empreintes d'âges différents sur un essai détaché (compte supprimé) : 30, 25 et 6 mois, et juste sous la limite. */
+  async function peuplerEmpreintes(tx: Tx): Promise<void> {
+    await tx.execute(insererEssai('essai-1', null))
+    await tx.execute(insererEmpreinteAgee(empreinteNumero(1), 'email', 'essai-1', AGE_ANCIEN))
+    await tx.execute(insererEmpreinteAgee(empreinteNumero(2), 'telephone', 'essai-1', AGE_VIEUX))
+    await tx.execute(insererEmpreinteAgee(empreinteNumero(3), 'email', 'essai-1', AGE_JUSTE_SOUS_LIMITE))
+    await tx.execute(insererEmpreinteAgee(empreinteNumero(4), 'telephone', 'essai-1', AGE_RECENT))
+  }
+
+  async function empreintesRestantes(tx: Tx): Promise<number[]> {
+    const rows = await tx.execute<{ empreinte: string }>(sql`SELECT empreinte FROM essais_empreintes ORDER BY empreinte`)
+    return rows.rows.map((r) => Number.parseInt(r.empreinte, 16))
+  }
+
+  it('should be SECURITY DEFINER with a pinned search_path, return an integer, and give EXECUTE to nobody but its owner (PUBLIC revoked)', async () => {
+    const fonction = await db.execute<{ definer: boolean, retour: string, config: string[], public_execute: boolean, acl: string | null }>(sql`
+      SELECT prosecdef AS definer, prorettype::regtype::text AS retour, proconfig AS config,
+        has_function_privilege('public', oid, 'EXECUTE') AS public_execute, proacl::text AS acl
+      FROM pg_proc WHERE proname = 'essais_empreintes_purger'`)
+
+    expect(fonction.rows).toHaveLength(1)
+    expect(fonction.rows[0]).toMatchObject({ definer: true, retour: 'integer', public_execute: false })
+    expect(fonction.rows[0]?.config).toEqual(['search_path=public, pg_temp'])
+    expect(fonction.rows[0]?.acl).not.toBeNull()
+  })
+
+  it('should REFUSE (42501, nothing deleted) a cut-off more recent than now() - 24 months, NULL included, and accept the exact limit', async () => {
+    await dansTransactionAnnulee(async (tx) => {
+      await peuplerEmpreintes(tx)
+      const refuses = [
+        sql`SELECT essais_empreintes_purger(now())`,
+        sql`SELECT essais_empreintes_purger(now() + interval '1 day')`,
+        sql`SELECT essais_empreintes_purger(now() - interval '6 months')`,
+        sql`SELECT essais_empreintes_purger(now() - interval '24 months' + interval '1 second')`,
+        sql`SELECT essais_empreintes_purger(NULL::timestamptz)`,
+      ]
+      for (const requete of refuses) {
+        const erreur = await refus(tx, requete)
+        expect(erreurPostgres(erreur.brute).sqlstate).toBe(INSUFFICIENT_PRIVILEGE)
+        expect(messageSql(erreur)).toContain('conservation minimale de 24 mois')
+      }
+
+      expect(await empreintesRestantes(tx)).toEqual([1, 2, 3, 4])
+      // Limite exacte : acceptée, mais seules les lignes STRICTEMENT plus anciennes partent (celle de 23 mois 29 jours reste).
+      const limite = await tx.execute<{ n: number }>(sql`SELECT essais_empreintes_purger(now() - interval '24 months') AS n`)
+      expect(limite.rows[0]?.n).toBe(2)
+      expect(await empreintesRestantes(tx)).toEqual([3, 4])
+    })
+  })
+
+  it('should delete ONLY the fingerprints older than the cut-off and return how many (the essai row and its conversion are kept)', async () => {
+    await dansTransactionAnnulee(async (tx) => {
+      await creerUtilisateur(tx, 'u-1')
+      await tx.execute(insererEssai('essai-1', 'u-1'))
+      await tx.execute(sql`UPDATE essais SET converti_le = ${FIN}::timestamptz WHERE id = 'essai-1'`)
+      await tx.execute(insererEmpreinteAgee(empreinteNumero(1), 'email', 'essai-1', AGE_ANCIEN))
+      await tx.execute(insererEmpreinteAgee(empreinteNumero(2), 'telephone', 'essai-1', AGE_VIEUX))
+      await tx.execute(insererEmpreinteAgee(empreinteNumero(3), 'email', 'essai-1', AGE_JUSTE_SOUS_LIMITE))
+      await tx.execute(insererEmpreinteAgee(empreinteNumero(4), 'telephone', 'essai-1', AGE_RECENT))
+      const essaiAvant = (await tx.execute(sql`SELECT * FROM essais`)).rows
+
+      const premiere = await tx.execute<{ n: number }>(sql`SELECT essais_empreintes_purger(now() - interval '28 months') AS n`)
+      expect(premiere.rows[0]?.n).toBe(1)
+      expect(await empreintesRestantes(tx)).toEqual([2, 3, 4])
+
+      const seconde = await tx.execute<{ n: number }>(sql`SELECT essais_empreintes_purger(now() - interval '24 months') AS n`)
+      expect(seconde.rows[0]?.n).toBe(1)
+      expect(await empreintesRestantes(tx)).toEqual([3, 4])
+
+      const rien = await tx.execute<{ n: number }>(sql`SELECT essais_empreintes_purger(now() - interval '24 months') AS n`)
+      expect(rien.rows[0]?.n).toBe(0)
+      expect(await empreintesRestantes(tx)).toEqual([3, 4])
+      expect((await tx.execute(sql`SELECT * FROM essais`)).rows).toEqual(essaiAvant)
+    })
+  })
+
+  it('should purge an empty table without error (0 deleted)', async () => {
+    await dansTransactionAnnulee(async (tx) => {
+      const vide = await tx.execute<{ n: number }>(sql`SELECT essais_empreintes_purger(now() - interval '36 months') AS n`)
+
+      expect(vide.rows[0]?.n).toBe(0)
+    })
+  })
+
+  it('should keep refusing every direct DELETE, an old row included, and any UPDATE, before and after a purge (the purge context does not leak out of the call)', async () => {
+    await dansTransactionAnnulee(async (tx) => {
+      await peuplerEmpreintes(tx)
+      const directs = [
+        sql`DELETE FROM essais_empreintes WHERE empreinte = ${empreinteNumero(1)}`,
+        sql`DELETE FROM essais_empreintes WHERE cree_le < now() - interval '24 months'`,
+        sql`DELETE FROM essais_empreintes`,
+      ]
+      for (const requete of directs) {
+        const erreur = await refus(tx, requete)
+        expect(erreurPostgres(erreur.brute).sqlstate).toBe(INSUFFICIENT_PRIVILEGE)
+        expect(messageSql(erreur)).toContain('suppression interdite')
+      }
+      expect(await empreintesRestantes(tx)).toEqual([1, 2, 3, 4])
+
+      await tx.execute(sql`SELECT essais_empreintes_purger(now() - interval '24 months')`)
+
+      expect((await tx.execute<{ valeur: string | null }>(sql`SELECT current_setting(${NOM_REGLAGE_PURGE}, true) AS valeur`)).rows[0]?.valeur ?? '').toBe('')
+      // Les lignes 1 et 2 sont parties : un DELETE doit encore échouer sur celles qui restent (le déclencheur est de nouveau fermé).
+      for (const requete of [sql`DELETE FROM essais_empreintes WHERE empreinte = ${empreinteNumero(3)}`, sql`DELETE FROM essais_empreintes`]) {
+        expect(erreurPostgres((await refus(tx, requete)).brute).sqlstate).toBe(INSUFFICIENT_PRIVILEGE)
+      }
+      const update = await refus(tx, sql`UPDATE essais_empreintes SET essai_id = essai_id || 'x' WHERE empreinte = ${empreinteNumero(3)}`)
+      expect(erreurPostgres(update.brute).sqlstate).toBe(INSUFFICIENT_PRIVILEGE)
+      expect(messageSql(update)).toContain('ligne immuable')
+      expect(await empreintesRestantes(tx)).toEqual([3, 4])
+    })
+  })
+
+  it('should not let a forged purge setting delete a recent fingerprint or change any row (the trigger also checks the 24 months and still refuses UPDATE)', async () => {
+    await dansTransactionAnnulee(async (tx) => {
+      await peuplerEmpreintes(tx)
+      await tx.execute(sql`SELECT set_config(${NOM_REGLAGE_PURGE}, 'on', true)`)
+
+      const recente = await refus(tx, sql`DELETE FROM essais_empreintes WHERE empreinte = ${empreinteNumero(4)}`)
+      const sousLimite = await refus(tx, sql`DELETE FROM essais_empreintes WHERE empreinte = ${empreinteNumero(3)}`)
+      const toutes = await refus(tx, 'DELETE FROM essais_empreintes')
+      const update = await refus(tx, sql`UPDATE essais_empreintes SET nature = 'telephone' WHERE empreinte = ${empreinteNumero(1)}`)
+
+      for (const erreur of [recente, sousLimite, toutes, update]) expect(erreurPostgres(erreur.brute).sqlstate).toBe(INSUFFICIENT_PRIVILEGE)
+      expect(await empreintesRestantes(tx)).toEqual([1, 2, 3, 4])
+    })
+  })
+
+  it('should NEVER delete an essai: DELETE refused (42501) alone, with a forged purge setting, and after a purge; the purge leaves every essai in place', async () => {
+    await dansTransactionAnnulee(async (tx) => {
+      await peuplerEmpreintes(tx)
+      await tx.execute(sql`SELECT essais_empreintes_purger(now() - interval '24 months')`)
+      await tx.execute(sql`SELECT set_config(${NOM_REGLAGE_PURGE}, 'on', true)`)
+
+      const parId = await refus(tx, sql`DELETE FROM essais WHERE id = 'essai-1'`)
+      const tous = await refus(tx, 'DELETE FROM essais')
+
+      for (const erreur of [parId, tous]) {
+        expect(erreurPostgres(erreur.brute).sqlstate).toBe(INSUFFICIENT_PRIVILEGE)
+        expect(messageSql(erreur)).toContain('suppression interdite')
+      }
+      expect((await tx.execute<{ n: number }>(sql`SELECT count(*)::int AS n FROM essais`)).rows[0]?.n).toBe(1)
+      // Même quand TOUTES ses empreintes sont parties, l'essai reste (compteur de conversions, historique).
+      await tx.execute(sql`SELECT essais_empreintes_purger(now() - interval '24 months')`)
+      expect((await tx.execute<{ n: number }>(sql`SELECT count(*)::int AS n FROM essais`)).rows[0]?.n).toBe(1)
+    })
+  })
+
+  it('should run for a role that has EXECUTE but no right on the table (SECURITY DEFINER), and refuse a role that was not granted EXECUTE', async () => {
+    await dansTransactionAnnulee(async (tx) => {
+      await peuplerEmpreintes(tx)
+      await tx.execute(sql`CREATE ROLE essai_test_sans_droit NOLOGIN`)
+      await tx.execute(sql`CREATE ROLE essai_test_purgeur NOLOGIN`)
+      await tx.execute(sql`GRANT EXECUTE ON FUNCTION essais_empreintes_purger(timestamptz) TO essai_test_purgeur`)
+
+      await tx.execute(sql`SET LOCAL ROLE essai_test_sans_droit`)
+      const sansDroit = await refus(tx, sql`SELECT essais_empreintes_purger(now() - interval '24 months')`)
+      await tx.execute(sql`RESET ROLE`)
+      expect(erreurPostgres(sansDroit.brute).sqlstate).toBe(INSUFFICIENT_PRIVILEGE)
+      expect(messageSql(sansDroit)).toContain('permission denied')
+      expect(await empreintesRestantes(tx)).toEqual([1, 2, 3, 4])
+
+      await tx.execute(sql`SET LOCAL ROLE essai_test_purgeur`)
+      const directe = await refus(tx, sql`DELETE FROM essais_empreintes WHERE empreinte = ${empreinteNumero(1)}`)
+      const purge = await tx.execute<{ n: number }>(sql`SELECT essais_empreintes_purger(now() - interval '24 months') AS n`)
+      const trop = await refus(tx, sql`SELECT essais_empreintes_purger(now())`)
+      await tx.execute(sql`RESET ROLE`)
+
+      expect(messageSql(directe)).toContain('permission denied')
+      expect(purge.rows[0]?.n).toBe(2)
+      expect(messageSql(trop)).toContain('conservation minimale')
+      expect(await empreintesRestantes(tx)).toEqual([3, 4])
     })
   })
 })
@@ -814,6 +1017,7 @@ describe('migration 0036 : rejeu, retour arrière documenté, remontée', () => 
       const structureOrigine = await structure(tx)
       const versionsOrigine = await versionsEssai(tx)
       await tx.execute(insererEmail('mail-essai', 'abonnement_essai_services', OCCURRENCE_ESSAI))
+      await tx.execute(insererEmail('mail-constat', TYPE_CONSTAT_ESSAI, OCCURRENCE_ESSAI))
       await tx.execute(insererEmail('mail-rappel', 'abonnement_rappel', '2026-12-07'))
 
       await executer(tx, instructionsRollback())
@@ -823,6 +1027,7 @@ describe('migration 0036 : rejeu, retour arrière documenté, remontée', () => 
       expect((await structure(tx)).fonction).toEqual([])
       expect((await structure(tx)).declencheurs.filter((d) => d.nom === 'essais_proteger' || d.nom === 'essais_empreintes_proteger')).toEqual([])
       expect(await versionsEssai(tx)).toEqual([])
+      expect((await tx.execute<{ n: number }>(sql`SELECT count(*)::int AS n FROM pg_proc WHERE proname = 'essais_empreintes_purger'`)).rows[0]?.n).toBe(0)
       expect((await tx.execute<{ etat: string }>(sql`SELECT tgenabled::text AS etat FROM pg_trigger WHERE tgname = 'configuration_versions_proteger'`)).rows[0]?.etat).toBe('O')
       expect((await tx.execute<{ id: string }>(sql`SELECT id FROM emails_transactionnels ORDER BY id`)).rows.map((r) => r.id)).toEqual(['mail-rappel'])
       expect((await tx.execute<{ n: number }>(sql`SELECT count(*)::int AS n FROM drizzle.__drizzle_migrations WHERE created_at = ${WHEN_0036}`)).rows[0]?.n).toBe(0)
@@ -841,10 +1046,12 @@ describe('migration 0036 : rejeu, retour arrière documenté, remontée', () => 
       await creerUtilisateur(tx, 'u-1')
       const origine = await refus(tx, insererAbonnement('abo-1', 'u-1', 'essai'))
       const type = await refus(tx, insererEmail('mail-2', 'abonnement_essai_statistiques', OCCURRENCE_ESSAI))
+      const constat = await refus(tx, insererEmail('mail-3', TYPE_CONSTAT_ESSAI, OCCURRENCE_ESSAI))
       const categorie = await refus(tx, insererVersion('e1000000-essai-inscription-2', 'essai', 'inscription', 2))
       expect(erreurPostgres(origine.brute).contrainte).toBe('abonnements_origine_check')
       // Les deux CHECK refusent le type ; PostgreSQL les évalue par ordre alphabétique, `categorie_type` répond le premier.
       expect(['emails_transactionnels_categorie_type_check', 'emails_transactionnels_type_check']).toContain(erreurPostgres(type.brute).contrainte)
+      expect(erreurPostgres(constat.brute).contrainte).toBe('emails_transactionnels_type_check')
       expect(erreurPostgres(categorie.brute).contrainte).toBe('configuration_versions_categorie_check')
 
       await executer(tx, instructionsUp())
@@ -862,6 +1069,10 @@ describe('migration 0036 : rejeu, retour arrière documenté, remontée', () => 
       expect(erreurPostgres((await refus(tx, sql`DELETE FROM essais_empreintes WHERE empreinte = ${EMPREINTE_A}`)).brute).sqlstate).toBe(INSUFFICIENT_PRIVILEGE)
       expect(erreurPostgres((await refus(tx, sql`UPDATE essais_empreintes SET essai_id = 'essai-remonte' || 'x' WHERE empreinte = ${EMPREINTE_A}`)).brute).sqlstate)
         .toBe(INSUFFICIENT_PRIVILEGE)
+      // Et la purge est revenue avec ses droits : trop récente refusée, ancienne purgée.
+      expect(erreurPostgres((await refus(tx, sql`SELECT essais_empreintes_purger(now())`)).brute).sqlstate).toBe(INSUFFICIENT_PRIVILEGE)
+      await tx.execute(insererEmpreinteAgee(EMPREINTE_B, 'telephone', 'essai-remonte', AGE_ANCIEN))
+      expect((await tx.execute<{ n: number }>(sql`SELECT essais_empreintes_purger(now() - interval '24 months') AS n`)).rows[0]?.n).toBe(1)
     })
   })
 

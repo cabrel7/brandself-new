@@ -282,12 +282,12 @@ describe('migration 0029 : abonnements.origine', () => {
 })
 
 describe('migration 0029 : emails_transactionnels (4 nouveaux types)', () => {
-  it('should keep the type CHECK validated and list the 17 types of 0029 plus the 2 trial types of E1 (19)', async () => {
+  it('should keep the type CHECK validated and list the 17 types of 0029 plus the 3 trial types of E1 (20)', async () => {
     const c = (await contraintes('emails_transactionnels')).emails_transactionnels_type_check
 
     expect(c).toMatchObject({ type: 'c', validee: true })
     for (const type of TYPES_ADMIN) expect(c?.definition, type).toContain(type)
-    for (const type of ['reservation_professionnel_nouvelle', 'utilisateur_resume_hebdo', 'abonnement_rappel', 'paiement_confirme', 'abonnement_essai_services', 'abonnement_essai_statistiques']) expect(c?.definition, type).toContain(type)
+    for (const type of ['reservation_professionnel_nouvelle', 'utilisateur_resume_hebdo', 'abonnement_rappel', 'paiement_confirme', 'abonnement_essai_services', 'abonnement_essai_statistiques', 'abonnement_essai_constat']) expect(c?.definition, type).toContain(type)
   })
 
   it.each(TYPES_ADMIN)('should accept %s for an `utilisateur` entity', async (type) => {

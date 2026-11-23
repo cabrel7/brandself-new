@@ -1263,7 +1263,7 @@
       "checkConstraints": {
         "emails_transactionnels_type_check": {
           "name": "emails_transactionnels_type_check",
-          "value": "\"emails_transactionnels\".\"type\" IN (\n        'reservation_professionnel_nouvelle',\n        'reservation_visiteur_recue',\n        'reservation_visiteur_confirmee',\n        'reservation_visiteur_annulee',\n        'reservation_visiteur_refusee',\n        'demande_professionnel_nouvelle',\n        'demande_visiteur_recue',\n        'message_professionnel_nouvelle',\n        'reservation_visiteur_rappel',\n        'utilisateur_resume_hebdo',\n        'utilisateur_rappel_journee',\n        'abonnement_rappel',\n        'paiement_confirme',\n        'utilisateur_suspendu',\n        'utilisateur_reactive',\n        'utilisateur_jours_offerts',\n        'utilisateur_depubliee',\n        'abonnement_essai_services',\n        'abonnement_essai_statistiques'\n      )"
+          "value": "\"emails_transactionnels\".\"type\" IN (\n        'reservation_professionnel_nouvelle',\n        'reservation_visiteur_recue',\n        'reservation_visiteur_confirmee',\n        'reservation_visiteur_annulee',\n        'reservation_visiteur_refusee',\n        'demande_professionnel_nouvelle',\n        'demande_visiteur_recue',\n        'message_professionnel_nouvelle',\n        'reservation_visiteur_rappel',\n        'utilisateur_resume_hebdo',\n        'utilisateur_rappel_journee',\n        'abonnement_rappel',\n        'paiement_confirme',\n        'utilisateur_suspendu',\n        'utilisateur_reactive',\n        'utilisateur_jours_offerts',\n        'utilisateur_depubliee',\n        'abonnement_essai_services',\n        'abonnement_essai_statistiques',\n        'abonnement_essai_constat'\n      )"
         },
         "emails_transactionnels_entite_type_check": {
           "name": "emails_transactionnels_entite_type_check",
@@ -1303,7 +1303,7 @@
         },
         "emails_transactionnels_occurrence_requise_check": {
           "name": "emails_transactionnels_occurrence_requise_check",
-          "value": "\"emails_transactionnels\".\"type\" NOT IN ('reservation_visiteur_rappel','utilisateur_resume_hebdo','utilisateur_rappel_journee','abonnement_rappel','abonnement_essai_services','abonnement_essai_statistiques')\n        OR \"emails_transactionnels\".\"occurrence\" <> ''"
+          "value": "\"emails_transactionnels\".\"type\" NOT IN ('reservation_visiteur_rappel','utilisateur_resume_hebdo','utilisateur_rappel_journee','abonnement_rappel','abonnement_essai_services','abonnement_essai_statistiques','abonnement_essai_constat')\n        OR \"emails_transactionnels\".\"occurrence\" <> ''"
         }
       },
       "isRLSEnabled": false
