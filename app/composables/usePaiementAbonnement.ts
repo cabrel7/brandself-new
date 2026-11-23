@@ -57,6 +57,31 @@ export function messageFinPaiement(paiement: PaiementDTO): string {
   return messageEchec(paiement.statut === 'expire' ? CODE_ECHEC_EXPIRE : null)
 }
 
+export interface PaysDesMoyens {
+  /** Code pays ISO alpha-3 (`CMR`). */
+  code: string
+  libelle: string
+}
+
+/** Pays couverts par les moyens, sans doublon, dans l'ordre du catalogue (le premier pays est celui du premier moyen). */
+export function paysDesMoyens(moyens: readonly MoyenPaiementDTO[]): PaysDesMoyens[] {
+  const vus = new Map<string, PaysDesMoyens>()
+  for (const m of moyens) {
+    if (!vus.has(m.pays)) vus.set(m.pays, { code: m.pays, libelle: m.paysLibelle })
+  }
+  return [...vus.values()]
+}
+
+/** Moyens d'un pays, dans l'ordre du catalogue : le premier est celui qu'on sélectionne au changement de pays. */
+export function moyensDuPays(moyens: readonly MoyenPaiementDTO[], pays: string): MoyenPaiementDTO[] {
+  return moyens.filter((m) => m.pays === pays)
+}
+
+/** Vrai si l'indicatif change d'un moyen à l'autre (deux valeurs non vides et différentes) : le numéro saisi n'est plus le bon. */
+export function indicatifChange(ancien: string | undefined, nouveau: string | undefined): boolean {
+  return !!ancien && !!nouveau && ancien !== nouveau
+}
+
 function estPeriode(valeur: unknown): valeur is PeriodeMois {
   return (PERIODES_MOIS as readonly unknown[]).includes(valeur)
 }
@@ -124,6 +149,13 @@ export function usePaiementAbonnement(
     if (!liste.some((m) => m.id === moyenId.value)) moyenId.value = ''
     if (moyenId.value === '' && liste.length === 1 && liste[0]) moyenId.value = liste[0].id
   }, { immediate: true })
+
+  // Changement de pays (indicatif différent) : le numéro saisi ne correspond plus, on le vide. Même pays, chargement ou aucun moyen : rien.
+  watch(() => moyenChoisi.value?.indicatif, (nouveau, ancien) => {
+    if (!indicatifChange(ancien, nouveau)) return
+    telephone.value = ''
+    viderErreur('telephone')
+  })
 
   // Si la durée choisie n'existe pas dans la devise courante, on retombe sur la durée mise en avant.
   watch(prixPeriodes, (liste) => {

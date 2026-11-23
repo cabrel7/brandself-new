@@ -309,6 +309,8 @@ interface InstantaneBase {
   prompts: Array<{ id: string, actif: boolean }>
   pays: unknown[]
   devises: unknown[]
+  /** Versions posées par les migrations (`systeme`) et leur statut de départ : 0035 remplace une version de 0034. */
+  versionsSysteme: Array<{ id: string, statut: string }>
 }
 
 let instantane: InstantaneBase | undefined
@@ -317,7 +319,8 @@ async function prendreInstantane(): Promise<void> {
   const prompts = await db.execute<{ id: string, actif: boolean }>(sql`SELECT id, actif FROM prompts_ia`)
   const pays = await db.execute(sql`SELECT * FROM pays`)
   const devises = await db.execute(sql`SELECT * FROM devises`)
-  instantane = { prompts: prompts.rows, pays: pays.rows, devises: devises.rows }
+  const versionsSysteme = await db.execute<{ id: string, statut: string }>(sql`SELECT id, statut FROM configuration_versions WHERE cree_par = 'systeme'`)
+  instantane = { prompts: prompts.rows, pays: pays.rows, devises: devises.rows, versionsSysteme: versionsSysteme.rows }
 }
 
 /** Remet les catalogues, les versions, les prompts et les compteurs à l'état de la migration 0032 (appelé avant chaque test et en fin de fichier). */
@@ -328,7 +331,14 @@ export async function restaurerConfiguration(): Promise<void> {
     await tx.execute(sql`ALTER TABLE configuration_versions DISABLE TRIGGER USER`)
     await tx.execute(sql`ALTER TABLE prompts_ia DISABLE TRIGGER USER`)
     await tx.execute(sql`DELETE FROM configuration_versions WHERE cree_par <> 'systeme'`)
-    await tx.execute(sql`UPDATE configuration_versions SET statut = 'active', validee_le = NULL WHERE cree_par = 'systeme'`)
+    // Statut de départ de chaque version `systeme` (et non « tout actif » : 0035 a remplacé la v1 des moyens Mercy Pay).
+    // Deux instructions : tout passe d'abord à `remplacee`, puis seules les versions actives au départ le redeviennent,
+    // sans jamais deux actives en même temps (index unique de la version active).
+    await tx.execute(sql`UPDATE configuration_versions SET statut = 'remplacee', validee_le = NULL WHERE cree_par = 'systeme'`)
+    await tx.execute(sql`
+      UPDATE configuration_versions c SET statut = 'active'
+      FROM json_to_recordset(${JSON.stringify(base.versionsSysteme)}::json) AS s(id text, statut text)
+      WHERE c.id = s.id AND s.statut = 'active'`)
     const ids = JSON.stringify(base.prompts.map((p) => p.id))
     await tx.execute(sql`DELETE FROM prompts_ia WHERE id NOT IN (SELECT json_array_elements_text(${ids}::json))`)
     await tx.execute(sql`UPDATE prompts_ia SET actif = false`)

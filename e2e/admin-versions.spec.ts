@@ -21,7 +21,12 @@ async function retirerVersionsDeTest(): Promise<void> {
   await client.query('ALTER TABLE configuration_versions DISABLE TRIGGER USER')
   try {
     await client.query("DELETE FROM configuration_versions WHERE cree_par <> 'systeme'")
-    await client.query("UPDATE configuration_versions SET statut = 'active', validee_le = NULL WHERE cree_par = 'systeme'")
+    // La version `systeme` la plus récente de chaque clé est l'active (0035 remplace la v1 des moyens Mercy Pay) ; tout passe
+    // d'abord à `remplacee` pour ne jamais avoir deux actives en même temps (index unique).
+    await client.query("UPDATE configuration_versions SET statut = 'remplacee', validee_le = NULL WHERE cree_par = 'systeme'")
+    await client.query(`UPDATE configuration_versions c SET statut = 'active'
+      WHERE c.cree_par = 'systeme' AND c.numero = (
+        SELECT max(x.numero) FROM configuration_versions x WHERE x.categorie = c.categorie AND x.cle = c.cle AND x.cree_par = 'systeme')`)
   } finally {
     await client.query('ALTER TABLE configuration_versions ENABLE TRIGGER USER')
   }

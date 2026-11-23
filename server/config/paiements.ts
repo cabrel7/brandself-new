@@ -43,6 +43,8 @@ export interface MoyenPaiementConfig {
 
 /** Montant minimal par défaut d'un moyen (en unité mineure). */
 const MONTANT_MIN_DEFAUT = 100
+/** Numéro national sans format confirmé (Congo, Gabon) : 8 à 10 chiffres, le fournisseur tranche. */
+const NUMERO_NATIONAL_SOUPLE = /^\d{8,10}$/
 
 /**
  * Catalogue. Actifs : Orange Money et MTN MoMo au Cameroun (XAF). Les autres pays sont au catalogue mais
@@ -107,6 +109,26 @@ export const MOYENS_PAIEMENT: readonly MoyenPaiementConfig[] = [
     exemple: '6XX XXX XXX',
     actif: true,
   },
+  // P1-bis : zone XAF de Mercy Pay (Congo, Gabon), même devise que les prix : aucune conversion. Les formats nationaux ne sont
+  // pas confirmés : validation souple (8 à 10 chiffres), Mercy Pay refuse un numéro invalide (`invalid_phone_number`).
+  ...(
+    [
+      { operateur: 'MTN_MOMO_COG', libelle: 'MTN MoMo', pays: 'COG', indicatif: '242' },
+      { operateur: 'AIRTEL_COG', libelle: 'Airtel Money', pays: 'COG', indicatif: '242' },
+      { operateur: 'AIRTEL_GAB', libelle: 'Airtel Money', pays: 'GAB', indicatif: '241' },
+      { operateur: 'MOOV_GAB', libelle: 'Moov Money', pays: 'GAB', indicatif: '241' },
+    ] as const
+  ).map((moyen): MoyenPaiementConfig => ({
+    id: `mercypay:${moyen.operateur}`,
+    fournisseur: 'mercypay',
+    methode: 'mobile_money',
+    ...moyen,
+    devise: 'XAF',
+    montantMin: MONTANT_MIN_DEFAUT,
+    numeroNational: NUMERO_NATIONAL_SOUPLE,
+    exemple: 'Votre numéro, sans l’indicatif',
+    actif: true,
+  })),
   {
     id: 'kpay:ORANGE_CIV',
     fournisseur: 'kpay',
