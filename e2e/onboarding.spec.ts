@@ -268,7 +268,7 @@ test.describe('Inscription guidée (fournisseur d’IA faux)', () => {
     await expect(page.getByText(accrocheChoisie).first()).toBeVisible()
   })
 
-  test('CA61 écran final : adresse copiable et annoncée, partage WhatsApp encodé, prochaine étape vers les disponibilités', async ({ playwright, browser }) => {
+  test('CA61 écran final : adresse copiable et annoncée, partage WhatsApp encodé, note d’essai à la place de la prochaine étape', async ({ playwright, browser }) => {
     const { page } = await nouvelUtilisateur({ playwright, browser }, { pressePapiers: true })
     const op = new OnboardingPage(page)
     const { username } = await parcourirJusquALaFin(op, SANS_DELAI, 0)
@@ -286,11 +286,11 @@ test.describe('Inscription guidée (fournisseur d’IA faux)', () => {
     })))
     await expect(page.getByRole('link', { name: 'Voir ma vitrine' })).toHaveAttribute('href', `/${username}`)
 
-    // « Prochaine étape » : un titre de niveau 2, son texte, puis un lien nommé « Ouvrir ».
-    await expect(page.getByRole('heading', { level: 2, name: 'Ouvrez vos disponibilités' })).toBeVisible()
-    await expect(page.getByText('Vos visiteurs pourront réserver un rendez-vous directement.')).toBeVisible()
-    const prochaine = page.getByRole('link', { name: 'Ouvrir', exact: true })
-    await expect(prochaine).toHaveAttribute('href', '/studio/agenda/disponibilites')
+    // Le compte est en essai : la note d'essai (secondaire, après les boutons) REMPLACE la carte « prochaine étape » (EnLigne.vue, un seul message).
+    await expect(page.getByText('14 jours du plan payant vous sont offerts. Aucun paiement demandé.', { exact: true })).toBeVisible()
+    await expect(page.getByRole('heading', { level: 2, name: 'Ouvrez vos disponibilités' })).toHaveCount(0)
+    await expect(page.getByText('Vos visiteurs pourront réserver un rendez-vous directement.')).toHaveCount(0)
+    await expect(page.getByRole('link', { name: 'Ouvrir', exact: true })).toHaveCount(0)
 
     // Aucun débordement horizontal de l'écran final à 390, 768 et 1280 px.
     for (const viewport of VIEWPORTS) {
@@ -298,10 +298,6 @@ test.describe('Inscription guidée (fournisseur d’IA faux)', () => {
       await expect(op.enLigne()).toBeVisible()
       await sansDebordementHorizontal(page, viewport.width)
     }
-
-    await prochaine.click()
-    await expect(page).toHaveURL(/\/studio\/agenda\/disponibilites$/)
-    await expect(page.getByRole('heading', { level: 1, name: 'Vos disponibilités' })).toBeVisible({ timeout: DELAI_ECRAN_MS })
   })
 
   test('CA62 un utilisateur dont la vitrine est publiée qui ouvre /onboarding est redirigé vers /studio', async ({ playwright, browser }) => {

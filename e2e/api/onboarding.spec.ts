@@ -282,7 +282,8 @@ test.describe.serial('parcours d’inscription guidée (contrats)', () => {
     expect(reponse.status()).toBe(202)
     const { generation, quota } = await corps<{ generation: Generation, quota: Record<string, unknown> }>(reponse)
     expect(generation.type).toBe('ameliorer_texte')
-    expect(quota).toMatchObject({ plan: 'gratuit' })
+    // Le test s'exécute après CA37 (`terminer`) : le compte est en essai (E1), donc au plan payant.
+    expect(quota).toMatchObject({ plan: 'payant' })
     const terminee = await attendreTerminal(session, generation.id)
     expect(terminee.resultat).toMatchObject({ champ: 'bio', avant: texte })
     expect(typeof (terminee.resultat as { apres: unknown }).apres).toBe('string')
