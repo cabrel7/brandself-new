@@ -14,6 +14,7 @@ import {
   VERSION_STATUTS,
 } from '../admin'
 import { PRIX_MAX_MINOR } from '../devises'
+import { ESSAI_CLE_CONFIG, ESSAI_DUREE_MAX_JOURS, ESSAI_DUREE_MIN_JOURS } from '../essai'
 import {
   IA_ERREUR_CODES,
   IA_TYPES,
@@ -86,6 +87,43 @@ export const schemaValeursMoyens = z.strictObject({
     .refine((actifs) => new Set(actifs).size === actifs.length, { message: 'Un moyen ne peut figurer qu’une fois.' }),
 })
 export type ValeursMoyens = z.infer<typeof schemaValeursMoyens>
+
+const MESSAGE_ESSAI_JOURS = 'Indiquez un nombre de jours entier.'
+const schemaJourEssai = z.number(MESSAGE_ESSAI_JOURS).int(MESSAGE_ESSAI_JOURS).min(1, 'Le jour doit être au moins le 1er.').max(ESSAI_DUREE_MAX_JOURS, `Le jour ne peut pas dépasser ${ESSAI_DUREE_MAX_JOURS}.`)
+
+/**
+ * Valeurs de la version `essai` (E1 D3, clé `inscription`) : `actif`, durée de 3 à 90 jours, jours des deux e-mails de
+ * relance. Règle : `1 <= relanceServicesJour < relanceStatistiquesJour < dureeJours` (une relance ne tombe jamais
+ * après la fin de l'essai ni le même jour qu'une autre).
+ */
+export const schemaValeursEssai = z
+  .strictObject({
+    actif: z.boolean(),
+    dureeJours: z
+      .number(MESSAGE_ESSAI_JOURS)
+      .int(MESSAGE_ESSAI_JOURS)
+      .min(ESSAI_DUREE_MIN_JOURS, `La durée est d’au moins ${ESSAI_DUREE_MIN_JOURS} jours (deux e-mails de relance doivent tenir avant la fin).`)
+      .max(ESSAI_DUREE_MAX_JOURS, `La durée ne peut pas dépasser ${ESSAI_DUREE_MAX_JOURS} jours.`),
+    relanceServicesJour: schemaJourEssai,
+    relanceStatistiquesJour: schemaJourEssai,
+  })
+  .superRefine((valeurs, contexte) => {
+    if (valeurs.relanceStatistiquesJour <= valeurs.relanceServicesJour) {
+      contexte.addIssue({
+        code: 'custom',
+        path: ['relanceStatistiquesJour'],
+        message: 'Le second e-mail doit partir après le premier.',
+      })
+    }
+    if (valeurs.relanceStatistiquesJour >= valeurs.dureeJours) {
+      contexte.addIssue({
+        code: 'custom',
+        path: ['relanceStatistiquesJour'],
+        message: 'Le second e-mail doit partir avant la fin de l’essai.',
+      })
+    }
+  })
+export type ValeursEssai = z.infer<typeof schemaValeursEssai>
 
 const nonVide = (texte: string): boolean => texte.trim().length > 0
 
@@ -165,6 +203,14 @@ export const schemaCreerVersionMoyens = z.strictObject({
 })
 export type CreerVersionMoyens = z.infer<typeof schemaCreerVersionMoyens>
 
+/** `POST /api/admin/versions/essai` : la clé est toujours `inscription` (CHECK de la migration 0036). */
+export const schemaCreerVersionEssai = z.strictObject({
+  cle: z.literal(ESSAI_CLE_CONFIG),
+  valeurs: schemaValeursEssai,
+  motif: schemaMotifAdmin,
+})
+export type CreerVersionEssai = z.infer<typeof schemaCreerVersionEssai>
+
 /** `POST /api/admin/versions/prompts` : une nouvelle ligne `prompts_ia` inactive ; `cle` = type de prompt. */
 export const schemaCreerVersionPrompt = z.strictObject({
   cle: z.enum(IA_TYPES),
@@ -179,6 +225,7 @@ export const schemasCreationVersion = {
   prix: schemaCreerVersionPrix,
   frais: schemaCreerVersionFrais,
   moyens: schemaCreerVersionMoyens,
+  essai: schemaCreerVersionEssai,
   prompts: schemaCreerVersionPrompt,
 } as const
 
@@ -274,7 +321,7 @@ const baseVersionConfiguration = {
   creeLe: schemaInstant,
 }
 
-function schemaVersionConfiguration<T extends 'plans' | 'prix' | 'frais' | 'moyens', V extends z.ZodType>(type: T, valeurs: V) {
+function schemaVersionConfiguration<T extends 'plans' | 'prix' | 'frais' | 'moyens' | 'essai', V extends z.ZodType>(type: T, valeurs: V) {
   return z.strictObject({ type: z.literal(type), ...baseVersionConfiguration, valeurs })
 }
 
@@ -307,6 +354,7 @@ export const schemaVersionDto = z.discriminatedUnion('type', [
   schemaVersionConfiguration('prix', schemaValeursPrix),
   schemaVersionConfiguration('frais', schemaValeursFrais),
   schemaVersionConfiguration('moyens', schemaValeursMoyens),
+  schemaVersionConfiguration('essai', schemaValeursEssai),
   schemaVersionPromptDto,
 ])
 export type VersionDto = z.infer<typeof schemaVersionDto>

@@ -64,6 +64,15 @@ describe('/tarifs et studio : graceJours affiché', () => {
 
     expect((reponse.corps as TarifsDTO).graceJours).toBe(GRACE_REGLEE)
   })
+
+  it('should keep the trial mention of E1 independent of the grace setting (a trial never has a grace period)', async () => {
+    await regler(GRACE_REGLEE)
+    const { default: handler } = await routeTarifs()
+
+    const reponse = await appeler(handler, evenement({ chemin: '/api/public/tarifs', ip: '198.51.100.9' }))
+
+    expect((reponse.corps as TarifsDTO).essai).toEqual({ actif: true, dureeJours: 14 })
+  })
 })
 
 describe('sitemap : plan effectif au regard de la grâce réglée', () => {

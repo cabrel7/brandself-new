@@ -6,10 +6,12 @@ import {
   RAPPEL_VISITEUR_RATTRAPAGE_HEURES,
   RESUME_RATTRAPAGE_HEURES,
 } from '../../../shared/notifications'
+import { ESSAI_CONSTAT_EMAIL_TYPE, ESSAI_CONSTAT_PEREMPTION_JOURS, ESSAI_EMAIL_TYPES, ESSAI_OCCURRENCE_PREFIXE } from '../../../shared/essai'
+import type { EssaiEmailType } from '../../../shared/essai'
 import type { CodeAnnulation } from '../../../shared/notifications'
 import { ABONNEMENT_FUSEAU_REPLI, ABONNEMENT_RAPPEL_RATTRAPAGE_HEURES, ABONNEMENT_RAPPELS_JOURS } from '../../../shared/plans'
 import type { AbonnementRappelJours } from '../../../shared/plans'
-import { HEURE_MS } from '../../../shared/temps'
+import { HEURE_MS, JOUR_MS } from '../../../shared/temps'
 
 // S9 (docs/specs/S9-notifications.md #83, #102, §4.4) : revalidation PURE d'une ligne d'outbox juste
 // avant l'envoi. Les faits (réservation, préférences, vitrine publiée, nombre de rendez-vous du jour,
@@ -80,6 +82,25 @@ export function joursRappelManuel(expireLe: Date, now: Date, fuseau: string = AB
   return Math.max(0, aujourdhui.until(dernierJour, { largestUnit: 'days' }).days)
 }
 
+// --- Relances de l'essai gratuit (E1 D8) ---
+
+/** Origine d'un abonnement d'essai (`abonnements.origine`). */
+const ORIGINE_ESSAI = 'essai'
+
+/** `ESSAI:2026-12-03T23:00:00.000Z` : la relance est liée à UNE fin d'essai ; une prolongation en change la clé. */
+export function construireOccurrenceEssai(finLe: Date): string {
+  return `${ESSAI_OCCURRENCE_PREFIXE}${finLe.toISOString()}`
+}
+
+/** Fin d'essai portée par l'occurrence ; `null` si la clé n'a pas exactement cette forme (aller-retour ISO exact). */
+export function analyserOccurrenceEssai(occurrence: string): Date | null {
+  if (!occurrence.startsWith(ESSAI_OCCURRENCE_PREFIXE)) return null
+  const iso = occurrence.slice(ESSAI_OCCURRENCE_PREFIXE.length)
+  const finLe = new Date(iso)
+  if (Number.isNaN(finLe.getTime()) || finLe.toISOString() !== iso) return null
+  return finLe
+}
+
 interface EntreeBase {
   /** Clé d'occurrence de la ligne d'outbox. */
   occurrence: string
@@ -119,6 +140,33 @@ export interface EntreePaiementConfirme extends EntreeBase {
   paiement: { statut: string, utilisateurPresent: boolean, destinataire: boolean } | null
 }
 
+/**
+ * E1 : constat de fin d'essai (e-mail de service). `abonnement` `null` : introuvable. `origine` et `expireLe` sont ceux
+ * de la base ; `destinataire` : une adresse d'envoi existe.
+ */
+export interface EntreeEssaiConstat extends EntreeBase {
+  type: typeof ESSAI_CONSTAT_EMAIL_TYPE
+  abonnement: { origine: string, expireLe: Date, destinataire: boolean } | null
+}
+
+export interface EntreeEssaiRelance extends EntreeBase {
+  type: EssaiEmailType
+  /**
+   * `null` : abonnement introuvable. `origine` est celle de la base (chaîne) ; `expireLe` l'échéance COURANTE
+   * (exclusive) ; `emailHebdo` la préférence du compte ; `contenuDejaAjoute` n'est renseigné que pour la relance
+   * « services » (une réalisation, ou un service créé après la vitrine).
+   */
+  abonnement: {
+    origine: string
+    expireLe: Date
+    emailHebdo: boolean
+    destinataire: boolean
+    contenuDejaAjoute: boolean
+    /** Un autre e-mail `relationnel` du compte (résumé ou relance d'essai) est DÉJÀ PARTI cette semaine locale (S9 #88). */
+    relationnelDejaPartiCetteSemaine: boolean
+  } | null
+}
+
 /** Types historiques (S7) : jamais annulés par la revalidation (pas de régression, #102). */
 export interface EntreeHistorique extends EntreeBase {
   type: string
@@ -130,6 +178,8 @@ export type EntreePertinence =
   | EntreeRappelJournee
   | EntreeRappelAbonnement
   | EntreePaiementConfirme
+  | EntreeEssaiRelance
+  | EntreeEssaiConstat
   | EntreeHistorique
 
 /** Paramètres réglables ; les valeurs par défaut viennent de shared/notifications.ts et shared/plans.ts. */
@@ -170,6 +220,14 @@ function estRappelAbonnement(entree: EntreePertinence): entree is EntreeRappelAb
 
 function estPaiementConfirme(entree: EntreePertinence): entree is EntreePaiementConfirme {
   return entree.type === 'paiement_confirme'
+}
+
+function estEssaiRelance(entree: EntreePertinence): entree is EntreeEssaiRelance {
+  return (ESSAI_EMAIL_TYPES as readonly string[]).includes(entree.type)
+}
+
+function estEssaiConstat(entree: EntreePertinence): entree is EntreeEssaiConstat {
+  return entree.type === ESSAI_CONSTAT_EMAIL_TYPE
 }
 
 function apresRattrapage(creeLe: Date, now: Date, heures: number): boolean {
@@ -245,6 +303,46 @@ function pertinencePaiementConfirme(entree: EntreePaiementConfirme): CodeAnnulat
   return null
 }
 
+/**
+ * E1 D8 : relance de l'essai. Annulée si l'abonnement n'est plus un essai (payé, offert, rendu gratuit : D12), si la
+ * fin d'essai a changé ou est atteinte (`RAPPEL_PERIME`), si la préférence `email_hebdo` est coupée, si aucune
+ * adresse n'existe, ou (relance « services » seulement) si du contenu a déjà été ajouté. Plafond S9 #88 (un e-mail
+ * relationnel par semaine et par compte) : annulée (`PLAFOND_RELATIONNEL`) si un autre est déjà parti cette semaine ;
+ * contrôlé en dernier (une relance sans objet garde son code propre).
+ */
+function pertinenceEssaiRelance(entree: EntreeEssaiRelance, now: Date): CodeAnnulation | null {
+  const { abonnement } = entree
+  if (abonnement === null) return 'ENTITE_INTROUVABLE'
+  if (abonnement.origine !== ORIGINE_ESSAI) return 'ESSAI_TERMINE'
+  const finLe = analyserOccurrenceEssai(entree.occurrence)
+  if (finLe === null || finLe.getTime() !== abonnement.expireLe.getTime()) return 'RAPPEL_PERIME'
+  if (now.getTime() >= abonnement.expireLe.getTime()) return 'RAPPEL_PERIME'
+  if (!abonnement.destinataire) return 'DESTINATAIRE_ABSENT'
+  if (!abonnement.emailHebdo) return 'PREFERENCE_DESACTIVEE'
+  if (entree.type === 'abonnement_essai_services' && abonnement.contenuDejaAjoute) return 'CONTENU_DEJA_AJOUTE'
+  if (abonnement.relationnelDejaPartiCetteSemaine) return 'PLAFOND_RELATIONNEL'
+  return null
+}
+
+/**
+ * E1 : constat de fin d'essai. Ne part que si l'essai n'a PAS été converti ni prolongé : une échéance différente de
+ * celle de l'occurrence (paiement, jours offerts) donne `ABONNEMENT_RENOUVELE` ; une origine qui n'est plus `essai`
+ * (offert, rendu gratuit) `ESSAI_TERMINE`. Avant la fin de l'essai, ou au-delà de `ESSAI_CONSTAT_PEREMPTION_JOURS`
+ * jours après, `RAPPEL_PERIME` (jamais d'e-mail de constat en retard de plusieurs jours).
+ */
+function pertinenceEssaiConstat(entree: EntreeEssaiConstat, now: Date): CodeAnnulation | null {
+  const { abonnement } = entree
+  if (abonnement === null) return 'ENTITE_INTROUVABLE'
+  const finLe = analyserOccurrenceEssai(entree.occurrence)
+  if (finLe === null) return 'RAPPEL_PERIME'
+  if (finLe.getTime() !== abonnement.expireLe.getTime()) return 'ABONNEMENT_RENOUVELE'
+  if (abonnement.origine !== ORIGINE_ESSAI) return 'ESSAI_TERMINE'
+  if (now.getTime() < finLe.getTime()) return 'RAPPEL_PERIME'
+  if (now.getTime() > finLe.getTime() + ESSAI_CONSTAT_PEREMPTION_JOURS * JOUR_MS) return 'RAPPEL_PERIME'
+  if (!abonnement.destinataire) return 'DESTINATAIRE_ABSENT'
+  return null
+}
+
 export function evaluerPertinence(
   entree: EntreePertinence,
   now: Date,
@@ -255,5 +353,7 @@ export function evaluerPertinence(
   if (estRappelJournee(entree)) return pertinenceRappelJournee(entree, now, reglages)
   if (estRappelAbonnement(entree)) return pertinenceRappelAbonnement(entree, now, reglages)
   if (estPaiementConfirme(entree)) return pertinencePaiementConfirme(entree)
+  if (estEssaiRelance(entree)) return pertinenceEssaiRelance(entree, now)
+  if (estEssaiConstat(entree)) return pertinenceEssaiConstat(entree, now)
   return null
 }

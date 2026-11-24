@@ -232,15 +232,15 @@ test.describe('S9 interface : préférences, désabonnement, prochaine étape, p
       const desabonnement = new DesabonnementPage(p)
       await desabonnement.ouvrir(jetonValide(session.userId, 'email_hebdo'))
 
-      await expect(desabonnement.titre('Ne plus recevoir le résumé de la semaine ?')).toBeVisible({ timeout: DELAI_ECRAN_MS })
-      await expect(desabonnement.titre('Ne plus recevoir le résumé de la semaine ?')).toBeFocused()
+      await expect(desabonnement.titre('Ne plus recevoir nos conseils et le résumé de la semaine ?')).toBeVisible({ timeout: DELAI_ECRAN_MS })
+      await expect(desabonnement.titre('Ne plus recevoir nos conseils et le résumé de la semaine ?')).toBeFocused()
       // L'aperçu n'a aucun effet.
       expect((await lirePreferences(session.userId)).emailHebdo).toBe(true)
 
       await desabonnement.action().click()
       await expect(desabonnement.titre('C’est fait.')).toBeVisible()
       await expect(desabonnement.titre('C’est fait.')).toBeFocused()
-      await expect(p.getByText('Vous ne recevrez plus le résumé de la semaine.')).toBeVisible()
+      await expect(p.getByText('Vous ne recevrez plus nos conseils et le résumé de la semaine.')).toBeVisible()
       await expect(p.getByRole('link', { name: 'Gérer mes e-mails' })).toHaveAttribute('href', '/studio/compte')
       await expect.poll(() => lirePreferences(session.userId)).toEqual({ emailHebdo: false, emailRappelJour: true })
 

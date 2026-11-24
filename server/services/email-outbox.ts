@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { Temporal } from '@js-temporal/polyfill'
-import { and, asc, eq, gte, inArray, lt, lte, or, sql } from 'drizzle-orm'
+import { and, asc, eq, gt, gte, inArray, lt, lte, or, sql } from 'drizzle-orm'
 import { ADMIN_A2_EMAIL_TYPES } from '../../shared/admin-a2'
 import { TEMP_EMAIL_DOMAIN } from '../../shared/compte'
 import {
@@ -9,12 +9,15 @@ import {
   emailsTransactionnels,
   messages,
   paiements,
+  realisations,
   reservations,
   services,
   users,
   vitrines,
 } from '../../shared/db/schema'
 import { env } from '../../shared/env'
+import { ESSAI_CONSTAT_EMAIL_TYPE, ESSAI_EMAIL_ENTITE_TYPE, ESSAI_EMAIL_TYPES } from '../../shared/essai'
+import type { EssaiEmailType } from '../../shared/essai'
 import { isValidTimeZone } from '../../shared/fuseau'
 import {
   TRANSACTIONAL_EMAIL_BACKOFF_MS,
@@ -56,6 +59,8 @@ const OUTBOX_BATCH_SIZE = 100
 const IDEMPOTENCY_KEY_PREFIX = 'brandself-email-'
 /** Clé d'occurrence des e-mails ponctuels (S7) : une seule ligne par (entité, type). */
 const OCCURRENCE_VIDE = ''
+/** `abonnements.origine` d'un essai gratuit (E1). */
+const ORIGINE_ESSAI = 'essai'
 
 type TransactionCallback = Parameters<typeof db.transaction>[0]
 export type DbTransaction = Parameters<TransactionCallback>[0]
@@ -91,6 +96,10 @@ function isDemandeEmailType(value: TransactionalEmailType): value is DemandeEmai
 
 function isMessageEmailType(value: TransactionalEmailType): value is MessageEmailType {
   return value.startsWith('message_')
+}
+
+function isEssaiEmailType(value: string): value is EssaiEmailType {
+  return (ESSAI_EMAIL_TYPES as readonly string[]).includes(value)
 }
 
 function assertEventMatchesEntity(type: TransactionalEmailType, entiteType: EmailEntityType): void {
@@ -679,6 +688,7 @@ async function prepareRappelAbonnement(row: EmailOutboxRow, now: Date): Promise<
   const [result] = await db
     .select({
       expireLe: abonnements.expireLe,
+      origine: abonnements.origine,
       fuseau: users.fuseau,
       email: users.email,
       prenom: vitrines.prenom,
@@ -707,8 +717,10 @@ async function prepareRappelAbonnement(row: EmailOutboxRow, now: Date): Promise<
   if (!result || destinataire === null || jours === null) return { annule: 'ENTITE_INTROUVABLE' }
 
   // Lien de renouvellement : la dernière période payée est présélectionnée (repli : la plus courte).
+  // E1 (D9) : un essai n'a pas de dernière période payée (repli : la plus courte) et PAS de grâce.
+  const essai = result.origine === ORIGINE_ESSAI
   const derniere = result.dernierePeriode
-  const periodeMois = derniere !== null && estPeriodeMois(derniere) ? derniere : PERIODES_MOIS[0]
+  const periodeMois = !essai && derniere !== null && estPeriodeMois(derniere) ? derniere : PERIODES_MOIS[0]
   return {
     contenu: {
       type: 'abonnement_rappel',
@@ -721,7 +733,7 @@ async function prepareRappelAbonnement(row: EmailOutboxRow, now: Date): Promise<
       jours,
       expireLe: result.expireLe,
       periodeMois,
-      graceJours: await lireGraceJours(),
+      ...(essai ? { essai: true } : { graceJours: await lireGraceJours() }),
     },
   }
 }
@@ -787,10 +799,179 @@ async function preparePaiementConfirme(row: EmailOutboxRow, now: Date): Promise<
   }
 }
 
+/**
+ * E1 D8 : relances de l'essai (jour 2 « services », jour 7 « statistiques »). La ligne porte l'id de l'ABONNEMENT ; les
+ * faits (origine courante, fin d'essai, préférence `email_hebdo`, destinataire, contenu déjà ajouté) sont relus à
+ * l'envoi puis jugés par `evaluerPertinence` (pure). Le jeton de désabonnement est signé comme pour le résumé.
+ */
+async function prepareEssaiRelance(row: EmailOutboxRow, now: Date): Promise<Preparation> {
+  const type = row.type
+  if (!isEssaiEmailType(type)) throw new EmailOutboxProcessingError('TYPE_EMAIL_INCONNU')
+  const [result] = await db
+    .select({
+      userId: users.id,
+      origine: abonnements.origine,
+      expireLe: abonnements.expireLe,
+      email: users.email,
+      fuseau: users.fuseau,
+      emailHebdo: users.email_hebdo,
+      vitrineId: vitrines.id,
+      vitrineCreeeLe: vitrines.createdAt,
+      prenom: vitrines.prenom,
+      emailContact: vitrines.emailContact,
+    })
+    .from(abonnements)
+    .innerJoin(users, eq(users.id, abonnements.userId))
+    .leftJoin(vitrines, eq(vitrines.userId, users.id))
+    .where(eq(abonnements.id, row.entiteId))
+    .limit(1)
+
+  const destinataire = result ? resolveRecipient(result.emailContact, result.email) : null
+  // « Déjà ajouté » (relance services seulement) : une réalisation, ou un service créé APRÈS la vitrine (les services
+  // proposés à l'inscription sont écrits dans la même transaction que la vitrine : même `created_at`).
+  const contenuDejaAjoute = type === 'abonnement_essai_services' && result?.vitrineId && result.vitrineCreeeLe
+    ? await vitrineAContenuAjoute(result.vitrineId, result.vitrineCreeeLe)
+    : false
+  const relationnelDejaParti = result
+    ? await relationnelDejaPartiCetteSemaine(result.userId, row.id, now, fuseauAffichage(result.fuseau))
+    : false
+  const code = evaluerPertinence({
+    type,
+    occurrence: row.occurrence,
+    createdAt: row.createdAt,
+    abonnement: result
+      ? {
+          origine: result.origine,
+          expireLe: result.expireLe,
+          emailHebdo: result.emailHebdo,
+          destinataire: destinataire !== null,
+          contenuDejaAjoute,
+          relationnelDejaPartiCetteSemaine: relationnelDejaParti,
+        }
+      : null,
+  }, now)
+  if (code !== null) return { annule: code }
+  if (!result || destinataire === null || result.vitrineId === null || result.vitrineCreeeLe === null) {
+    return { annule: 'ENTITE_INTROUVABLE' }
+  }
+
+  const fuseau = fuseauAffichage(result.fuseau)
+  const preference: PreferenceEmail = 'email_hebdo'
+  const base = {
+    outboxId: row.id,
+    generatedAt: row.createdAt,
+    destinataire,
+    prenom: result.prenom ?? '',
+    fuseau,
+    siteUrl: env.NUXT_PUBLIC_SITE_URL,
+    jetonDesabonnement: signUnsubscribeToken(result.userId, preference, now),
+    expireLe: result.expireLe,
+  }
+  if (type === 'abonnement_essai_services') return { contenu: { ...base, type } }
+
+  // Visites et clics depuis la création de la vitrine, jusqu'à l'envoi.
+  const compteurs = await getCompteursResume(result.vitrineId, fuseau, { debut: result.vitrineCreeeLe, fin: now })
+  return { contenu: { ...base, type, visites: compteurs.visites, clics: compteurs.clics } }
+}
+
+/**
+ * E1 : constat de fin d'essai (e-mail de service). La ligne porte l'id de l'ABONNEMENT ; origine, fin d'essai et
+ * destinataire sont relus à l'envoi puis jugés par `evaluerPertinence` (pure) : un essai converti ou prolongé est annulé.
+ */
+async function prepareEssaiConstat(row: EmailOutboxRow, now: Date): Promise<Preparation> {
+  const [result] = await db
+    .select({
+      origine: abonnements.origine,
+      expireLe: abonnements.expireLe,
+      email: users.email,
+      fuseau: users.fuseau,
+      prenom: vitrines.prenom,
+      emailContact: vitrines.emailContact,
+    })
+    .from(abonnements)
+    .innerJoin(users, eq(users.id, abonnements.userId))
+    .leftJoin(vitrines, eq(vitrines.userId, users.id))
+    .where(eq(abonnements.id, row.entiteId))
+    .limit(1)
+
+  const destinataire = result ? resolveRecipient(result.emailContact, result.email) : null
+  const code = evaluerPertinence({
+    type: ESSAI_CONSTAT_EMAIL_TYPE,
+    occurrence: row.occurrence,
+    createdAt: row.createdAt,
+    abonnement: result ? { origine: result.origine, expireLe: result.expireLe, destinataire: destinataire !== null } : null,
+  }, now)
+  if (code !== null) return { annule: code }
+  if (!result || destinataire === null) return { annule: 'ENTITE_INTROUVABLE' }
+  return {
+    contenu: {
+      type: ESSAI_CONSTAT_EMAIL_TYPE,
+      outboxId: row.id,
+      generatedAt: row.createdAt,
+      destinataire,
+      prenom: result.prenom ?? '',
+      fuseau: fuseauAffichage(result.fuseau),
+      siteUrl: env.NUXT_PUBLIC_SITE_URL,
+      expireLe: result.expireLe,
+      periodeMois: PERIODES_MOIS[0],
+    },
+  }
+}
+
+/**
+ * Plafond S9 #88 côté relances d'essai : un autre e-mail `relationnel` du compte (résumé : `entite_id` = compte ;
+ * relance d'essai : `entite_id` = un abonnement du compte) est-il DÉJÀ PARTI (`envoye`) depuis le lundi local de `now` ?
+ * Seul `envoye` compte : deux lignes en cours en même temps ne s'annulent pas l'une l'autre (la course restante, deux
+ * envois simultanés, est négligeable et ne produit qu'un e-mail de plus, jamais zéro).
+ */
+async function relationnelDejaPartiCetteSemaine(userId: string, ligneId: string, now: Date, fuseau: string): Promise<boolean> {
+  const local = Temporal.Instant.fromEpochMilliseconds(now.getTime()).toZonedDateTimeISO(fuseau)
+  const debutSemaine = new Date(debutSemaineIso(local).epochMilliseconds)
+  const [partie] = await db
+    .select({ id: emailsTransactionnels.id })
+    .from(emailsTransactionnels)
+    .where(and(
+      eq(emailsTransactionnels.categorie, 'relationnel'),
+      eq(emailsTransactionnels.statut, 'envoye'),
+      gte(emailsTransactionnels.envoyeLe, debutSemaine),
+      sql`${emailsTransactionnels.id} <> ${ligneId}`,
+      or(
+        eq(emailsTransactionnels.entiteId, userId),
+        and(
+          eq(emailsTransactionnels.entiteType, ESSAI_EMAIL_ENTITE_TYPE),
+          inArray(emailsTransactionnels.entiteId, db.select({ id: abonnements.id }).from(abonnements).where(eq(abonnements.userId, userId))),
+        ),
+      ),
+    ))
+    .limit(1)
+  return partie !== undefined
+}
+
+// Les services posés par l'onboarding partagent la transaction (et l'instant) de la vitrine, à la microseconde près :
+// un `Date` JS tronque à la milliseconde. On ne compte qu'un service créé nettement après.
+const CREATION_VITRINE_TOLERANCE_MS = 5_000
+
+async function vitrineAContenuAjoute(vitrineId: string, vitrineCreeeLe: Date): Promise<boolean> {
+  const [realisation] = await db
+    .select({ id: realisations.id })
+    .from(realisations)
+    .where(eq(realisations.vitrineId, vitrineId))
+    .limit(1)
+  if (realisation) return true
+  const [service] = await db
+    .select({ id: services.id })
+    .from(services)
+    .where(and(eq(services.vitrineId, vitrineId), gt(services.createdAt, new Date(vitrineCreeeLe.getTime() + CREATION_VITRINE_TOLERANCE_MS))))
+    .limit(1)
+  return service !== undefined
+}
+
 async function prepareEmail(row: EmailOutboxRow, now: Date): Promise<Preparation> {
   if (!isTransactionalEmailType(row.type)) throw new EmailOutboxProcessingError('TYPE_EMAIL_INCONNU')
   assertEventMatchesEntity(row.type, row.entiteType as EmailEntityType)
   if ((ADMIN_A2_EMAIL_TYPES as readonly string[]).includes(row.type)) return preparerEmailAdminCompte(db, row)
+  if (isEssaiEmailType(row.type)) return prepareEssaiRelance(row, now)
+  if (row.type === ESSAI_CONSTAT_EMAIL_TYPE) return prepareEssaiConstat(row, now)
   if (row.type === 'abonnement_rappel') return prepareRappelAbonnement(row, now)
   if (row.type === 'paiement_confirme') return preparePaiementConfirme(row, now)
   if (row.type === 'reservation_visiteur_rappel') return prepareRappelVisiteur(row, now)

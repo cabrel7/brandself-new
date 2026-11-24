@@ -196,16 +196,17 @@ export const NOM_BLOQUE_FORMAT = /^[a-z0-9][a-z0-9_-]{1,39}$/
 export const CATALOGUE_MOTIF_MAX = 200
 
 /** `[type]` des routes `/api/admin/versions/[type]`. Les prompts vivent dans `prompts_ia`, les autres dans `configuration_versions`. */
-export const ADMIN_VERSION_TYPES = ['plans', 'prix', 'frais', 'moyens', 'prompts'] as const
+export const ADMIN_VERSION_TYPES = ['plans', 'prix', 'frais', 'moyens', 'essai', 'prompts'] as const
 export type AdminVersionType = (typeof ADMIN_VERSION_TYPES)[number]
 /** CHECK `configuration_versions_categorie_check`. */
-export const VERSION_CATEGORIES = ['plan', 'prix', 'frais', 'moyens'] as const
+export const VERSION_CATEGORIES = ['plan', 'prix', 'frais', 'moyens', 'essai'] as const
 export type VersionCategorie = (typeof VERSION_CATEGORIES)[number]
 export const VERSION_CATEGORIE_PAR_TYPE: Record<Exclude<AdminVersionType, 'prompts'>, VersionCategorie> = {
   plans: 'plan',
   prix: 'prix',
   frais: 'frais',
   moyens: 'moyens',
+  essai: 'essai',
 }
 /** CHECK `configuration_versions_statut_check` : brouillon, puis programmee ou active, puis remplacee. */
 export const VERSION_STATUTS = ['brouillon', 'programmee', 'active', 'remplacee'] as const

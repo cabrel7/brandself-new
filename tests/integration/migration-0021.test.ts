@@ -5,6 +5,7 @@ import { Client } from 'pg'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { MOTIFS_REPLI } from '../../shared/ia'
 import { ADMIN_A2_EMAIL_TYPES } from '../../shared/admin-a2'
+import { ESSAI_CONSTAT_EMAIL_TYPE, ESSAI_EMAIL_TYPES } from '../../shared/essai'
 import { TRANSACTIONAL_EMAIL_TYPES } from '../../shared/jobs'
 import { FOURNISSEUR_FORMAT, FRAIS_SUPPORTEURS, PAIEMENT_STATUTS } from '../../shared/paiements'
 
@@ -369,7 +370,8 @@ describe('migration 0021 : fichier, journal et synchronisation avec shared/', ()
 
   it('recopie exactement TRANSACTIONAL_EMAIL_TYPES dans la CHECK des types', () => {
     // Les 4 types d'administration sont ajoutés par la migration 0029 (A2) : prouvés dans migration-0029.test.ts.
-    expect(valeursContrainte('emails_transactionnels_type_check')).toEqual(TRANSACTIONAL_EMAIL_TYPES.filter((type) => !(ADMIN_A2_EMAIL_TYPES as readonly string[]).includes(type)))
+    // Les 2 types d'essai gratuit sont ajoutés par la migration 0036 (E1) : prouvés dans migration-0036-essai-gratuit.test.ts.
+    expect(valeursContrainte('emails_transactionnels_type_check')).toEqual(TRANSACTIONAL_EMAIL_TYPES.filter((type) => !(ADMIN_A2_EMAIL_TYPES as readonly string[]).includes(type) && !(ESSAI_EMAIL_TYPES as readonly string[]).includes(type) && type !== ESSAI_CONSTAT_EMAIL_TYPE))
   })
 
   it('recopie exactement PAIEMENT_STATUTS, FRAIS_SUPPORTEURS et le format de fournisseur de shared/paiements', () => {

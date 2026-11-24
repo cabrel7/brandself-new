@@ -48,9 +48,14 @@ const suivi = computed(() => {
 })
 const formulaireVisible = computed(() => suivi.value === null && offre.value?.paiementDisponible === true)
 const abonne = computed(() => etat.value !== 'gratuit')
-const legende = computed(() => (abonne.value ? 'Renouveler pour' : 'Choisir la durée'))
+/** E1 : essai en cours (origine `essai`) ; non nul seulement tant que l'abonnement est un essai. */
+const essai = computed(() => abonnement.value?.essai ?? null)
+const legende = computed(() => {
+  if (essai.value) return 'Continuer avec le plan payant pour'
+  return abonne.value ? 'Renouveler pour' : 'Choisir la durée'
+})
 const action = computed(() => {
-  if (abonne.value) return 'Renouveler maintenant'
+  if (abonne.value && !essai.value) return 'Renouveler maintenant'
   // Le bouton annonce le montant TTC réellement débité (A5 R12), celui renvoyé en `prixAffiche`.
   return montantAPayer.value !== null && devise.value ? `Payer ${formaterMontant(montantAPayer.value, devise.value, exposant.value)}` : 'Payer'
 })
@@ -114,7 +119,16 @@ watch(() => abonnement.value !== null, async (charge) => {
       </div>
 
       <template v-else>
-        <div v-if="etat === 'actif'" class="flex flex-col gap-1">
+        <div v-if="essai && etat === 'actif'" class="flex flex-col gap-1">
+          <p class="m-0 text-(length:--fs-20) font-semibold text-encre">
+            {{ titreEssaiEnCours(jourFin) }}
+          </p>
+          <p v-if="abonnement.joursRestants !== null" class="m-0 text-base text-texte-secondaire">
+            {{ libelleJoursRestants(abonnement.joursRestants) }}
+          </p>
+        </div>
+
+        <div v-else-if="etat === 'actif'" class="flex flex-col gap-1">
           <p class="m-0 text-(length:--fs-20) font-semibold text-encre">
             Actif jusqu’au {{ jourFin }}
           </p>
@@ -191,7 +205,12 @@ watch(() => abonnement.value !== null, async (charge) => {
           {{ annonce }}
         </div>
 
-        <p v-if="afficherMention" class="m-0 text-base text-texte-secondaire">
+        <div v-if="afficherMention && essai" class="flex flex-col gap-2 text-base text-texte-secondaire">
+          <p v-if="formulaireVisible" class="m-0">{{ MESSAGE_JOURS_ESSAI_CONSERVES }}</p>
+          <p class="m-0">Aucun paiement n’est prélevé automatiquement. {{ phraseRappelsEssai() }}</p>
+          <p class="m-0">{{ MESSAGE_APRES_ESSAI }}</p>
+        </div>
+        <p v-else-if="afficherMention" class="m-0 text-base text-texte-secondaire">
           Votre abonnement ne se renouvelle pas automatiquement. {{ phraseRappels() }}
         </p>
       </template>

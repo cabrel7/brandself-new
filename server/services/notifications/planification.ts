@@ -1,7 +1,8 @@
 import { Temporal } from '@js-temporal/polyfill'
 import { and, asc, eq, exists, gt, gte, inArray, lt, notExists, or, sql } from 'drizzle-orm'
 import { TEMP_EMAIL_DOMAIN } from '../../../shared/compte'
-import { emailsTransactionnels, reservations, users, vitrines } from '../../../shared/db/schema'
+import { abonnements, emailsTransactionnels, reservations, users, vitrines } from '../../../shared/db/schema'
+import { ESSAI_EMAIL_ENTITE_TYPE } from '../../../shared/essai'
 import { isValidTimeZone } from '../../../shared/fuseau'
 import {
   EMAIL_STATUTS,
@@ -36,6 +37,8 @@ import type { LigneOutboxPlafond } from './plafond'
 // de nom, de fuseau ni de contenu : des NOMBRES seulement.
 
 const VERROU_RELATIONNEL_PREFIXE = 'relationnel:'
+/** Largeur d'une semaine (approximation d'une heure près lors d'un changement d'heure, sans effet sur le plafond). */
+const SEMAINE_MS = 7 * 24 * HEURE_MS
 const TYPE_RESUME = 'utilisateur_resume_hebdo'
 const TYPE_RAPPEL_JOURNEE = 'utilisateur_rappel_journee'
 const TYPE_RAPPEL_VISITEUR = 'reservation_visiteur_rappel'
@@ -137,6 +140,11 @@ function estStatut(valeur: string): valeur is EmailStatut {
 /**
  * Plafond « un seul e-mail relationnel par semaine », vérifié SOUS VERROU consultatif transactionnel par
  * utilisateur : deux planifications concurrentes se sérialisent, la seconde voit la ligne de la première.
+ * E1 : les relances de l'essai (`entite_id` = id de l'ABONNEMENT du compte, planifiées à l'avance) comptent aussi, mais
+ * par leur semaine d'ENVOI prévu (`prochaine_tentative` dans la semaine), pas par leur création : une relance posée
+ * lundi dernier pour mercredi prochain ne bloque pas cette semaine-ci, une relance prévue cette semaine bloque le résumé.
+ * Choix de priorité : un compte en essai reçoit la relance, pas le résumé (vide pour une vitrine toute neuve) ; à
+ * l'envoi, la relance est annulée (`PLAFOND_RELATIONNEL`) si un relationnel est DÉJÀ parti cette semaine.
  */
 async function insererResumeSousPlafond(
   database: Database,
@@ -147,19 +155,35 @@ async function insererResumeSousPlafond(
 ): Promise<boolean> {
   return database.transaction(async (tx) => {
     await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${`${VERROU_RELATIONNEL_PREFIXE}${userId}`}::text))`)
+    const finSemaine = new Date(debutSemaine.getTime() + SEMAINE_MS)
     const lignes = await tx
-      .select({ categorie: emailsTransactionnels.categorie, statut: emailsTransactionnels.statut, createdAt: emailsTransactionnels.createdAt })
+      .select({
+        categorie: emailsTransactionnels.categorie,
+        statut: emailsTransactionnels.statut,
+        createdAt: emailsTransactionnels.createdAt,
+        entiteType: emailsTransactionnels.entiteType,
+        prochaineTentative: emailsTransactionnels.prochaineTentative,
+      })
       .from(emailsTransactionnels)
       .where(and(
-        eq(emailsTransactionnels.entiteId, userId),
         eq(emailsTransactionnels.categorie, 'relationnel'),
-        gte(emailsTransactionnels.createdAt, debutSemaine),
+        or(
+          and(eq(emailsTransactionnels.entiteId, userId), gte(emailsTransactionnels.createdAt, debutSemaine)),
+          // Relances de l'essai : l'entité est l'abonnement du compte (E1).
+          and(
+            eq(emailsTransactionnels.entiteType, ESSAI_EMAIL_ENTITE_TYPE),
+            inArray(emailsTransactionnels.entiteId, tx.select({ id: abonnements.id }).from(abonnements).where(eq(abonnements.userId, userId))),
+            gte(emailsTransactionnels.prochaineTentative, debutSemaine),
+            lt(emailsTransactionnels.prochaineTentative, finSemaine),
+          ),
+        ),
       ))
     const pourPlafond: LigneOutboxPlafond[] = lignes.map((ligne) => ({
       categorie: 'relationnel',
       // Un statut inconnu compte comme une ligne partie (prudence : jamais de second e-mail relationnel).
       statut: estStatut(ligne.statut) ? ligne.statut : 'envoye',
-      createdAt: ligne.createdAt,
+      // Une relance d'essai compte à la semaine de son envoi prévu (voir ci-dessus), un résumé à celle de sa création.
+      createdAt: ligne.entiteType === ESSAI_EMAIL_ENTITE_TYPE ? (ligne.prochaineTentative ?? ligne.createdAt) : ligne.createdAt,
     }))
     if (plafondRelationnelAtteint(pourPlafond, debutSemaine)) return false
     return insertScheduledEmailEvent(tx, {

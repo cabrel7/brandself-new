@@ -622,8 +622,10 @@ export const messages = pgTable(
 // message ; depuis S9 (migration 0020) elle est aussi le planificateur unique des envois différés
 // (`prochaine_tentative` = heure d'envoi) et des e-mails récurrents (`occurrence` = clé d'idempotence métier :
 // '' pour les types S7, `debut` en ISO UTC pour le rappel visiteur, `AAAA-MM-JJ` pour le rendez-vous du jour,
-// `GGGG-Www` pour le résumé hebdomadaire). `categorie` : le résumé est le seul e-mail `relationnel` (plafonné à
-// un par semaine) ; tout le reste est `transactionnel`. Statut `annule` = ligne devenue non pertinente, jamais
+// `GGGG-Www` pour le résumé hebdomadaire). `categorie` : le résumé et les deux relances de l'essai gratuit (E1,
+// migration 0036 : `abonnement_essai_services`, `abonnement_essai_statistiques`) sont les seuls e-mails `relationnel`
+// (désabonnables, préférence `email_hebdo`) ; tout le reste est `transactionnel`, dont `abonnement_essai_constat`
+// (constat que l'essai est terminé : e-mail de service, occurrence `ESSAI:<fin ISO>` comme les deux relances). Statut `annule` = ligne devenue non pertinente, jamais
 // envoyée (`erreur_code` = code d'annulation). Les listes (types, entités, statuts, catégories, types à
 // occurrence obligatoire) sont recopiées depuis shared/jobs.ts (TRANSACTIONAL_EMAIL_TYPES) et
 // shared/notifications.ts (EMAIL_STATUTS, EMAIL_CATEGORIES) : garder synchronisées.
@@ -681,7 +683,10 @@ export const emailsTransactionnels = pgTable(
         'utilisateur_suspendu',
         'utilisateur_reactive',
         'utilisateur_jours_offerts',
-        'utilisateur_depubliee'
+        'utilisateur_depubliee',
+        'abonnement_essai_services',
+        'abonnement_essai_statistiques',
+        'abonnement_essai_constat'
       )`,
     ),
     check(
@@ -720,10 +725,11 @@ export const emailsTransactionnels = pgTable(
       'emails_transactionnels_categorie_check',
       sql`${table.categorie} IN ('transactionnel', 'relationnel')`,
     ),
-    // Le résumé hebdomadaire est le seul e-mail relationnel, et réciproquement.
+    // Le résumé hebdomadaire et, depuis E1 (migration 0036), les deux relances de l'essai gratuit sont les seuls
+    // e-mails relationnels, et réciproquement (liste recopiée depuis shared/notifications.ts : garder synchronisées).
     check(
       'emails_transactionnels_categorie_type_check',
-      sql`(${table.type} = 'utilisateur_resume_hebdo') = (${table.categorie} = 'relationnel')`,
+      sql`(${table.type} IN ('utilisateur_resume_hebdo','abonnement_essai_services','abonnement_essai_statistiques')) = (${table.categorie} = 'relationnel')`,
     ),
     check(
       'emails_transactionnels_occurrence_check',
@@ -732,7 +738,7 @@ export const emailsTransactionnels = pgTable(
     // Un e-mail récurrent ou replanifiable sans clé d'occurrence ne serait plus idempotent.
     check(
       'emails_transactionnels_occurrence_requise_check',
-      sql`${table.type} NOT IN ('reservation_visiteur_rappel','utilisateur_resume_hebdo','utilisateur_rappel_journee','abonnement_rappel')
+      sql`${table.type} NOT IN ('reservation_visiteur_rappel','utilisateur_resume_hebdo','utilisateur_rappel_journee','abonnement_rappel','abonnement_essai_services','abonnement_essai_statistiques','abonnement_essai_constat')
         OR ${table.occurrence} <> ''`,
     ),
   ],
@@ -1450,14 +1456,15 @@ export const abonnements = pgTable(
     premiereActivationLe: timestamp('premiere_activation_le', { withTimezone: true }).notNull(),
     dernierPaiementId: text('dernier_paiement_id').references(() => paiements.id, { onDelete: 'set null' }),
     // A2 (migration 0029, D-A2-04/05, D-A3-06) : comment l'abonnement a été CRÉÉ. 'paiement' = encaissement
-    // (défaut, lignes existantes) ; 'offert' = jours offerts par l'administration ; 'admin' = changement de plan.
-    // N'est jamais modifiée par une prolongation ultérieure. Source côté application : shared/admin.ts.
+    // (défaut, lignes existantes) ; 'offert' = jours offerts par l'administration ; 'admin' = changement de plan ;
+    // E1 (migration 0036) : 'essai' = essai gratuit accordé à la création de la vitrine.
+    // Une prolongation par paiement la remet à 'paiement' (D2). Source côté application : shared/admin-a2.ts.
     origine: text('origine').notNull().default('paiement'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
-    check('abonnements_origine_check', sql`${table.origine} IN ('paiement','offert','admin')`),
+    check('abonnements_origine_check', sql`${table.origine} IN ('paiement','offert','admin','essai')`),
     // Planificateur des rappels J-7 / J-3 / J0 (balayage des échéances proches).
     index('abonnements_expire_le_idx').on(table.expireLe),
     // FK parcourue à la suppression d'un paiement (ON DELETE SET NULL).
@@ -1773,7 +1780,8 @@ export const usernamesBloques = pgTable(
   ],
 )
 
-// Versions de configuration commerciale (D-A5-01, D-A5-02) : plan, prix, frais, moyens. UNE seule table, en
+// Versions de configuration commerciale (D-A5-01, D-A5-02) : plan, prix, frais, moyens, et depuis E1 (migration 0036)
+// essai (clé unique `inscription`). UNE seule table, en
 // AJOUT SEUL : seuls `statut` et `validee_le` (une fois, NULL -> date) évoluent, et `effective_a` une fois posée
 // n'est plus modifiable. Le déclencheur `configuration_versions_proteger` (non généré par drizzle-kit, écrit dans la
 // migration) refuse tout autre UPDATE, tout DELETE et tout TRUNCATE (42501). Une seule version `active` et une
@@ -1807,7 +1815,7 @@ export const configurationVersions = pgTable(
     // Historique d'une clé (numéro décroissant) : parcours de l'unique (categorie, cle, numero).
     unique('configuration_versions_numero_unique').on(table.categorie, table.cle, table.numero),
     check('configuration_versions_id_check', sql`char_length(${table.id}) BETWEEN 8 AND 64`),
-    check('configuration_versions_categorie_check', sql`${table.categorie} IN ('plan','prix','frais','moyens')`),
+    check('configuration_versions_categorie_check', sql`${table.categorie} IN ('plan','prix','frais','moyens','essai')`),
     check('configuration_versions_cle_check', sql`${table.cle} ~ '^[a-z0-9_:.-]{1,60}$'`),
     check('configuration_versions_numero_check', sql`${table.numero} >= 1`),
     check('configuration_versions_valeurs_check', sql`jsonb_typeof(${table.valeurs}) = 'object'`),
@@ -1815,10 +1823,74 @@ export const configurationVersions = pgTable(
     check('configuration_versions_motif_check', sql`char_length(btrim(${table.motif})) BETWEEN 5 AND 500`),
     check('configuration_versions_cree_par_check', sql`char_length(${table.creePar}) <= 64`),
     check('configuration_versions_plan_cle_check', sql`${table.categorie} <> 'plan' OR ${table.cle} IN ('gratuit','payant')`),
+    // E1 : la catégorie `essai` n'a qu'une clé, `inscription` (l'essai accordé à la création de la vitrine).
+    check('configuration_versions_essai_cle_check', sql`${table.categorie} <> 'essai' OR ${table.cle} = 'inscription'`),
     // Un brouillon n'a pas de date d'effet, toute autre version en a une.
     check('configuration_versions_effet_check', sql`(${table.statut} = 'brouillon') = (${table.effectiveA} IS NULL)`),
     // Seule une grille de prix se valide (D-A5-07).
     check('configuration_versions_validee_check', sql`${table.valideeLe} IS NULL OR ${table.categorie} = 'prix'`),
+  ],
+)
+
+// E1 (docs/specs/E1-essai-gratuit.md §3, migration 0036) : trace d'un essai gratuit accordé à la création de la vitrine.
+// Une ligne par essai ; elle SURVIT au compte (`user_id` passe à NULL, ON DELETE SET NULL) pour que le compteur de
+// conversions (D11) et l'indicateur admin gardent l'historique (`converti_le` conservé). L'unicité de `user_id`
+// (index unique PARTIEL : une ligne détachée, `user_id` NULL, n'entre pas dans l'unicité) garantit « un essai par
+// compte » sous concurrence ; l'unicité par personne est portée par `essais_empreintes`. Le déclencheur
+// `essais_proteger` (non généré par drizzle-kit, écrit dans la migration) rend la ligne immuable : seuls
+// `user_id` -> NULL et `converti_le` NULL -> date passent ; tout autre UPDATE et tout DELETE = 42501.
+// `version_id` = identifiant de la version `essai` de configuration_versions appliquée, ou `code` (repli sur
+// ESSAI_DEFAUT quand la configuration est illisible) : sans clé étrangère, `code` n'est pas une ligne. `duree_jours`
+// est copiée de la version (un changement de durée ne touche que les essais accordés ensuite). `fin_le` est EXCLUSIF
+// comme `abonnements.expire_le`. Aucune donnée personnelle dans cette table.
+// Index `essais_debut_le_idx` : requête réelle de `statistiquesEssais(now, jours)` (essais accordés sur 30 jours).
+export const essais = pgTable(
+  'essais',
+  {
+    id: text('id').primaryKey(),
+    userId: text('user_id').references(() => users.id, { onDelete: 'set null' }),
+    debutLe: timestamp('debut_le', { withTimezone: true }).notNull(),
+    finLe: timestamp('fin_le', { withTimezone: true }).notNull(),
+    dureeJours: integer('duree_jours').notNull(),
+    versionId: text('version_id').notNull(),
+    convertiLe: timestamp('converti_le', { withTimezone: true }),
+  },
+  (table) => [
+    uniqueIndex('essais_user_id_unique')
+      .on(table.userId)
+      .where(sql`${table.userId} IS NOT NULL`),
+    index('essais_debut_le_idx').on(table.debutLe),
+    check('essais_duree_jours_check', sql`${table.dureeJours} BETWEEN 1 AND 90`),
+    check('essais_dates_check', sql`${table.debutLe} < ${table.finLe}`),
+    check('essais_converti_le_check', sql`${table.convertiLe} IS NULL OR ${table.convertiLe} >= ${table.debutLe}`),
+    check('essais_version_id_check', sql`char_length(${table.versionId}) BETWEEN 1 AND 64`),
+  ],
+)
+
+// E1 (D4, migration 0036) : marqueur anti-abus « un essai par personne ». `empreinte` = HMAC-SHA256 (64 caractères
+// hexadécimaux minuscules) d'une clé normalisée (adresse e-mail, ou numéro vérifié en chiffres seuls) sur une clé HKDF
+// dérivée du secret serveur : aucune donnée en clair, aucune clé étrangère vers `users` (l'empreinte survit à la
+// suppression du compte, c'est son but). `nature` = ce qui a été haché. La clé primaire rend l'attribution atomique
+// (`INSERT ... ON CONFLICT DO NOTHING RETURNING`, D6) : deux comptes simultanés avec la même clé ne peuvent pas
+// obtenir chacun un essai. RESTRICT : un essai ne se supprime pas tant qu'il porte des empreintes (il ne se supprime
+// de toute façon jamais, `essais_proteger`). Le déclencheur `essais_empreintes_proteger` (écrit dans la migration, non
+// généré par drizzle-kit) rend la ligne immuable (UPDATE qui change une valeur = 42501 ; DELETE = 42501 sauf dans la purge) :
+// sinon un DELETE ou un changement de `essai_id` rouvrirait l'essai à la personne. Conservation : 24 mois ; seul chemin de
+// suppression = la fonction SQL `essais_empreintes_purger(avant timestamptz)` (SECURITY DEFINER, refuse un `avant` plus récent
+// que now() - 24 mois, retourne le nombre de lignes supprimées), elle aussi écrite dans la migration.
+export const essaisEmpreintes = pgTable(
+  'essais_empreintes',
+  {
+    empreinte: text('empreinte').primaryKey(),
+    nature: text('nature').notNull(),
+    essaiId: text('essai_id')
+      .notNull()
+      .references(() => essais.id, { onDelete: 'restrict' }),
+    creeLe: timestamp('cree_le', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    check('essais_empreintes_empreinte_check', sql`${table.empreinte} ~ '^[0-9a-f]{64}$'`),
+    check('essais_empreintes_nature_check', sql`${table.nature} IN ('email','telephone')`),
   ],
 )
 
@@ -1868,3 +1940,7 @@ export type UsernameBloque = typeof usernamesBloques.$inferSelect
 export type NewUsernameBloque = typeof usernamesBloques.$inferInsert
 export type ConfigurationVersion = typeof configurationVersions.$inferSelect
 export type NewConfigurationVersion = typeof configurationVersions.$inferInsert
+export type Essai = typeof essais.$inferSelect
+export type NewEssai = typeof essais.$inferInsert
+export type EssaiEmpreinte = typeof essaisEmpreintes.$inferSelect
+export type NewEssaiEmpreinte = typeof essaisEmpreintes.$inferInsert

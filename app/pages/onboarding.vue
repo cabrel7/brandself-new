@@ -80,7 +80,7 @@ const { ready: squeletteVisible } = useTimeout(200, { controls: true })
 </script>
 
 <template>
-  <VitrineEnLigne v-if="enLigne" :username="enLigne.username" :prochaine-etape="enLigne.prochaineEtape" />
+  <VitrineEnLigne v-if="enLigne" :username="enLigne.username" :prochaine-etape="enLigne.prochaineEtape" :essai-jours="enLigne.essai?.dureeJours ?? null" />
 
   <main v-else class="mx-auto w-full max-w-120 px-6 pt-4 pb-48 md:max-w-5xl md:px-8 md:pt-8 md:pb-16">
     <!-- Téléphone : une colonne de 480 px, bouton fixé en bas. Dès 768 px : titre et progression à gauche, étape à droite, bouton à la suite. -->

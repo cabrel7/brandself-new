@@ -11,6 +11,7 @@ import {
   TEXTES_NOTIFICATIONS,
   buildAbonnementEmail,
   buildAdminCompteEmail,
+  buildEssaiRelanceEmail,
   buildUtilisateurEmail,
   formatJour,
   formatJourComplet,
@@ -19,12 +20,22 @@ import {
   pied,
   singleLine,
 } from './notifications-contenus'
-import type { AbonnementEmailContent, AdminCompteEmailContent, UtilisateurEmailContent } from './notifications-contenus'
+import type {
+  AbonnementEmailContent,
+  AdminCompteEmailContent,
+  EssaiRelanceContent,
+  UtilisateurEmailContent,
+} from './notifications-contenus'
 import { rendreEmail, urlEmail } from './gabarit'
 import type { DocumentEmail, ElementEmail, LigneRecapitulatif } from './gabarit'
 import type { EmailAttachment, EmailMessage } from './transport'
 
-export type { AbonnementEmailContent, AdminCompteEmailContent, UtilisateurEmailContent } from './notifications-contenus'
+export type {
+  AbonnementEmailContent,
+  AdminCompteEmailContent,
+  EssaiRelanceContent,
+  UtilisateurEmailContent,
+} from './notifications-contenus'
 
 // Le rappel visiteur (S9) n'a ni pièce jointe ni statut ICS : il a son propre type de contenu.
 type ReservationEmailType = Exclude<Extract<TransactionalEmailType, `reservation_${string}`>, 'reservation_visiteur_rappel'>
@@ -92,6 +103,7 @@ export type TransactionalEmailContent =
   | UtilisateurEmailContent
   | AbonnementEmailContent
   | AdminCompteEmailContent
+  | EssaiRelanceContent
   | BaseTransactionalEmailContent
 
 type BaseTransactionalEmailContent = BaseEmailContent & (
@@ -352,8 +364,12 @@ export function buildTransactionalEmail(content: TransactionalEmailContent): Ema
     case 'utilisateur_resume_hebdo':
       return buildUtilisateurEmail(content)
     case 'abonnement_rappel':
+    case 'abonnement_essai_constat':
     case 'paiement_confirme':
       return buildAbonnementEmail(content)
+    case 'abonnement_essai_services':
+    case 'abonnement_essai_statistiques':
+      return buildEssaiRelanceEmail(content)
     case 'utilisateur_suspendu':
     case 'utilisateur_reactive':
     case 'utilisateur_jours_offerts':

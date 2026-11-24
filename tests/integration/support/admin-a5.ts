@@ -227,7 +227,7 @@ export async function compterVersions(): Promise<number> {
   return Number(resultat.rows[0]?.n ?? 0)
 }
 
-export function creerBrouillon(connecte: AdminA5, type: 'plans' | 'prix' | 'frais' | 'moyens' | 'prompts', cle: string, valeurs: unknown, options: { motif?: string, cleIdempotence?: string } = {}): Promise<ReponseRouteAdmin> {
+export function creerBrouillon(connecte: AdminA5, type: 'plans' | 'prix' | 'frais' | 'moyens' | 'essai' | 'prompts', cle: string, valeurs: unknown, options: { motif?: string, cleIdempotence?: string } = {}): Promise<ReponseRouteAdmin> {
   return appelerA5('versionsCreer', connecte, {
     params: { type },
     corps: { cle, valeurs, motif: options.motif ?? MOTIF_A5 },
@@ -245,7 +245,7 @@ export function idDeReponse(reponse: ReponseRouteAdmin): string {
 }
 
 /** Crée un brouillon et renvoie son identifiant. */
-export async function brouillon(connecte: AdminA5, type: 'plans' | 'prix' | 'frais' | 'moyens' | 'prompts', cle: string, valeurs: unknown): Promise<string> {
+export async function brouillon(connecte: AdminA5, type: 'plans' | 'prix' | 'frais' | 'moyens' | 'essai' | 'prompts', cle: string, valeurs: unknown): Promise<string> {
   return idDeReponse(await creerBrouillon(connecte, type, cle, valeurs))
 }
 

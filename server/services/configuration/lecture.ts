@@ -9,9 +9,12 @@ import { and, eq } from 'drizzle-orm'
 import { configurationVersions } from '../../../shared/db/schema'
 import { VERSION_CATEGORIE_PAR_TYPE } from '../../../shared/admin'
 import type { VersionCategorie } from '../../../shared/admin'
+import { ESSAI_CLE_CONFIG, ESSAI_DEFAUT, ESSAI_VERSION_CODE } from '../../../shared/essai'
+import type { ConfigEssai } from '../../../shared/essai'
 import { CAPACITES_PAYANTES, PLAN_IDS } from '../../../shared/plans'
 import type { PlanId } from '../../../shared/plans'
 import {
+  schemaValeursEssai,
   schemaValeursFrais,
   schemaValeursMoyens,
   schemaValeursPlan,
@@ -44,6 +47,8 @@ export interface InstantaneConfiguration {
   frais: TableFrais
   /** Par fournisseur : identifiants des moyens ACTIFS. Absent : la valeur du code s'applique. */
   moyensActifs: ReadonlyMap<string, ReadonlySet<string>>
+  /** E1 : valeurs de la version `essai` active (repli : `ESSAI_DEFAUT`, la v1 seedée). */
+  essai: ConfigEssai
 }
 
 export interface ConfigPaiementsLue {
@@ -66,6 +71,7 @@ export function instantaneDuCode(): InstantaneConfiguration {
     prixValideeLe: null,
     frais: FRAIS_PAIEMENT,
     moyensActifs: new Map(),
+    essai: { ...ESSAI_DEFAUT },
   }
 }
 
@@ -86,6 +92,7 @@ export function construireInstantane(lignes: readonly LigneVersionActive[]): Ins
   const frais: Record<string, Record<string, ConfigFrais>> = {}
   for (const [fournisseur, methodes] of Object.entries(FRAIS_PAIEMENT)) frais[fournisseur] = { ...methodes }
   const moyensActifs = new Map<string, ReadonlySet<string>>()
+  let essai = instantane.essai
 
   for (const ligne of lignes) {
     if (ligne.categorie === VERSION_CATEGORIE_PAR_TYPE.plans) {
@@ -118,9 +125,16 @@ export function construireInstantane(lignes: readonly LigneVersionActive[]): Ins
         continue
       }
       moyensActifs.set(ligne.cle, new Set(valeurs.data.actifs))
+    } else if (ligne.categorie === VERSION_CATEGORIE_PAR_TYPE.essai) {
+      const valeurs = schemaValeursEssai.safeParse(ligne.valeurs)
+      if (!valeurs.success || ligne.cle !== ESSAI_CLE_CONFIG) {
+        signaler('essai', ligne.categorie)
+        continue
+      }
+      essai = valeurs.data
     }
   }
-  return { plans, grille, prixValideeLe, frais: frais as TableFrais, moyensActifs }
+  return { plans, grille, prixValideeLe, frais: frais as TableFrais, moyensActifs, essai }
 }
 
 /** Applique les drapeaux `actif` d'une version de moyens au catalogue du code (un moyen ne se crée pas, D-A5-08). */
@@ -232,6 +246,7 @@ function versionDuCode(categorie: VersionCategorie, cle: string, instantane: Ins
     const frais = (instantane.frais as Record<string, Record<string, ConfigFrais> | undefined>)[fournisseur ?? '']?.[methode ?? '']
     return frais === undefined ? null : repli(frais)
   }
+  if (categorie === 'essai') return cle === ESSAI_CLE_CONFIG ? repli(instantane.essai) : null
   const actifs = instantane.moyensActifs.get(cle)
   return repli({ actifs: actifs === undefined ? MOYENS_PAIEMENT.filter((m) => m.fournisseur === cle && m.actif).map((m) => m.id) : [...actifs] })
 }
@@ -321,5 +336,56 @@ export async function lireConfigPaiements(options: OptionsLecture = {}): Promise
     frais: instantane.frais,
     prix: instantane.grille,
     validee: instantane.prixValideeLe !== null,
+  }
+}
+
+export interface ConfigEssaiLue extends ConfigEssai {
+  /** Identifiant de la version lue ; `ESSAI_VERSION_CODE` ('code') quand la valeur vient du code (repli). */
+  versionId: string
+  /** Alias des valeurs seules (forme commune des versions lues). */
+  valeurs: ConfigEssai
+}
+
+function configEssaiDuCode(): ConfigEssaiLue {
+  return { ...ESSAI_DEFAUT, versionId: ESSAI_VERSION_CODE, valeurs: { ...ESSAI_DEFAUT } }
+}
+
+/**
+ * Configuration de l'essai gratuit (E1 D3). NE LÈVE JAMAIS : ligne absente, invalide (revalidée par le schéma strict)
+ * ou base illisible = `ESSAI_DEFAUT` avec `versionId = 'code'` (repli « ouvert » : un essai est un cadeau, pas un
+ * encaissement). `sansCache` + `lecteur` : relue dans la transaction de l'appelant, avec l'identifiant de la version
+ * (copié dans `essais.version_id`). ATTENTION : si le lecteur est une transaction (ou un savepoint) et que la requête
+ * échoue côté PostgreSQL, la transaction est « aborted » : le repli renvoyé ici ne la répare pas, toute requête
+ * suivante du même lecteur échoue. `accorderEssaiSiEligible` l'appelle donc DANS son savepoint : l'échec n'emporte que
+ * l'essai (`raison = 'erreur'`), jamais la vitrine. La lecture n'est volontairement pas faite avant le savepoint : une
+ * erreur SQL y aurait abandonné la transaction entière de l'appelant (vitrine comprise). Sans `sansCache`, l'instantané de 5 s : valeurs seules, `versionId` vaut 'code'
+ * (l'identifiant n'est pas conservé en mémoire ; les lecteurs d'affichage n'en ont pas besoin).
+ */
+export async function lireConfigEssai(options: OptionsLecture = {}): Promise<ConfigEssaiLue> {
+  try {
+    if (options.sansCache !== true) {
+      await assurerInstantane()
+      const valeurs = instantaneCache().essai
+      return { ...valeurs, versionId: ESSAI_VERSION_CODE, valeurs: { ...valeurs } }
+    }
+    const [ligne] = await (options.lecteur ?? db)
+      .select({ id: configurationVersions.id, valeurs: configurationVersions.valeurs })
+      .from(configurationVersions)
+      .where(and(
+        eq(configurationVersions.categorie, VERSION_CATEGORIE_PAR_TYPE.essai),
+        eq(configurationVersions.cle, ESSAI_CLE_CONFIG),
+        eq(configurationVersions.statut, 'active'),
+      ))
+      .limit(1)
+    if (ligne === undefined) return configEssaiDuCode()
+    const valeurs = schemaValeursEssai.safeParse(ligne.valeurs)
+    if (!valeurs.success) {
+      signaler('essai', VERSION_CATEGORIE_PAR_TYPE.essai)
+      return configEssaiDuCode()
+    }
+    return { ...valeurs.data, versionId: ligne.id, valeurs: valeurs.data }
+  } catch {
+    console.error({ configuration: 'lecture_impossible' })
+    return configEssaiDuCode()
   }
 }

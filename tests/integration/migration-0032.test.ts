@@ -546,7 +546,8 @@ describe('migration 0032 : configuration_versions (structure, valeurs de départ
     const checks = Object.entries(cs).filter(([, x]) => x.type === 'c')
     expect(checks.map(([nom]) => nom).sort()).toEqual([
       'configuration_versions_categorie_check', 'configuration_versions_cle_check', 'configuration_versions_cree_par_check',
-      'configuration_versions_effet_check', 'configuration_versions_id_check', 'configuration_versions_motif_check',
+      // E1 (migration 0036) : la catégorie `essai` n'a qu'une clé, `inscription`.
+      'configuration_versions_effet_check', 'configuration_versions_essai_cle_check', 'configuration_versions_id_check', 'configuration_versions_motif_check',
       'configuration_versions_numero_check', 'configuration_versions_plan_cle_check', 'configuration_versions_statut_check',
       'configuration_versions_valeurs_check', 'configuration_versions_validee_check',
     ])

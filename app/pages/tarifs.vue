@@ -23,7 +23,7 @@ useSeoMeta({
 })
 
 const source = await useTarifs()
-const { erreur, refresh, tarifs, devises, prixPeriodes } = source
+const { erreur, refresh, tarifs, devises, prixPeriodes, mentionEssai } = source
 const { cartes, itemsDevises, itemsPeriodes, deviseTexte, periodeTexte, moyensTexte } = useTarifsAffichage(source)
 </script>
 
@@ -67,6 +67,9 @@ const { cartes, itemsDevises, itemsPeriodes, deviseTexte, periodeTexte, moyensTe
             </p>
             <p class="m-0">
               Sans renouvellement automatique.
+            </p>
+            <p v-if="mentionEssai" class="m-0">
+              {{ mentionEssai }}
             </p>
           </div>
         </template>

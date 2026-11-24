@@ -60,6 +60,8 @@ describe('vue d\'ensemble enrichie : contenu', () => {
       indicateurReussite: { vitrinesActives: 0, vitrinesPubliees: 0 },
       mention: REVENUS_MENTION_INCERTITUDE,
       alertes: { paiementsEnAttente: { nombre: 0, ids: [] }, webhooksRefuses1h: 0, encaissementsTardifs: 0 },
+      // E1 (D11) : aucun essai accordé, donc pas de taux.
+      essais: { jours: 30, accordes: 0, enCours: 0, convertis: 0, tauxPct: null },
     })
     expect(Math.abs(Date.now() - new Date(dto.genereLe).getTime())).toBeLessThan(HEURE_MS)
   })
@@ -76,12 +78,13 @@ describe('vue d\'ensemble enrichie : contenu', () => {
     expect(dto.indicateurReussite.vitrinesPubliees).toBe(2)
   })
 
-  it('should count as payers only the active subscriptions created by a payment', async () => {
-    const [a, b, c, d] = [await creerPro(), await creerPro(), await creerPro(), await creerPro()]
+  it('should count as payers only the active subscriptions created by a payment (a free trial, origin `essai`, is not one)', async () => {
+    const [a, b, c, d, e] = [await creerPro(), await creerPro(), await creerPro(), await creerPro(), await creerPro()]
     await poserAbonnementOrigine(a.user.id, plus(new Date(), jours(20)), { origine: 'paiement' })
     await poserAbonnementOrigine(b.user.id, plus(new Date(), jours(20)), { origine: 'offert' })
     await poserAbonnementOrigine(c.user.id, plus(new Date(), jours(20)), { origine: 'admin' })
     await poserAbonnementOrigine(d.user.id, plus(new Date(), -jours(1)), { origine: 'paiement' })
+    await poserAbonnementOrigine(e.user.id, plus(new Date(), jours(10)), { origine: 'essai' })
 
     const { dto } = await lire()
 
@@ -164,6 +167,6 @@ describe('vue d\'ensemble enrichie : alertes et confidentialité', () => {
   it('should not keep the A1 overview shape: the enriched answer is the only one (no extra key, strict schema)', async () => {
     const { reponse } = await lire()
 
-    expect(Object.keys(reponse.corps as object).sort()).toEqual(['admin', 'alertes', 'compteurs', 'genereLe', 'indicateurReussite', 'mention', 'revenus'])
+    expect(Object.keys(reponse.corps as object).sort()).toEqual(['admin', 'alertes', 'compteurs', 'essais', 'genereLe', 'indicateurReussite', 'mention', 'revenus'])
   })
 })

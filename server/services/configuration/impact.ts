@@ -22,11 +22,12 @@ const STATUTS_RESERVATION_COMPTES = ['en_attente', 'confirmee', 'terminee'] as c
 
 /** Comptes du plan concerné : gratuits = sans abonnement ou grâce écoulée ; payants = abonnement ou grâce en cours. */
 function sqlComptesDuPlan(plan: PlanId, graceJours: number): SQL {
+  // E1 (D9) : un essai n'a AUCUNE grâce (même règle que `resoudrePlanEffectif`) : gratuit dès l'échéance, payant avant.
   // R2 : durée de grâce = réglage `abonnement.grace_jours` (`lireGraceJours`), lue par l'appelant.
   const grace = sql`make_interval(days => ${graceJours}::int)`
   return plan === 'gratuit'
-    ? sql`SELECT u.id, u.fuseau FROM users u LEFT JOIN abonnements a ON a.user_id = u.id WHERE a.user_id IS NULL OR a.expire_le + ${grace} <= now()`
-    : sql`SELECT u.id, u.fuseau FROM users u JOIN abonnements a ON a.user_id = u.id WHERE a.expire_le + ${grace} > now()`
+    ? sql`SELECT u.id, u.fuseau FROM users u LEFT JOIN abonnements a ON a.user_id = u.id WHERE a.user_id IS NULL OR a.expire_le + ${grace} <= now() OR (a.origine = 'essai' AND a.expire_le <= now())`
+    : sql`SELECT u.id, u.fuseau FROM users u JOIN abonnements a ON a.user_id = u.id WHERE a.expire_le > now() OR (a.origine <> 'essai' AND a.expire_le + ${grace} > now())`
 }
 
 async function impactMasquage(

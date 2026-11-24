@@ -233,6 +233,8 @@ describe('schémas de réponse (listes blanches strictes)', () => {
         encaissementsTardifs: 0,
         genereLe: maintenant,
       },
+      // E1 (D11) : conversions des essais gratuits sur 30 jours.
+      essais: { jours: 30, accordes: 10, enCours: 4, convertis: 2, tauxPct: 20 },
       genereLe: maintenant,
     }
 

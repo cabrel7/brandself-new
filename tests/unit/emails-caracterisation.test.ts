@@ -258,6 +258,39 @@ function casReactivation(fuseau: Fuseau): Cas[] {
   ]
 }
 
+/** E1 : relance du jour 2 (services). Message relationnel : jeton et en-têtes de désabonnement. */
+function casEssaiServices(fuseau: Fuseau): Cas[] {
+  return [
+    { label: 'avec prénom', contenu: { ...baseUtilisateur(fuseau), type: 'abonnement_essai_services', expireLe: EXPIRE_LE } },
+    { label: 'sans prénom', contenu: { ...baseUtilisateur(fuseau, ''), type: 'abonnement_essai_services', expireLe: EXPIRE_LE } },
+  ]
+}
+
+/** E1 : relance du jour 7 (statistiques) : visites et clics depuis la création, ou invitation à partager l'adresse si rien. */
+function casEssaiStatistiques(fuseau: Fuseau): Cas[] {
+  return [
+    { label: '12 visites et 3 clics', contenu: { ...baseUtilisateur(fuseau), type: 'abonnement_essai_statistiques', expireLe: EXPIRE_LE, visites: 12, clics: 3 } },
+    { label: '1 visite, aucun clic', contenu: { ...baseUtilisateur(fuseau), type: 'abonnement_essai_statistiques', expireLe: EXPIRE_LE, visites: 1, clics: 0 } },
+    { label: 'ni visite ni clic, sans prénom (invitation à partager)', contenu: { ...baseUtilisateur(fuseau, ''), type: 'abonnement_essai_statistiques', expireLe: EXPIRE_LE, visites: 0, clics: 0 } },
+  ]
+}
+
+/** E1 : constat de fin d'essai (e-mail de service, HTML et texte, sans désabonnement). */
+function casEssaiConstat(fuseau: Fuseau): Cas[] {
+  return [
+    { label: 'avec prénom', contenu: { ...baseAbonnement(fuseau), type: 'abonnement_essai_constat', expireLe: EXPIRE_LE, periodeMois: 1 } },
+    { label: 'sans prénom', contenu: { ...baseAbonnement(fuseau, ''), type: 'abonnement_essai_constat', expireLe: EXPIRE_LE, periodeMois: 1 } },
+  ]
+}
+
+/** E1 : variante « essai » du rappel d'échéance (J-3, J0). Fixtures SÉPARÉES de `abonnement_rappel` : le snapshot historique reste intact. */
+function casRappelEssai(fuseau: Fuseau): Cas[] {
+  return [
+    { label: 'J-3, essai', contenu: { ...baseAbonnement(fuseau), type: 'abonnement_rappel', jours: 3, expireLe: EXPIRE_LE, periodeMois: 1, essai: true } },
+    { label: 'J0, essai, sans prénom', contenu: { ...baseAbonnement(fuseau, ''), type: 'abonnement_rappel', jours: 0, expireLe: EXPIRE_LE, periodeMois: 1, essai: true } },
+  ]
+}
+
 const CAS_PAR_TYPE: Record<TransactionalEmailType, (fuseau: Fuseau) => Cas[]> = {
   reservation_visiteur_recue: (f) => casReservation('reservation_visiteur_recue', f),
   reservation_visiteur_confirmee: (f) => casReservation('reservation_visiteur_confirmee', f),
@@ -277,6 +310,11 @@ const CAS_PAR_TYPE: Record<TransactionalEmailType, (fuseau: Fuseau) => Cas[]> = 
   utilisateur_depubliee: (f) => casAdminCompte('utilisateur_depubliee', f),
   utilisateur_jours_offerts: casJoursOfferts,
   utilisateur_reactive: casReactivation,
+  // E1 : relances de l'essai gratuit (relationnelles, désabonnables).
+  abonnement_essai_services: casEssaiServices,
+  abonnement_essai_statistiques: casEssaiStatistiques,
+  // E1 : constat de fin d'essai (e-mail de service : aucun désabonnement).
+  abonnement_essai_constat: casEssaiConstat,
 }
 
 /** Rend visibles les espaces insécables d'Intl (sinon invisibles dans un diff) ; l'échappement est réversible. */
@@ -301,16 +339,27 @@ function decrire(message: EmailMessage): string {
   ].join('\n'))
 }
 
+function decrireCas(type: string, cas: readonly Cas[], fuseau: Fuseau): string[] {
+  return cas.map((c) => [
+    SEPARATEUR_CAS,
+    `type: ${type} | cas: ${c.label} | fuseau: ${fuseau}`,
+    SEPARATEUR_CAS,
+    decrire(buildTransactionalEmail(c.contenu)),
+    '',
+  ].join('\n'))
+}
+
 function decrireType(type: TransactionalEmailType): string {
-  const sections = FUSEAUX.flatMap((fuseau) =>
-    CAS_PAR_TYPE[type](fuseau).map((cas) => [
-      SEPARATEUR_CAS,
-      `type: ${type} | cas: ${cas.label} | fuseau: ${fuseau}`,
-      SEPARATEUR_CAS,
-      decrire(buildTransactionalEmail(cas.contenu)),
-      '',
-    ].join('\n')))
-  return sections.join('\n')
+  return FUSEAUX.flatMap((fuseau) => decrireCas(type, CAS_PAR_TYPE[type](fuseau), fuseau)).join('\n')
+}
+
+/** Corps HTML des cas (E1 : le rappel « essai » est rendu en HTML ET en texte), un bloc par cas et par fuseau. */
+function decrireHtml(type: string, fabrique: (fuseau: Fuseau) => Cas[]): string {
+  return FUSEAUX.flatMap((fuseau) => fabrique(fuseau).map((cas) => [
+    `<!-- type: ${type} | cas: ${cas.label} | fuseau: ${fuseau} -->`,
+    buildTransactionalEmail(cas.contenu).html ?? '(aucun html)',
+    '',
+  ].join('\n'))).join('\n')
 }
 
 describe('e-mails : caractérisation du contenu actuel (texte seul)', () => {
@@ -322,6 +371,22 @@ describe('e-mails : caractérisation du contenu actuel (texte seul)', () => {
     const instantane = decrireType(type)
 
     await expect(instantane).toMatchFileSnapshot(`./__snapshots__/emails/${type}.txt`)
+  })
+
+  // E1 (CA-E1-20) : la variante « essai » du rappel d'échéance (objet « essai », lien présélectionnant la période la plus courte,
+  // aucune grâce) est figée en texte ET en HTML, dans des fichiers à part : le snapshot historique `abonnement_rappel.txt` ne bouge pas.
+  it('should keep the exact message of the trial variant of abonnement_rappel (text)', async () => {
+    const instantane = FUSEAUX.flatMap((fuseau) => decrireCas('abonnement_rappel', casRappelEssai(fuseau), fuseau)).join('\n')
+
+    await expect(instantane).toMatchFileSnapshot('./__snapshots__/emails/abonnement_rappel_essai.txt')
+  })
+
+  it('should keep the exact HTML of the trial variant of abonnement_rappel', async () => {
+    await expect(decrireHtml('abonnement_rappel', casRappelEssai)).toMatchFileSnapshot('./__snapshots__/emails/abonnement_rappel_essai.html')
+  })
+
+  it.each(['abonnement_essai_services', 'abonnement_essai_statistiques', 'abonnement_essai_constat'] as const)('should keep the exact HTML of %s', async (type) => {
+    await expect(decrireHtml(type, CAS_PAR_TYPE[type])).toMatchFileSnapshot(`./__snapshots__/emails/${type}.html`)
   })
 
   it('should keep the exact current OTP message (subject, text, recipient, no header, no attachment)', async () => {
@@ -408,12 +473,25 @@ describe('e-mails : invariants du texte actuel (hors snapshot)', () => {
     }
   })
 
-  it('should carry List-Unsubscribe headers only on the two scheduled user e-mails', () => {
+  it('should carry List-Unsubscribe headers only on the two scheduled user e-mails and the two relational trial reminders (E1)', () => {
+    const relationnels: readonly TransactionalEmailType[] = [
+      'utilisateur_rappel_journee',
+      'utilisateur_resume_hebdo',
+      'abonnement_essai_services',
+      'abonnement_essai_statistiques',
+    ]
     for (const type of TRANSACTIONAL_EMAIL_TYPES) {
       const [cas] = CAS_PAR_TYPE[type]('Africa/Douala')
       const message = buildTransactionalEmail(cas!.contenu)
-      const avec = type === 'utilisateur_rappel_journee' || type === 'utilisateur_resume_hebdo'
-      expect(Object.keys(message.headers ?? {}).includes('List-Unsubscribe'), type).toBe(avec)
+      expect(Object.keys(message.headers ?? {}).includes('List-Unsubscribe'), type).toBe(relationnels.includes(type))
+    }
+  })
+
+  it('should send the trial variant of the due-date reminder as a service message: HTML and text, no List-Unsubscribe', () => {
+    for (const cas of casRappelEssai('Africa/Douala')) {
+      const message = buildTransactionalEmail(cas.contenu)
+      expect(message.html, cas.label).toBeTruthy()
+      expect(message.headers, cas.label).toBeUndefined()
     }
   })
 

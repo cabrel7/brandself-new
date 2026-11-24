@@ -1,3 +1,4 @@
+import { hkdfSync } from 'node:crypto'
 import { z } from 'zod'
 import { ADMIN_HOST_DEV_DEFAUT, APP_VERSION_DEFAUT, APP_VERSION_FORMAT } from './admin'
 import { IA_CLE_API_LONGUEUR_MIN, IA_FOURNISSEURS, IA_HOTES_HTTP_AUTORISES, IA_MODELE_DEFAUT } from './ia'
@@ -44,6 +45,13 @@ const baseUrlIaValide = (valeur: string): boolean => baseUrlValide(valeur, IA_HO
 const baseUrlKpayValide = (valeur: string): boolean => baseUrlValide(valeur, KPAY_HOTES_HTTP_AUTORISES)
 const baseUrlMercyPayValide = (valeur: string): boolean => baseUrlValide(valeur, MERCY_PAY_HOTES_HTTP_AUTORISES)
 
+/** E1 (D4) : longueur minimale du secret dédié de l'empreinte d'essai. */
+const ESSAI_EMPREINTE_SECRET_LONGUEUR_MIN = 32
+/** E1 (D4) : info HKDF du repli HORS production (distincte de `ESSAI_EMPREINTE_HKDF_INFO`, qui dérive la clé d'empreinte). */
+const ESSAI_EMPREINTE_SECRET_REPLI_INFO = 'jesuispro:essai-empreinte-secret-repli:v1'
+/** Longueur (octets) du secret de repli : 32 octets = 64 caractères hexadécimaux. */
+const ESSAI_EMPREINTE_SECRET_REPLI_OCTETS = 32
+
 /** Variable texte facultative : vide ou espaces = absente, sinon rognée. */
 const rognerOuAbsent = (valeur: unknown): unknown => videVautAbsent(typeof valeur === 'string' ? valeur.trim() : valeur)
 
@@ -67,6 +75,11 @@ const schemaPaiementEnLigne = z.preprocess(videVautAbsent, z.stringbool().defaul
 const schemaBooleenFaux = z.preprocess(videVautAbsent, z.stringbool().default(false))
 // Décision #24 : interrupteur d'urgence de la régénération du SEO (défaut vrai). Vide = absent.
 const schemaBooleenVrai = z.preprocess(videVautAbsent, z.stringbool().default(true))
+
+function deriverSecretEssaiRepli(secretAuth: string): string {
+  const cle = hkdfSync('sha256', secretAuth, '', ESSAI_EMPREINTE_SECRET_REPLI_INFO, ESSAI_EMPREINTE_SECRET_REPLI_OCTETS)
+  return Buffer.from(cle).toString('hex')
+}
 
 const schemaEnv = z
   .object({
@@ -184,8 +197,32 @@ const schemaEnv = z
         .regex(MEDIAS_CACHE_REFRESH_SECRET_FORMAT, 'doit contenir uniquement des caractères ASCII imprimables, sans espace')
         .optional(),
     ),
+    // E1 (D4) : secret DÉDIÉ de l'empreinte « un essai par personne » (indépendant du secret d'authentification, qui
+    // peut être tourné). À conserver comme une clé de chiffrement : le perdre ou le tourner rouvre les essais déjà
+    // consommés. Obligatoire en production ; hors production, repli dérivé de NUXT_BETTER_AUTH_SECRET (voir transform).
+    // Jamais journalisé ni renvoyé ; les messages d'erreur ne répètent pas la valeur.
+    ESSAI_EMPREINTE_SECRET: z.preprocess(
+      rognerOuAbsent,
+      z.string().min(ESSAI_EMPREINTE_SECRET_LONGUEUR_MIN, `doit contenir au moins ${ESSAI_EMPREINTE_SECRET_LONGUEUR_MIN} caractères`).optional(),
+    ),
   })
   .superRefine((env, ctx) => {
+    if (env.NODE_ENV === 'production' && !env.ESSAI_EMPREINTE_SECRET) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['ESSAI_EMPREINTE_SECRET'],
+        message: 'requis en production (secret dédié de l’empreinte de l’essai gratuit ; à conserver, ne jamais le tourner ni le perdre)',
+      })
+    }
+    // Le secret dédié n'a de sens que s'il est INDÉPENDANT du secret d'authentification (qui peut être tourné) : en
+    // production, une valeur identique est refusée (sans jamais répéter la valeur).
+    if (env.NODE_ENV === 'production' && env.ESSAI_EMPREINTE_SECRET !== undefined && env.ESSAI_EMPREINTE_SECRET === env.NUXT_BETTER_AUTH_SECRET) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['ESSAI_EMPREINTE_SECRET'],
+        message: 'doit être différent de NUXT_BETTER_AUTH_SECRET (le secret d’authentification peut être tourné, pas celui de l’empreinte)',
+      })
+    }
     if (env.IA_FOURNISSEUR === 'openai' && !env.IA_MODELE) {
       ctx.addIssue({
         code: 'custom',
@@ -340,6 +377,9 @@ const schemaEnv = z
     ADMIN_HOST: env.ADMIN_HOST ?? ADMIN_HOST_DEV_DEFAUT,
     // Garanti défini : `inconnue` sinon (D-A4-22).
     APP_VERSION: env.APP_VERSION ?? APP_VERSION_DEFAUT,
+    // Garanti défini : requis en production par la validation ci-dessus ; hors production, dérivé (HKDF, label distinct)
+    // de NUXT_BETTER_AUTH_SECRET pour que le développement et les tests n'exigent aucune variable de plus.
+    ESSAI_EMPREINTE_SECRET: env.ESSAI_EMPREINTE_SECRET ?? deriverSecretEssaiRepli(env.NUXT_BETTER_AUTH_SECRET),
   }))
 
 export type Env = z.infer<typeof schemaEnv>

@@ -6,7 +6,7 @@ export type EtatDesabonnement = 'chargement' | 'valide' | 'succes' | 'expire' | 
 
 /** Libellé de ce que la personne ne recevra plus, par préférence (complète « Ne plus recevoir … » et « Vous ne recevrez plus … »). */
 export const LIBELLES_DESABONNEMENT: Record<PreferenceEmail, string> = {
-  email_hebdo: 'le résumé de la semaine',
+  email_hebdo: 'nos conseils et le résumé de la semaine',
   email_rappel_jour: 'les rendez-vous du jour',
 }
 

@@ -208,6 +208,16 @@ export const schemaAlertesDto = z.strictObject({
 })
 export type AlertesDto = z.infer<typeof schemaAlertesDto>
 
+/** E1 D11 : indicateur de conversions des essais. `tauxPct` : entier de 0 à 100, `null` si aucun essai accordé. */
+export const schemaEssaisStatistiquesDto = z.strictObject({
+  jours: z.number().int().min(1),
+  accordes: schemaCompteur,
+  enCours: schemaCompteur,
+  convertis: schemaCompteur,
+  tauxPct: z.number().int().min(0).max(100).nullable(),
+})
+export type EssaisStatistiquesDto = z.infer<typeof schemaEssaisStatistiquesDto>
+
 /**
  * `GET /api/admin/vue-ensemble` enrichi (A3). REMPLACE `schemaVueEnsembleDto` d'A1 (qui interdit tout compteur) :
  * l'entrée de CONTRAT et le test d'A1 « sans compteur » doivent être mis à jour ensemble.
@@ -225,6 +235,8 @@ export const schemaVueEnsembleEnrichieDto = z.strictObject({
   indicateurReussite: z.strictObject({ vitrinesActives: schemaCompteur, vitrinesPubliees: schemaCompteur }),
   mention: z.string().min(1),
   alertes: schemaAlertesDto,
+  /** E1 D11 : essais gratuits sur `jours` jours glissants (accordés, en cours, convertis ; taux = convertis / accordés). */
+  essais: schemaEssaisStatistiquesDto,
   genereLe: schemaInstant,
 })
 export type VueEnsembleEnrichieDto = z.infer<typeof schemaVueEnsembleEnrichieDto>

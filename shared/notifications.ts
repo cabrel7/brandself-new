@@ -117,11 +117,14 @@ export const CODES_ANNULATION = [
   // S10 : rappel d'abonnement devenu sans objet (renouvelé), reçu d'un paiement non abouti.
   'ABONNEMENT_RENOUVELE',
   'PAIEMENT_NON_REUSSI',
+  // E1 : relance d'essai devenue sans objet (l'abonnement n'est plus un essai, ou la personne a déjà ajouté du contenu).
+  'ESSAI_TERMINE',
+  'CONTENU_DEJA_AJOUTE',
 ] as const
 export type CodeAnnulation = (typeof CODES_ANNULATION)[number]
 
 /** Libellés (vouvoiement) de chaque préférence, pour la page de désabonnement et le Compte. */
 export const PREFERENCES_EMAIL_LIBELLES: Record<PreferenceEmail, { titre: string, objet: string }> = {
-  email_hebdo: { titre: 'Résumé de la semaine', objet: 'le résumé de la semaine' },
+  email_hebdo: { titre: 'Résumé de la semaine', objet: 'nos conseils et le résumé de la semaine' },
   email_rappel_jour: { titre: 'Rendez-vous du jour', objet: 'les rendez-vous du jour' },
 }

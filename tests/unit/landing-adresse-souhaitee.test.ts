@@ -377,7 +377,8 @@ describe('useOnboarding — effacement après publication', () => {
 
     expect(ok).toBe(true)
     expect(lireCookie()).toBeNull()
-    expect(o.enLigne.value).toEqual({ username: 'mon-cabinet', prochaineEtape: null })
+    // E1 : `essai` (null quand la réponse n'en porte pas) accompagne l'état « en ligne ».
+    expect(o.enLigne.value).toEqual({ username: 'mon-cabinet', prochaineEtape: null, essai: null })
   })
 
   it('should publish the normalized username (trimmed, lowercase) when the field was filled from the cookie', async () => {

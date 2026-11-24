@@ -54,3 +54,20 @@ describe('ongletAbonnement : bornes exactes (D-A3-14)', () => {
     expect(ongletAbonnement(new Date(lointain.getTime() + 2 * JOUR_MS), NOW)).toBeNull()
   })
 })
+
+describe('ongletAbonnement : un essai n\'a jamais d\'onglet « grâce » (E1 D9)', () => {
+  it.each([
+    ['now + 3 jours', 3 * JOUR_MS, 'renouvellement'],
+    ['now - 2 jours (fenêtre de la grâce des autres)', -2 * JOUR_MS, null],
+    ['now (échéance atteinte)', 0, null],
+    ['now - 7 jours (borne de la grâce)', -7 * JOUR_MS, 'expires'],
+    ['now - 20 jours', -20 * JOUR_MS, 'expires'],
+    ['now - 40 jours', -40 * JOUR_MS, null],
+  ] as const)('should put an essai at %s in %s', (_titre, decalage, attendu) => {
+    expect(ongletAbonnement(apres(decalage), NOW, 7, 'essai')).toBe(attendu)
+  })
+
+  it.each(['paiement', 'offert', 'admin', null] as const)('should keep the grace tab for the origin %s (non-regression)', (origine) => {
+    expect(ongletAbonnement(apres(-2 * JOUR_MS), NOW, 7, origine)).toBe('grace')
+  })
+})

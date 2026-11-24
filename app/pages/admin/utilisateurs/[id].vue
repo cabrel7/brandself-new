@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { ADMIN_PREFIXE_API } from '#shared/admin'
+import { ABONNEMENT_FUSEAU_REPLI } from '#shared/plans'
 import type { UtilisateurFicheDto } from '#shared/schemas/admin-a2'
 import { etiquettesUtilisateur, messageDepuisErreurApi, valeurOuTiret } from '~/utils/admin-a2'
 import type { IdActionA2 } from '~/utils/admin-a2'
-import { LIBELLES_ORIGINE, formaterDate, formaterDateHeureAdmin, formaterNombre } from '~/utils/admin-paiements'
+import { LIBELLES_ORIGINE, libellesDatesAbonnement, formaterDate, formaterDateHeureAdmin, formaterNombre } from '~/utils/admin-paiements'
 
 definePageMeta({ layout: 'admin', middleware: 'admin' })
 useSeoMeta({ title: 'Utilisateur · Administration' })
@@ -151,11 +152,11 @@ async function apresAction(action: IdActionA2): Promise<void> {
               <dd class="m-0 text-encre">{{ LIBELLES_ORIGINE[data.abonnement.origine] }}</dd>
             </div>
             <div class="flex flex-col">
-              <dt class="text-(length:--fs-14) text-texte-secondaire">Expire le</dt>
-              <dd class="m-0 text-encre">{{ formaterDateHeureAdmin(data.abonnement.expireLe) }}</dd>
+              <dt class="text-(length:--fs-14) text-texte-secondaire">{{ libellesDatesAbonnement(data.abonnement.origine).fin }}</dt>
+              <dd class="m-0 text-encre">{{ formaterDateHeureAdmin(data.abonnement.expireLe) }} ({{ ABONNEMENT_FUSEAU_REPLI }})</dd>
             </div>
             <div class="flex flex-col">
-              <dt class="text-(length:--fs-14) text-texte-secondaire">Première activation</dt>
+              <dt class="text-(length:--fs-14) text-texte-secondaire">{{ libellesDatesAbonnement(data.abonnement.origine).debut }}</dt>
               <dd class="m-0 text-encre">{{ formaterDate(data.abonnement.premiereActivationLe) }}</dd>
             </div>
           </dl>

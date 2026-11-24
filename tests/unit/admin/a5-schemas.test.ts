@@ -112,10 +112,10 @@ describe('actions, cibles et navigation de l’A5', () => {
 
   it('should name the catalogues and the version types of the routes', () => {
     expect([...ADMIN_CATALOGUES]).toEqual(['pays', 'devises', 'noms-bloques'])
-    expect([...ADMIN_VERSION_TYPES]).toEqual(['plans', 'prix', 'frais', 'moyens', 'prompts'])
-    expect([...VERSION_CATEGORIES]).toEqual(['plan', 'prix', 'frais', 'moyens'])
+    expect([...ADMIN_VERSION_TYPES]).toEqual(['plans', 'prix', 'frais', 'moyens', 'essai', 'prompts'])
+    expect([...VERSION_CATEGORIES]).toEqual(['plan', 'prix', 'frais', 'moyens', 'essai'])
     expect([...VERSION_STATUTS]).toEqual(['brouillon', 'programmee', 'active', 'remplacee'])
-    expect(VERSION_CATEGORIE_PAR_TYPE).toEqual({ plans: 'plan', prix: 'prix', frais: 'frais', moyens: 'moyens' })
+    expect(VERSION_CATEGORIE_PAR_TYPE).toEqual({ plans: 'plan', prix: 'prix', frais: 'frais', moyens: 'moyens', essai: 'essai' })
   })
 
   it('should apply the scheduled versions every 60 seconds and cap the prompt trial at 10 per hour', () => {
@@ -455,7 +455,7 @@ describe('versions : entrées communes', () => {
     expect(versions.schemaHistoriqueVersionsQuery.safeParse({ cle: 'a'.repeat(61) }).success).toBe(false)
   })
 
-  it('should accept the five version types in a route and refuse any other', () => {
+  it('should accept the six version types in a route (E1 adds `essai`) and refuse any other', () => {
     for (const type of ADMIN_VERSION_TYPES) expect(versions.schemaVersionTypeParam.safeParse({ type }).success, type).toBe(true)
     expect(versions.schemaVersionTypeParam.safeParse({ type: 'pays' }).success).toBe(false)
     expect(versions.schemaVersionEntreeParam.safeParse({ type: 'prix', id: 'a5000000-prix-payant-1' }).success).toBe(true)
@@ -511,10 +511,12 @@ describe('versions : sorties', () => {
     expect(versions.schemaVersionDto.safeParse({ ...VERSION_PLAN_DTO, ip: '203.0.113.7' }).success).toBe(false)
   })
 
-  it('should accept the seeded versions of the four categories, a draft without effect date, and an unvalidated price', () => {
+  it('should accept the seeded versions of the five categories (E1 adds `essai`), a draft without effect date, and an unvalidated price', () => {
     expect(versions.schemaVersionDto.safeParse({ ...VERSION_PLAN_DTO, type: 'prix', id: 'a5000000-prix-payant-1', cle: 'payant', valeurs: SEED_PRIX }).success).toBe(true)
     expect(versions.schemaVersionDto.safeParse({ ...VERSION_PLAN_DTO, type: 'frais', id: 'a5000000-frais-kpay-1', cle: 'kpay:mobile_money', valeurs: { tauxPointsBase: 500, supporteur: 'marchand' } }).success).toBe(true)
     expect(versions.schemaVersionDto.safeParse({ ...VERSION_PLAN_DTO, type: 'moyens', id: 'a5000000-moyens-kpay-1', cle: 'kpay', valeurs: { actifs: ['kpay:MTN_MOMO_CMR'] } }).success).toBe(true)
+    expect(versions.schemaVersionDto.safeParse({ ...VERSION_PLAN_DTO, type: 'essai', id: 'e1000000-essai-inscription-1', cle: 'inscription', valeurs: { actif: true, dureeJours: 14, relanceServicesJour: 2, relanceStatistiquesJour: 7 } }).success).toBe(true)
+    expect(versions.schemaVersionDto.safeParse({ ...VERSION_PLAN_DTO, type: 'essai', id: 'e1000000-essai-inscription-1', cle: 'inscription', valeurs: { actif: true, dureeJours: 14 } }).success).toBe(false)
     expect(versions.schemaVersionDto.safeParse({ ...VERSION_PLAN_DTO, statut: 'brouillon', effectiveA: null, numero: 2 }).success).toBe(true)
     expect(versions.schemaVersionDto.safeParse({ ...VERSION_PLAN_DTO, numero: 0 }).success).toBe(false)
   })

@@ -1,0 +1,119 @@
+==========
+type: abonnement_essai_constat | cas: avec prénom | fuseau: Africa/Douala
+==========
+to: cabrel.pro@exemple.test
+subject: Votre essai gratuit est terminé
+headers:
+  (aucun)
+attachments:
+  (aucun)
+--- text ---
+Bonjour Cabrel,
+
+Votre essai gratuit jesuis.pro s'est terminé le 31 juillet 2026.
+
+Votre vitrine est revenue au plan gratuit.
+
+Ce qui dépasse les limites du plan gratuit n'est plus visible sur votre vitrine, mais rien n'est supprimé : vos services, réalisations et témoignages restent enregistrés et réapparaissent dès que vous passez au plan payant.
+
+Rien n'est prélevé sans votre accord.
+
+Pour retrouver le plan payant, choisissez votre période depuis votre studio :
+
+Voir mon abonnement : https://jesuis.pro/studio/compte?periode=1#abonnement
+
+À bientôt,
+jesuis.pro
+
+—
+Vous recevez cet e-mail parce que votre essai gratuit est terminé. C'est un message de service : il ne peut pas être désactivé.
+
+==========
+type: abonnement_essai_constat | cas: sans prénom | fuseau: Africa/Douala
+==========
+to: cabrel.pro@exemple.test
+subject: Votre essai gratuit est terminé
+headers:
+  (aucun)
+attachments:
+  (aucun)
+--- text ---
+Bonjour,
+
+Votre essai gratuit jesuis.pro s'est terminé le 31 juillet 2026.
+
+Votre vitrine est revenue au plan gratuit.
+
+Ce qui dépasse les limites du plan gratuit n'est plus visible sur votre vitrine, mais rien n'est supprimé : vos services, réalisations et témoignages restent enregistrés et réapparaissent dès que vous passez au plan payant.
+
+Rien n'est prélevé sans votre accord.
+
+Pour retrouver le plan payant, choisissez votre période depuis votre studio :
+
+Voir mon abonnement : https://jesuis.pro/studio/compte?periode=1#abonnement
+
+À bientôt,
+jesuis.pro
+
+—
+Vous recevez cet e-mail parce que votre essai gratuit est terminé. C'est un message de service : il ne peut pas être désactivé.
+
+==========
+type: abonnement_essai_constat | cas: avec prénom | fuseau: Europe/Paris
+==========
+to: cabrel.pro@exemple.test
+subject: Votre essai gratuit est terminé
+headers:
+  (aucun)
+attachments:
+  (aucun)
+--- text ---
+Bonjour Cabrel,
+
+Votre essai gratuit jesuis.pro s'est terminé le 1er août 2026.
+
+Votre vitrine est revenue au plan gratuit.
+
+Ce qui dépasse les limites du plan gratuit n'est plus visible sur votre vitrine, mais rien n'est supprimé : vos services, réalisations et témoignages restent enregistrés et réapparaissent dès que vous passez au plan payant.
+
+Rien n'est prélevé sans votre accord.
+
+Pour retrouver le plan payant, choisissez votre période depuis votre studio :
+
+Voir mon abonnement : https://jesuis.pro/studio/compte?periode=1#abonnement
+
+À bientôt,
+jesuis.pro
+
+—
+Vous recevez cet e-mail parce que votre essai gratuit est terminé. C'est un message de service : il ne peut pas être désactivé.
+
+==========
+type: abonnement_essai_constat | cas: sans prénom | fuseau: Europe/Paris
+==========
+to: cabrel.pro@exemple.test
+subject: Votre essai gratuit est terminé
+headers:
+  (aucun)
+attachments:
+  (aucun)
+--- text ---
+Bonjour,
+
+Votre essai gratuit jesuis.pro s'est terminé le 1er août 2026.
+
+Votre vitrine est revenue au plan gratuit.
+
+Ce qui dépasse les limites du plan gratuit n'est plus visible sur votre vitrine, mais rien n'est supprimé : vos services, réalisations et témoignages restent enregistrés et réapparaissent dès que vous passez au plan payant.
+
+Rien n'est prélevé sans votre accord.
+
+Pour retrouver le plan payant, choisissez votre période depuis votre studio :
+
+Voir mon abonnement : https://jesuis.pro/studio/compte?periode=1#abonnement
+
+À bientôt,
+jesuis.pro
+
+—
+Vous recevez cet e-mail parce que votre essai gratuit est terminé. C'est un message de service : il ne peut pas être désactivé.

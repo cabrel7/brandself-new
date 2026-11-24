@@ -24,7 +24,7 @@ export const ADMIN_JOURS_MAX = 365
 export const ADMIN_EMAIL_CONFIRMATION_MAX = 254
 
 /** D-A2-04 / spec §3 : origine d'un abonnement (`abonnements.origine`, CHECK `abonnements_origine_check`). */
-export const ABONNEMENT_ORIGINES = ['paiement', 'offert', 'admin'] as const
+export const ABONNEMENT_ORIGINES = ['paiement', 'offert', 'admin', 'essai'] as const
 export type AbonnementOrigine = (typeof ABONNEMENT_ORIGINES)[number]
 export const ORIGINE_PAR_DEFAUT: AbonnementOrigine = 'paiement'
 

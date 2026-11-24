@@ -38,6 +38,8 @@ describe('GET /api/public/tarifs (CA96, CA16)', () => {
     expect(dto.offre.moyens.map((m) => m.id).sort()).toEqual(['kpay:MTN_MOMO_CMR', 'kpay:ORANGE_CMR'])
     expect(dto.graceJours).toBe(7)
     expect(dto.renouvellementAutomatique).toBe(false)
+    // E1 (CA-E1-29) : la mention de l'essai suit la version `essai` active (v1 seedée : actif, 14 jours).
+    expect(dto.essai).toEqual({ actif: true, dureeJours: 14 })
     expect(reponse.entetes['cache-control']).toBe('public, max-age=300')
   })
 
@@ -96,6 +98,8 @@ describe('getAbonnementView : vue du Compte (CA68, CA64)', () => {
     expect(v.paiementEnCours).toBeNull()
     expect(v.quotas.find((q) => q.ressource === 'services')).toEqual({ ressource: 'services', utilise: 2, limite: 3 })
     expect(v.offre.paiementDisponible).toBe(true)
+    // E1 : pas d'essai en cours pour un compte gratuit.
+    expect(v.essai).toBeNull()
   })
 
   it('should describe the grace period : payer plan kept, end of grace, no ongoing payment (CA68)', async () => {
@@ -109,6 +113,7 @@ describe('getAbonnementView : vue du Compte (CA68, CA64)', () => {
     expect(v.etat.etat).toBe('grace')
     expect(v.etat.graceJusquau?.getTime()).toBe(plus(plus(now, -jours(3)), jours(7)).getTime())
     expect(v.paiementEnCours).toBeNull()
+    expect(v.essai).toBeNull()
     expect(v.quotas.every((q) => q.limite === null)).toBe(true)
   })
 
@@ -120,6 +125,8 @@ describe('getAbonnementView : vue du Compte (CA68, CA64)', () => {
 
     expect(v.etat).toMatchObject({ etat: 'actif', dernierJourInclus: '2026-12-03' })
     expect(v.etat.joursRestants).toBe(31)
+    // Un abonnement payé n'est pas un essai (l'essai en cours est prouvé dans essai-conversion.test.ts).
+    expect(v.essai).toBeNull()
   })
 
   it('should return the ongoing payment so that a reload of the Compte resumes the waiting screen (CA103 server side)', async () => {

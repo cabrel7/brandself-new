@@ -19,6 +19,8 @@ const production = {
   EMAIL_EXPEDITEUR: 'Brandself <bonjour@brandself.io>',
   NUXT_PUBLIC_SITE_URL: 'https://brandself.io',
   ADMIN_HOST: 'admin.brandself.io',
+  // E1 (D4) : secret dédié de l'empreinte d'essai, obligatoire en production (32 caractères au moins).
+  ESSAI_EMPREINTE_SECRET: 'secret-de-test-empreinte-essai-0123456789',
 }
 
 const SECRET = 'a'.repeat(MEDIAS_CACHE_REFRESH_SECRET_LONGUEUR_MIN)

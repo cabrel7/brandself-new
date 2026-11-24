@@ -1,14 +1,15 @@
 import { and, desc, eq, inArray } from 'drizzle-orm'
-import { paiements, users } from '../../shared/db/schema'
+import { abonnements, paiements, users } from '../../shared/db/schema'
 import type { Paiement } from '../../shared/db/schema'
 import type { OffreDTO, QuotaDTO } from '../../shared/dto/abonnement'
+import type { EssaiPublicDTO } from '../../shared/essai'
 import { PAIEMENT_STATUTS_OUVERTS } from '../../shared/paiements'
 import { PLAN_IDS } from '../../shared/plans'
 import type { PlanId, RessourceQuota } from '../../shared/plans'
 import { LIMITE_CHAMP_PAR_RESSOURCE } from '../config/plans'
 import type { ConfigPlan } from '../config/plans'
 import { db } from '../utils/db'
-import { assurerInstantane, lirePlanConfig } from './configuration/lecture'
+import { assurerInstantane, instantaneCache, lirePlanConfig } from './configuration/lecture'
 import { construireOffre } from './paiements/offre'
 import { getPlanEffectif, getQuotas } from './plans'
 import type { PlanEffectif } from './plans'
@@ -30,7 +31,12 @@ export interface AbonnementView {
   paiementEnCours: Paiement | null
   quotas: QuotaDTO[]
   offre: OffreDTO
+  /** E1 : `finLe` de l'essai tant qu'il est EN COURS (origine `essai` et état actif) ; `null` sinon (payé, offert, échu). */
+  essai: { finLe: Date } | null
 }
+
+/** Origine d'un abonnement d'essai gratuit (`abonnements.origine`). */
+const ORIGINE_ESSAI = 'essai'
 
 /** Limite d'une ressource dans la configuration d'un plan (`null` = illimité). */
 export function limiteConfig(config: ConfigPlan, ressource: RessourceQuota): number | null {
@@ -40,7 +46,7 @@ export function limiteConfig(config: ConfigPlan, ressource: RessourceQuota): num
 /** Vue du Compte : plan effectif (calculé, PlanService), paiement en cours, quotas et offre de paiement. */
 export async function getAbonnementView(userId: string, now: Date): Promise<AbonnementView> {
   await assurerInstantane()
-  const [etat, quotas, [utilisateur], [enCours]] = await Promise.all([
+  const [etat, quotas, [utilisateur], [enCours], [ligneAbonnement]] = await Promise.all([
     getPlanEffectif(userId, now),
     getQuotas(userId, now),
     db.select({ devise: users.devise }).from(users).where(eq(users.id, userId)),
@@ -50,22 +56,28 @@ export async function getAbonnementView(userId: string, now: Date): Promise<Abon
       .where(and(eq(paiements.userId, userId), inArray(paiements.statut, [...PAIEMENT_STATUTS_OUVERTS])))
       .orderBy(desc(paiements.createdAt))
       .limit(1),
+    db.select({ origine: abonnements.origine }).from(abonnements).where(eq(abonnements.userId, userId)).limit(1),
   ])
+  const finEssai = ligneAbonnement?.origine === ORIGINE_ESSAI && etat.etat === 'actif' ? etat.expireLe : null
   return {
     plan: etat.plan,
     etat,
     paiementEnCours: enCours ?? null,
     quotas,
     offre: construireOffre(utilisateur?.devise),
+    essai: finEssai === null ? null : { finLe: finEssai },
   }
 }
 
 /** Plans et offre publics (`/tarifs`) : configuration seule, aucune base. */
-export function getTarifs(devise: string | undefined): { plans: { id: PlanId, config: ConfigPlan }[], offre: OffreDTO } {
+export function getTarifs(devise: string | undefined): { plans: { id: PlanId, config: ConfigPlan }[], offre: OffreDTO, essai: EssaiPublicDTO } {
   // A5 : plans, prix, frais et moyens viennent des versions ACTIVES (instantané de 5 s au plus, rafraîchi en tâche de
   // fond : la route publique reste synchrone), repli sur le code.
+  // E1 : la mention de l'essai suit la version `essai` active (même instantané, même cache de 5 s).
+  const { actif, dureeJours } = instantaneCache().essai
   return {
     plans: PLAN_IDS.map((id) => ({ id, config: lirePlanConfig(id) })),
     offre: construireOffre(devise),
+    essai: { actif, dureeJours },
   }
 }

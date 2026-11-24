@@ -8,8 +8,8 @@ import { schemaVitrineCreate } from '#shared/schemas/vitrine'
 export default defineApiHandler(async (event) => {
   const { user } = await requireUserSession(event)
   const input = await readBodyWith(event, schemaVitrineCreate)
-  await createVitrine(user.id, input)
+  const { essai } = await createVitrine(user.id, input)
   const { vitrine, resume } = await getStudioView(user.id)
   setResponseStatus(event, 201)
-  return { vitrine: toVitrineStudioResource(vitrine), resume: toStudioResumeResource(resume) }
+  return { vitrine: toVitrineStudioResource(vitrine), resume: toStudioResumeResource(resume), essai }
 })

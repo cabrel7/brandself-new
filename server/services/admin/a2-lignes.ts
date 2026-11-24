@@ -48,7 +48,7 @@ export interface VitrineLigneVue {
 
 // ---------------------------------------------------------------------------------------------
 // État d'abonnement en SQL (filtres et tris). Même règle que `resoudrePlanEffectif` : actif avant l'échéance, grâce
-// pendant `graceJours` jours (réglage `abonnement.grace_jours`, lu par l'appelant via `lireGraceJours`), sinon gratuit. Le calcul affiché, lui, passe toujours par
+// pendant `graceJours` jours SAUF pour un essai (E1 D9 : aucune grâce, `origine = 'essai'`) (réglage `abonnement.grace_jours`, lu par l'appelant via `lireGraceJours`), sinon gratuit. Le calcul affiché, lui, passe toujours par
 // `resoudrePlanEffectif` (source unique) ; le SQL ne sert qu'à filtrer et trier.
 // ---------------------------------------------------------------------------------------------
 
@@ -56,7 +56,8 @@ export function sqlEtatAbonnement(now: Date, graceJours: number): SQL<EtatAbonne
   return sql<EtatAbonnement>`(CASE
     WHEN ${abonnements.id} IS NULL OR ${abonnements.plan} <> ${PLAN_PAYANT_ID} THEN 'gratuit'
     WHEN ${abonnements.expireLe} > ${now.toISOString()}::timestamptz THEN 'actif'
-    WHEN ${abonnements.expireLe} + make_interval(days => ${graceJours}::int) > ${now.toISOString()}::timestamptz THEN 'grace'
+    WHEN ${abonnements.origine} <> 'essai'
+      AND ${abonnements.expireLe} + make_interval(days => ${graceJours}::int) > ${now.toISOString()}::timestamptz THEN 'grace'
     ELSE 'gratuit' END)`
 }
 
@@ -67,13 +68,13 @@ export function sqlPlanAbonnement(now: Date, graceJours: number): SQL<PlanId> {
 
 /** Plan et état d'un compte (source unique : `resoudrePlanEffectif`). */
 export function planDuCompte(
-  abonnement: { plan: string | null, expireLe: Date | null },
+  abonnement: { plan: string | null, expireLe: Date | null, origine: string | null },
   fuseau: string,
   now: Date,
   graceJours: number,
 ): { plan: PlanId, etat: EtatAbonnement } {
   const lu = abonnement.plan !== null && abonnement.expireLe !== null
-    ? { plan: abonnement.plan, expireLe: abonnement.expireLe }
+    ? { plan: abonnement.plan, expireLe: abonnement.expireLe, origine: abonnement.origine }
     : null
   const effectif = resoudrePlanEffectif(lu, now, fuseau, graceJours)
   return { plan: effectif.plan, etat: effectif.etat }
@@ -183,6 +184,7 @@ export function colonnesUtilisateur() {
     blocageAdmin: vitrines.blocageAdmin,
     abonnementPlan: abonnements.plan,
     abonnementExpireLe: abonnements.expireLe,
+    abonnementOrigine: abonnements.origine,
   }
 }
 
@@ -201,10 +203,11 @@ interface BruteUtilisateur {
   blocageAdmin: boolean | null
   abonnementPlan: string | null
   abonnementExpireLe: Date | null
+  abonnementOrigine: string | null
 }
 
 export function versLigneUtilisateur(brute: BruteUtilisateur, now: Date, graceJours: number): UtilisateurLigneVue {
-  const { plan, etat } = planDuCompte({ plan: brute.abonnementPlan, expireLe: brute.abonnementExpireLe }, brute.fuseau, now, graceJours)
+  const { plan, etat } = planDuCompte({ plan: brute.abonnementPlan, expireLe: brute.abonnementExpireLe, origine: brute.abonnementOrigine }, brute.fuseau, now, graceJours)
   return {
     id: brute.id,
     nom: nomAffiche(brute.nom, brute.nomUsuel),
@@ -238,6 +241,7 @@ export function colonnesVitrine() {
     fuseau: users.fuseau,
     abonnementPlan: abonnements.plan,
     abonnementExpireLe: abonnements.expireLe,
+    abonnementOrigine: abonnements.origine,
   }
 }
 
@@ -256,10 +260,11 @@ interface BruteVitrine {
   fuseau: string
   abonnementPlan: string | null
   abonnementExpireLe: Date | null
+  abonnementOrigine: string | null
 }
 
 export function versLigneVitrine(brute: BruteVitrine, now: Date, graceJours: number): VitrineLigneVue {
-  const { plan } = planDuCompte({ plan: brute.abonnementPlan, expireLe: brute.abonnementExpireLe }, brute.fuseau, now, graceJours)
+  const { plan } = planDuCompte({ plan: brute.abonnementPlan, expireLe: brute.abonnementExpireLe, origine: brute.abonnementOrigine }, brute.fuseau, now, graceJours)
   return {
     id: brute.id,
     utilisateurId: brute.utilisateurId,

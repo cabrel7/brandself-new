@@ -33,11 +33,16 @@ export async function useTarifs() {
     },
   })
   const prixChoisi = computed(() => prixPeriodes.value.find((p) => p.periodeMois === periode.value) ?? null)
+  /** E1 : mention de l'essai gratuit ; `null` quand la version `essai` active est désactivée (ou la réponse absente). */
+  const mentionEssai = computed(() => {
+    const essai = tarifs.value?.essai
+    return essai?.actif ? mentionEssaiPublic(essai.dureeJours) : null
+  })
   const moyensLibelles = computed(() => tarifs.value?.offre.moyens.map((m) => m.libelle) ?? [])
 
   return {
     tarifs, erreur: error, refresh,
     gratuit, payant, paiementDisponible, devises, devise, deviseChoisie, deviseOffre,
-    prixPeriodes, periode, prixChoisi, moyensLibelles,
+    prixPeriodes, periode, prixChoisi, moyensLibelles, mentionEssai,
   }
 }

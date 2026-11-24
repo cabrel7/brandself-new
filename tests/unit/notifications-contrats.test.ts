@@ -26,6 +26,8 @@ const PRODUCTION = {
   ADMIN_HOST: 'admin.brandself.io',
   // Éviction du cache des images : obligatoire en production.
   MEDIAS_CACHE_REFRESH_SECRET: 'secret-de-test-cache-images-0123456789',
+  // E1 (D4) : secret dédié de l'empreinte d'essai, obligatoire en production (min. 32 caractères).
+  ESSAI_EMPREINTE_SECRET: 'secret-de-test-empreinte-essai-0123456789',
 }
 
 describe('shared/notifications.ts : valeurs décidées (#84, #86, #87, #88, #92, #97)', () => {
@@ -91,12 +93,14 @@ describe('shared/notifications.ts : valeurs décidées (#84, #86, #87, #88, #92,
     expect([...N.EMAIL_STATUTS]).toEqual(['en_attente', 'en_cours', 'envoye', 'echec', 'annule'])
   })
 
-  it('should list eleven cancellation codes (nine S9 + two S10) that fit the erreur_code CHECK (A-Z0-9_, 1 to 64 characters)', () => {
+  it('should list thirteen cancellation codes (nine S9 + two S10 + two E1) that fit the erreur_code CHECK (A-Z0-9_, 1 to 64 characters)', () => {
     expect([...N.CODES_ANNULATION].sort()).toEqual([
       'ABONNEMENT_RENOUVELE',
       'AUCUN_RENDEZ_VOUS',
+      'CONTENU_DEJA_AJOUTE',
       'DESTINATAIRE_ABSENT',
       'ENTITE_INTROUVABLE',
+      'ESSAI_TERMINE',
       'PAIEMENT_NON_REUSSI',
       'PLAFOND_RELATIONNEL',
       'PREFERENCE_DESACTIVEE',
@@ -111,13 +115,13 @@ describe('shared/notifications.ts : valeurs décidées (#84, #86, #87, #88, #92,
   })
 
   it('should give both preferences a French label usable in « Ne plus recevoir … ? »', () => {
-    expect(N.PREFERENCES_EMAIL_LIBELLES.email_hebdo).toEqual({ titre: 'Résumé de la semaine', objet: 'le résumé de la semaine' })
+    expect(N.PREFERENCES_EMAIL_LIBELLES.email_hebdo).toEqual({ titre: 'Résumé de la semaine', objet: 'nos conseils et le résumé de la semaine' })
     expect(N.PREFERENCES_EMAIL_LIBELLES.email_rappel_jour).toEqual({ titre: 'Rendez-vous du jour', objet: 'les rendez-vous du jour' })
   })
 })
 
 describe('shared/jobs.ts : types d’e-mails et jobs (#81, #82)', () => {
-  it('should add the three planned e-mail types (S9) then the two subscription ones (S10) after the eight historical ones, without duplicates', () => {
+  it('should add the three planned e-mail types (S9), the two subscription ones (S10), the four administration ones (A2) then the three trial ones (E1) after the eight historical ones, without duplicates', () => {
     expect([...TRANSACTIONAL_EMAIL_TYPES]).toEqual([
       'reservation_professionnel_nouvelle',
       'reservation_visiteur_recue',
@@ -137,6 +141,11 @@ describe('shared/jobs.ts : types d’e-mails et jobs (#81, #82)', () => {
       'utilisateur_reactive',
       'utilisateur_jours_offerts',
       'utilisateur_depubliee',
+      // E1 : relances de l'essai gratuit (jour 2 services, jour 7 statistiques).
+      'abonnement_essai_services',
+      'abonnement_essai_statistiques',
+      // E1 : constat de fin d'essai (e-mail de service, lendemain de la fin à 9 h locale).
+      'abonnement_essai_constat',
     ])
     expect(new Set(TRANSACTIONAL_EMAIL_TYPES).size).toBe(TRANSACTIONAL_EMAIL_TYPES.length)
   })
@@ -153,6 +162,13 @@ describe('shared/jobs.ts : types d’e-mails et jobs (#81, #82)', () => {
       'utilisateur_reactive',
       'utilisateur_jours_offerts',
       'utilisateur_depubliee',
+    ])
+    expect(TRANSACTIONAL_EMAIL_TYPES.filter((type) => type.startsWith('abonnement_'))).toEqual([
+      'abonnement_rappel',
+      // E1 : relances de l'essai gratuit.
+      'abonnement_essai_services',
+      'abonnement_essai_statistiques',
+      'abonnement_essai_constat',
     ])
   })
 

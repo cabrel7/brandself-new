@@ -12,6 +12,7 @@ const TEXTES = {
 const ROUTE_TARIFS = '/tarifs'
 
 const source = await useTarifs()
+const { mentionEssai } = source
 const { cartes, indisponible } = useTarifsAffichage(source, { accrochePayant: true })
 </script>
 
@@ -43,7 +44,10 @@ const { cartes, indisponible } = useTarifsAffichage(source, { accrochePayant: tr
         <div class="mx-auto grid max-w-240 items-stretch gap-6 md:grid-cols-2 md:gap-7">
           <MarketingPlanCarte v-for="carte in cartes" :key="carte.id" :carte="carte" />
         </div>
-        <p class="m-0 mt-8 text-center">
+        <p v-if="mentionEssai" class="m-0 mt-8 text-center text-base font-semibold text-encre">
+          {{ mentionEssai }}
+        </p>
+        <p class="m-0 text-center" :class="mentionEssai ? 'mt-2' : 'mt-8'">
           <NuxtLink :to="ROUTE_TARIFS" class="inline-flex min-h-(--cible-tactile) items-center font-semibold text-accent-texte underline underline-offset-4">
             {{ TEXTES.detail }}
           </NuxtLink>
